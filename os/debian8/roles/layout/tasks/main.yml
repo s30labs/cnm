@@ -31,25 +31,25 @@
   file: path=/opt/crawler src=/opt/cnm/crawler state=link owner=root group=root mode=0755
   tags: layout
 
-- name: Legacy link [/var/www/html/onm -> /opt/cnm/onm]
-  file: path=/var/www/html/onm src=/opt/cnm/onm state=link owner=root group=root mode=0755
-  tags: layout
+#- name: Legacy link [/var/www/html/onm -> /opt/cnm/onm]
+#  file: path=/var/www/html/onm src=/opt/cnm/onm state=link owner=root group=root mode=0755
+#  tags: layout
 
-- name: Legacy link [/var/www/cgi-bin -> /opt/cnm/cgi-bin]
-  file: path=/var/www/cgi-bin src=/opt/cnm/cgi-bin state=link owner=root group=root mode=0755
-  tags: layout
+#- name: Legacy link [/var/www/cgi-bin -> /opt/cnm/cgi-bin]
+#  file: path=/var/www/cgi-bin src=/opt/cnm/cgi-bin state=link owner=root group=root mode=0755
+#  tags: layout
 
-- name: Legacy link [/var/www/html/tphp -> /opt/cnm/tphp]
-  file: path=/var/www/html/tphp src=/opt/cnm/tphp state=link owner=root group=root mode=0755
-  tags: layout
+#- name: Legacy link [/var/www/html/tphp -> /opt/cnm/tphp]
+#  file: path=/var/www/html/tphp src=/opt/cnm/tphp state=link owner=root group=root mode=0755
+#  tags: layout
 
 - name: Legacy link [/opt/data/mibs -> /opt/cnm-mibs]
   file: path=/opt/data/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0755
   tags: layout
 
-- name: Legacy link [/opt/data/xagent -> /opt/cnm/xagent]
-  file: path=/opt/data/xagent src=/opt/cnm/xagent state=link owner=root group=root mode=0755
-  tags: layout
+#- name: Legacy link [/opt/data/xagent -> /opt/cnm/xagent]
+#  file: path=/opt/data/xagent src=/opt/cnm/xagent state=link owner=root group=root mode=0755
+#  tags: layout
 
 - name: Legacy link [/update -> /opt/cnm/update]
   file: path=/update src=/opt/cnm/update state=link owner=root group=root mode=0755

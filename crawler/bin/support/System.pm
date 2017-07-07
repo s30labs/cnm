@@ -1255,6 +1255,9 @@ print "packfile=$packfile---\n";
 
 	# ------------------------------------------------------------------
 	my $file_modules='/opt/cnm-os/perl_modules/perl_modules.txt';
+   if (-f '/opt/cnm-extras/perl_modules/perl_modules.txt') { 
+		$file_modules='/opt/cnm-extras/perl_modules/perl_modules.txt'; 
+	}
 	open (F,"<$file_modules");
 	print "MODULO: [INSTALLED|UNINST] INSTALADA | ACTUAL\tNOMBRE DEL MODULO\n";
 	while (<F>) {
@@ -1268,6 +1271,9 @@ print "packfile=$packfile---\n";
 
    # ------------------------------------------------------------------
    my $file_modules_forced='/opt/cnm-os/perl_modules/perl_modules_forced.txt';
+   if (-f '/opt/cnm-extras/perl_modules/perl_modules_forced.txt') { 
+		$file_modules_forced='/opt/cnm-extras/perl_modules/perl_modules_forced.txt'; 
+	}
 	if (-f $file_modules_forced) {
 	   open (F,"<$file_modules_forced");
    	print "***FORCED***\n";
@@ -1287,7 +1293,9 @@ sub install_perl_module  {
 my $module_name=shift;
 
    my $CWD = getcwd;
-   chdir '/opt/cnm-os/perl_modules';
+	my $dir_modules='/opt/cnm-os/perl_modules';
+	if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
+   chdir $dir_modules;
    my $cmd="./iperl $module_name 2>&1 > /tmp/$module_name.log";
    print "+++Instalando $module_name ...\n\t($cmd)\n";
    `$cmd`;
