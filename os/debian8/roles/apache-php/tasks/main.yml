@@ -126,7 +126,7 @@
   tags: apache-php
 
 - name: Extract from source
-  command: tar -C /tmp/src/pecl_http -xzvf  /opt/cnm-os/deb8/updates/0000_php_modules/pecl_http-2.4.3.tgz
+  command: tar -C /tmp/src/pecl_http -xzvf  /opt/cnm-extras/src/php_modules/pecl_http-2.4.3.tgz
   when: http_support.stdout == "0"
   tags: apache-php
 

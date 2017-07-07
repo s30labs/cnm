@@ -6,7 +6,7 @@
   register: otrs_config_pm
 
 - name: Extract from source
-  command: tar -C /opt -xzvf /opt/cnm-os/otrs/otrs-3.3.5.tar.gz
+  command: tar -C /opt -xzvf /opt/cnm-extras/src/otrs/otrs-3.3.5.tar.gz
   when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
   tags: otrs
 

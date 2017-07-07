@@ -24,7 +24,7 @@
   tags: net-snmp
 
 - name: Extract from source
-  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-os/deb8/updates/0001_net_snmp/net-snmp-5.7.3.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.30
+  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/src/net_snmp/net-snmp-5.7.3.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.30
   tags: net-snmp
 
 - name: Configure

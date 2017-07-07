@@ -38,7 +38,6 @@
   file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode={{ item.mode }}
   with_items:
     - { path: '/opt/data', src: '/store/data', mode: '0777' }
-    - { path: '/os', src: '/opt/cnm-os', mode: '0640' }
   tags: mysql
 
 
