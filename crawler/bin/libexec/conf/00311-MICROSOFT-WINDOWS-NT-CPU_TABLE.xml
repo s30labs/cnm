@@ -1,0 +1,121 @@
+<mibtable>
+
+   <oid_cols>cpuprocessorIndex_cpuPercentProcessorTime_cpuPercentUserTime_cpuPercentPrivilegedTime_cpuInterruptsPerSec_cpuPercentDPCTime_cpuPercentInterruptTime_cpuDPCsQueuedPerSec_cpuDPCRate_cpuDPCBypassesPerSec_cpuAPCBypassesPerSec</oid_cols>
+	<oid_last>WINDOWS-NT-PERFORMANCE::cpuprocessorTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuprocessorIndex</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuPercentProcessorTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuPercentUserTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuPercentPrivilegedTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuInterruptsPerSec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuPercentDPCTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuPercentInterruptTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuDPCsQueuedPerSec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuDPCRate</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuDPCBypassesPerSec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpuAPCBypassesPerSec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+</mibtable>

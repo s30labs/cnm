@@ -1,0 +1,81 @@
+<mibtable>
+
+   <oid_cols>cpqSePciSlotBusNumberIndex_cpqSePciSlotDeviceNumberIndex_cpqSePciPhysSlot_cpqSePciSlotSubSystemID_cpqSePciSlotBoardName_cpqSePciSlotWidth_cpqSePciSlotSpeed</oid_cols>
+	<oid_last>CPQSTDEQ-MIB::cpqSePciSlotTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotBusNumberIndex</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotDeviceNumberIndex</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciPhysSlot</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotSubSystemID</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotBoardName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotWidth</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpqSePciSlotSpeed</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

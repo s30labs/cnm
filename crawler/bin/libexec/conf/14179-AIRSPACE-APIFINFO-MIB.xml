@@ -1,0 +1,151 @@
+<mibtable>
+
+   <oid_cols>bsnAPIfSlotId_bsnAPIfType_bsnAPIfPhyChannelAssignment_bsnAPIfPhyChannelNumber_bsnAPIfPhyTxPowerControl_bsnAPIfPhyTxPowerLevel_bsnAPIfPhyAntennaType_bsnAPIfPhyAntennaMode_bsnAPIfPhyAntennaDiversity_bsnAPIfOperStatus_bsnApIfNoOfUsers_bsnAPIfAntennaGain_bsnAPIfChannelList_bsnAPIfAdminStatus</oid_cols>
+	<oid_last>AIRESPACE-WIRELESS-MIB::bsnAPIfTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfSlotId</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyChannelAssignment</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyChannelNumber</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyTxPowerControl</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyTxPowerLevel</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyAntennaType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyAntennaMode</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPhyAntennaDiversity</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfOperStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnApIfNoOfUsers</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfAntennaGain</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfChannelList</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>13</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfAdminStatus</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

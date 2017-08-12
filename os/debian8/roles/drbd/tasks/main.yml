@@ -1,0 +1,55 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+# Add specified repository into sources list.
+- name: Configure repository 
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: drbd
+
+- name: Install packages
+  apt: name=drbd8-utils state=present force=yes
+  tags: drbd
+
+- name: Check if is lxc
+  shell: grep lxc /proc/1/cgroup|wc -l
+  register: is_lxc
+  tags: drbd
+
+- name: probando2
+  debug:
+    var: is_lxc.stdout
+  
+# Caso LXC
+
+- name: Caso LXC >> Verify /log only
+  file: path=/log state=directory owner=root group=root mode=0755
+  when: is_lxc.stdout != "0"
+  tags: drbd
+
+# Caso no LXC
+
+- name: Configure store.res
+  template: src=store.res.j2 dest=/etc/drbd.d/store.res
+  when: is_lxc.stdout == "0"
+  tags: drbd
+
+- name: Verify global_common.conf
+  copy: src=global_common.conf dest=/etc/drbd.d/global_common.conf  owner=root group=root mode=0644
+  when: is_lxc.stdout == "0"
+  tags: drbd
+
+- name: Create drbd store
+  command: "{{ item }}"
+  with_items:
+    - dd if=/dev/zero of={{ drbd_partition }} bs=1M count=128
+    - drbdadm create-md store
+    - drbdadm up store
+    - drbdadm -- --overwrite-data-of-peer primary store
+    - mkfs.ext4 /dev/drbd1
+    - mkdir /store
+    - mount /dev/drbd1 /store
+  when: is_lxc.stdout == "0" and drbd_partition is defined
+  tags: drbd
+
+...

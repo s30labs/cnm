@@ -1,0 +1,55 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+# Inicializa los valores a 0 del campo duration del alerts_store.
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Crawler::Store;
+use ONMConfig;
+
+#-----------------------------------------------------------------------
+my $LOG_LEVEL='info';
+my $LOG_MODE=1;
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{'db_server'}->[0];
+my $db_name=$rcfgbase->{'db_name'}->[0];
+my $db_user=$rcfgbase->{'db_user'}->[0];
+my $db_pwd=$rcfgbase->{'db_pwd'}->[0];
+my $HOST=$rcfgbase->{'host_name'}->[0];
+
+my $STORE_PATH=$rcfgbase->{'store_path'}->[0];
+my $txml_path=$rcfgbase->{'txml_path'}->[0];
+
+# STORE ------------------------------------
+my $STORE=Crawler::Store->new( store_path=>$STORE_PATH,
+                               db_server=>$db_server,
+                               db_name=>$db_name,
+                               db_user=>$db_user,
+                               db_pwd=>$db_pwd,
+                               log_level=>$LOG_LEVEL, log_mode=>$LOG_MODE );
+my $dbh=$STORE->open_db();
+
+my @NEW;
+my $rres=$STORE->get_from_db($dbh,'id_alert,counter,duration','alerts_store');
+foreach my $l (@$rres) {
+	if ($l->[2]==0) {
+		my $dur=($l->[1])*90;
+		print "id=$l->[0]: duration=$l->[2] ==> $dur (counter=$l->[1])\n";
+		push @NEW, {id_alert=>$l->[0], duration=>$dur }
+	}
+}
+
+
+foreach my $data (@NEW) {
+	$STORE->update_db($dbh,'alerts_store',$data,"id_alert=$data->{id_alert}");
+	my $err=$STORE->error();
+	if ($err==0) { print "[OK] id=$data->{id_alert} --> dur=$data->{duration}\n"; }
+	else { 
+		my $errstr=$STORE->errorstr();
+		print "[ERROR] id=$data->{id_alert} --> dur=$data->{duration} ($errstr)\n"; 
+	}
+}
+

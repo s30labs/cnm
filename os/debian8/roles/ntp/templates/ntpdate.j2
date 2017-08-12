@@ -1,0 +1,15 @@
+#!/bin/bash
+
+/usr/sbin/ntpdate {{ ntpserver }}  > /tmp/ntpdate.out 2>&1
+CODE=$?
+if [ "$CODE" -ne 0 ] ; then
+
+   MSG=`cat /tmp/ntpdate.out | tr '\r\n' ' '`
+
+   IP=`/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`
+echo $IP
+
+   /usr/bin/snmptrap -v 2c -c public $IP '' CNM-NOTIFICATIONS-MIB::cnmNotifNTPSyncFailure CNM-NOTIFICATIONS-MIB::cnmNotifCode.0 i "$CODE" CNM-NOTIFICATIONS-MIB::cnmNotifMsg.0 s "$MSG" CNM-NOTIFICATIONS-MIB::cnmNotifKey.0 s ""
+fi
+
+exit "$CODE"

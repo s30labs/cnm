@@ -1,0 +1,151 @@
+<VirtualHost *:80>
+	ServerAdmin webmaster@localhost
+	
+	DocumentRoot /var/www/html
+   #include /store/www-user/apache2/cnm-http-proxy
+
+	<Directory />
+		Options FollowSymLinks
+		AllowOverride None
+	</Directory>
+	<Directory /var/www/html>
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride None
+      Require all granted
+		# This directive allows us to have apache2's default start page
+      # in /apache2-default/, but still have / go to the right place
+      #RedirectMatch ^/$ /apache2-default/
+      RedirectMatch ^/$ /onm/mod_login.php
+      Redirect /onm/mod_login.html /onm/mod_login.php
+		Options -Indexes
+	</Directory>
+
+	ScriptAlias /cgi-bin/ /var/www/cgi-bin/
+	<Directory "/var/www/cgi-bin">
+		AllowOverride None
+		Options +ExecCGI +SymLinksIfOwnerMatch -MultiViews
+      Require all granted
+	</Directory>
+
+	ErrorLog /var/log/apache2/error.log
+
+	# Possible values include: debug, info, notice, warn, error, crit,
+	# alert, emerg.
+	LogLevel warn
+
+	CustomLog /var/log/apache2/access.log combined
+	ServerSignature On
+
+	# Turn on Expires and set default to 0
+	ExpiresActive On
+	ExpiresDefault A0
+
+	
+	
+   ScriptAlias /otrs/ "/opt/otrs/bin/cgi-bin/"
+   Alias /otrs-web/ "/opt/otrs/var/httpd/htdocs/"
+
+   Perlrequire /opt/otrs/scripts/apache2-perl-startup.pl
+
+   PerlModule Apache2::Reload
+   PerlInitHandler Apache2::Reload
+   PerlModule Apache2::RequestRec
+
+   <Location /otrs>
+      ErrorDocument 403 /otrs/index.pl
+      SetHandler  perl-script
+      PerlResponseHandler ModPerl::Registry
+      Options +ExecCGI
+      PerlOptions +ParseHeaders
+      PerlOptions +SetupEnv
+      Require all granted
+   </Location>
+		
+   <Location /otrs/nph-genericinterface.pl>
+      PerlOptions -ParseHeaders
+   </Location>
+
+</VirtualHost>
+
+<VirtualHost *:443>
+   ServerAdmin webmaster@localhost
+
+   DocumentRoot /var/www/html
+	#include /store/www-user/apache2/cnm-http-proxy
+
+#   RewriteLog "/var/log/apache2/rewrite.log"
+#   RewriteLogLevel 2
+
+   SSLEngine on
+   SSLCertificateKeyFile /etc/apache2/cnm_default.pem
+   SSLCertificateFile /etc/apache2/cnm_default.pem
+   SetEnvIf User-Agent ".*MSIE.*" nokeepalive ssl-unclean-shutdown
+
+   <Directory />
+      Options FollowSymLinks
+      AllowOverride None
+   </Directory>
+   <Directory /var/www/html>
+      Options Indexes FollowSymLinks MultiViews
+      AllowOverride None
+      Require all granted
+      # This directive allows us to have apache2's default start page
+      # in /apache2-default/, but still have / go to the right place
+      #RedirectMatch ^/$ /apache2-default/
+      RedirectMatch ^/$ /onm/mod_login.php
+      Redirect /onm/mod_login.html /onm/mod_login.php
+		Options -Indexes
+
+      <IfModule mod_rewrite.c>
+         RewriteEngine On
+         RewriteBase /onm/api/
+         #RewriteRule 1.0/([^\/]+)/(.+)\.(xml|json|atom) api10.php?PHPSESSID=$1&endpoint=$2&content_type=$3
+			RewriteRule 1.0/(.+)\.(html|xml|json|atom) api10.php?endpoint=$1&content_type=$2&%{QUERY_STRING} [NC,L]
+      </IfModule>
+
+   </Directory>
+
+   ScriptAlias /cgi-bin/ /var/www/cgi-bin/
+   <Directory "/var/www/cgi-bin">
+      AllowOverride None
+      Options +ExecCGI +SymLinksIfOwnerMatch -MultiViews
+      Require all granted
+   </Directory>
+
+   ErrorLog /var/log/apache2/error.log
+
+   # Possible values include: debug, info, notice, warn, error, crit,
+   # alert, emerg.
+   LogLevel warn
+
+   CustomLog /var/log/apache2/access.log combined
+   ServerSignature On
+
+   # Turn on Expires and set default to 0
+   ExpiresActive On
+   ExpiresDefault A0
+
+   ScriptAlias /otrs/ "/opt/otrs/bin/cgi-bin/"
+   Alias /otrs-web/ "/opt/otrs/var/httpd/htdocs/"
+
+   Perlrequire /opt/otrs/scripts/apache2-perl-startup.pl
+
+   PerlModule Apache2::Reload
+   PerlInitHandler Apache2::Reload
+   PerlModule Apache2::RequestRec
+
+   <Location /otrs>
+      ErrorDocument 403 /otrs/index.pl
+      SetHandler  perl-script
+      PerlResponseHandler ModPerl::Registry
+      Options +ExecCGI
+      PerlOptions +ParseHeaders
+      PerlOptions +SetupEnv
+      Require all granted
+   </Location>
+
+   <Location /otrs/nph-genericinterface.pl>
+      PerlOptions -ParseHeaders
+   </Location>
+
+</VirtualHost>

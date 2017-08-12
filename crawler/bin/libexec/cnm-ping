@@ -1,0 +1,40 @@
+#!/usr/bin/perl -w
+#--------------------------------------------------------------------
+# Fichero: cnm-ping
+#--------------------------------------------------------------------
+use Getopt::Std;
+
+#--------------------------------------------------------------------
+my $CMD_BASE = '/bin/ping';
+my $DEFAULT_OPTIONS = '"-c 10"';
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -n host -o "-c 10 -s 1024" 
+
+-n: Host remoto
+.o: Opciones del comando ping de linux
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("hn:o:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+if (! $opts{n}) { die $USAGE;}
+my $cmd_options = (defined $opts{o}) ? $opts{o} : $DEFAULT_OPTIONS;
+my $ip=$opts{n};
+#--------------------------------------------------------------------
+my $CMD = "$CMD_BASE $cmd_options $ip";
+
+my $r=`$CMD`;
+$r =~ s/\n/<br>/g;
+print "CMD=$CMD<br>";
+print "$r\n";
+

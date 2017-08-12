@@ -1,0 +1,123 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>USO DE CPU (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentCPUUtilization.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>USO DE MEMORIA (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentMemoryUtilization.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>USO DE DISCO (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentDiskIOUtilization.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>USO DE LA COLA (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentQueueUtilization.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>FICHEROS/SOCKETS ABIERTOS</col_name>
+         <oid>ASYNCOS-MAIL-MIB::openFilesOrSockets.0</oid>
+      </item>
+
+      <item>
+         <id>5</id>
+         <col_name>THREADS DE CORREO</col_name>
+         <oid>ASYNCOS-MAIL-MIB::mailTransferThreads.0</oid>
+      </item>
+
+      <item>
+         <id>6</id>
+         <col_name>FALLOS EN DNS</col_name>
+         <oid>ASYNCOS-MAIL-MIB::outstandingDNSRequests.0|ASYNCOS-MAIL-MIB::pendingDNSRequests.0</oid>
+      </item>
+
+      <item>
+         <id>7</id>
+         <col_name>MENSAJES EN LA COLA DE TRABAJO</col_name>
+         <oid>ASYNCOS-MAIL-MIB::workQueueMessages.0</oid>
+      </item>
+
+      <item>
+         <id>8</id>
+         <col_name>TIEMPO EN COLA DEL MENSAJE MAS ANTIGUO</col_name>
+         <oid>ASYNCOS-MAIL-MIB::oldestMessageAge.0</oid>
+      </item>
+
+      <item>
+         <id>9</id>
+         <col_name>VELOCIDAD VENTILADOR (FAN 1)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::fanRPMs.1</oid>
+      </item>
+
+      <item>
+         <id>10</id>
+         <col_name>VELOCIDAD VENTILADOR (FAN 2)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::fanRPMs.2</oid>
+      </item>
+
+      <item>
+         <id>11</id>
+         <col_name>TEMPERATURA</col_name>
+         <oid>ASYNCOS-MAIL-MIB::degreesCelsius.1</oid>
+      </item>
+
+      <item>
+         <id>12</id>
+         <col_name>MEMORIA ASIGNADA</col_name>
+         <oid>WINDOWS-NT-PERFORMANCE::memoryCommittedBytes.0|WINDOWS-NT-PERFORMANCE::memoryCommitLimit.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

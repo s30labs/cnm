@@ -1,0 +1,141 @@
+<mibtable>
+
+   <oid_cols>bsnAPName_bsnAPLocation_bsnAPOperationStatus_bsnAPSoftwareVersion_bsnAPModel_bsnAPSerialNumber_bsnApIpAddress_bsnAPType_bsnAPStaticIPAddress_bsnAPGroupVlanName_bsnAPIOSVersion_bsnAPEthernetMacAddress_bsnAPAdminStatus</oid_cols>
+	<oid_last>AIRESPACE-WIRELESS-MIB::bsnAPTable</oid_last>
+	<UseEnums>0</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>bsnAPName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>bsnAPLocation</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPOperationStatus</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPSoftwareVersion</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPModel</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPSerialNumber</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnApIpAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPStaticIPAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPGroupVlanName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIOSVersion</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPEthernetMacAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPAdminStatus</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

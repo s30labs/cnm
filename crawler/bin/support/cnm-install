@@ -1,0 +1,1126 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-install
+# Los pasos a seguir para instalar CNM son:
+# a. Ejcutar cnm-install -i -a root_pwd -b onm_pwd -n user [-m pro] [-r rev_number]
+# b. Ejecutar /opt/crawler/bin/support/chk-host
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+use Cwd;
+
+BEGIN { $ENV{'MIBS'}='ALL'; }
+
+use Data::Dumper;
+#-------------------------------------------------------------------------------------------
+my $REPO="software.s30labs.com";
+
+#-------------------------------------------------------------------------------------------
+my $drbd_partition='/dev/sda6';
+
+#-------------------------------------------------------------------------------------------
+my $APT_GET="/usr/bin/apt-get";
+my $MYSQLDUMP="/usr/bin/mysqldump";
+my $GIT="/usr/bin/git";
+my $MYSQL="/usr/bin/mysql";
+my $LOGGER='/usr/bin/logger -p local0.info';
+my $FILE_PID='/var/run/cnm-install.pid';
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+CNM Installer $VERSION (c) s30labs
+
+$fpth[$#fpth] -i -a root_pwd -b onm_pwd [-n venet0:0] [-m master] [-r rev_number]
+$fpth[$#fpth] -i -a root_pwd -b onm_pwd [-d sda6] 
+$fpth[$#fpth] -u [-r rev_number]
+$fpth[$#fpth] -u 
+$fpth[$#fpth] -su 
+$fpth[$#fpth] -suc 
+$fpth[$#fpth] -h  : Ayuda
+
+-i : Install
+-u : Update
+-a : clave de root
+-b : clave del usuario onm de BBDD
+-n : Nombre del interfaz principal del equipo (con IP). Por defecto eth0
+-m : Modo (branch) 
+-r : Revision
+-f : Force install
+-s : No hace chk_cnm
+-c : Ejecuta primero los menus de configuracion de sistema.
+-x : Sin fork (auto update)
+-z : Solo prepara drbd
+-d : Especifica la particion usada por el drbd. Por defecto es sda6.
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hzcifusxm:a:b:r:n:d:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+
+if ($opts{c}) { `/opt/crawler/bin/support/chk-host -m`; }
+
+#-------------------------------------------------------------------------------------------
+my %GLOBALS = ();
+my %HOST_CFG=();
+my ($PWD1,$PWD2);
+my $MODE='';
+if ($opts{i}) { $MODE='INSTALL'; }
+elsif ($opts{u}) { $MODE='UPDATE'; }
+elsif ($opts{z}) { $MODE='DRBD'; }
+else { die $USAGE; }
+
+my $SIMPLE=0;
+if ($opts{s}) { $SIMPLE=1; }
+
+my $BRANCH = 'master';
+if ($opts{m}) { $BRANCH=$opts{m}; }
+
+my $REV='';
+if ($opts{r}) { $REV=$opts{r}; }
+
+my $AUTOUPDATE=1;
+if ($opts{x}) { $AUTOUPDATE=0; }
+
+my $PROV1=0;
+
+my $IF='eth0';
+if ($opts{n}) { $IF=$opts{n}; }
+
+
+if ($opts{d}) { $drbd_partition = '/dev/'.$opts{d}; }
+
+#-------------------------------------------------------------------------------------------
+if (-f $FILE_PID) { unlink $FILE_PID; }
+open (F,">$FILE_PID");
+print F $$;
+close F;
+
+#-------------------------------------------------------------------------------------------
+my $os_subdir=os_subdir();
+
+if ($MODE eq 'DRBD') {
+	if ($os_subdir eq 'deb8') { install_default_drbd(); }
+	else { print "DRBD solo se soporta con Debian 8 ...\n"; }
+	exit 0;
+}
+
+#-------------------------------------------------------------------------------------------
+# INSTALL
+#-------------------------------------------------------------------------------------------
+if ($MODE eq 'INSTALL') {
+
+	$PWD1=$opts{a} || die $USAGE;
+	$PWD2=$opts{b} || die $USAGE;
+
+	# INSTALL en una maquina ya instalada puede ser un error ...
+	#-----------------------------------------------------
+	if ((-d '/opt/cnm') && (! $opts{f})) {
+		die "CNM ya instalado. Seguro que quiere hacer un install y no un update ??????\nSi es asi use la opcion -f ...\n";
+	}
+
+	system ('/bin/mkdir -p /cfg');
+	system ("/bin/echo $IF > /cfg/onm.if");
+	if (-f '/etc/localtime') { `/bin/mv /etc/localtime /root/localtime.previo`; }
+	system ('/bin/ln -s /usr/share/zoneinfo/Europe/Madrid /etc/localtime');
+
+	# Se obtiene git y se define el repositorio
+	#-----------------------------------------------------
+	get_repo($os_subdir);
+
+   # En deb8 se instala y configura drbd
+   #-----------------------------------------------------
+   if ($os_subdir eq 'deb8') { install_default_drbd(); }
+
+   # Se piden los datos de configuracion y se almacenan en /cfg
+   #-----------------------------------------------------
+	read_host_conf();
+   get_globals();
+
+	# core clone + config
+	#-----------------------------------------------------
+	print "-" x70 ."\n";
+	print "$MODE cnm-core ($$)\n";
+	print "-" x70 ."\n";
+
+	system ("$GIT config --global http.sslVerify false");
+	system ("$GIT config --global commit.template /opt/cnm/.gitmessage");
+	system ("$GIT config --global core.editor vim");
+	system ("$GIT config --global push.default simple"); #No sube los branches (si no hay que poner matching).
+	if (-d '/opt/cnm') { system ("/bin/rm -rf /opt/cnm"); }
+	system ("$GIT clone -b $BRANCH  https://$REPO/cnm.git /opt/cnm");
+	chdir("/opt/cnm");
+	system ("$GIT remote set-url --push origin git\@$REPO:/opt/cnm.git");
+	if ($REV) {
+		system ("$GIT checkout $REV");
+	}
+
+
+	# cnm-os, cnm-mibs, cnm-lang
+	#-----------------------------------------------------
+	my @features = qw (cnm-os cnm-mibs cnm-lang);
+	foreach my $feat (@features) {
+		print "-" x70, "\n";
+		print "INSTALANDO $feat...\n";
+		print "-" x70, "\n";
+		get_feature($feat);
+	}
+
+	# Se crean los directorios y links adecuados
+	#-----------------------------------------------------
+	prepare_store();
+	prepare_git_dirs();
+
+
+	#-----------------------------------------------------
+#	print "-" x70 ."\n";
+#	print "PARAMETROS DE CONFIGURACION DEL SISTEMA\n"; 
+#	print "-" x70 ."\n";
+#	set_host_conf();
+
+
+	# chk-apt
+	#-----------------------------------------------------
+	print "-" x70, "\n";
+	print "CHK-APT\n";
+	print "-" x70 ."\n";
+	system ("/opt/crawler/bin/support/chk-apt 2>&1 | tee /tmp/chk-apt.log");
+
+
+	# chk-perl
+	#-----------------------------------------------------
+	print "-" x70, "\n";
+	print "CHK-PERL\n";
+   print "-" x70 ."\n";
+	system ("/opt/crawler/bin/support/chk-perl 2>&1 | tee /tmp/chk-perl.log");
+
+
+	# BBDD init	
+	# Solo si la clave de root es nula y no existe la BBDD onm
+	#-----------------------------------------------------
+	my $db_check = `$MYSQL -sN onm -e 'SHOW TABLES LIKE "devices"' 2>&1`;
+	chomp $db_check;
+	if ($db_check =~ /ERROR 1049/) {
+		$PROV1=1;
+    	system ("$MYSQL -e \"CREATE DATABASE IF NOT EXISTS cnm;\"");
+     	system ("$MYSQL -e \"CREATE DATABASE IF NOT EXISTS onm;\"");
+		system ("$MYSQL -e \"GRANT ALL PRIVILEGES ON onm.* TO 'onm'\@'%' IDENTIFIED BY '$PWD2' WITH GRANT OPTION;\"");
+		system ("$MYSQL -e \"GRANT ALL PRIVILEGES ON cnm.* TO 'onm'\@'%' IDENTIFIED BY '$PWD2' WITH GRANT OPTION;\"");
+		system ("$MYSQL -e \"GRANT ALL PRIVILEGES ON *.* TO 'onm'\@'localhost' IDENTIFIED BY '$PWD2' WITH GRANT OPTION;\"");
+		system ("$MYSQL -e \"SET PASSWORD FOR 'onm'\@'localhost' = OLD_PASSWORD('$PWD2');\"");
+		system ("$MYSQL -e \"SET PASSWORD FOR 'onm'\@'%' = OLD_PASSWORD('$PWD2');\"");
+
+		system ("$MYSQL -e \"create database otrs charset utf8\"");
+  		system ("$MYSQL -e \"GRANT ALL PRIVILEGES ON otrs.* TO 'otrs'\@'localhost' IDENTIFIED BY '$PWD2' WITH GRANT OPTION;\"");
+
+#		system ("$MYSQL otrs < /opt/otrs/scripts/database/otrs-schema.mysql.sql");
+#		system ("$MYSQL otrs < /opt/otrs/scripts/database/otrs-initial_insert.mysql.sql");
+#		system ("$MYSQL otrs < /opt/otrs/scripts/database/otrs-schema-post.mysql.sql");
+      system ("$MYSQL -e \"SET PASSWORD FOR 'root'\@'localhost' = PASSWORD('$PWD1');\"");
+      system ("$MYSQL -u root -p$PWD1 -e \"FLUSH PRIVILEGES;\"");
+	}
+
+   #-----------------------------------------------------
+   open (F,'>/cfg/onm.conf');
+   print F "DB_SERVER = localhost\n";
+   print F "DB_NAME = onm\n";
+   print F "DB_USER = onm\n";
+   print F "DB_PWD = $PWD2\n";
+   print F "DB_TYPE = mysql\n";
+   close F;
+
+
+   # otrs
+   #-----------------------------------------------------
+   print "-" x70, "\n";
+   print "OTRS\n";
+   print "-" x70 ."\n";
+   system ("/os/otrs/otrs-install 2>&1 | tee /tmp/otrs-install.log");
+   #-----------------------------------------------------
+
+
+   # chk-updates
+   #-----------------------------------------------------
+   print "-" x70, "\n";
+   print "CHK-UPDATES\n";
+   print "-" x70 ."\n";
+   system ("/opt/crawler/bin/support/chk-updates 2>&1 | tee /tmp/chk-updates.log");
+
+   #-----------------------------------------------------
+	my $liblink = '/var/www/html/onm/libs/dhtmlx';
+	my $libgpl = '/var/www/html/onm/libs/dhtmlx_gpl';
+	unlink $liblink;
+	system ("ln -s $libgpl $liblink");
+
+	#-------------------------------------------------------------------------------------------
+	# Debian 8 usa systemd
+	if (-f '/bin/systemctl') { 
+		`/bin/systemctl daemon-reload`; 
+	}
+
+	#-------------------------------------------------------------------------------------------
+	# chk_rc2d
+	chk_rc2d();
+
+}
+
+#-------------------------------------------------------------------------------------------
+# UPDATE
+#-------------------------------------------------------------------------------------------
+else {
+
+
+   $PWD2=get_db_credentials();
+	$REV=$opts{r} || '';
+
+	# core fetch + checkout
+	#-----------------------------------------------------
+	print "-" x70 ."\n";
+	print "$MODE cnm-core ($$)\n";
+	print "-" x70 ."\n";
+
+	chdir("/opt/cnm");
+   system ("$GIT pull");
+   system ("$GIT checkout $REV");
+
+	if ($AUTOUPDATE) {
+		my $op='xu';
+		if ($SIMPLE) { $op='sxu'; }
+		system ("/opt/cnm/crawler/bin/support/cnm-install -$op");
+		exit(0);
+	}
+
+   # cnm-os, cnm-mibs
+   #-----------------------------------------------------
+   my @features = qw (cnm-os cnm-mibs cnm-lang);
+   foreach my $feat (@features) {
+      print "-" x70, "\n";
+      print "INSTALANDO $feat...\n";
+      print "-" x70, "\n";
+      get_feature($feat);
+   }
+   system ("/bin/rm /os");
+   system ("/bin/ln -s /opt/cnm-os /os");
+   system ("/bin/rm /opt/data/mibs");
+   system ("/bin/ln -s /opt/cnm-mibs /opt/data/mibs");
+
+
+   # otrs (solo si no existe)
+   #-----------------------------------------------------
+	if (! -f '/opt/otrs/Kernel/Config.pm') {
+	   print "-" x70, "\n";
+   	print "OTRS\n";
+   	print "-" x70 ."\n";
+   	system ("/os/otrs/otrs-install 2>&1 | tee /tmp/otrs-install.log");
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+# COMMON
+#-------------------------------------------------------------------------------------------
+
+# Backup de BBDD
+#-----------------------------------------------------
+print "-" x70, "\n";
+print "BBDD\n";
+print "-" x70 ."\n";
+
+# Si no existe /store/tmp se crea
+my $dir = '/store/tmp';
+if (! -d $dir){ system ("mkdir -p $dir"); }
+system("chmod -R 777 $dir");
+
+print "backup_bbdd_onm ....\n";
+system ("$MYSQLDUMP -u onm -p$PWD2 onm > $dir/backup_bbdd_onm");	
+
+print "backup_bbdd_cnm ....\n";
+system ("$MYSQLDUMP -u onm -p$PWD2 cnm > $dir/backup_bbdd_cnm");	
+
+# Se paran procesos de cnm
+#-----------------------------------------------------
+if (-f '/etc/init.d/cnmd') { 
+	system ("/etc/init.d/cnmd stop");
+	system ("/etc/init.d/cnmd kill");
+}
+
+# update db
+#-----------------------------------------------------
+print "db-manage ....\n";
+`php /update/db/db-manage.php 2>&1 > /tmp/update_db.log`;
+system("/bin/cat /tmp/update_db.log");
+
+
+
+# chk-cnm
+#-----------------------------------------------------
+if (! $SIMPLE) {
+   print "-" x70, "\n";
+   print "CHK-CNM\n";
+   print "-" x70 ."\n";
+   `/opt/crawler/bin/support/chk-cnm 2>&1 | tee /tmp/chk-cnm.log`;
+   if (-f '/bin/systemctl') { 
+		`/bin/systemctl daemon-reload`;  
+		`/bin/systemctl restart mysql.service`;  
+	}
+	else { `/etc/init.d/mysql restart`; }
+}
+
+
+# support-packs
+#-----------------------------------------------------
+print "-" x70, "\n";
+print "INSTALANDO SUPPORT PACKS\n";
+print "-" x70, "\n";
+get_feature('cnm-sp');
+system ("/opt/cnm-sp/install-sp 2>&1 | tee /tmp/cnm-sp.log");
+
+
+# chk-host
+#-----------------------------------------------------
+if ($MODE eq 'INSTALL') {
+	`/opt/crawler/bin/support/chk-host -f | tee /tmp/chk-host.log`;
+}
+
+
+# store_rev
+#-----------------------------------------------------
+store_rev();
+
+# restart
+#-----------------------------------------------------
+# Debian 8 usa systemd
+if (-f '/bin/systemctl') { `/bin/systemctl daemon-reload`; }
+system ("/etc/init.d/syslog-ng restart");
+system ("/etc/init.d/apache2 restart");
+system ("/etc/init.d/snmpd restart");
+system ("/etc/init.d/snmptrapd restart");
+system ("/etc/init.d/exim4 restart");
+
+# oids_update
+#-----------------------------------------------------
+# En principio no se hace y se incluye en cnm-subs
+if ($SIMPLE) {
+	print "-" x70, "\n";
+	print "EJECUTANDO /update/db/update/oids_update.php ...\n";
+	print "-" x70, "\n";
+	`php /update/db/update/oids_update.php 2>&1 | tee /tmp/oids_update.log`;
+}
+
+# prov1
+#-----------------------------------------------------
+if ($PROV1) {  
+	print "-" x70, "\n";
+	print "PROVISIONANDO $GLOBALS{'__HOSTNAME__'} (127.0.0.1) ...\n";
+	print "-" x70, "\n";
+	first_provision(); 
+}
+
+# traps
+#-----------------------------------------------------
+system ("/usr/bin/snmptrap  -c public  -v 1 localhost CNM-TRAPS-MIB::cnmTrapsBase localhost 6 3 '' CNM-TRAPS-MIB::cnmTrapCode i 0 CNM-TRAPS-MIB::cnmTrapMsg s \"Ejecutado cnm-install $MODE $REV\"");
+system ("/usr/bin/snmptrap -v 2c -c public localhost '' CNM-NOTIFICATIONS-MIB::cnmInfoMsg CNM-NOTIFICATIONS-MIB::cnmNotifCode i 0 CNM-NOTIFICATIONS-MIB:cnmNotifMsg s \"Ejecutado cnm-install $MODE $REV\" CNM-NOTIFICATIONS-MIB:cnmNotifKey s \"cnm-install\"");
+
+# Fichero PID
+#-----------------------------------------------------
+unlink $FILE_PID;
+system ("/opt/crawler/bin/cnm-watch");
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub prepare_store {
+
+	# Si no existe /store se crea
+	my $dir = '/store';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+	system("chmod -R 777 $dir");
+
+	# Si no existe /cfg se crea
+	$dir = '/cfg';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+
+	#--------------------------------------
+	# Si no existe /stor/datae se crea
+	# Se crea link /opt/data sobre /store/data
+	$dir = '/store/data';
+	if (! -d $dir){ system ("mkdir -p $dir"); }
+	if (! -l '/opt/data') { system ("ln -s $dir /opt/data"); }
+
+	#--------------------------------------
+   if (! -l '/os') { system ("/bin/ln -s /opt/cnm-os /os"); }
+   if (! -l '/opt/data/mibs') { system ("/bin/ln -s /opt/cnm-mibs /opt/data/mibs"); }
+
+	#--------------------------------------
+	`/etc/init.d/rsyslog stop`;
+	if (! -l '/var/log') { 
+   	my $os_subdir=os_subdir();
+	   if ($os_subdir eq 'deb8') {
+		   $dir = '/log';
+			system ("mv /var/log/* $dir"); 
+			system ("rmdir /var/log");
+			system ("ln -s $dir /var/log");
+		}
+		else{
+	      $dir = '/store/log';
+	      system ("mv /var/log /store"); 
+	      system ("ln -s $dir /var/log");
+		}
+	}
+
+	#--------------------------------------
+   $dir = '/store/mysql';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+	if (-d '/var/lib/mysql') { system ("mv /var/lib/mysql $dir"); }
+   if (! -l '/var/lib/mysql') { system ("ln -s $dir /var/lib/mysql"); }
+
+   #--------------------------------------
+   $dir = '/store/www-user';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   if (-d '/var/www/html/onm/files') { system ("mv /var/www/html/onm/files $dir"); }
+	else { system ("mkdir -p /store/www-user/files");}
+	$dir = '/var/www/html/onm/user';
+	if (! -d $dir){ system ("mkdir -p $dir"); }
+   if (! -l '/var/www/html/onm/user/files') { system ("ln -s /store/www-user/files /var/www/html/onm/user/files"); }
+
+
+
+   #--------------------------------------
+   $dir = '/store/www-user';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   $dir = '/store/www-user/background';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   $dir = '/store/www-user/gui_templates';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   $dir = '/store/www-user/images';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   $dir = '/store/www-user/tmp';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+   $dir = '/store/www-user/resources';
+   if (! -d $dir){ system ("mkdir -p $dir"); }
+
+}
+
+#-------------------------------------------------------------------------------------------
+sub prepare_git_dirs {
+
+	# Directorios que deben crearse
+	my @dirs=(
+	   '/var/www/html',
+      '/opt/data',
+	);
+	foreach my $dir (@dirs){
+      if (! -d $dir) {
+         system ("mkdir -p $dir");
+      }
+	}
+
+	# Links que deben crearse
+   my @links=(
+      #['/os','/opt/cnm/os'],
+      ['/os','/opt/cnm-os'],
+      ['/var/www/html/onm','/opt/cnm/onm'],
+      ['/var/www/cgi-bin','/opt/cnm/cgi-bin'],
+      ['/opt/crawler','/opt/cnm/crawler'],
+      #['/opt/data/mibs','/opt/cnm/mibs'],
+      ['/opt/data/mibs','/opt/cnm-mibs'],
+      ['/opt/data/xagent','/opt/cnm/xagent'],
+      ['/update','/opt/cnm/update'],
+		['/var/www/html/tphp','/opt/cnm/tphp']
+   );
+
+   foreach my $dir (@links){
+      my $dirx=$dir->[0];
+      my $dirx_previo=$dir->[1];
+
+      if (! -l $dirx) {
+	      if (-d $dirx) {
+	         my $dirx_previo=$dirx.'.previo';
+	         system ("mv $dirx $dirx_previo");
+	      }
+         system ("ln -s $dirx_previo $dirx");
+      }
+   }
+}
+#-------------------------------------------------------------------------------------------
+sub get_db_credentials {
+
+   my $file='/cfg/onm.conf';
+   my $pwd='';
+   open (F,"<$file");
+   while (<F>) {
+
+      chomp;
+      if (/^#/) {next;}
+
+      if (/\bDB_PWD\s*\=\s*(.*)$/) {
+         $pwd=$1;
+         last;
+      }
+   }
+   close F;
+   return $pwd;
+}
+
+#-------------------------------------------------------------------------------------------
+sub get_feature {
+my ($feature) = @_;
+
+#p.ej $feature=cnm-sp
+
+   my $BRANCH = 'master';
+   my $GIT = "/usr/bin/git";
+	my $user = 'git';
+	my ($rc,$cmd) = (0,'');
+
+	my $dir_local = '/opt/'.$feature;
+
+   if ((-d $dir_local) && (-d "$dir_local/.git")) {
+
+      chdir($dir_local);
+		print "GET data (pull) ...\n";
+		$cmd = "$GIT pull";
+     	$rc = system ($cmd);  
+		if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+		$cmd = "$GIT checkout";
+     	$rc = system ($cmd);  
+		if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+   }
+   else {
+
+		print "GET data (clone) ...\n";
+		$cmd = "/bin/rm -rf $dir_local";
+		$rc = system ($cmd);  
+		if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+		$cmd = "$GIT clone -b $BRANCH  https://$user:\@$REPO/$feature.git $dir_local";
+		$rc = system ($cmd);  
+		if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+	
+      chdir $dir_local;
+		$cmd = "$GIT remote set-url --push origin git\@$REPO:$dir_local.git";
+		$rc = system ($cmd); 
+		if ($rc !=0) {  print "$cmd (rc=$rc)\n"; }
+   }
+
+}
+
+#-------------------------------------------------------------------------------------------
+sub install_feature {
+my ($feature) = @_;
+
+   my ($rc,$cmd) = (0,'');
+   my $dir_local = '/opt/'.$feature;
+
+   if ($feature eq 'cnm-sp') {
+      opendir (DIR,$dir_local);
+      my @files = readdir(DIR);
+      closedir(DIR);
+      foreach my $f (@files) {
+         if ($f=~/^\./) { next; }
+         if ($f=~/^\_/) { next; }
+         if (-d "$dir_local/$f") {
+            #print "Instalando $f ...\n";
+            $cmd = "$dir_local/$f/install";
+            if (-f $cmd) {
+               $rc = system ($cmd);
+               if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+            }
+         }
+      }
+   }
+   else {
+      $cmd = "$dir_local/install";
+      if (-f $cmd) {
+         print "Instalando $feature ...\n";
+         $rc = system ($cmd);
+         if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+      }
+   }
+
+}
+
+#-------------------------------------------------------------------------------------------
+sub get_globals {
+
+   print "########## CONFIGURACION DEL EQUIPO ##########\n";
+
+   # ---------------------------------------
+   if ($HOST_CFG{'IPADDR'}=~/\d+\.\d+\.\d+\.\d+/) {
+      $GLOBALS{'__IPADDR__'}=get_input("Introduzca la IP [Pulse INTRO para mantener $HOST_CFG{'IPADDR'}]: ",'ip',$HOST_CFG{'IPADDR'});
+      if ($GLOBALS{'__IPADDR__'} eq '') { $GLOBALS{'__IPADDR__'} = $HOST_CFG{'IPADDR'}; }
+   }
+   else {
+      $GLOBALS{'__IPADDR__'}=get_input("Introduzca la IP [Pulse $HOST_CFG{'IPADDR'}]: ",'ip');
+   }
+
+   # ---------------------------------------
+   if ($HOST_CFG{'NETMASK'}=~/\d+\.\d+\.\d+\.\d+/) {
+      $GLOBALS{'__NETMASK__'}=get_input("Introduzca la mascara de red [Pulse INTRO para mantener $HOST_CFG{'NETMASK'}]: ",'ip', $HOST_CFG{'NETMASK'});
+      if ($GLOBALS{'__NETMASK__'} eq '') { $GLOBALS{'__NETMASK__'} = $HOST_CFG{'NETMASK'}; }
+   }
+   else {
+      $GLOBALS{'__NETMASK__'}=get_input("Introduzca la mascara de red [Pulse $HOST_CFG{'NETMASK'}]: ",'ip');
+   }
+
+   # ---------------------------------------
+   if ($HOST_CFG{'GATEWAY'}=~/\d+\.\d+\.\d+\.\d+/) {
+      $GLOBALS{'__GATEWAY__'}=get_input("Introduzca el router por defecto [Pulse INTRO para mantener $HOST_CFG{'GATEWAY'}]: ",'ip',$HOST_CFG{'GATEWAY'});
+      if ($GLOBALS{'__GATEWAY__'} eq '') { $GLOBALS{'__GATEWAY__'} = $HOST_CFG{'GATEWAY'}; }
+   }
+   else {
+      $GLOBALS{'__GATEWAY__'}=get_input("Introduzca el router por defecto [Pulse $HOST_CFG{'GATEWAY'}]: ",'ip');
+   }
+
+   # ---------------------------------------
+   $GLOBALS{'__HOSTNAME__'}=get_input("Introduzca el  nombre del host [Pulse INTRO para mantener $HOST_CFG{'HOSTNAME'}]: ", '', $HOST_CFG{'HOSTNAME'});
+   if ($GLOBALS{'__HOSTNAME__'} eq '') { $GLOBALS{'__HOSTNAME__'} = $HOST_CFG{'HOSTNAME'}; }
+
+   # ---------------------------------------
+   $GLOBALS{'__NOTIF_MX__'}=get_input("Introduzca el servidor de correo SMTP [Pulse INTRO para mantener $HOST_CFG{'NOTIF_MX'}]: ", '', $GLOBALS{'__NOTIF_MX__'});
+   if ($GLOBALS{'__NOTIF_MX__'} eq '') { $GLOBALS{'__NOTIF_MX__'} = $HOST_CFG{'NOTIF_MX'}; }
+
+   # ---------------------------------------
+   $GLOBALS{'__NTPHOST__'}=get_input("Introduzca el servidor NTP [Pulse INTRO para mantener $HOST_CFG{'NTPHOST'}]: ", '', $HOST_CFG{'NTPHOST'});
+   if ($GLOBALS{'__NTPHOST__'} eq '') { $GLOBALS{'__NTPHOST__'} = $HOST_CFG{'NTPHOST'}; }
+
+   # ---------------------------------------
+   $GLOBALS{'__DNS__'}=get_input("Introduzca el servidor de DNS [Pulse INTRO para mantener $HOST_CFG{'DNS'}]: ", '', $HOST_CFG{'DNS'});
+   if ($GLOBALS{'__DNS__'} eq '') { $GLOBALS{'__DNS__'} = $HOST_CFG{'DNS'}; }
+
+   # ---------------------------------------
+   $GLOBALS{'__DOMAIN__'}=get_input("Introduzca el dominio por defecto de su equipo [Pulse INTRO para mantener $HOST_CFG{'DOMAIN'}]: ", '', $HOST_CFG{'DOMAIN'});
+   if ($GLOBALS{'__DOMAIN__'} eq '') { $GLOBALS{'__DOMAIN__'} = $HOST_CFG{'DOMAIN'}; }
+
+print Dumper(\%GLOBALS);
+
+	# Se almacenan en /cfg/chk-host.conf
+	set_host_conf();
+}
+
+#-------------------------------------------------------------------------------------------
+sub set_host_conf {
+
+	my $FCONF='/cfg/chk-host.conf';
+   open (F,">$FCONF");
+   while (my ($k,$v) = each %GLOBALS) {
+      if ($k =~ /^__(\S+)__$/) {
+         print F "$1=$v\n";
+      }
+   }
+   close F;
+   print "GENERADO FICHERO: $FCONF ....\n";
+
+   my $file='/cfg/key';
+	if (!-f $file) {
+   	if ( open (F,">$file") ) {
+      	print F 'gpl';
+      	close F;
+   		print "GENERADO FICHERO: $file ....\n";
+		}
+		system ("/bin/echo gpl > /cfg/onm.version");
+   }
+
+}
+
+#-------------------------------------------------------------------------------------------
+sub read_host_conf {
+
+	#inet addr:10.2.254.222  Bcast:10.2.254.255  Mask:255.255.255.0
+	my @IPADDR = `/sbin/ifconfig`;
+	foreach my $l (@IPADDR) {
+		chomp $l;
+      if ($l !~ /inet addr\:/) { next; }
+      if ($l =~ /127\.0\.0\.1/) { next; }
+      if ($l =~ /inet addr\:(\S+)\s+Bcast\:\S+\s+Mask\:(\S+)/) {
+      	$HOST_CFG{'IPADDR'} = $1;
+			$HOST_CFG{'NETMASK'} =$2;
+      }
+	}	
+
+   $HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;
+   chomp $HOST_CFG{'GATEWAY'};
+
+   $HOST_CFG{'HOSTNAME'} = `/bin/hostname`;
+   chomp $HOST_CFG{'HOSTNAME'};
+
+   $HOST_CFG{'DNS'} = `/bin/grep nameserver /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DNS'};
+
+   $HOST_CFG{'DOMAIN'} = `/bin/grep domain /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DOMAIN'};
+
+	$HOST_CFG{'NOTIF_MX'} = '';
+	if (-f '/cfg/onm.conf') {	
+	   $HOST_CFG{'NOTIF_MX'} = `/bin/grep domain /cfg/onm.conf | awk '{ print \$3 }'`;
+   	chomp $HOST_CFG{'NOTIF_MX'};
+	}
+
+	$HOST_CFG{'NTPHOST'} = '';
+	if (-f '/etc/cron.hourly/ntpdate') {
+   	$HOST_CFG{'NTPHOST'} = `/bin/grep ntpdate /etc/cron.hourly/ntpdate | awk '{ print \$2 }'`;
+   	chomp $HOST_CFG{'NTPHOST'};
+		if ($HOST_CFG{'NTPHOST'}=~/\>/) { $HOST_CFG{'NTPHOST'}=''; }
+	}
+}
+
+
+#--------------------------------------------------------------------------------
+sub get_input {
+my ($txt,$val,$previous_input)=@_;
+
+   my $ok=0;
+   my $input;
+   while (!$ok) {
+      print "$txt\n";
+      chomp($input = <STDIN>);
+      #if ($intro_ok) {return 'intro'; }
+
+      if ($val eq 'ip') {$ok=validate_ip($input); }
+      else { $ok=1; }
+		if (!$ok) { $ok=validate_ip($previous_input); }
+      if (!$ok) { print "Error en dato !!\n"; }
+   }
+
+	chomp $input;
+   return $input;
+}
+
+#--------------------------------------------------------------------------------
+sub validate_ip  {
+my $val=shift;
+
+   my $rc=0;
+   if ($val=~/\d+\.\d+\.\d+\.\d+/) {$rc=1;}
+   return $rc;
+}
+
+#--------------------------------------------------------------------------------
+sub first_provision {
+
+	`$MYSQL -u onm -p$PWD2 onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Appliance")' >/dev/null 2>&1`;
+	`$MYSQL -u onm -p$PWD2 onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Servidor")' >/dev/null 2>&1`;
+	`$MYSQL -u onm -p$PWD2 onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Router")' >/dev/null 2>&1`;
+
+	`$MYSQL -u onm -p$PWD2 onm -e 'INSERT INTO cfg_views_types (name) VALUES ("Servicios")' >/dev/null 2>&1`;
+	`$MYSQL -u onm -p$PWD2 onm -e 'INSERT INTO cfg_views_types (name) VALUES ("Infraestructura")' >/dev/null 2>&1`;
+
+	`/opt/crawler/bin/ws/api-set-device -m -a 127.0.0.1 -p name=$GLOBALS{'__HOSTNAME__'},domain=$GLOBALS{'__DOMAIN__'},ip=$GLOBALS{'__IPADDR__'},type=Appliance,snmpversion=2,snmpcommunity=public`;
+
+}
+#--------------------------------------------------------------------------------
+sub store_rev {
+
+	my $cwd = cwd();
+	my $date_store = time();
+	my $rev=`cd /opt/cnm && /usr/bin/git describe --abbrev=4`;
+	chomp $rev;
+print "rev=$rev\n";
+
+   `$MYSQL -u onm -p$PWD2 onm -e "INSERT INTO cnm_services (type,value,date_store) VALUES ('rev','$rev',$date_store) ON DUPLICATE KEY UPDATE type='rev',value='$rev',date_store=$date_store"`;
+	chdir($cwd);
+}
+
+#-------------------------------------------------------------------------------------------
+sub get_repo {
+my ($os_subdir)=@_;
+
+#	my $os_subdir='deb6';
+#   my $subrepo='repositorio';
+#	my $file='/etc/debian_version';
+#	my $version = '0.0';
+#   if (-f $file) {
+#
+#     	local($/) = undef;  # slurp
+#     	open (F,"<$file");
+#     	$version = <F>;
+#     	close F;
+#	}
+#	chomp $version;	
+#   if ($version eq '6.0') { $subrepo='repositorio'; }
+#   elsif ($version eq '8.0') { $subrepo='repositorio8'; }
+
+
+   my $subrepo='repositorio';
+   if ($os_subdir eq 'deb6') { $subrepo='repositorio'; }
+   elsif ($os_subdir eq 'deb8') { $subrepo='repositorio8'; }
+
+
+	my $repo_path = 'http://'.$REPO.'/'.$subrepo.'/';
+   system ("echo \"deb $repo_path stable main contrib\" > /etc/apt/sources.list");
+   system ("$APT_GET update");
+   system ("$APT_GET install build-essential -y --force-yes");
+#	if ($version eq '6.0') {
+	if ($os_subdir eq 'deb6') {
+   	system ("$APT_GET install libssl0.9.8=0.9.8o-4 -y --force-yes");
+#		$os_subdir='deb6';
+	}
+#	elsif ($version eq '8.0') {
+	elsif ($os_subdir eq 'deb8') {
+   	system ("$APT_GET install libssl1.0.0 -y --force-yes");
+#		$os_subdir='deb8';
+	}
+   system ("$APT_GET install git -y --force-yes");
+
+#	return $os_subdir;
+}
+
+#-------------------------------------------------------------------------------------------
+sub os_subdir {
+
+   my $os_subdir='';
+   my $file='/etc/debian_version';
+   my $version = '0.0';
+   if (-f $file) {
+
+      local($/) = undef;  # slurp
+      open (F,"<$file");
+      $version = <F>;
+      close F;
+   }
+   chomp $version;
+   if ($version eq '6.0') { $os_subdir='deb6'; }
+   elsif ($version eq '8.0') { $os_subdir='deb8'; }
+	return $os_subdir;
+
+}
+
+
+#-------------------------------------------------------------------------------------------
+sub chk_rc2d {
+   if (-f '/etc/rc2.d/S04mysql') { `/bin/mv /etc/rc2.d/S04mysql /etc/rc2.d/.S04mysql`; }
+   if (-f '/etc/rc2.d/S04slapd') { `/bin/mv /etc/rc2.d/S04slapd /etc/rc2.d/.S04slapd`; }
+   if (-f '/etc/rc2.d/S01rsyslog') { `/bin/mv /etc/rc2.d/S01rsyslog /etc/rc2.d/.S01rsyslog`; }
+}
+
+#----------------------------------------------------------------------------
+sub is_lxc {
+
+   my $rc=0;
+   my $x=`grep 'lxc' /proc/1/cgroup|wc -l`;
+   chomp $x;
+   if ($x>0) { $rc=1; }
+   return $rc;
+}
+
+#-------------------------------------------------------------------------------------------
+# install_default_drbd
+# Crea el fichero /etc/drbd.d/store.res
+# Crea el fichero /etc/drbd.d/global_common.conf
+# dd if=/dev/zero of=$drbd_partition bs=1M count=128
+# drbdadm create-md store
+# drbdadm up store
+# drbdadm -- --overwrite-data-of-peer primary store
+# mkfs.ext4 /dev/drbd1
+# mkdir /store
+# mount /dev/drbd1 /store
+#-------------------------------------------------------------------------------------------
+sub install_default_drbd {
+#cat /proc/partitions
+#major minor  #blocks  name
+#
+#   8        0   83886080 sda
+#   8        1     123904 sda1
+#   8        2    3906560 sda2
+#   8        3   14648320 sda3
+#   8        4   65205248 sda4
+
+	if (is_lxc()) {
+		print "***LXC*** SE OMITE DRBD...\n"; 
+		if (! -d '/log') { system ('/bin/mkdir -p /log'); }
+		return;
+	}
+
+
+#   my $big_part_size=0;
+#   my $drbd_partition='';
+#   my $file='/proc/partitions';
+#   open (F,"<$file");
+#   while (<F>) {
+#      chomp;
+#      s/^\s+//;
+#      my @d=split(/\s+/,$_);
+#      if (scalar(@d)<4) { next; }
+#      if ($d[3] !~ /\d+$/) {next;}
+#      if ($d[2] > $big_part_size) {
+#         $big_part_size=$d[2];
+#         $drbd_partition='/dev/'.$d[3];
+#      }
+#   }  
+
+	my $hostname = `uname -n`;
+	chomp($hostname);
+
+	system ("$APT_GET install drbd8-utils -y --force-yes");
+	# Lo siguiente no hace falta, lo crea el propio paquete
+	#system ('/bin/mkdir -p /etc/drbd.d');
+	
+# En caso de no existir /dev/sda4 hay que hacer esto
+#	system ("fdisk /dev/sda <<EOF
+#n
+#p
+#
+#+30G
+#w
+#EOF");
+# Reiniciar para que exista /dev/sda4, sino falla lo siguiente
+
+# NOTA: donde pone cnm-drbd-master hay que poner el hostname del equipo!!!!!
+	my $file_store_res='/etc/drbd.d/store.res';
+	my $store_res="resource store {
+  device    /dev/drbd1;
+  disk      $drbd_partition;
+  meta-disk internal;
+
+  on $hostname {
+    address   127.0.0.1:7789;
+  }
+#  on cnm-drbd-slave {
+#    address   1.2.3.4:7789;
+#  }
+}";
+	open (F,">$file_store_res");
+	print F $store_res;
+	close F;
+
+	
+	my $file_global_conf='/etc/drbd.d/global_common.conf';
+   my $global_conf='global {
+  usage-count no;
+}
+
+common {
+   handlers {
+      # These are EXAMPLE handlers only.
+      # They may have severe implications,
+      # like hard resetting the node under certain circumstances.
+      # Be careful when chosing your poison.
+
+      # pri-on-incon-degr "/usr/lib/drbd/notify-pri-on-incon-degr.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+      # pri-lost-after-sb "/usr/lib/drbd/notify-pri-lost-after-sb.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+      # local-io-error "/usr/lib/drbd/notify-io-error.sh; /usr/lib/drbd/notify-emergency-shutdown.sh; echo o > /proc/sysrq-trigger ; halt -f";
+      # fence-peer "/usr/lib/drbd/crm-fence-peer.sh";
+      # split-brain "/usr/lib/drbd/notify-split-brain.sh root";
+      # out-of-sync "/usr/lib/drbd/notify-out-of-sync.sh root";
+      # before-resync-target "/usr/lib/drbd/snapshot-resync-target-lvm.sh -p 15 -- -c 16k";
+      # after-resync-target /usr/lib/drbd/unsnapshot-resync-target-lvm.sh;
+   }
+
+   startup {
+		# become-primary-on cnm-drbd-master;
+      # wfc-timeout degr-wfc-timeout outdated-wfc-timeout wait-after-sb
+   }
+
+   options {
+      # cpu-mask on-no-data-accessible
+   }
+
+   disk {
+      # size on-io-error fencing disk-barrier disk-flushes
+      # disk-drain md-flushes resync-rate resync-after al-extents
+      # c-plan-ahead c-delay-target c-fill-target c-max-rate
+      # c-min-rate disk-timeout
+      resync-rate 100M;
+   }
+
+   net {
+      # protocol timeout max-epoch-size max-buffers unplug-watermark
+      # connect-int ping-int sndbuf-size rcvbuf-size ko-count
+      # allow-two-primaries cram-hmac-alg shared-secret after-sb-0pri
+      # after-sb-1pri after-sb-2pri always-asbp rr-conflict
+      # ping-timeout data-integrity-alg tcp-cork on-congestion
+      # congestion-fill congestion-extents csums-alg verify-alg
+      # use-rle
+      protocol C;
+   }
+}';
+
+	open (F,">$file_global_conf");
+   print F $global_conf;
+   close F;
+
+	system("dd if=/dev/zero of=$drbd_partition bs=1M count=128");
+	#system("/etc/init.d/drbd restart");
+	system("drbdadm create-md store");
+	system("drbdadm up store");
+	system("drbdadm -- --overwrite-data-of-peer primary store");
+
+# ############################################################################### #
+# root@cnm-drbd-slave:/home/cnm# cat /proc/drbd                                   #
+# version: 8.4.3 (api:1/proto:86-101)                                             #
+# srcversion: 1A9F77B1CA5FF92235C2213                                             #
+#                                                                                 # 
+#  1: cs:StandAlone ro:Primary/Unknown ds:UpToDate/DUnknown   r----s              #
+#     ns:0 nr:0 dw:0 dr:912 al:0 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:31456284  #
+# ############################################################################### # 
+
+	system("mkfs.ext4 /dev/drbd1");
+	system("mkdir /store");
+
+	system("mount /dev/drbd1 /store");
+
+	# En sucesivos arranques, hay que ejecutar:
+	# drbdsetup /dev/drbd1 primary
+	# mount /dev/drbd1 /store
+}
+
+#--------------------------------------------------------------------------------
+## Etiqueta la particion de mayor tamaño como store
+#sub label_store {
+#
+##cat /proc/partitions
+##major minor  #blocks  name
+##
+##   8        0   83886080 sda
+##   8        1     123904 sda1
+##   8        2    3906560 sda2
+##   8        3   14648320 sda3
+##   8        4   65205248 sda4
+#
+#	my $big_part_size=0;
+#	my $big_part_name='';
+#	my $file='/proc/partitions';
+#	open (F,"<$file");
+#	while (<F>) {
+#		chomp;
+#		s/^\s+//;
+#		my @d=split(/\s+/,$_);
+#		if (scalar(@d)<4) { next; }
+#		if ($d[3] !~ /\d+$/) {next;}
+#		if ($d[2] > $big_part_size) {
+#			$big_part_size=$d[2];
+#			$big_part_name='/dev/'.$d[3];
+#		}
+#	}	
+#
+#	my $label=`e2label $big_part_name`;
+#	chomp $label;
+#	if ($label ne 'store') {
+# 		`e2label $big_part_name store`;
+#		print "**LABEL STORE** e2label $big_part_name store\n";
+#	}
+#}
+
+##--------------------------------------------------------------------------------
+#sub get_version {
+#
+#	my $version='gpl';
+#	my $f='/cfg/onm.version';
+#	if (-f $f) {
+#		open (F,"$f");
+#		$version = <F>;
+#		chomp $version;
+#		close F;
+#	}
+#	else {
+#		if ($GLOBALS{'__KEY__'} =~ /^gpl$/i ) { 
+#			open (F,">$f");
+#			print F 'gpl';
+#			close F;
+#		}
+#	}
+#	return $version;
+#}

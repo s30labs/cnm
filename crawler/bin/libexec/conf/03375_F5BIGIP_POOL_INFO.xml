@@ -1,0 +1,71 @@
+<mibtable>
+
+   <oid_cols>ltmPoolName_ltmPoolLbMode_ltmPoolActiveMemberCnt_ltmPoolMonitorRule_ltmPoolMemberCnt_ltmPoolEnabledState</oid_cols>
+	<oid_last>F5-BIGIP-LOCAL-MIB::ltmPoolTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolLbMode</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolActiveMemberCnt</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolMonitorRule</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolMemberCnt</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ltmPoolEnabledState</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

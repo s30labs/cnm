@@ -1,0 +1,221 @@
+<mibtable>
+
+   <oid_cols>cpmProcessPID_cpmProcessName_cpmProcessuSecs_cpmProcessTimeCreated_cpmProcessAverageUSecs_cpmProcExtMemAllocated_cpmProcExtMemFreed_cpmProcExtInvoked_cpmProcExtRuntime_cpmProcExtUtil5Sec_cpmProcExtUtil1Min_cpmProcExtUtil5Min_cpmProcExtPriority_cpmProcExtMemAllocatedRev_cpmProcExtMemFreedRev_cpmProcExtInvokedRev_cpmProcExtRuntimeRev_cpmProcExtUtil5SecRev_cpmProcExtUtil1MinRev_cpmProcExtUtil5MinRev_cpmProcExtPriorityRev</oid_cols>
+	<oid_last>CISCO-PROCESS-MIB::cpmProcessTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cpmProcessPID</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter,#text_filter,#text_filter,#select_filter,#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcessName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cpmProcessuSecs</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcessTimeCreated</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcessAverageUSecs</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter,#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtMemAllocated</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtMemFreed</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtInvoked</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtRuntime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil5Sec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil1Min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil5Min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtPriority</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>13</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtMemAllocatedRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>14</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtMemFreedRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>15</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtInvokedRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>16</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtRuntimeRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>17</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil5SecRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>18</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil1MinRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>19</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtUtil5MinRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>20</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmProcExtPriorityRev</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

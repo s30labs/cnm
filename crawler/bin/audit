@@ -1,0 +1,82 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: audit
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use ProvisionLite::AuditLoop;
+use Stdout;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+# 1. a.b.c.d./r
+# 2. a.b.c.x-y
+# 3. a.b.c.d
+# 4. a.b.c.*
+# 5. a.b.*.*
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my $rcfgbase=conf_base($FILE_CONF);
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hd:a:o:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+if (! $opts{a}) { my $USAGE = usage(); die $USAGE;}
+my @IP=split(',', $opts{a});
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+my $provision=ProvisionLite::AuditLoop->new(log_level=>$log_level);
+$provision->init();
+my $tag='audit_cache_'. int(rand(100000000));
+$provision->tag($tag);
+
+# ----------------------------------------------------------------------------------
+my @COL_MAP = (
+   { 'label'=>'NOMBRE', 'width'=>'10' , 'name_col'=>'name',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'IP', 'width'=>'10' , 'name_col'=>'ip',  'sort'=>'ipaddr', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'PING', 'width'=>'5' , 'name_col'=>'ping',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'TCP-PORTS', 'width'=>'10' , 'name_col'=>'tcp',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'COMMUNITY', 'width'=>'10' , 'name_col'=>'community',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'VERSION', 'width'=>'5' , 'name_col'=>'version',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'SYSOID', 'width'=>'20' , 'name_col'=>'sysoid',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'SYSNAME', 'width'=>'10' , 'name_col'=>'sysname',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'SYSLOC', 'width'=>'20' , 'name_col'=>'sysloc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'SYSDESC', 'width'=>'30' , 'name_col'=>'sysdesc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'MAC', 'width'=>'30' , 'name_col'=>'mac',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+);
+
+my $data=$provision->audit_general_loop(\@IP);
+print "$data\n";
+
+my $col_map=encode_json(\@COL_MAP);
+print "$col_map\n";
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Auditoria de red
+
+$fpth[$#fpth] -a 1.1.1.1-20
+$fpth[$#fpth] -a 1.1.1.1,2.2.2.2
+$fpth[$#fpth] -a 1.1.1.0/24
+$fpth[$#fpth] -a 1.1.1.*
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

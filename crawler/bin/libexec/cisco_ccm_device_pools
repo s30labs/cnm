@@ -1,0 +1,100 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id: mib2_if,v 1.2 2004/05/02 15:36:29 fml Exp $
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use Crawler::SNMP;
+use Data::Dumper;
+use Stdout;
+
+#---------------------------------------------------------------------------
+my %SNMPCFG=();
+
+#----------------------------------------------------------------------------
+my $snmp=Crawler::SNMP->new();
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFG);
+my $FORMAT = $SNMPCFG{'format'};
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='CISCO-CCM-MIB::ccmGroupTable';
+my $grouptable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='CISCO-CCM-MIB::ccmRegionTable';
+my $regiontable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='CISCO-CCM-MIB::ccmTimeZoneTable';
+my $timezonetable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='CISCO-CCM-MIB::ccmDevicePoolTable';
+my $devpooltable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+my @host_data=();
+for my $iid ( sort { $a <=> $b } keys %$devpooltable ) {
+
+   $id = $iid;
+   my $name=$devpooltable->{$iid}->{'ccmDevicePoolName'};
+
+   my $region_idx=$devpooltable->{$iid}->{'ccmDevicePoolRegionIndex'};
+   my $region=$regiontable->{$region_idx}->{'ccmRegionName'};
+
+   my $tz_idx=$devpooltable->{$iid}->{'ccmDevicePoolTimeZoneIndex'};
+   my $tz=$timezonetable->{$tz_idx}->{'ccmTimeZoneName'};
+
+   my $group_idx=$devpooltable->{$iid}->{'ccmDevicePoolGroupIndex'};
+   my $group=$grouptable->{$group_idx}->{'ccmGroupName'};
+
+   push @host_data, {'iid'=>$id, 'name'=>$name, 'region'=>$region, 'tz'=>$tz, 'group'=>$group };
+
+}
+
+#----------------------------------------------------------------------------
+if ($FORMAT eq 'json') {
+#----------------------------------------------------------------------------
+
+   my $data=encode_json(\@host_data);
+   print "$data\n";
+
+   my @COL_MAP = (
+      { 'label'=>'IID', 'width'=>'10' , 'name_col'=>'iid',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Name', 'width'=>'10' , 'name_col'=>'descr',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Region', 'width'=>'5' , 'name_col'=>'size',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'TimeZone', 'width'=>'10' , 'name_col'=>'used',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Group', 'width'=>'10' , 'name_col'=>'perc',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   );
+
+   my $col_map=encode_json(\@COL_MAP);
+   print "$col_map\n";
+
+}
+#----------------------------------------------------------------------------
+elsif ($FORMAT eq 'txt') {
+#----------------------------------------------------------------------------
+#
+   print '-' x85,"\n";
+ 	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\n";
+  	print '-' x85,"\n";
+
+	#------------------------------------------------------
+	my ($id,$name,$region,$tz,$group)=('Idx','Name','Region','TimeZone','Group');
+format DEVPOOL_DATA =
+@>>>>>>> @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<
+$id,$name,              $region,                     $tz,     $group
+.
+   $~ = 'DEVPOOL_DATA';
+	write();
+	for my $h (@host_data) {
+		($id,$name,$region,$tz,$group)=($h->{'iid'},$h->{'name'},$h->{'region'},$h->{'tz'},$h->{'group'});
+		write();
+	}
+}
+
+#----------------------------------------------------------------------------
+else { 	print Dumper(\@host_data); }
+#----------------------------------------------------------------------------
+

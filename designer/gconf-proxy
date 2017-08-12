@@ -1,0 +1,668 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use lib '/opt/cnm-designer';
+use lib '/opt/cnm-designer/proxy-pkgs';
+use strict;
+use Data::Dumper;
+use File::Basename;
+use Digest::MD5 qw(md5_hex);
+use Getopt::Std;
+
+#---------------------------------------------------------------------------
+my $DIR_BASE = '/opt/cnm-designer';
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my %opts=();
+getopts("hvum:p:d:i:l:",\%opts);
+
+if ($opts{h}) {
+   my $USAGE = usage(); die $USAGE;
+}
+
+#---------------------------------------------------------------------------
+my $SCRIPT_SRC_PATH = $DIR_BASE.'/xagent/base';
+
+my $SCRIPT_DST_PATH='xagent/base';
+my $MODULES_DIR = $DIR_BASE.'/proxy-pkgs';
+my $SCRIPT_SRC_PATH=$DIR_BASE.'/xagent/base';
+my $SCRIPT_DST_PATH='xagent/base';
+my $MODULES_PATH = "$MODULES_DIR/*.pm";
+my @files = < $MODULES_PATH >;
+
+foreach my $mod( sort @files){
+   my($filename, $directories, $suffix) = fileparse($mod);
+   if ($filename =~/(\S+)\.pm/) { 
+		my $m=$1;
+		my $cmd="$DIR_BASE/gconf-proxy -m $m ";
+
+#linux_metric_wmi_event_viewer
+		if ($m =~/^\S+?_\S+?_(\S+)$/) { 
+			my $p=$1;
+			$p=~s/_/-/;
+			$cmd .= "-p $p";
+		}
+		if ($opts{v}) { print "$cmd\n"; }
+	}
+}
+
+
+#---------------------------------------------------------------------------
+#my $dir_pm='/opt/custom_pro/conf/proxy-pkgs';
+my $dir_pm = $DIR_BASE.'/proxy-pkgs';
+
+if (! $opts{m}) {
+   my $USAGE = usage(); die $USAGE;
+}
+
+my $MODULE=$opts{m};
+$MODULE=~s/\.pm//;
+
+my $file_pm=$dir_pm.'/'.$MODULE.'.pm';
+if ( ! -f $file_pm) {
+	print "**ERROR** NO EXISTE EL FICHERO $file_pm\n\n";
+   my $USAGE = usage(); die $USAGE;
+}
+
+#---------------------------------------------------------------------------
+my ($sqlblock, $sqlblock1, $sqlblock2, $sqlblock3, $sqlblock4, $sqlblock5) = ('','','','','','');
+
+#---------------------------------------------------------------------------
+foreach my $mod(@files){
+    my($filename, $directories, $suffix) = fileparse($mod);
+print "Cargando: $filename\n";
+    require $filename;
+}
+
+#---------------------------------------------------------------------------
+my $results_dir='/tmp/GCONF_OUT';
+if (-d $results_dir) { system("rm -f $results_dir/*"); }
+else { system("mkdir -p $results_dir"); }
+
+my $INIT_SCRIPT_FILE=$results_dir.'/'.$MODULE.'-Init-script.php';
+my $INIT_SCRIPT_ATTR_FILE=$results_dir.'/'.$MODULE.'-Init-script-attr.php';
+my $INIT_SCRIPT_PARAM_FILE=$results_dir.'/'.$MODULE.'-Init-script-param.php';
+my $INIT_SCRIPT_TIPS_FILE=$results_dir.'/'.$MODULE.'-Init-script-tips.php';
+
+my $INIT_METRIC_FILE=$results_dir.'/'.$MODULE.'-Init-metric.php';
+my $INIT_METRIC_PARAM_FILE=$results_dir.'/'.$MODULE.'-Init-metric-param.php';
+my $INIT_METRIC_TIPS_FILE=$results_dir.'/'.$MODULE.'-Init-metric-tips.php';
+my $INIT_MONITOR_FILE=$results_dir.'/'.$MODULE.'-Init-monitor.php';
+my $INIT_MONITOR_TIPS_FILE=$results_dir.'/'.$MODULE.'-Init-monitor-tips.php';
+
+my $INIT_APP_FILE=$results_dir.'/'.$MODULE.'-Init-apps.php';
+my $INIT_APP_PARAM_FILE=$results_dir.'/'.$MODULE.'-Init-apps-param.php';
+my $INIT_APP_TIPS_FILE=$results_dir.'/'.$MODULE.'-Init-apps-tips.php';
+
+my @COPY_FILES =(
+	{ 'source_file'=>$INIT_SCRIPT_FILE, 'dest_dir'=>'/update/db/Init/cfg_monitor_agent_script/' },
+	{ 'source_file'=>$INIT_SCRIPT_ATTR_FILE, 'dest_dir'=>'/update/db/Init/attr2db/' },
+	{ 'source_file'=>$INIT_SCRIPT_PARAM_FILE, 'dest_dir'=>'/update/db/Init/cfg_script_param/' },
+	{ 'source_file'=>$INIT_SCRIPT_TIPS_FILE, 'dest_dir'=>'/update/db/Init/tips/' },
+
+	{ 'source_file'=>$INIT_METRIC_FILE, 'dest_dir'=>'/update/db/Init/cfg_monitor_agent/' },
+	{ 'source_file'=>$INIT_METRIC_PARAM_FILE, 'dest_dir'=>'/update/db/Init/cfg_monitor_param/' },
+	{ 'source_file'=>$INIT_METRIC_TIPS_FILE, 'dest_dir'=>'/update/db/Init/tips/' },
+
+	{ 'source_file'=>$INIT_MONITOR_FILE, 'dest_dir'=>'/update/db/Init/alert_type/' },
+	{ 'source_file'=>$INIT_MONITOR_TIPS_FILE, 'dest_dir'=>'/update/db/Init/tips/' },
+
+	{ 'source_file'=>$INIT_APP_FILE, 'dest_dir'=>'/update/db/Init/cfg_monitor_apps/' },
+	{ 'source_file'=>$INIT_APP_PARAM_FILE, 'dest_dir'=>'/update/db/Init/cfg_app_param/' },
+	{ 'source_file'=>$INIT_APP_TIPS_FILE, 'dest_dir'=>'/update/db/Init/tips/' },
+);
+
+#---------------------------------------------------------------------------
+my $CFG = eval '$'.$MODULE.'::CFG';
+my $SCRIPT_NAME = eval '$'.$MODULE.'::SCRIPT_NAME';
+my %SCRIPT = eval '%'.$MODULE.'::SCRIPT';
+my %ATTR = eval '%'.$MODULE.'::ATTR';
+my @METRICS = eval '@'.$MODULE.'::METRICS';
+my @APPS = eval '@'.$MODULE.'::APPS';
+
+my ($TOTAL_METRICS, $TOTAL_APPS, $TOTAL_MONITORS)=(0,0,0);
+
+#---------------------------------------------------------------------------
+print "CFG=$CFG\n";
+print "SCRIPT_NAME=$SCRIPT_NAME\n";
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# 1 SCRIPT
+#---------------------------------------------------------------------------
+# cfg=0 METRICA  cfg=1 APP
+# metricas -> /update/db/Init/cfg_monitor_agent_script/DB-Scheme-Init-xagent-script-proxy-linux-metrics.php
+# apps -> /update/db/Init/cfg_monitor_agent_script/DB-Scheme-Init-xagent-script-proxy-linux-apps.php
+
+my $SQLSCRIPT_DATA = <<"SQLSCRIPT_DATA";
+      \$CFG_MONITOR_AGENT_SCRIPT[]=array(
+            'script' => '__SCRIPT__',  'exec_mode' => __EXEC_MODE__, 'timeout'=>__TIMEOUT__, 'out_files'=>'__OUT_FILES__',
+            'description' => '__SCRIPT_DESCRIPTION__',
+            'proxy_type' => '__PROXY_TYPE__', 'cfg' => '__CFG__',  'custom' => '0', 'proxy_user'=>'__PROXY_USER__', 'proxy_pwd'=>'__PROXY_PWD__',
+      );
+
+SQLSCRIPT_DATA
+
+$sqlblock=$SQLSCRIPT_DATA;
+foreach my $k (sort keys %SCRIPT) {
+   $sqlblock =~ s/$k/$SCRIPT{$k}/;
+}
+set_db_file($INIT_SCRIPT_FILE,$sqlblock);
+
+#---------------------------------------------------------------------------
+# 1.1 ATRIBUTOS DEL SCRIPT
+#---------------------------------------------------------------------------
+# attr -> /update/db/Init/attr2db/MODULO-Init-script-attr.php
+
+my $SQLSCRIPT_ATTR_DATA = <<"SQLSCRIPT_ATTR_DATA";
+      \$ATTR2DB[]=array(
+            'script' => '__SCRIPT__',  'attr' => '__ATTR__', 'tab'=>'__TABLE__',
+      );
+
+SQLSCRIPT_ATTR_DATA
+
+if ( scalar(keys %ATTR)>0) {
+	print "EL SCRIPT $SCRIPT_NAME TIENE ATRIBUTOS ...\n";
+	print Dumper(%ATTR);
+	my $sqlblock_total = '';
+	foreach my $k (sort keys %ATTR) {
+		foreach my $attribute (@{$ATTR{$k}}) {
+			$sqlblock = $SQLSCRIPT_ATTR_DATA;
+			$sqlblock =~ s/__SCRIPT__/$SCRIPT_NAME/;
+   		$sqlblock =~ s/__ATTR__/$attribute/;
+   		$sqlblock =~ s/__TABLE__/$k/;
+			$sqlblock_total .= $sqlblock;
+		} 
+	}
+	set_db_file($INIT_SCRIPT_ATTR_FILE,$sqlblock_total);
+}
+
+#---------------------------------------------------------------------------
+# 2 PARAMETROS DEL SCRIPT
+#---------------------------------------------------------------------------
+# /update/db/Init/cfg_script_param/DB-Scheme-Init-script-params-proxy-linux-metrics.php
+# /update/db/Init/cfg_script_param/DB-Scheme-Init-script-params-proxy-linux-apps.php
+
+my $SQLSCRIPT_PARAM = <<"SQLSCRIPT_PARAM";
+      \$CFG_SCRIPT_PARAM[]=array(
+	      'hparam' => '__HPARAM__', 'position' => '__POSITION__', 'param_type' => '__PARAM_TYPE__',
+   	   'script' => '__SCRIPT__',
+      	'prefix' => '__PARAM_PREFIX__', 'descr' => '__PARAM_DESCR__', 'value' => '__PARAM_VALUE__',
+      );
+
+SQLSCRIPT_PARAM
+
+my $position=0;
+$sqlblock1='';
+foreach my $id ( sort keys %{$SCRIPT{__SCRIPT_PARAMS__}}) {
+	$sqlblock=$SQLSCRIPT_PARAM;
+
+	my $p = $SCRIPT{__SCRIPT_PARAMS__}->{$id};
+	if ($p->{'__HPARAM__'} eq '') { $p->{'__HPARAM__'} = substr(md5_hex($p->{'__SCRIPT__'}.$position),0,8); }
+	foreach my $k (sort keys %$p) {
+	   $sqlblock =~ s/$k/$p->{$k}/;
+	}
+
+	$sqlblock =~ s/__POSITION__/$position/;
+
+	$position += 1;
+	$sqlblock1 .= $sqlblock;
+}
+set_db_file($INIT_SCRIPT_PARAM_FILE,$sqlblock1);
+
+#---------------------------------------------------------------------------
+# 3 DOCUMENTACION DEL SCRIPT
+#---------------------------------------------------------------------------
+# /update/db/Init/cfg_script_param/DB-Scheme-Init-script-params-proxy-linux-metrics.php
+# /update/db/Init/cfg_script_param/DB-Scheme-Init-script-params-proxy-linux-apps.php
+
+my $SQLSCRIPT_TIP = <<"SQLSCRIPT_TIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'script', 'url' => '',
+         'date' => '',     'tip_class' => 1, 'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLSCRIPT_TIP
+
+
+$sqlblock=$SQLSCRIPT_TIP;
+foreach my $k (keys %{$SCRIPT{__TIP__}}) {
+	$sqlblock =~ s/$k/$SCRIPT{__TIP__}->{$k}/;
+}
+set_db_file($INIT_SCRIPT_TIPS_FILE,$sqlblock);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# 							METRICAS																-
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+if ($CFG==0) {
+
+$TOTAL_METRICS=scalar(@METRICS);
+
+#---------------------------------------------------------------------------
+# 4 METRICA ASOCIADA
+# 5 PARAMETROS DE LA METRICA
+# 6 DOCUMENTACION DE LA METRICA
+# 7 MONITOR
+# 8 DOCUMENTACION DEL MONITOR
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# METRICA
+#---------------------------------------------------------------------------
+my $SQLSCRIPT_METRIC = <<"SQLSCRIPT_METRIC";
+      \$CFG_MONITOR_AGENT[]=array(
+            'subtype' => '__SUBTYPE__',   'class' => '__CLASS__',  'description' => '__DESCRIPTION__',
+            'apptype' => '__APPTYPE__',  'itil_type' => '__ITIL_TYPE__',    'tag' => '__TAG__',   'esp'=>'__ESP__',  'iptab' => '__IPTAB__',
+            'items' => '__ITEMS__',        'vlabel' => '__VLABEL__',      'mode' => '__MODE__',
+            'mtype' => '__MTYPE__',        'top_value' => '1',     'module' => 'mod_xagent_get',    'nparams' => '__NPARAMS__',
+            'params' => '__PARAMS__',      'params_descr' => '__PARAMS_DESCR__',
+            'script' => '__SCRIPT__',         'severity' => '__SEVERITY__',
+            'cfg' => '__CFG__',  'custom' => '0',  'get_iid' => '__GET_IID__',  'proxy'=>1, 'proxy_type'=>'__PROXY_TYPE__',
+            'info' => '',  'lapse' => __LAPSE__,   'include'=>__INCLUDE__,
+				'myrange' => '__MYRANGE__',
+      );
+SQLSCRIPT_METRIC
+
+#---------------------------------------------------------------------------
+# PARAMETROS DE LA METRICA
+#---------------------------------------------------------------------------
+my $SQLMETRIC_PARAM = <<"SQLMETRIC_PARAM";
+      \$CFG_MONITOR_PARAM[]=array(
+         'subtype' => '__SUBTYPE__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => '__VALUE__',
+         'script' => '__SCRIPT__',
+      );
+
+SQLMETRIC_PARAM
+
+#---------------------------------------------------------------------------
+# DOCUMENTACION DE LA METRICA
+#---------------------------------------------------------------------------
+my $SQLMETRIC_TIP = <<"SQLMETRIC_TIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'agent', 'url' => '',
+         'date' => '',     'tip_class' => 1, 'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLMETRIC_TIP
+
+#---------------------------------------------------------------------------
+# MONITOR 
+#---------------------------------------------------------------------------
+my $SQLMONITOR = <<"SQLMONITOR";
+
+      \$ALERT_TYPE[]=array(
+            'monitor' => '__MONITOR__',  'cause'=>'__CAUSE__', 'hide'=>'__HIDE__',
+            'expr'=>'__EXPR__', 'params' => '__PARAMS__',    'severity' => '__SEVERITY__',
+            'mname'=>'__MNAME__',   'type'=>'xagent',   'subtype'=>'__SUBTYPE__',
+            'wsize' => '__WSIZE__',   'class' => '__CLASS__'
+      );
+
+SQLMONITOR
+
+#---------------------------------------------------------------------------
+# DOCUMENTACION DEL MONITOR
+#---------------------------------------------------------------------------
+my $SQLMONITOR_TIP = <<"SQLMONITOR_TIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'id_alert_type', 'url' => '',
+         'date' => '',     'tip_class' => 1, 'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLMONITOR_TIP
+
+
+($sqlblock1, $sqlblock2, $sqlblock3,  $sqlblock4, $sqlblock5) = ('','','','','');
+foreach my $m (@METRICS) {
+
+	# -----------------------------------------------
+	if ($m->{'__SUBTYPE__'} eq '') { $m->{'__SUBTYPE__'} = 'xagt_' . substr(md5_hex($m->{'__DESCRIPTION__'}),0,6); }
+	if (! exists $m->{'__LAPSE__'}) { $m->{'__LAPSE__'} = 300; }
+	$sqlblock=$SQLSCRIPT_METRIC;
+	foreach my $k (sort keys %$m) {
+   	$sqlblock =~ s/$k/$m->{$k}/;
+	}
+	#print  "$sqlblock\n";
+	$sqlblock1 .= $sqlblock;
+
+	# -----------------------------------------------
+	foreach my $id ( sort keys %{$m->{'__METRIC_PARAMS__'}}) {
+   	$sqlblock=$SQLMETRIC_PARAM;
+
+		my $p = $m->{'__METRIC_PARAMS__'}->{$id};
+   	foreach my $k (sort keys %$p) {
+      	$sqlblock =~ s/$k/$p->{$k}/;
+   	}
+
+		$sqlblock =~ s/__SUBTYPE__/$m->{'__SUBTYPE__'}/;
+		$sqlblock =~ s/__HPARAM__/$SCRIPT{__SCRIPT_PARAMS__}->{$id}->{'__HPARAM__'}/;
+		$sqlblock2 .= $sqlblock;
+	}
+   #print  "$sqlblock2\n";
+
+
+	# -----------------------------------------------
+	$sqlblock=$SQLMETRIC_TIP;
+	foreach my $k (keys %{$m->{'__TIP__'}}) {
+   	$sqlblock =~ s/$k/$m->{'__TIP__'}->{$k}/;
+	}
+	$sqlblock =~ s/__ID_REF__/$m->{'__SUBTYPE__'}/;
+
+	#print  "$sqlblock\n";
+	$sqlblock3 .= $sqlblock;
+	
+	# -----------------------------------------------
+   foreach my $id ( sort keys %{$m->{'__MONITORS__'}}) {
+	
+		my $mh = $m->{'__MONITORS__'}->{$id};
+		$m->{'__MONITORS__'}->{$id}->{'__SUBTYPE__'} = $m->{'__SUBTYPE__'};
+
+		# Si es sin IIDs
+		$m->{'__MONITORS__'}->{$id}->{'__MNAME__'} = $m->{'__SUBTYPE__'};
+
+	   if ($mh->{'__MONITOR__'} eq '') { 
+			#$m->{'__MONITORS__'}->{$id}->{'__MONITOR__'} = 's_' .$mh->{'__SUBTYPE__'} . '-' . substr(md5_hex($mh->{'__CAUSE__'}),0,8); 
+			print "**ERROR** HAY QUE DEFINIR EL CAMPO monitor del monitor id=$id\n";
+			print "Ejecute $DIR_BASE/get_monitor_id -s ".$m->{'__SUBTYPE__'}."\n";
+			return;
+		}
+
+
+#print "*****************************\nid=$id\n";
+#print Dumper($m->{'__MONITORS__'}->{$id});
+#print "\n-------------\n";
+#print Dumper($mh->{'__MONITOR__'});
+#print "\n-------------\n";
+
+      $sqlblock=$SQLMONITOR;
+
+      foreach my $k (sort keys %$mh) {
+         $sqlblock =~ s/$k/$mh->{$k}/;
+      }
+
+      $sqlblock4 .= $sqlblock;
+		$TOTAL_MONITORS += 1;
+
+	   # -----------------------------------------------
+   	$sqlblock=$SQLMONITOR_TIP;
+#	   foreach my $k (keys %{$mh->{'__TIP__'}}) {
+#  		   $sqlblock =~ s/$k/$mh->{'__TIP__'}->{$k}/;
+#  		}
+  		$sqlblock =~ s/__ID_REF__/$mh->{'__MONITOR__'}/;
+  		$sqlblock =~ s/__DESCR_TIP__/$mh->{'__DESCR_TIP__'}/;
+
+   	#print  "$sqlblock\n";
+   	$sqlblock5 .= $sqlblock;
+
+	}
+}
+set_db_file($INIT_METRIC_FILE,$sqlblock1);
+set_db_file($INIT_METRIC_PARAM_FILE,$sqlblock2);
+set_db_file($INIT_METRIC_TIPS_FILE,$sqlblock3);
+set_db_file($INIT_MONITOR_FILE,$sqlblock4);
+set_db_file($INIT_MONITOR_TIPS_FILE,$sqlblock5);
+
+#---------------------------------------------------------------------------
+if ($opts{p}) {
+   print "GENERO plugin: $opts{p}\n";
+   copy_files($opts{p});
+}
+else { 
+	if ($opts{v}) { copy_files(); }
+}
+
+#---------------------------------------------------------------------------
+print "***TOTAL**** METRICAS=$TOTAL_METRICS | MONITORES=$TOTAL_MONITORS\n";
+
+
+}
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#                		APLICACIONES                                          -
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+elsif ($CFG==1) {
+
+$TOTAL_APPS=scalar(@APPS);
+#---------------------------------------------------------------------------
+# 4 APLICACION
+# 5 PARAMETROS DE LA APLICACION
+# 6 DOCUMENTACION DE LA APLICACION
+# 7 TAREA
+# 8 PARAMETROS DE LA TAREA
+# 9 DOCUMENTACION DE LA TAREA
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# APLICACION
+#---------------------------------------------------------------------------
+my $SQLSCRIPT_APP = <<"SQLSCRIPT_APP";
+      \$CFG_MONITOR_APPS[]=array(
+         'type' => 'xagent', 'subtype'=>'__SUBTYPE__',  'name'=>'__NAME__',
+         'descr' => '__DESCR__',
+         'cmd' => '__CMD__',
+         'params' => '',      'iptab'=>'__IPTAB__', 'ready'=>'__READY__',
+         'myrange' => '__MYRANGE__',   'enterprise'=>'0',
+         'cfg' => '__CFG__',  'platform' => '__PLATFORM__',   'script' => '__SCRIPT__',   'format'=>__FORMAT__,
+         'custom' => '0', 'aname'=> '__ANAME__', 'res'=>__RES__, 'ipparam'=>'__IPPARAM__',
+         'apptype' => '__APPTYPE__',  'itil_type' => '__ITIL_TYPE__'
+      );
+
+SQLSCRIPT_APP
+
+
+#      $CFG_MONITOR_APPS[]=array(
+#         'type' => 'xagent', 'subtype'=>'GConf', 'itil_type'=>'2',  'name'=>'OBTENER CONFIGURACION DE ROUTER COMTREND POR TELNET',
+#         'descr' => 'Obtiene la configuracion de un router comtrend por telnet',
+#         'cmd' => '',
+#         'params' => '',      'iptab'=>'1', 'ready'=>'0',
+#         'myrange' => 'cnm',   'enterprise'=>'0',
+#         'cfg' => '0',  'platform' => '*',   'script' => 'linux_app_get_conf_telnet_comtrend_router.pl',   'format'=>1,
+#         'custom' => '0', 'aname'=> 'app_gconf_telnet_comtrend', 'res'=>1, 'ipparam'=>'',
+#         'apptype' => 'CNM',  'itil_type' => '2',
+#      );
+
+#---------------------------------------------------------------------------
+# PARAMETROS DE LA APLICACION
+#---------------------------------------------------------------------------
+my $SQLAPP_PARAM = <<"SQLAPP_PARAM";
+      \$CFG_APP_PARAM[]=array(
+         'aname' => '__ANAME__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => '__VALUE__',
+         'script' => '__SCRIPT__',
+      );
+
+SQLAPP_PARAM
+
+#   $CFG_APP_PARAM[]=array(
+#      'aname' => 'app_gconf_telnet_comtrend', 'hparam' => '40000000', 'type' => 'cnm', 'enable' => '1', 'value' => '',
+#      'script' => 'linux_app_get_conf_telnet_comtrend_router.pl',
+#   );
+
+#---------------------------------------------------------------------------
+# DOCUMENTACION DE LA APLICACION
+#---------------------------------------------------------------------------
+my $SQLAPP_TIP = <<"SQLAPP_TIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'app', 'url' => '',
+         'date' => '',     'tip_class' => 1, 'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLAPP_TIP
+
+
+($sqlblock1, $sqlblock2, $sqlblock3,  $sqlblock4, $sqlblock5) = ('','','','','');
+foreach my $m (@APPS) {
+
+   # -----------------------------------------------
+   #if ($m->{'__SUBTYPE__'} eq '') { $m->{'__SUBTYPE__'} = 'xagt_' . substr(md5_hex($m->{'__DESCRIPTION__'}),0,6); }
+   $sqlblock=$SQLSCRIPT_APP;
+   foreach my $k (sort keys %$m) {
+      $sqlblock =~ s/$k/$m->{$k}/;
+   }
+   #print  "$sqlblock\n";
+   $sqlblock1 .= $sqlblock;
+
+   # -----------------------------------------------
+   foreach my $id ( sort keys %{$m->{'__APP_PARAMS__'}}) {
+      $sqlblock=$SQLAPP_PARAM;
+
+      my $p = $m->{'__APP_PARAMS__'}->{$id};
+      foreach my $k (sort keys %$p) {
+         $sqlblock =~ s/$k/$p->{$k}/;
+      }
+
+      $sqlblock =~ s/__ANAME__/$m->{'__ANAME__'}/;
+		$sqlblock =~ s/__HPARAM__/$SCRIPT{__SCRIPT_PARAMS__}->{$id}->{'__HPARAM__'}/;
+      $sqlblock2 .= $sqlblock;
+   }
+   #print  "$sqlblock2\n";
+
+
+   # -----------------------------------------------
+   $sqlblock=$SQLAPP_TIP;
+   foreach my $k (keys %{$m->{'__TIP__'}}) {
+      $sqlblock =~ s/$k/$m->{'__TIP__'}->{$k}/;
+   }
+   $sqlblock =~ s/__ID_REF__/$m->{'__ANAME__'}/;
+
+   #print  "$sqlblock\n";
+   $sqlblock3 .= $sqlblock;
+
+}
+
+#print "$sqlblock1\n";
+#print "$sqlblock2\n";
+#print "$sqlblock3\n";
+
+set_db_file($INIT_APP_FILE,$sqlblock1);
+set_db_file($INIT_APP_PARAM_FILE,$sqlblock2);
+set_db_file($INIT_APP_TIPS_FILE,$sqlblock3);
+
+#---------------------------------------------------------------------------
+if ($opts{p}) {
+   print "GENERO plugin: $opts{p}\n";
+   copy_files($opts{p});
+}
+else { 
+	if ($opts{v}) { copy_files(); }
+}
+
+#---------------------------------------------------------------------------
+print "****TOTAL**** APPS=$TOTAL_APPS\n";
+
+}
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# --------------------------------------------------------------
+sub set_db_file {
+my ($file,$block)=@_;
+
+
+	if (! $block) { return; }
+	unlink $file;
+	my $rc = open (F, ">$file");
+	if (! $rc) {
+		print "**ERROR** Al abrir fichero: $file ($!)\n";
+		return;
+	}
+	print F "<?php\n";
+	print F $block;
+	print F "?>\n";
+	close F;
+}
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+sub copy_files {
+my ($subdir) = @_;
+
+	my $subdir_path='';
+	if (defined $subdir) {
+		$subdir_path='/opt/cnm-sp/'.$subdir;
+	}
+
+	my $install_file="#!/bin/bash\n\n";
+	foreach my $h (@COPY_FILES) {
+		my ($from,$to) = ($h->{'source_file'}, $h->{'dest_dir'});
+		if (! -f $from) { next; }
+		if (defined $subdir) { 
+			my ($filename, $directories, $suffix) = fileparse($from);
+			#$install_file .= "/bin/cp \.$to$filename $to\n";
+			$to = $subdir_path.$to; 
+			if (! -d $to) { system("/bin/mkdir -p $to"); }
+		}	
+		if (! -f $from) { next; }
+		print "$from -> $to\n";
+		my $cmd="cp $from $to";
+		system($cmd);
+	}
+
+	if (defined $subdir) {
+
+      my $script_path = $subdir_path.'/'.$SCRIPT_DST_PATH;
+      if (! -d $script_path) { system("/bin/mkdir -p $script_path"); }
+      system("/bin/cp $SCRIPT_SRC_PATH/$SCRIPT_NAME $script_path");
+
+#		print "/bin/ln -s $script_path/$SCRIPT_NAME $SCRIPT_SRC_PATH/$SCRIPT_NAME\n";
+#		if (-f "$SCRIPT_SRC_PATH/$SCRIPT_NAME") { system("/bin/mv $SCRIPT_SRC_PATH/$SCRIPT_NAME /tmp"); }
+#      system("/bin/ln -s $script_path/$SCRIPT_NAME $SCRIPT_SRC_PATH/$SCRIPT_NAME");
+#		system ("/bin/chmod 755 $script_path/$SCRIPT_NAME");
+
+		# Se copian todos los scripts porque diferentes scripts pueden compartir subdir
+		#$install_file .= "/bin/cp $script_path/* $SCRIPT_SRC_PATH\n";
+		$install_file .= "[ -f $subdir_path/pre-install  ] && $subdir_path/pre-install\n\n";
+		#$install_file .= "if [ -d $SCRIPT_SRC_PATH  ]; then\n";
+		$install_file .= "if [ -L /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
+		$install_file .= "   /bin/rm -f /opt/cnm/xagent/base/$SCRIPT_NAME\n";
+		$install_file .= "elif [ -e /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
+		$install_file .= "   /bin/mv /opt/cnm/xagent/base/$SCRIPT_NAME /tmp\n";
+		$install_file .= "elif [ -d /opt/cnm/xagent/base  ]; then\n";
+		$install_file .= "	/bin/ln -s $script_path/$SCRIPT_NAME /opt/cnm/xagent/base/$SCRIPT_NAME\nfi\n";
+		$install_file .= "/update/db/db-manage.php -p $subdir_path\n\n";
+		$install_file .= "if [ -f $subdir_path/post-install  ]; then\n";
+		$install_file .= "   $subdir_path/post-install\n";
+		$install_file .= "else exit 0\nfi\n";
+
+		open (F,">$subdir_path/install");
+		print F $install_file;
+		close F;
+		system ("/bin/chmod 755 $subdir_path/install");
+
+		open (F,">$subdir_path/update/db/DB-Scheme-Create.php");
+      print F "<?php\n\$DBScheme = array();\n?>\n";
+      close F;
+
+		#print "install_file=$install_file\n";
+	}
+}
+
+#--------------------------------------------------------------------------------
+sub usage {
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+Compilador de PROXY descriptors
+hf:c:d:
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -m  : Nombre de modulo p.ej: linux_metric_wmi_services
+$fpth[$#fpth] -p  : Genera plugin xxx (Copia ficheros a ruta del plugin /opt/cnm-sp/xxx)
+$fpth[$#fpth] -u  : Copia ficheros a /update
+
+USAGE
+
+}
+

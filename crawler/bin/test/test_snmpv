@@ -1,0 +1,56 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+
+	
+   #---------------------------------------------------------------
+   # Busco version SNMP
+	my %SNMPCFG = ();
+	$SNMPCFG{'host_ip'} = $ARGV[0] || die "USO: $0 ip\n" ;
+	$SNMPCFG{'community'} = (defined $ARGV[1]) ? $ARGV[1] : 'public';
+	$SNMPCFG{'version'} = 2;
+   my $snmp=Crawler::SNMP->new();
+	
+   #my $SNMP_VERSION=$snmp->snmp_get_version($ip,$community);
+	#sysDescr_sysObjectID_sysName_sysLocation
+
+   my ($rc, $rcstr, $res)=$snmp->verify_snmp_data(\%SNMPCFG);
+	print "VERSION=$SNMPCFG{'version'} RC=$rc RCSTR=$rcstr DATOS=".scalar @$res."\n";
+	if ($rc==0) {
+		#print "RES=@$res\n";
+		#RES=0:@:"Linux cnm-devel 2.6.9-prep #1 Thu Aug 17 13:40:15 CEST 2006 i686":@:linux:@:"cnm-devel":@:"CPD (edit /etc/snmp/snmpd.conf)"
+		foreach my $l (@$res) {
+			my @rd=split(':@:', $l);
+			print "DESCR=$rd[1]\nOID=$rd[2]\nNAME=$rd[3]\nLOC=$rd[4]\n";
+		}
+	}
+
+   #---------------------------------------------------------------
+	$SNMPCFG{'version'} = 1;
+   ($rc, $rcstr, $res)=$snmp->verify_snmp_data(\%SNMPCFG);
+   print "VERSION=$SNMPCFG{'version'} RC=$rc RCSTR=$rcstr DATOS=".scalar @$res.".\n";
+   if ($rc==0) {
+      #print "RES=@$res\n";
+      #RES=0:@:"Linux cnm-devel 2.6.9-prep #1 Thu Aug 17 13:40:15 CEST 2006 i686":@:linux:@:"cnm-devel":@:"CPD (edit /etc/snmp/snmpd.conf)"
+      foreach my $l (@$res) {
+         my @rd=split(':@:', $l);
+         print "DESCR=$rd[1]\nOID=$rd[2]\nNAME=$rd[3]\nLOC=$rd[4]\n";
+      }
+   }
+
+   #---------------------------------------------------------------
+
+	my $v=$snmp->snmp_get_version($SNMPCFG{'host_ip'},$SNMPCFG{'community'},\%SNMPCFG);
+	print "RESULTADO DE snmp_get_version  >>> $v\n";
+	print "SYSDESC = $SNMPCFG{'sysdesc'}\n";
+	print "SYSOID = $SNMPCFG{'sysoid'}\n";
+	print "SYSNAME = $SNMPCFG{'sysname'}\n";
+	print "SYSLOC = $SNMPCFG{'sysloc'}\n";
+
+

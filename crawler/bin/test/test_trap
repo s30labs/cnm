@@ -1,0 +1,53 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::SNMP;
+
+# ----------------------------------------------------------------
+# snmptrap  -c public  -v 1 localhost  TRAP-TEST-MIB::demotraps localhost 6 17 '' SNMPv2-MIB::sysLocation.0 s "TRAP V1"
+# ----------------------------------------------------------------
+# Sep 18 19:54:48 cnm-devel2 snmptrapd[21752]: DATE>>2009918 19:54:48; HOST>>cnm-devel2; IPv1>>127.0.0.1; NAMEv1>>cnm-devel2; IPv2>>UDP: [127.0.0.1]:43442; NAMEv2>>cnm-devel2; OID>>UCD-SNMP-MIB::ucdExperimental.990; TRAP>>6..17; DESC>>Enterprise Specific; VDATA>>SNMPv2-MIB::sysLocation.0 = STRING: TRAP V1
+# ----------------------------------------------------------------
+# ----------------------------------------------------------------
+# snmptrap -v 2c -c public localhost '' NOTIFICATION-TEST-MIB::demo-notif SNMPv2-MIB::sysLocation.0 s "TRAP V2"
+# ----------------------------------------------------------------
+# Sep 18 19:55:02 cnm-devel2 snmptrapd[21752]: DATE>>2009918 19:55:02; HOST>>0.0.0.0; IPv1>>0.0.0.0; NAMEv1>>0.0.0.0; IPv2>>UDP: [127.0.0.1]:43442; NAMEv2>>cnm-devel2; OID>>.; TRAP>>0.0; DESC>>Cold Start; VDATA>>DISMAN-EVENT-MIB::sysUpTimeInstance = Timeticks: (57471021) 6 days, 15:38:30.21|SNMPv2-MIB::snmpTrapOID.0 = OID: UCD-SNMP-MIB::ucdavis.991.17|SNMPv2-MIB::sysLocation.0 = STRING: TRAP V2
+# ----------------------------------------------------------------
+# ciscoFlashCopyCompletionTrap
+# snmptrap  -c public  -v 1 10.2.254.222 1.3.6.1.4.1.9.9.10.1.3 10.2.254.222 6 1 '' 1.3.6.1.4.1.9.9.10.1.2.1.1.8 i 4
+# snmptrap  -v 2c -c public 10.2.254.222 '' 1.3.6.1.4.1.9.9.10.1.3.0.1  1.3.6.1.4.1.9.9.10.1.2.1.1.8 i 4
+# snmptrap  -v 2c -c public 10.2.254.222 '' CISCO-FLASH-MIB::ciscoFlashCopyCompletionTrap  CISCO-FLASH-MIB::ciscoFlashCopyStatus i 4
+# snmptrap  -v 2c -c public 10.2.254.222 '' IF-MIB::linkDown IF-MIB::ifIndex i 1222 IF-MIB::ifAdminStatus i 0 IF-MIB::ifOperStatus i 0
+# snmptrap  -v 2c -c public 10.2.254.222 '' IF-MIB::linkUp IF-MIB::ifIndex i 1222 IF-MIB::ifAdminStatus i 0 IF-MIB::ifOperStatus i 0
+# snmptrap  -v 2c -c public 10.2.254.222 '' SNMPv2-MIB::coldStart
+# snmptrap  -v 2c -c public 10.2.254.222 '' SNMPv2-MIB::warmStart
+# snmptrap  -v 2c -c public 10.2.254.222 '' SNMPv2-MIB::authenticationFailure
+
+# ----------------------------------------------------------------
+#CISCO-SYSLOG-MIB::clogMessageGenerated	.1.3.6.1.4.1.9.9.41.2.0.1
+#
+#CISCO-SYSLOG-MIB::clogHistIndex		.1.3.6.1.4.1.9.9.41.1.2.3.1.1
+#CISCO-SYSLOG-MIB::clogHistFacility  	.1.3.6.1.4.1.9.9.41.1.2.3.1.2
+#CISCO-SYSLOG-MIB::clogHistSeverity  	.1.3.6.1.4.1.9.9.41.1.2.3.1.3
+#CISCO-SYSLOG-MIB::clogHistMsgName   	.1.3.6.1.4.1.9.9.41.1.2.3.1.4
+#CISCO-SYSLOG-MIB::clogHistMsgText	.1.3.6.1.4.1.9.9.41.1.2.3.1.5
+#CISCO-SYSLOG-MIB::clogHistTimestamp	.1.3.6.1.4.1.9.9.41.1.2.3.1.6
+#snmptrap  -c public  -v 1 localhost  .1.3.6.1.4.1.9.9.41.2 10.2.254.222 0 1 '' .1.3.6.1.4.1.9.9.41.1.2.3.1.1 i 100 .1.3.6.1.4.1.9.9.41.1.2.3.1.2 s "SYS" .1.3.6.1.4.1.9.9.41.1.2.3.1.3 i 3 .1.3.6.1.4.1.9.9.41.1.2.3.1.4 s "NAME" .1.3.6.1.4.1.9.9.41.1.2.3.1.5 s "Mensaje de syslog - pruebas1" .1.3.6.1.4.1.9.9.41.1.2.3.1.6 t 1234
+#
+#snmptrap -v 2c -c public 10.2.254.222 '' CISCO-SYSLOG-MIB::clogMessageGenerated CISCO-SYSLOG-MIB::clogHistIndex i 100 CISCO-SYSLOG-MIB::clogHistFacility s "SYS" CISCO-SYSLOG-MIB::clogHistSeverity i 1 CISCO-SYSLOG-MIB::clogHistMsgName s "NAME" CISCO-SYSLOG-MIB::clogHistMsgText s  "Mensaje de syslog - pruebas1" CISCO-SYSLOG-MIB::clogHistTimestamp t 1234
+
+# En syslog:
+#
+#Dec 20 10:42:01 cnm-devel snmptrapd[3117]: DATE>>20121220 10:42:01; HOST>>10.2.254.222; IPv1>>10.2.254.222; NAMEv1>>10.2.254.222; IPv2>>UDP: [127.0.0.1]:38048->[127.0.0.1]:162; NAMEv2>>cnm-devel; OID>>CISCO-SYSLOG-MIB::ciscoSyslogMIBNotificationPrefix; TRAP>>0.1; DESC>>Cold Start; VDATA>>CISCO-SYSLOG-MIB::clogHistIndex = INTEGER: 100|CISCO-SYSLOG-MIB::clogHistFacility = STRING: SYS|CISCO-SYSLOG-MIB::clogHistSeverity = INTEGER: 3|CISCO-SYSLOG-MIB::clogHistMsgName = STRING: NAME|CISCO-SYSLOG-MIB::clogHistMsgText = STRING: Mensaje de syslog - pruebas1|CISCO-SYSLOG-MIB::clogHistTimestamp = Timeticks: (1234) 0:00:12.34
+#
+
+
+my $ip = $ARGV[0] or die "Inroduce IP\n";
+
+my $snmp=Crawler::SNMP->new();
+
+my %params=(host_ip=>$ip, comunity=>'public', txt=>'Texto de prueba');
+
+my $r=$snmp->core_snmp_trap(\%params);
+

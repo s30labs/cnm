@@ -1,0 +1,58 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-set-network
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Long;
+use Cwd;
+use Data::Dumper;
+
+BEGIN {
+  $ENV{'MIBS'}='ALL';
+  $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+}
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+CNM Installer $VERSION (c) s30labs
+
+$fpth[$#fpth] -ip 1.1.1.1 -mask 255.255.255.0 -gw 1.1.1.254 [-if eth0]
+$fpth[$#fpth] -h
+
+-ip   : IP address
+-mask : Net mask
+-gw   : Gateway
+-if   : interface
+-h    : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my %OPTS = ();
+GetOptions (\%OPTS,'help','h','ip=s','mask=s','gw=s','if=s');
+
+if ($OPTS{'h'} || $OPTS{'help'}) { die $USAGE;}
+my ($IP,$NETMASK,$GW,$IF) = ('','','','eth0');
+
+if (!$OPTS{'ip'} || !$OPTS{'mask'} || !$OPTS{'gw'}) { die $USAGE; }
+
+if ($OPTS{'ip'}=~/(\d+\.\d+\.\d+\.\d+)/) { $IP = $1; }
+else { die $USAGE; }
+if ($OPTS{'mask'}=~/(\d+\.\d+\.\d+\.\d+)/) { $NETMASK = $1; }
+else { die $USAGE; }
+if ($OPTS{'gw'}=~/(\d+\.\d+\.\d+\.\d+)/) { $GW = $1; }
+else { die $USAGE; }
+if ($OPTS{'if'}) { $IF = $OPTS{'if'}; }
+
+
+my $extra_vars = "--extra-vars \"ipaddress=$IP netmask=$NETMASK gateway=$GW interface=$IF\"";
+my $cwd = cwd();
+chdir('/opt/cnm/os/debian8');
+my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts $extra_vars cnm-network.yml";
+print "Ejecutando $cmd ...\n";
+system($cmd);
+chdir($cwd);
+ 

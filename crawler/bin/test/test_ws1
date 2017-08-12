@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Crawler::WSClient;
+
+#---------------------------------------------------------
+
+my $SERVER=$ARGV[0] || '10.64.100.42';
+my $SERVER0='10.64.100.41';
+#---------------------------------------------------------
+
+#my %device=();
+
+#push @$vector, { name=>$d[0], domain=>$d[1], ip=>$d[2], sysloc=>$d[3], sysdesc=>$d[4], oid=>$d[5], type=>$d[6], status=>$d[7], community=>$d[8], version=>$d[9], perfil_organizativo=>$d[10], host_idx=>$d[11], wbem_user=>$d[12], wbem_pwd=>$d[13], custom=>\%custom };
+
+#$store->store_device($dbh,\device%);
+
+#my $wsclient=WSClient->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+
+#R17O2301&|&of.cm.es&|&10.200.165.254&|&AVDA. ENCUARTES C/V PANADEROS (ANTES SECTOR OFICIOS 25) TRES CANTOS - MADRID&|&Cisco Internetwork Operating System Software   IOS (tm) C1700 Software (C1700-SY7-M)  Version 12.2(15)T14  RELEASE SOFTWARE (fc4)  Technical Support: http://www.cisco.com/techsupport  Copyright (c) 1986-2004 by cisco Systems  Inc.  Compiled Sat 28-Aug-04  &|&enterprises.9.1.416&|&routers.oficinas.cisco-17xx.adsl-rdsi&|&0&|&public&|&1&|&1&|&sliromrtg0&|&wu&|&0x8b2402&|&FOC085012NP (194948891)&|&-
+
+my %device=( 'name'=>'R17O2301', 'domain'=>'of.cm.es', 'ip'=>'10.200.165.254', 'type'=>'routers.oficinas.cisco-17xx.adsl-rdsi', 'host'=>'sliromrtg0' );
+
+# Caso M-M
+#my $wsclient=Crawler::WSClient->new( 'mserver'=>[$SERVER1, $SERVER2], 'pserver'=>[$SERVER1, $SERVER2] );
+#my $r=$wsclient->store_device(\%device);
+#my %action=();
+#my $r=$wsclient->store_qactions(\%action);
+#print "R=$r\n";
+
+# Caso M-S
+my $wsclient=Crawler::WSClient->new( 'mserver'=>[$SERVER], 'pserver'=>[$SERVER0] );
+my $r=$wsclient->store_device(\%device, {'target'=> [$SERVER, $SERVER0]});
+my %action=(); # la accion es generar metricas y volcar al master
+my $r=$wsclient->store_qactions(\%action, {'target'=> [$SERVER0]} );
+print "R=$r\n";
+

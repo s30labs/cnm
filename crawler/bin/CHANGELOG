@@ -1,0 +1,10 @@
+3.0-3
+----------------------------------------------------------
+
++ BUG en provision automatica. No usa las communities suministradas y 
+almacena el dispositivo siempre con public.
+
++ BUG en notificationsd se limpia la cache de SNMP (problema de no borrar alertas)
+
+
+

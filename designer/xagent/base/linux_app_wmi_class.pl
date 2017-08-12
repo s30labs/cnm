@@ -1,0 +1,1 @@
+/opt/cnm-sp/wmi-class/xagent/base/linux_app_wmi_class.pl

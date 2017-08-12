@@ -1,0 +1,13 @@
+#!/usr/bin/php
+<?php
+// Programa encargado de realizar copias periodicas de las graficas y BBDD de CNM
+require("/var/www/html/onm/inc/Backup.php");
+	$rc=do_backup();
+	//$rc=do_restore();
+	if ($rc==0){
+		print "OK: La copia de seguridad de CNM se ha realizado correctamente en CRON\n";
+	}
+	else{
+		print "ERROR: La copia de seguridad de CNM ha fallado en CRON\n";
+	}
+?>

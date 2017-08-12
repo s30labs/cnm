@@ -1,0 +1,61 @@
+<mibtable>
+
+   <oid_cols>socoupsInputLineIndex_socoupsInputCurrent_socoupsInputVoltage_socoupsInputVoltageMax_socoupsInputVoltageMin</oid_cols>
+	<oid_last>SOCOMECUPS-MIB::upsInputTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>socoupsInputLineIndex</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>socoupsInputCurrent</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>socoupsInputVoltage</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>socoupsInputVoltageMax</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>socoupsInputVoltageMin</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

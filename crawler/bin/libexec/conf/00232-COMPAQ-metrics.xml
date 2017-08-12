@@ -1,0 +1,63 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>ESTADO DEL VENTILADOR</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalSystemFanStatus.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>TEMPERATURA DEL SISTEMA</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalTempStatus.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>TEMPERATURA DE LA CPU</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalCpuFanStatus.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

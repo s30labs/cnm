@@ -1,0 +1,57 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+#use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use Crawler::Analysis;
+use NetAddr::IP;
+use ONMConfig;
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+
+	
+#----------------------------------------------------------------------------
+#snmpget -v 3  -u gestorv3priv -l AuthPriv -a MD5 -A md5pwd12345 -x DES -X md5pwd12345priv localhost sysLocation.0
+#snmpget -v 3  -u gestorv3priv -l AuthNoPriv -a MD5 -A md5pwd12345 localhost sysLocation.0
+
+	my %SNMPCFG=();
+	my $log_level='debug';
+   my $snmp=Crawler::SNMP->new(log_level=>$log_level, 'cfg'=>$rcfgbase);
+
+	#---------------------------------------------------------------
+	# Se obtienen los parametros por linea de comandos
+	# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+	$snmp->get_command_options(\%SNMPCFG);
+
+	if (($SNMPCFG{'host_ip'} eq 'localhost') || ($SNMPCFG{'host_ip'} eq '127.0.0.1')) {
+		$SNMPCFG{'host_ip'} = my_ip();
+	}
+
+   #---------------------------------------------------------------
+	$snmp->snmp_mib2_system(\%SNMPCFG);
+
+   #---------------------------------------------------------------
+   my $analysis=Crawler::Analysis->new( 'cfg'=>$rcfgbase, log_level=>$log_level );
+   my $store=$analysis->create_store();
+   my $dbh=$store->open_db();
+   $analysis->dbh($dbh);
+
+   $analysis->get_iftable({'ip'=>$SNMPCFG{'host_ip'}});
+   $analysis->get_ifip({'ip'=>$SNMPCFG{'host_ip'}});
+
+   #---------------------------------------------------------------
+   print "$SNMPCFG{'sysdesc'}\n";
+   print "$SNMPCFG{'sysoid'}\n";
+   print "$SNMPCFG{'sysname'}\n";
+   print "$SNMPCFG{'sysloc'}\n";
+   print "$SNMPCFG{'enterprise'}\n";
+   print "$SNMPCFG{'mac'}\n";
+   print "$SNMPCFG{'mac_vendor'}\n";
+   print "$SNMPCFG{'netmask'}\n";
+   print "$SNMPCFG{'network'}\n";
+   print "$SNMPCFG{'switch'}\n";
+

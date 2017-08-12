@@ -1,0 +1,425 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: mibtable
+# Permite probar rapidamente tablas del tipo:
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName.1 = STRING: Processor
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName.3 = STRING: I/O
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolAlternate.1 = INTEGER: 0
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolAlternate.3 = INTEGER: 0
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolValid.1 = INTEGER: true(1)
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolValid.3 = INTEGER: true(1)
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolUsed.1 = Gauge32: 3086008
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolUsed.3 = Gauge32: 467592
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolFree.1 = Gauge32: 1572676
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolFree.3 = Gauge32: 900472
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolLargestFree.1 = Gauge32: 1515412
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolLargestFree.3 = Gauge32: 869368
+#---------------------------------------------------------------------------
+#./mibtable -c comunidad -v 2 -f 15497-IRONPORT-UPDATES.xml -n 1.1.1.1
+#---------------------------------------------------------------------------
+# 2 opciones:
+#---------------------------------------------------------------------------
+# A: RECORRE UNA TABLA
+#---------------------------------------------------------------------------
+#   <oid_cols>updateServiceName_updates_updateFailures</oid_cols>
+#   <oid_last>ASYNCOS-MAIL-MIB::updateTable</oid_last>
+#   <mode>table</mode>
+#   <tune>none</tune>
+#---------------------------------------------------------------------------
+# B: RECORRE VARIABLES DE TIPO ESCALAR
+#---------------------------------------------------------------------------
+#   <oid_items>
+#      <item>
+#         <id>0</id>
+#         <col_name>Uso de CPU (%)</col_name>
+#         <oid>ASYNCOS-MAIL-MIB::perCentCPUUtilization.0</oid>
+#      </item>
+#
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use strict;
+use XML::Simple;
+use Getopt::Std;
+use Crawler::SNMP;
+use Libexec;
+use ONMConfig;
+use Encode;
+use Data::Dumper;
+use MIBTypes;
+
+#---------------------------------------------------------------------------
+my @RES=();
+my %SNMPCFG=();
+my $CONF;
+my $TUNE='';
+my $PATH_FILE_XML='/opt/crawler/bin/libexec/conf';
+my $FILE_CONF='/cfg/onm.conf';
+
+#------------------------------------------------------------------------
+my %TuneFunction = (
+
+   #------------------------------------------------------------
+	# Funcion por defecto. No hace nada
+   'none' => \&Libexec::tune_none,
+	# Da un formato mas amigable a la mac (separada por :)
+   'mac1' => \&Libexec::tune_mac1,
+	#Obtiene ifName y si existe sustituye el ifDescr por el ifName
+   'ifname' => \&Libexec::tune_ifname,	
+	#Convierte los valores a ascii
+   'ascii' => \&Libexec::tune_ascii,	
+   #Obtiene ifName y si existe sustituye el ifDescr por el ifName
+   'disk1' => \&Libexec::tune_disk1,
+
+);
+
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+my $STORE_PATH='/opt/data/rrd/';
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $log_level='debug';
+my $snmp=Crawler::SNMP->new(store_path=>$STORE_PATH, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path);
+my $store=$snmp->create_store();
+my $dbh=$store->open_db();
+$snmp->dbh($dbh);
+$store->dbh($dbh);
+
+
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFG);
+my $FORMAT = $SNMPCFG{'format'};
+my $START_COL = $SNMPCFG{'start_col'};
+
+if ($SNMPCFG{'descriptor'}) {
+	my $FILE_XML=$SNMPCFG{'descriptor'};
+	my $xs1 = XML::Simple->new();
+	$CONF = $xs1->XMLin("$PATH_FILE_XML/$FILE_XML");
+
+	$SNMPCFG{'oid'} = $CONF->{'oid_cols'};
+	$SNMPCFG{'last'} = $CONF->{'oid_last'};
+	$TUNE=$CONF->{'tune'} || 'none';
+
+	#print Dumper($CONF);
+}
+
+else {
+	if ( (! $SNMPCFG{host_ip}) || (!$SNMPCFG{oid}) || (!$SNMPCFG{last})) {
+		die "Uso: $0 -f descriptor.xml -n host -o oid1_oid1_oid3 -l oid_last [-c comunity] [-w]\n";
+	}
+}
+
+
+#----------------------------------------------------------------------------
+$Libexec::SNMP=$snmp;
+#----------------------------------------------------------------------------
+
+# Si se usa el tune use_ifName. Lo primero es obtenerlo.
+# Se almacena en el hash %IFNAME.
+if ($TUNE eq 'ifname') {
+	# Miro si existe ifName -----------------------------------
+	my %IFNAME=();
+	my %snmp_cfg=%SNMPCFG;
+	$snmp_cfg{oid}='ifName';
+	$snmp_cfg{last}='ifInMulticastPkts';
+	my $res=$snmp->core_snmp_table(\%snmp_cfg);
+	for my $l ( @$res ) {
+   	my ($id,$name)=split(':@:',$l);
+	   $Libexec::ifName{$id}=$name;
+	}
+}
+
+
+#----------------------------------------------------------------------------
+my $RR;
+#my %RESGET=();
+my @RESGET=();
+
+if ($CONF->{'mode'} eq 'get') {
+
+   my $cnt=0;
+   my $value='-';
+
+	foreach my $k (sort keys %{$CONF->{'oid_items'}->{'item'}}) {
+
+		my $col_name=$CONF->{'oid_items'}->{'item'}->{$k}->{'col_name'};
+		$SNMPCFG{'oid'}=$CONF->{'oid_items'}->{'item'}->{$k}->{'oid'};
+
+      my $r=$snmp->core_snmp_get(\%SNMPCFG);
+      my $rc=$snmp->err_num();
+
+      if ($rc == 0) { $value=$r->[0];  }
+      else { $value='-'; }
+
+      #$RESGET{$cnt}= {'Parametro'=>$col_name, 'Valor'=>$value };
+
+		push @RESGET,"$cnt:\@:$col_name:\@:$value";
+      $cnt++;
+   }
+   #$RR=[\%RESGET];
+   $RR=[\@RESGET];
+   $CONF->{'oid_cols'}='Parametro_Valor';
+
+}
+else {
+	if ( 	($SNMPCFG{'oid'} !~ /ipNetToMediaPhysAddress/) &&
+			($SNMPCFG{'oid'} !~ /hrSWInstalledDate/) )  {
+
+		$SNMPCFG{'UseEnums'}=1 
+	};
+
+	$RR=$snmp->snmp_check_table(\%SNMPCFG,{$SNMPCFG{'last'}=>0});
+}
+#print "RR=$RR\n";
+#print Dumper($RR->[0]);
+
+#   my @result=();
+#   $r=$self->core_snmp_table(\%SNMPCFG);
+#   my $rc=$self->err_num();
+#	#if ( ($rc==0) && (scalar(keys %$r)>0)) { $oid_list->{$oid}=1; }
+#   if ( ($rc==0) && (scalar($r)>0)) { $oid_list->{$oid}=1; }
+#   else { $oid_list->{$oid}=0; }
+#   push @result,$r;
+
+
+
+#----------------------------------------------------------------------------
+if (! exists $RR->[0]) {
+   print "NO SE HA OBTENIDO RESPUESTA A LA PETICION SOLICITADA\n";
+   my $error=$snmp->err_str();
+   print "**>$error\n";
+	exit;
+}
+
+my $ts=time;
+my $TIMEDATE=$snmp->time2date($ts);
+
+if ($FORMAT eq 'xml') {  dump2xml($CONF->{'oid_cols'}, $RR->[0], $SNMPCFG{host_ip},$TIMEDATE,$START_COL); }
+else {
+   print '-' x85,"\n";
+  	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\tV=$SNMPCFG{version}\n";
+  	print '-' x85,"\n";
+	dump2txt($CONF->{'oid_cols'}, $RR->[0], $SNMPCFG{host_ip},$TIMEDATE);
+}
+
+
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# RUTINAS AUXILIARES ----------------------------------------------------------
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+# FORMATO TXT -----------------------------------------------------------------
+#------------------------------------------------------------------------------
+my ($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7,$c8,$c9,$c10,$c11,$c12,$c13,$c14,$c15,$c16,$c17,$c18,$c19,$c20,$c21,$c22,$c23,$c24,$c25)=('Idx','','','','','','','','','','','','','','','','','','','','','','','','','');
+#my @O=split(/_/,$SNMPCFG{oid});
+#$c1=$O[0]; $c2=$O[1]; $c3=$O[2]; $c4=$O[3]; $c5=$O[4]; $c6=$O[5]; $c7=$O[6];
+
+
+#------------------------------------------------------------------------------
+# $columns es del tipo: keyExpirationIndex_keyDescription_keyIsPerpetual_keySecondsUntilExpire
+# OJO!! dump2txt Esta limitado a 8 columnas
+sub dump2txt {
+my ($columns,$input,$ip)=@_;
+
+format FORMAT_DATA_WITH_IDX =
+@<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<@<<<<<<<<<@<<<<<<<<<
+$id,$c1,              $c2,                     $c3,     $c4,      $c5,  $c6,  $c7
+.
+
+format FORMAT_DATA =
+@<<<<<@<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<<<<
+$id,$c1,              $c2,                   $c3,     $c4,      $c5,   $c6,      $c7,		$c8,		$c9,		$c10,		$c11,			$c12,		$c13,	 $c14,		$c15,		$c16,		$c17,		$c18,		  $c19,	$c20,			$c21,		$c22,		$c23,		$c24,		$c25
+.
+
+
+	$~ = 'FORMAT_DATA';
+	my @cols=split('_',$columns);		
+	$c1 = (defined $cols[0]) ? $cols[0] : ''; 
+	$c2 = (defined $cols[1]) ? $cols[1] : ''; 
+	$c3 = (defined $cols[2]) ? $cols[2] : ''; 
+	$c4 = (defined $cols[3]) ? $cols[3] : ''; 
+	$c5 = (defined $cols[4]) ? $cols[4] : ''; 
+	$c6 = (defined $cols[5]) ? $cols[5] : ''; 
+	$c7 = (defined $cols[6]) ? $cols[6] : ''; 
+	$c8 = (defined $cols[7]) ? $cols[7] : ''; 
+	$c9 = (defined $cols[8]) ? $cols[8] : '';
+	$c10 = (defined $cols[9]) ? $cols[9] : ''; 
+	$c11 = (defined $cols[10]) ? $cols[10] : ''; 
+	$c12 = (defined $cols[11]) ? $cols[11] : ''; 
+	$c13 = (defined $cols[12]) ? $cols[12] : ''; 
+	$c14 = (defined $cols[13]) ? $cols[13] : ''; 
+	$c15 = (defined $cols[14]) ? $cols[14] : ''; 
+	$c16 = (defined $cols[15]) ? $cols[15] : ''; 
+	$c17 = (defined $cols[16]) ? $cols[16] : ''; 
+	$c18 = (defined $cols[17]) ? $cols[17] : '';
+	$c19 = (defined $cols[18]) ? $cols[18] : ''; 
+	$c20 = (defined $cols[19]) ? $cols[19] : ''; 
+	$c21 = (defined $cols[20]) ? $cols[20] : ''; 
+	$c22 = (defined $cols[21]) ? $cols[21] : ''; 
+	$c23 = (defined $cols[22]) ? $cols[22] : ''; 
+	$c24 = (defined $cols[23]) ? $cols[23] : ''; 
+	$c25 = (defined $cols[24]) ? $cols[24] : ''; 
+	$id='Idx';
+	write();
+
+	# --------------------------------------------------------------------------
+   for my $l ( @$input ) {
+      my @cols=split(':@:',$l);
+      my $r=&{$TuneFunction{$TUNE}}(\@cols,1);
+
+	   $id = (defined $cols[0]) ? $cols[0] : '';
+   	$c1 = (defined $cols[1]) ? $cols[1] : '';
+   	$c2 = (defined $cols[2]) ? $cols[2] : '';
+   	$c3 = (defined $cols[3]) ? $cols[3] : '';
+   	$c4 = (defined $cols[4]) ? $cols[4] : '';
+   	$c5 = (defined $cols[5]) ? $cols[5] : '';
+   	$c6 = (defined $cols[6]) ? $cols[6] : '';
+   	$c7 = (defined $cols[7]) ? $cols[7] : '';
+   	$c8 = (defined $cols[8]) ? $cols[8] : '';
+   	$c9 = (defined $cols[9]) ? $cols[9] : '';
+   	$c10 = (defined $cols[10]) ? $cols[10] : '';
+   	$c11 = (defined $cols[11]) ? $cols[11] : '';
+   	$c12 = (defined $cols[12]) ? $cols[12] : '';
+   	$c13 = (defined $cols[13]) ? $cols[13] : '';
+   	$c14 = (defined $cols[14]) ? $cols[14] : '';
+   	$c15 = (defined $cols[15]) ? $cols[15] : '';
+   	$c16 = (defined $cols[16]) ? $cols[16] : '';
+   	$c17 = (defined $cols[17]) ? $cols[17] : '';
+   	$c18 = (defined $cols[18]) ? $cols[18] : '';
+   	$c19 = (defined $cols[19]) ? $cols[19] : '';
+   	$c20 = (defined $cols[20]) ? $cols[20] : '';
+   	$c21 = (defined $cols[21]) ? $cols[21] : '';
+   	$c22 = (defined $cols[22]) ? $cols[22] : '';
+   	$c23 = (defined $cols[23]) ? $cols[23] : '';
+   	$c24 = (defined $cols[24]) ? $cols[24] : '';
+
+      write();
+   }
+
+}
+
+
+#------------------------------------------------------------------------------
+# FORMATO XML -----------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+sub dump2xml {
+my ($columns,$input,$ip,$timedate,$start_col)=@_;
+
+	#my $start_counter=0;
+	my $crow=0;
+
+   my $xml ='<?xml version="1.0" ?>'."\n";
+
+   # Se ponen las filas de datos
+   $xml.='<rows>'."\n";
+	my $vector=$input;
+	my @cols=split('_',$columns);
+	# +1 del idx
+	my $NCOLS=scalar(@cols) + 1;
+
+   for my $l ( @$vector ) {
+
+      my @data=split(':@:',$l);
+      my $r=&{$TuneFunction{$TUNE}}(\@data,1);
+
+      $xml.="<row id=\"$crow\">";
+      $crow+=1;
+      $xml.="<cell><![CDATA[$timedate]]></cell>";
+      $xml.="<cell><![CDATA[$ip]]></cell>";
+		my $i=1;
+		if ($start_col) { $i=0; }
+      for ( ; $i<$NCOLS; $i++) {
+         $xml.="<cell><![CDATA[$data[$i]]]></cell>";
+      }
+      $xml.='</row>';
+   	$xml.="\n";
+   }
+
+   # Se ponen las columnas de los titulos
+   $xml.="\n";
+   $xml.='<head>';
+   $xml.="\n";
+	$xml.="<column type=\"ro\" width=\"17\" sort=\"text\" align=\"left\">Fecha</column>";
+	$xml.="<column type=\"ro\" width=\"12\" sort=\"text\" align=\"left\">IP</column>";
+   $xml.="\n";
+
+	if ($start_col) { $xml.="<column type=\"ro\" width=\"12\" sort=\"text\" align=\"left\">Idx</column>\n"; }
+   #for (my $i=$start_col; $i<$NCOLS; $i++) {
+   for (my $i=0; $i<$NCOLS; $i++) {
+
+      my $w=$CONF->{col}->{$i}->{width};
+      my $name=$CONF->{col}->{$i}->{name_col};
+      my $sort=$CONF->{col}->{$i}->{sort};
+      my $align=$CONF->{col}->{$i}->{align};
+
+      $w=~s/%//;
+      $xml.="<column type=\"ro\" width=\"$w\" sort=\"$sort\" align=\"$align\">$name</column>";
+   	$xml.="\n";
+   }
+
+	# Compruebo si hay definida una columna extra por temas de formato
+	if (exists  $CONF->{col}->{$NCOLS}) { 
+
+      my $w=$CONF->{col}->{$NCOLS}->{width};
+      my $name=$CONF->{col}->{$NCOLS}->{name_col};
+      my $sort=$CONF->{col}->{$NCOLS}->{sort};
+      my $align=$CONF->{col}->{$NCOLS}->{align};
+
+      $w=~s/%//;
+		if ($name eq '.') { $name=''; }
+      $xml.="<column type=\"ro\" width=\"$w\" sort=\"$sort\" align=\"$align\">$name</column>";
+      $xml.="\n";
+   }
+
+
+	# Resto de parametros de la tabla
+	#Se indica que el tamano de las columnas viene dado en %
+   $xml.='<settings>';
+   $xml.='<colwidth>%</colwidth>';
+   $xml.='</settings>';
+
+   $xml.='<beforeInit>';
+	#No se puede redimensionar la tabla
+   #$xml.='<call command="enableResizing">';
+   #$xml.='<param>false,false</param>';
+   #$xml.='</call>';
+
+	#Indicamos el estilo que va a tener la tabla
+   $xml.='<call command="setSkin">';
+   $xml.='<param>light</param>';
+   $xml.='</call>';
+   $xml.='</beforeInit>';
+
+
+   $xml.='<afterInit>';
+   $xml.='<call command="attachHeader">';
+	my @filter=();
+	push @filter,'#text_filter'; # Corresponde a la Fecha
+	push @filter,'#select_filter'; # Corresponde a la IP
+	if ($start_col) { push @filter,'#text_filter'; }
+	for (my $i=0; $i<$NCOLS; $i++) { 
+	#for (my $i=0; $i<$NCOLS; $i++) { 
+		push @filter,$CONF->{col}->{$i}->{filter};; 
+	}
+	$xml.='<param>'. join(',', @filter) .'</param>';
+   $xml.='</call>';
+   $xml.='</afterInit>';
+  	$xml.="\n";
+
+   $xml.='</head>';
+  	$xml.="\n";
+
+   $xml.='</rows>';
+
+	#print $xml;		
+   print encode('utf8', $xml);
+}
+
+

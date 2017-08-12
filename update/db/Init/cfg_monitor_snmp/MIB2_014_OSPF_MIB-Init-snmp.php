@@ -1,0 +1,142 @@
+<?php
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_ospfExternLsaCksumSum',
+            'class' => 'MIB2-OSPF',
+            'lapse' => '300',
+            'descr' => 'OSPF CHECKSUM LSA EXTERNO',
+            'items' => 'ospfExternLsaCksumSum.0',
+            'oid' => '.1.3.6.1.2.1.14.1.7.0',
+            'get_iid' => '',
+            'oidn' => 'OSPF-MIB::ospfExternLsaCksumSum.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'OSPF-MIB::ospfExternLsaCksumSum.0',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.OSPF-MIB',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ospf_SpfRuns',
+            'class' => 'OSPF-MIB',
+            'lapse' => '300',
+            'descr' => 'OSPF - EJECUCIONES SPF',
+            'items' => 'ospfSpfRuns',
+            'oid' => '.1.3.6.1.2.1.14.2.1.4.IID',
+            'get_iid' => 'ospfAreaId',
+            'oidn' => 'ospfSpfRuns.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'OSPF-MIB::ospfAreaTable',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.OSPF-MIB',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ospf_AreaLsaCksumSum',
+            'class' => 'OSPF-MIB',
+            'lapse' => '300',
+            'descr' => 'OSPF - CHECKSUM LSA',
+            'items' => 'ospfAreaLsaCksumSum',
+            'oid' => '.1.3.6.1.2.1.14.2.1.8.IID',
+            'get_iid' => 'ospfAreaId',
+            'oidn' => 'ospfAreaLsaCksumSum.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'OSPF-MIB::ospfAreaTable',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.OSPF-MIB',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ospf_NbrEvents',
+            'class' => 'OSPF-MIB',
+            'lapse' => '300',
+            'descr' => 'EVENTOS OSPF',
+            'items' => 'ospfNbrEvents',
+            'oid' => '.1.3.6.1.2.1.14.10.1.7.IID',
+            'get_iid' => 'ospfNbrIpAddr',
+            'oidn' => 'ospfNbrEvents.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'OSPF-MIB::ospfNbrTable',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.OSPF-MIB',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ospf_NbrState',
+            'class' => 'OSPF-MIB',
+            'lapse' => '300',
+            'descr' => 'ESTADO OSPF',
+            'items' => 'Full(8)|Loading(7)|Down(1)|Attempt(2)|Init(3)|2W(4)|ExchSt(5)|Exch(6)',
+            'oid' => '.1.3.6.1.2.1.14.10.1.6.IID',
+            'get_iid' => 'ospfNbrIpAddr',
+            'oidn' => 'ospfNbrState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'OSPF-MIB::ospfNbrTable',
+            'enterprise' => '0',
+            'esp' => 'MAP(8)(1,0,0,0,0,0,0,0)|MAP(7)(0,1,0,0,0,0,0,0)|MAP(1)(0,0,1,0,0,0,0,0)|MAP(2)(0,0,0,1,0,0,0,0)|MAP(3)(0,0,0,0,1,0,0,0)|MAP(4)(0,0,0,0,0,1,0,0)|MAP(5)(0,0,0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '4',
+            'apptype' => 'NET.OSPF-MIB',
+      );
+
+
+?>

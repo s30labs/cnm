@@ -1,0 +1,28 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Update scheme IP
+  command: php /opt/cnm/update/db/update/update_scheme_ip.php ip={{ ipaddress }}
+  when: ipaddress is defined
+  tags: cnm-network
+
+- name: Set interfaces file
+  template: src=interfaces.j2 dest=/etc/network/interfaces
+  when: ipaddress is defined and netmask is defined and gateway is defined and interface is defined
+  tags: cnm-network
+
+- name: Restart networking 
+  command: /etc/init.d/networking restart
+  when: ipaddress is defined and netmask is defined and gateway is defined and interface is defined
+  tags: cnm-network
+
+
+## The primary network interface
+#allow-hotplug {{ interface }}
+#iface {{ interface }} inet static
+#   address {{ ipaddr }}
+#   netmask {{ netmask }}
+#   gateway {{ gateway }}
+
+...

@@ -1,0 +1,224 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin", "/opt/crawler/bin/support";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+#use Data::Dumper;
+use Crawler::Store;
+
+# Informacion ------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Inicia una conexion de soporte.
+(c) s30labs
+
+$fpth[$#fpth] -h        : Ayuda
+$fpth[$#fpth]           : Indica si hay algun tunel establecido
+$fpth[$#fpth] -c        : Se conecta con la configuracion almacenada 
+$fpth[$#fpth] -d        : Desconecta el tunel
+$fpth[$#fpth] -k key    : Almacena e incia la sesion de soporte con la clave especificada
+$fpth[$#fpth] -s key    : Solo almacena la configuracion de conexion
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hcds:k:",\%opts);
+if ($opts{h}) { die $USAGE; }
+if ( (!$opts{k}) && (!$opts{s}) && (!$opts{c}) && (!$opts{d}) ) { 
+	#tun0      Link encap:UNSPEC  HWaddr
+	my @d=`/sbin/ifconfig | /bin/grep HWaddr`;
+	my $tun_ok=0;
+	foreach my $l (@d) {
+   	chomp $l;
+   	if ($l=~/(tun\d+)\s+/) { print "ESTABLECIDO TUNEL: $1\n"; $tun_ok=1; }
+	}
+	if (! $tun_ok) { print "NO HAY TUNEL ESTABLECIDO\n"; }
+}
+
+my $store_flag=0;
+my $connect_flag=0;
+my $disconnect_flag=0;
+my $key='';
+if (($opts{k}) || ($opts{s})) { 
+	$store_flag=1; 
+	$key=$opts{k} || $opts{s};
+}
+if (($opts{k}) || ($opts{c})) { 
+	$connect_flag=1; 
+}
+if ($opts{d}){ 
+   $disconnect_flag=1;
+}
+#########
+# PROXY #
+#########
+my $proxy_enable = 0;
+my $FILE_PROXY   = '/cfg/onm.proxy';
+my $proxy_host   = '';
+my $proxy_port   = '';
+my $proxy_user   = '';
+my $proxy_passwd = '';
+my $fproxy = '/opt/data/mdata/cache/.proxy';
+
+#print "store_flag=$store_flag connect_flag=$connect_flag\n";
+
+#-------------------------------------------------------------------------------------------
+if  ($store_flag) {
+	my $FILE_CONF='/cfg/onm.conf';
+	my $rCFG=conf_base($FILE_CONF);
+	my $conf_path=$rCFG->{'conf_path'}->[0];
+	my $txml_path=$rCFG->{'txml_path'}->[0];
+	my $app_path=$rCFG->{'app_path'}->[0];
+	my $dev_path=$rCFG->{'dev_path'}->[0];
+	my $store_path=$rCFG->{'store_path'}->[0];
+
+	my $db_server=$rCFG->{db_server}->[0];
+	my $db_name=$rCFG->{db_name}->[0];
+	my $db_user=$rCFG->{db_user}->[0];
+	my $db_pwd=$rCFG->{db_pwd}->[0];
+
+	my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+	$store->store_path($store_path);
+	my $dbh=$store->open_db();
+
+	#-------------------------------------------------------------------------------------------
+	# Genera el fichero con las credenciales del cliente
+	my $info = $store->get_cnm_services_info($dbh);
+	$store->close_db($dbh);
+
+	my $fcli = '/opt/data/mdata/cache/.client';
+	my $rc = open (F,">$fcli");
+	if ($rc) { 
+		print F $info->{'support'}."\n";
+		print F $key."\n";
+		close F;
+		print "ALMACENADA CONFIGURACION DE CONEXION\n";
+	}
+}
+
+
+############################################################
+# Proxy
+############################################################
+if(-e $FILE_PROXY){
+	my $rCFGPROXY=conf_base($FILE_PROXY);
+   $proxy_enable = $rCFGPROXY->{'proxy_enable'}->[0];
+	if($proxy_enable==1){
+		$proxy_host   = $rCFGPROXY->{'proxy_host'}->[0];
+		$proxy_port   = $rCFGPROXY->{'proxy_port'}->[0];
+		$proxy_user   = $rCFGPROXY->{'proxy_user'}->[0];
+		$proxy_passwd = $rCFGPROXY->{'proxy_passwd'}->[0];
+
+		if  ($store_flag) {
+			my $rc2 = open (F,">$fproxy");
+			if ($rc2) { 
+				print F $proxy_user."\n";
+				print F $proxy_passwd."\n";
+				close F;
+				print "ALMACENADA CONFIGURACION DEL PROXY\n";
+			}
+		}
+	}
+}
+
+if  ($disconnect_flag) {
+   # Validar si hay un túnel ya establecido
+   my @d=`/sbin/ifconfig | /bin/grep HWaddr`;
+   my $tun_ok=1;
+   foreach my $l (@d) {
+      chomp $l;
+      if ($l=~/(tun\d+)\s+/) { $tun_ok=0; }
+   }
+
+   if ($tun_ok==1) {
+      print "NO HAY NINGÚN TUNEL ESTABLECIDO\n";
+      exit($tun_ok);
+   }
+
+
+
+
+	my @a=`killall openvpn`;
+	@d=`/sbin/ifconfig | /bin/grep HWaddr`;
+   $tun_ok=0;
+   foreach my $l (@d) {
+      chomp $l;
+      if ($l=~/(tun\d+)\s+/) { $tun_ok=1; }
+   }
+	
+   if ($tun_ok==1) {
+		print "AUN SIGUE ESTABLECIDO EL TUNEL\n"; 
+	}else{
+		print "SE HA FINALIZADO EL TUNEL\n"; 
+	}
+	exit($tun_ok);
+}
+
+if ($connect_flag){
+	# Validar si hay un túnel ya establecido
+   my @d=`/sbin/ifconfig | /bin/grep HWaddr`;
+   my $tun_ok=0;
+   foreach my $l (@d) {
+      chomp $l;
+      if ($l=~/(tun\d+)\s+/) { $tun_ok=1; }
+   }
+
+   if ($tun_ok==1) {
+      print "HAY UN TÚNEL YA ESTABLECIDO\n";
+   	exit($tun_ok);
+   }
+
+
+	#          inet addr:10.2.254.222  Bcast:10.2.254.255  Mask:255.255.255.0
+	#          inet addr:127.0.0.1  Mask:255.0.0.0
+	my %IPS=();
+	@d=`/sbin/ifconfig | /bin/grep 'inet addr'`;
+	foreach my $l (@d) {
+		chomp $l;
+		if ($l=~/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { $IPS{$1}=1; }
+	}
+	
+	#-------------------------------------------------------------------------------------------
+	# Establece el tunel
+	# /usr/sbin/openvpn --config /etc/openvpn/client/vpn.conf
+	print "ESTABLECIENDO TUNEL ...\n";
+	chdir '/etc/openvpn/client'; 
+	# Si hay un proxy habilitado
+	if($proxy_enable==1){
+		system("/usr/sbin/openvpn --config /etc/openvpn/client/vpn.conf --http-proxy $proxy_host $proxy_port $fproxy basic &");
+	}
+	else{
+		system('/usr/sbin/openvpn --config /etc/openvpn/client/vpn.conf &');
+	}
+	
+	my $new_ip='';
+	my $tnow=time();
+	my $tlast=$tnow+60;
+	while ($tnow<$tlast) {
+	
+		my @d=`/sbin/ifconfig | /bin/grep 'inet addr'`;
+		foreach my $l (@d) {
+	   	chomp $l;
+	   	if ($l=~/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { 
+				if (! exists $IPS{$1}) { $new_ip=$1; } 
+			}
+		}
+		if ($new_ip ne '') { last; }
+	
+		sleep 5;
+		$tnow=time();
+	}
+
+	if ($new_ip ne '') { 
+		print "ESTABLECIDO TUNEL CON IP: $new_ip\n"; 
+		exit(0)
+	}else{ 
+		print "TUNEL NO ESTABLECIDO **REVISAR**\n"; 
+		exit(1);
+	}
+}

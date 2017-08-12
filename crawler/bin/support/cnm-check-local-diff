@@ -1,0 +1,112 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-check-local-diff
+# Revisa las modificaciones locales en el SW de CNM
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Cwd;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("ht:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-----------------------------------------------------------------------
+my @DIR=(
+	'/opt/cnm',
+	'/opt/cnm-lang',
+	'/opt/cnm-mibs',
+	'/opt/cnm-os',
+	'/opt/cnm-sp',
+	'/opt/custom_pro',
+	'/opt/custom_pro001',
+	'/opt/custom_pro002',
+	'/opt/custom_pro003',
+	'/opt/custom_pro004',
+);
+
+#-------------------------------------------------------------------------------------------
+my $host=`/bin/hostname`;
+chomp $host;
+my $fout='/tmp/local-diff.txt';
+open (F,">$fout");
+print F '-'x60 ."\n";
+print F "$host\n";
+
+foreach my $d (@DIR) { 
+	print "Directorio: $d\n";
+	print F '-'x60 ."\n";
+	print F "$d\n";
+	print F '-'x60 ."\n";
+	my $res=check_dir($d); 
+	print F "$res\n";
+
+	print "\n";
+}
+
+close F;
+print "Generado $fout\n";
+
+if ($opts{t}) {
+	print "Se envia correo a $opts{t} ...\n";
+	my $r=`/opt/cnm/crawler/bin/informer -i email -t $opts{t} -s $host -f $fout`;
+	print $r;
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub check_dir {
+my ($dir)=@_;
+
+	chdir $dir;
+	my @res=`/usr/bin/git status`;
+#       modified:   ../CNMScripts/SSH.pm
+
+	my $txt='';
+	my @modified=();
+	foreach my $l (@res) {
+		$txt.=$l;
+		chomp $l;
+		if ($l=~/modified\:\s+(\S+)/) { push @modified,$1; }
+	}
+
+	$txt.="\n\n";
+
+	foreach my $m (@modified) {
+		my $cmd="/usr/bin/git diff $m";
+
+		print "Modificado: $m\n";
+
+		my $diff = `$cmd`;
+		$txt.=$cmd."\n";
+		$txt.=$diff."\n\n";
+	}
+
+	return $txt;
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Obtiene las diferencias locales
+
+$fpth[$#fpth]     : Genera diferencias en /tmp/local-diff.txt
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -t pp\@xx.com  : Envia resultado al correo especificado.
+
+USAGE
+
+   return $USAGE;
+
+}
+

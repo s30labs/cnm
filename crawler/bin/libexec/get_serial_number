@@ -1,0 +1,71 @@
+#!/usr/bin/perl -w
+#--------------------------------------------------------------------------------------
+# NAME:  crawler/bin/libexec/get_serial_number
+#--------------------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::SNMP;
+use Stdout;
+use JSON;
+
+use Data::Dumper;
+use Getopt::Std;
+
+#-------------------------------------------------------------------------------------------
+my @RES=();
+my %SNMPCFGCMD=();
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $log_level='debug';
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+my $USAGE="Uso: $0 -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host\nOpciones especiales: w->txt|html f->descriptor xml (mibt) o->oid z->last\n$0 -c r37tcso3.8802 -n 1.1.1.1 -o 9";
+getopts("v:c:u:l:a:A:x:X:n:h:w:f:o:z:M:i",\%opts);
+
+#-------------------------------------------------------------------------------------------
+if (! exists $opts{n}) { die "$USAGE\n"; }
+if (! exists $opts{o}) { die "$USAGE\n"; }
+
+#my @ips = ();
+#my @pre_ips=split(',', $opts{n});
+#foreach my $x (@pre_ips) {
+#	if ($x =~ /(\d+)\.(\d+)\.(\d+)\.(\d+)/) { push @ips, $x; } 
+#}
+
+#my %proc_vector=();
+
+#foreach my $ip (@ips) {
+
+	#$opts{'n'}=$ip;
+#	%SNMPCFGCMD=();
+
+	my $ip=$opts{n};
+	$SNMPCFGCMD{'sysoid'}=$opts{o};
+
+	my $snmp=Crawler::SNMP->new(cfg=>$rcfgbase,log_level=>$log_level);
+
+	my $rc=$snmp->get_command_options_ext(\%opts,\%SNMPCFGCMD);
+	if (! defined $rc) { die "$USAGE\n"; }
+
+#print Dumper(\%SNMPCFGCMD);
+
+	my $serialn = $snmp->snmp_get_serialn(\%SNMPCFGCMD,$ip);
+	print "$ip >> $serialn\n";
+
+	# Se almacena en BBDD
+   $snmp->create_store();
+   my $store=$snmp->store();
+   my $dbh=$store->open_db();
+	$store->update_db($dbh,'devices',{'serialn'=>$serialn},"ip='$ip'");
+
+	#$proc_vector{$ip}=$serialn;
+#}
+
+#-------------------------------------------------------------------------------------------
+#foreach my $ip (sort keys %proc_vector) {
+#	print "$ip >> $proc_vector{$ip}\n";
+#}
+

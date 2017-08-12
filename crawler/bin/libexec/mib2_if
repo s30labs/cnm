@@ -1,0 +1,135 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id: mib2_if,v 1.2 2004/05/02 15:36:29 fml Exp $
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use Data::Dumper;
+use Stdout;
+use MIBTypes;
+use JSON;
+
+#---------------------------------------------------------------------------
+my %SNMPCFGCMD=();
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $log_level='debug';
+
+#----------------------------------------------------------------------------
+my $snmp=Crawler::SNMP->new(cfg=>$rcfgbase, log_level=>$log_level);
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFGCMD);
+
+my $credentials=$snmp->get_snmp_credentials({'ip'=>$SNMPCFGCMD{'host_ip'}});
+my %SNMPCFG=(%SNMPCFGCMD, %$credentials);
+
+my $FORMAT = $SNMPCFG{'format'};
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='IF-MIB::ifXTable';
+my $ifxtable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+my $IFX_present=0;
+if (scalar keys %$ifxtable >0) { $IFX_present=1; }
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='RFC1213-MIB::ifTable';
+my $iftable=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+my @host_data=();
+for my $iid ( sort keys %$iftable ) {
+	
+	my %line=();
+   $line{'id'}=$iid;
+   if (! exists $iftable->{$iid}->{'ifDescr'}) {next; }
+   my $descr1=$iftable->{$iid}->{'ifDescr'};
+   if ((exists $ifxtable->{$iid}->{'ifAlias'}) && ($ifxtable->{$iid}->{'ifAlias'} ne '')) {
+      $descr1.=' : '; $descr1.= $ifxtable->{$iid}->{'ifAlias'};
+   }
+   $line{'descr'}=$snmp->hex2ascii($descr1);
+   $line{'type'} =  exists ($iftable->{$iid}->{'ifType'}) ? $iftable->{$iid}->{'ifType'} : '-';
+   if (exists $MIBTypes::TAGS{'ifType'}->{$type}) { $line{'type'}=$MIBTypes::TAGS{'ifType'}->{$type}; }
+
+   $line{'mtu'} = exists ($iftable->{$iid}->{'ifMtu'}) ? $iftable->{$iid}->{'ifMtu'} : '-';
+   $line{'speed'} = exists ($iftable->{$iid}->{'ifSpeed'}) ? $iftable->{$iid}->{'ifSpeed'} : '-';
+   $line{'physadd'} = exists ($iftable->{$iid}->{'ifPhysAddress'}) ? $iftable->{$iid}->{'ifPhysAddress'} : '-';
+   $line{'admin'} = exists ($iftable->{$iid}->{'ifAdminStatus'}) ? $iftable->{$iid}->{'ifAdminStatus'} : '-';
+   $line{'oper'} = exists ($iftable->{$iid}->{'ifOperStatus'}) ? $iftable->{$iid}->{'ifOperStatus'} : '-';
+   $line{'lastc'} = exists ($iftable->{$iid}->{'ifLastChange'}) ? $iftable->{$iid}->{'ifLastChange'} : '-';
+
+   if ($IFX_present) {
+      $line{'trape'} = exists ($iftable->{$iid}->{'ifLinkUpDownTrapEnable'}) ? $iftable->{$iid}->{'ifLinkUpDownTrapEnable'} : '-';
+      $line{'promisc'} = exists ($iftable->{$iid}->{'ifPromiscuousMode'}) ? $iftable->{$iid}->{'ifPromiscuousMode'} : '-';
+      $line{'conn'} = exists ($iftable->{$iid}->{'ifConnectorPresent'}) ? $iftable->{$iid}->{'ifConnectorPresent'} : '-';
+   }
+   push @host_data, \%line;
+}
+
+
+$FORMAT='json';
+#----------------------------------------------------------------------------
+if ($FORMAT eq 'json') {
+#----------------------------------------------------------------------------
+
+	my $data=encode_json(\@host_data);
+	print "$data\n";
+
+	my @COL_MAP = (
+   	{ 'label'=>'Idx', 'width'=>'8' , 'name_col'=>'id',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'Description', 'width'=>'15' , 'name_col'=>'descr',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'Type', 'width'=>'5' , 'name_col'=>'type',  'sort'=>'str', 'align'=>'left', 'filter'=>'#select_filter' },
+  	 	{ 'label'=>'MTU', 'width'=>'8' , 'name_col'=>'mtu',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'Speed', 'width'=>'10' , 'name_col'=>'speed',  'sort'=>'str', 'align'=>'left', 'filter'=>'#select_filter' },
+   	{ 'label'=>'PhysAddress', 'width'=>'20' , 'name_col'=>'physadd',  'sort'=>'str', 'align'=>'left', 'filter'=>'#select_filter' },
+   	{ 'label'=>'AdminStatus', 'width'=>'10' , 'name_col'=>'admin',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'OperStatus', 'width'=>'10' , 'name_col'=>'oper',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'LastChange', 'width'=>'10' , 'name_col'=>'lastc',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'LinkUpDownTrapEnable', 'width'=>'15' , 'name_col'=>'trape',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'PromiscuousMode', 'width'=>'15' , 'name_col'=>'promisc',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   	{ 'label'=>'ConnectorPresent', 'width'=>'15' , 'name_col'=>'conn',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+	);
+
+	my $col_map=encode_json(\@COL_MAP);
+	print "$col_map\n";
+}
+
+#----------------------------------------------------------------------------
+elsif ($FORMAT eq 'txt') {
+#----------------------------------------------------------------------------
+   print '-' x85,"\n";
+ 	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\tV=$SNMPCFG{version}\n";
+  	print '-' x85,"\n";
+
+	#------------------------------------------------------
+	my ($id,$descr,$type,$mtu,$speed,$physadd,$admin,$oper,$lastc,$trape,$promisc,$conn)=('Idx','Description','Type','MTU','Speed','PhysAddress','AdminStatus','OperStatus','LastChange','LinkUpDownTrapEnable','PromiscuousMode','ConnectorPresent');
+
+format IFACES_DATA_EXT =
+@>>>>>>> @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<@<<<<<<@<<<<<<<<<<@<<<<<<<@<<<<<<<@<<<<<<<
+$id,     $descr,                                        $type,               $mtu,     $speed,				$physadd,     $admin, $oper,	$lastc, $trape, $promisc,$conn
+.
+
+format IFACES_DATA =
+@>>>>>>> @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<@<<<<<<@<<<<<<@<<<<<<<<
+$id,     $descr,                                       $type,                 $mtu,     $speed,				$physadd,     $admin, $oper,	$lastc
+.
+
+	if ($IFX_present) {
+	   $~ = 'IFACES_DATA_EXT';
+	}
+	else {
+	   $~ = 'IFACES_DATA';
+	}
+	write();
+
+   for my $h (@host_data) {
+      ($id,$descr,$type,$mtu,$speed,$physadd,$admin,$oper,$lastc,$trape,$promisc,$conn) =
+			($h->{'id'},$h->{'descr'},$h->{'type'},$h->{'mtu'},$h->{'speed'},$h->{'physadd'},$h->{'admin'},$h->{'oper'},$h->{'lastc'},$h->{'trape'},$h->{'promisc'},$h->{'conn'});
+      write();
+   }
+}
+#----------------------------------------------------------------------------
+elsif ($FORMAT eq 'raw') {  print Dumper(\@host_data); }
+#----------------------------------------------------------------------------
+

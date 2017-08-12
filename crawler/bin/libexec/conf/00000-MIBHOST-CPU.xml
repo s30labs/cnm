@@ -1,0 +1,51 @@
+<mibtable>
+
+   <oid_cols>hrSWRunName_hrSWRunStatus_hrSWRunPerfCPU_hrSWRunPerfMem</oid_cols>
+	<oid_last>HOST-RESOURCES-MIB::hrSWRunTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>hrSWRunName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>hrSWRunStatus</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>hrSWRunPerfCPU</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>hrSWRunPerfMem</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

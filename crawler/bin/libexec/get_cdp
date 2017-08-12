@@ -1,0 +1,135 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+#  Fichero: libexec/get_cdp
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Analysis;
+use Stdout;
+use Data::Dumper;
+use Stdout;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Obtiene y almacena las tablas de CDP de los dispositivos especificados.
+(c) fml
+
+$fpth[$#fpth] [-d debug|info] [-m log_mode] [-i id_dev|all] [-t type] [-n ip] -w [txt|json]
+$fpth[$#fpth] -h  : Ayuda
+-m: 1 (syslog), 2 (stdout), 3 (syslog+stdout)
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+#-v 3 -u user -l AuthnoPriv -a SHA -A 123 -x DES -X 123
+# No se usan pero se ponen por si se invoca el script con estas opciones
+getopts("hw:i:d:n:t:m:v:u:l:a:A:x:X:c:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $log_mode= (defined $opts{m}) ? $opts{m} : 1;
+if ($opts{h}) { die $USAGE;}
+my $FORMAT = (defined $opts{w}) ? $opts{w} : 'txt';
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $analysis=Crawler::Analysis->new( 'cfg'=>$rCFG, log_level=>$log_level, log_mode=>$log_mode );
+my $store=$analysis->create_store();
+my $dbh=$store->open_db();
+$analysis->dbh($dbh);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my @DEVICES=();
+if ($opts{i}) {
+   if (lc $opts{i} eq 'all') {
+
+      my $rres=$store->get_from_db( $dbh, 'ip', 'devices', 'status=0', 'order by id_dev');
+      foreach my $l (@$rres) { push @DEVICES,$l->[0]; }
+   }
+	else { 
+      my $rres=$store->get_from_db( $dbh, 'ip', 'devices', "status=0 and id_dev in ($opts{i})", 'order by id_dev');
+      foreach my $l (@$rres) { push @DEVICES,$l->[0]; }
+	}
+}
+elsif ($opts{n}) {
+	@DEVICES = split(',', $opts{n});
+}
+elsif ($opts{t}) {
+      my $rres=$store->get_from_db( $dbh, 'ip', 'devices', "type=\'$opts{t}\'", 'order by id_dev');
+      foreach my $l (@$rres) { push @DEVICES,$l->[0]; }
+}
+else { die $USAGE;  }
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Recorro el vector de dispositivos
+my @cdp_vector_all=();
+foreach my $ip (@DEVICES) {
+
+	if ($ip !~/\d+\.\d+\.\d+\.\d+/) { next;  }
+
+	my $iftable=$analysis->get_iftable({'ip'=>$ip});
+	#print Dumper($iftable);
+	my $cdp_vector=$analysis->get_cdp_info({'ip'=>$ip});
+	my $n = scalar(@$cdp_vector);
+	for my $i (0..$n-1) {
+		my $iid=$cdp_vector->[$i]->{'iid'};
+		if (exists $iftable->{$iid}->{'ifDescr'}) { $cdp_vector->[$i]->{'iid'}=$iftable->{$iid}->{'ifDescr'}; }
+
+		#my $ip=$cdp_vector->[$i]->{'ip'};
+		#my $r=mon_icmp({'host_ip'=>$ip});
+		#my $ping='NO';
+		#if ($r->[0]=~/OK/) { $ping='SI'; }
+		#$cdp_vector->[$i]->{'ping'}=$ping;
+	}
+
+	#print Dumper($cdp_vector);
+	#$cdp_vector_all{$ip}=$cdp_vector;
+	
+	#$cdp_vector->[$i]->{'ip'}=$ip;
+	push @cdp_vector_all,@$cdp_vector;
+}
+
+$store->close_db($dbh);
+
+#---------------------------------------------------------------------------
+if ($FORMAT eq 'json') {
+#---------------------------------------------------------------------------
+
+#	'version' => 'SCCP41.8-4-4S',
+#  'ip' => '10.4.73.12',
+#  'date' => 1261129116,
+#  'device_port' => 'Cisco IP Phone 7961',
+#  'device_id' => 'SEP001F9E24A164',
+#  'platform' => 'Cisco IP Phone 7961',
+#  'host_ip' => '10.4.254.254',
+#  'iid' => '80'
+
+   my $data=encode_json(\@cdp_vector_all);
+   print "$data\n";
+
+   my @COL_MAP = (
+      { 'label'=>'Idx', 'width'=>'20' , 'name_col'=>'iid',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'IP', 'width'=>'16' , 'name_col'=>'ip',  'sort'=>'ipaddr', 'align'=>'left', 'filter'=>'#select_filter' },
+      { 'label'=>'device_id', 'width'=>'30' , 'name_col'=>'device_id',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'version', 'width'=>'60' , 'name_col'=>'version',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'device_port', 'width'=>'30' , 'name_col'=>'device_port',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'platform', 'width'=>'30' , 'name_col'=>'platform',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+   );
+
+   my $col_map=encode_json(\@COL_MAP);
+   print "$col_map\n";
+
+}
+#---------------------------------------------------------------------------
+else { print Dumper(\@cdp_vector_all); }
+#---------------------------------------------------------------------------
+
+

@@ -1,0 +1,329 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use lib '/opt/custom_pro/conf';
+use lib '/opt/custom_pro/conf/proxy-pkgs';
+use strict;
+use Data::Dumper;
+use File::Basename;
+use Digest::MD5 qw(md5_hex);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my @TG = (
+
+   { '__NAME__'=>'CNM', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'HW.HP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.DELL', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.FUJITSU', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.RAID', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.SOCOMEC', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.IPMI', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'HW.APC', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'IPSERV.DNS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.IMAP4', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.LDAP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.NTP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.PING', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.POP3', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.SMB', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.SMTP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.SNMP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.SSH', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.TCP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.WWW', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'IPSERV.SSL', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'NET.BASE', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.BROCADE', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.CHECKPOINT', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.CISCO', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.CISCO-VOIP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.CISCO-WIRELESS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.COMMEND', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.ENTERASYS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.F5NETWORKS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.FINJAN', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.FORTINET', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.H3C', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.HWGROUP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.INFOBLOX', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.IRONPORT', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.JUNIPER', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.MIB2', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.NETSCREEN', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.NORTEL', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.NOVELL', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.OSPF-MIB', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.PACKETEER', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.SQUID', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.TIPPINGPOINT', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.TRANS-MIB', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'NET.UPS-MIB', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'SO.MIBHOST', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'SO.UCDAVIS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'SO.UNIX', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'SO.LINUX', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'SO.WINDOWS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'VIRTUAL.VMWARE', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'BBDD.MYSQL', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'WWW.HTTP-MIB', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'WWW.APACHE', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__NAME__'=>'WWW.IIS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__NAME__'=>'USER', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my @SP = (
+
+	{ '__SUBTYPE__' => 'base_metrics', '__NAME__'=>'000.Global - Paquete básico', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+	{ '__SUBTYPE__' => 'hw_hp', '__NAME__'=>'100.Infraestructura Fisica - HP Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'hw_dell', '__NAME__'=>'100.Infraestructura Fisica - Dell Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'hw_raid', '__NAME__'=>'100.Infraestructura Fisica - RAID', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'hw_socomec', '__NAME__'=>'100.Infraestructura Fisica - Socomec UPS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'hw_ipmi', '__NAME__'=>'100.Infraestructura Fisica - IPMI', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'hw_apc', '__NAME__'=>'100.Infraestructura Fisica - APC UPS', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+	{ '__SUBTYPE__' => 'virtual_vmware', '__NAME__'=>'101.Infraestructura Virtual - VMWare', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+   { '__SUBTYPE__' => 'linux_server', '__NAME__'=>'102.Sistema Operativo - Linux Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+   { '__SUBTYPE__' => 'windows_server', '__NAME__'=>'102.Sistema Operativo - Windows Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+#   { '__SUBTYPE__' => 'windows_desktop', '__NAME__'=>'102.Sistema Operativo - Windows Desktop', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+
+	{ '__SUBTYPE__' => 'net_advanced', '__NAME__'=>'200.Networking - Protocolos de Red', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+	{ '__SUBTYPE__' => 'net_cisco', '__NAME__'=>'200.Networking - Cisco', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_cisco_voip', '__NAME__'=>'200.Networking - Cisco VoIP', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_cisco_wireless', '__NAME__'=>'200.Networking - Cisco Wireless', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_packeteer', '__NAME__'=>'200.Networking - Packeteer', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_tippingpoint', '__NAME__'=>'200.Networking - Tipping Point', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_juniper', '__NAME__'=>'200.Networking - Juniper', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_netscreen', '__NAME__'=>'200.Networking - Netscreen', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_f5networks', '__NAME__'=>'200.Networking - F5 Networks', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_ironport', '__NAME__'=>'200.Networking - Ironport', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_finjan', '__NAME__'=>'200.Networking - Finjan', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_infoblox', '__NAME__'=>'200.Networking - Infoblox', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_fortinet', '__NAME__'=>'200.Networking - Fortinet', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_commend', '__NAME__'=>'200.Networking - Commend', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'net_h3c', '__NAME__'=>'200.Networking - H3C', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+	{ '__SUBTYPE__' => 'file_server', '__NAME__'=>'300.Acceso a Datos - File Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'ldap_base', '__NAME__'=>'300.Acceso a Datos - LDAP Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'bbdd_mysql', '__NAME__'=>'300.Acceso a Datos - MySQL Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+
+	{ '__SUBTYPE__' => 'mail_base', '__NAME__'=>'400.Servidores de Correo - Servidor Generico', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'www_base', '__NAME__'=>'400.Servidores WEB - Servidor Generico', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'www_apache', '__NAME__'=>'400.Servidores WEB - Apache Server', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+	{ '__SUBTYPE__' => 'ssl_server', '__NAME__'=>'400.Servidores SSL - Certificados Digitales', '__DESCRIPTION__'=>'', '__CUSTOM__'=>0 },
+);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my %SP2TG = (
+
+	'base_metrics' => [ 'IPSERV.PING', 'NET.MIB2', 'IPSERV.DNS', 'IPSERV.NTP', 'IPSERV.SSH', 'IPSERV.TCP' ],
+	'linux_server' => [ 'SO.LINUX', 'SO.UCDAVIS', 'SO.MIBHOST' ],
+	'windows_server' => [ 'SO.WINDOWS', 'SO.MIBHOST' ],
+#	'windows_desktop' => [ 'SO.WINDOWS', 'SO.MIBHOST' ],
+	'hw_hp' => [ 'HW.HP' ],
+	'hw_dell' => [ 'HW.DELL' ],
+	'hw_raid' => [ 'HW.RAID' ],
+	'hw_socomec' => [ 'HW.SOCOMEC' ],
+	'hw_ipmi' => [ 'HW.IPMI' ],
+	'hw_apc' => [ 'HW.APC' ],
+	'virtual_vmware' => [ 'VIRTUAL.VMWARE' ],
+	'net_advanced' => [ 'NET.TRANS-MIB', 'NET.OSPF-MIB' ],
+	'net_commend' => [ 'NET.COMMEND' ],
+	'net_cisco' => [ 'NET.CISCO' ],
+	'net_cisco_voip' => [ 'NET.CISCO-VOIP' ],
+	'net_cisco_wireless' => [ 'NET.CISCO-WIRELESS' ],
+	'net_packeteer' => [ 'NET.PACKETEER' ],
+	'net_tippingpoint' => [ 'NET.TIPPINGPOINT' ],
+	'net_juniper' => [ 'NET.JUNIPER' ],
+	'net_netscreen' => [ 'NET.NETSCREEN' ],
+	'net_f5networks' => [ 'NET.F5NETWORKS' ],
+	'net_ironport' => [ 'NET.IRONPORT' ],
+	'net_h3c' => [ 'NET.H3C' ],
+	'net_finjan' => [ 'NET.FINJAN' ],
+	'net_infoblox' => [ 'NET.INFOBLOX' ],
+	'net_fortinet' => [ 'NET.FORTINET' ],
+	'file_server' => [ 'IPSERV.SMB' ],
+	'ldap_base' => [ 'IPSERV.LDAP' ],
+	'bbdd_mysql' => [ 'BBDD.MYSQL' ],
+	'mail_base' => [ 'IPSERV.IMAP4', 'IPSERV.POP3', 'IPSERV.SMTP' ],
+	'www_base' => [ 'WWW.HTTP-MIB', 'IPSERV.WWW' ],
+	'www_apache' => [ 'WWW.APACHE' ],
+	'ssl_server' => [ 'IPSERV.SSL' ],
+
+);
+
+
+#---------------------------------------------------------------------------
+my $results_dir='/tmp/GCONF_OUT';
+my $scheme_dir_base='/opt/cnm-sp/sp-scheme';
+my $scheme_dir_tg=$scheme_dir_base.'/update/db/Init/tech_group/';
+my $scheme_dir_sp=$scheme_dir_base.'/update/db/Init/support_pack/';
+my $scheme_dir_rel=$scheme_dir_base.'/update/db/Init/support_pack2tech_group/';
+
+system ("mkdir -p $results_dir");
+if (! -d $scheme_dir_tg) { system ("mkdir -p $scheme_dir_tg"); }
+if (! -d $scheme_dir_sp) { system ("mkdir -p $scheme_dir_sp"); }
+if (! -d $scheme_dir_rel) { system ("mkdir -p $scheme_dir_rel"); }
+
+
+my $INIT_TG_FILE= $results_dir.'/'.'DB-Init-tech_group.php';
+my $INIT_SP_FILE= $results_dir.'/'.'DB-Init-support_pack.php';
+my $INIT_REL_FILE= $results_dir.'/'.'DB-Init-support_pack2tech_group.php';
+
+my @COPY_FILES =(
+	{ 'source_file'=>$INIT_TG_FILE, 'dest_dir'=>$scheme_dir_tg },
+	{ 'source_file'=>$INIT_SP_FILE, 'dest_dir'=>$scheme_dir_sp },
+	{ 'source_file'=>$INIT_REL_FILE, 'dest_dir'=>$scheme_dir_rel },
+
+);
+
+my ($sqlblock, $sqlblock1, $sqlblock2, $sqlblock3, $sqlblock4, $sqlblock5) = ('','','','','','');
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# 1 TECH_GROUP
+#---------------------------------------------------------------------------
+my $SQLTG_DATA = <<"SQLTG_DATA";
+      \$TECH_GROUP[]=array(
+            'name'=>'__NAME__', 'description'=>'__DESCRIPTION__', 'custom' => '__CUSTOM__'
+      );
+SQLTG_DATA
+
+$sqlblock1 = '';
+foreach my $h (@TG) {
+   $sqlblock=$SQLTG_DATA;
+   foreach my $k (keys %$h) {
+      $sqlblock =~ s/$k/$h->{$k}/;
+   }
+   $sqlblock1 .= $sqlblock;
+}
+#print $sqlblock1 ."\n";
+
+set_db_file($INIT_TG_FILE,$sqlblock1);
+
+#---------------------------------------------------------------------------
+# 2 SUPPORT_PACK
+#---------------------------------------------------------------------------
+my $SQLSP_DATA = <<"SQLSP_DATA";
+      \$SUPPORT_PACK[]=array(
+            'subtype' => '__SUBTYPE__',  'name'=>'__NAME__',
+            'description'=>'__DESCRIPTION__',
+            'custom' => '__CUSTOM__'
+      );
+SQLSP_DATA
+
+$sqlblock1 = '';
+foreach my $h (@SP) {
+	$sqlblock=$SQLSP_DATA;
+	foreach my $k (keys %$h) {
+   	$sqlblock =~ s/$k/$h->{$k}/;
+	}
+	$sqlblock1 .= $sqlblock;
+}
+#print $sqlblock1 ."\n";
+
+set_db_file($INIT_SP_FILE,$sqlblock1);
+
+#---------------------------------------------------------------------------
+# 3 RELACION SUPPORT_PACK <-> TECH_GROUP
+#---------------------------------------------------------------------------
+my $SQLREL_DATA = <<"SQLREL_DATA";
+      \$SUPPORT_PACK2TECH_GROUP[]=array(
+            'subtype' => '__SP__', 'name'=>'__TG__',
+      );
+
+SQLREL_DATA
+
+
+$sqlblock1 = '';
+$sqlblock=$SQLREL_DATA;
+foreach my $sp (sort keys %SP2TG) {
+	foreach my $tg (@{$SP2TG{$sp}}) {
+		$sqlblock=$SQLREL_DATA;
+   	$sqlblock =~ s/__SP__/$sp/;
+   	$sqlblock =~ s/__TG__/$tg/;
+		$sqlblock1 .= $sqlblock;
+	}
+}
+#print $sqlblock1 ."\n";
+
+
+set_db_file($INIT_REL_FILE,$sqlblock1);
+copy_files();
+
+
+#---------------------------------------------------------------------------
+# Create install file
+#---------------------------------------------------------------------------
+my $install_file='';
+$install_file .= "[ -f $scheme_dir_base/pre-install  ] && $scheme_dir_base/pre-install\n\n";
+$install_file .= "/update/db/db-manage.php -p $scheme_dir_base\n\n";
+$install_file .= "if [ -f $scheme_dir_base/post-install  ]; then\n";
+$install_file .= "   $scheme_dir_base/post-install\n";
+$install_file .= "else exit 0\nfi\n";
+
+open (F,">$scheme_dir_base/install");
+print F $install_file;
+close F;
+system ("/bin/chmod 755 $scheme_dir_base/install");
+
+open (F,">$scheme_dir_base/update/db/DB-Scheme-Create.php");
+print F "<?php\n\$DBScheme = array();\n?>\n";
+close F;
+
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+sub set_db_file {
+my ($file,$block)=@_;
+
+
+	if (! $block) { return; }
+	unlink $file;
+	my $rc = open (F, ">$file");
+	if (! $rc) {
+		print "**ERROR** Al abrir fichero: $file ($!)\n";
+		return;
+	}
+	print F "<?php\n";
+	print F $block;
+	print F "?>\n";
+	close F;
+}
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+sub copy_files {
+
+	foreach my $h (@COPY_FILES) {
+		my ($from,$to) = ($h->{'source_file'}, $h->{'dest_dir'});
+		if (! -f $from) { next; }
+		print "$from -> $to\n";
+		my $cmd="cp $from $to";
+		system($cmd);
+	}
+}

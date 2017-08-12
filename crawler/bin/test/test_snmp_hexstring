@@ -1,0 +1,34 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::SNMP;
+
+my $snmp=Crawler::SNMP->new();
+$snmp->retries(1);
+$snmp->timeout(700000);
+
+#IP-MIB::ipNetToPhysicalPhysAddress.2.ipv4."10.2.254.72" = STRING: ee:8b:81:ad:82:c
+#IP-MIB::ipNetToMediaPhysAddress.2.10.2.254.232 = STRING: 0:c:29:dc:a5:c1
+my $txt='0:c:29:dc:a5:c1';
+
+$txt="00: 0C: 29: DC: A5: C1 ";
+my $newtxt=$snmp->hex2ascii($txt);
+print "$txt\t$newtxt\n";
+
+sub hex2ascii2 {
+my ($self,$data)=@_;
+
+   if ($data !~ /(\w{2}\s{1}){4}/) { return $data;}
+   $data =~ s/\"//g;
+   $data =~ s/^(.*)\s+00\s*$/$1 2E/g;
+   my @l=split(/\s+/,$data);
+
+   #El ultimo valor suele estar mal en w2k
+#  pop @l;
+
+   my $newdata=pack("C*",map(hex,@l));
+   return $newdata;
+
+}
+

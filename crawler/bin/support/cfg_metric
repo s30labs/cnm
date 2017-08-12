@@ -1,0 +1,228 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Pod::Usage;
+use ONMConfig;
+use Crawler::Store;
+use Metrics::Base;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %OPTS = ();
+GetOptions (\%OPTS,'help','man',
+				'unset','list','update',
+				'dev=s','metric=s','name=s','domain=s','ip=s',
+				'f','s','type=s','subtype=s','label=s','items=s','lapse=s',
+				'file_path=s','file=s','host=s','vlabel=s','graph=s',
+				'mtype=s','status=s'
+
+) or pod2usage(-exitval => 2, -input => \*DATA);
+
+if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+if ($OPTS{'help'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+
+if ( (! defined $OPTS{'unset'}) && (! defined $OPTS{'list'}) && (! defined $OPTS{'update'}) ) {
+	pod2usage(-exitval => 2, -input => \*DATA); 
+}
+else { 
+
+	if (defined $OPTS{'unset'}) { 
+
+		if (! defined $OPTS{'metric'})  { pod2usage(-exitval => 2, -input => \*DATA); }
+
+		do_unset(\%OPTS); 
+	}
+	elsif (defined $OPTS{'list'}) { 
+
+		do_list(\%OPTS); 
+	}
+   elsif (defined $OPTS{'update'}) {
+
+      if (! defined $OPTS{'metric'})  { pod2usage(-exitval => 2, -input => \*DATA); }
+
+      do_update(\%OPTS);
+   }
+	else { print "Nada que hacer\n"; }
+}
+
+#--------------------------------------------------------------------------
+sub do_unset {
+my $ropt=shift;
+	
+   # Store ------------------------------------
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+
+   my $dbh=$store->open_db();
+
+   my %M=();
+	$M{metric}=$ropt->{metric};
+
+	my $rv=$store->delete_metrics($dbh,\%M);
+	if (! defined $rv) {print "[ERROR] en unset de METRICA=$M{metric}\n";}
+	elsif (! $rv) {print "[WARN] No se ha borrado METRICA=$M{metric}\n";}
+	else {print "[OK] Borrada METRICA=$M{metric} ($rv)\n";}
+}
+
+
+#--------------------------------------------------------------------------
+sub do_update {
+my $ropt=shift;
+
+   # Store ------------------------------------
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+
+   my $dbh=$store->open_db();
+
+   my %M=();
+   $M{id_metric}=$ropt->{metric};
+   if (defined $ropt->{name}) { $M{name}= $ropt->{name};}
+   if (defined $ropt->{type}) { $M{type}= $ropt->{type};}
+   if (defined $ropt->{subtype}) { $M{subtype}=$ropt->{subtype};}
+   if (defined $ropt->{label}) { $M{label}=$ropt->{label};}
+   if (defined $ropt->{items}) { $M{items}=$ropt->{items};}
+   if (defined $ropt->{lapse}) { $M{lapse}=$ropt->{lapse};}
+   if (defined $ropt->{file_path}) { $M{file_path}=$ropt->{file_path};}
+   if (defined $ropt->{file}) { $M{file}=$ropt->{file};}
+   if (defined $ropt->{host}) { $M{host}=$ropt->{host};}
+   if (defined $ropt->{vlabel}) { $M{vlabel}=$ropt->{vlabel};}
+   if (defined $ropt->{graph}) { $M{graph}=$ropt->{graph};}
+   if (defined $ropt->{mtype}) { $M{mtype}=$ropt->{mtype};}
+   if (defined $ropt->{status}) { $M{status}=$ropt->{status};}
+
+
+
+   my $rv=$store->update_metrics($dbh,\%M);
+   if (! defined $rv) {print "[ERROR] en update de METRICA=$M{id_metric}\n";}
+   elsif (! $rv) {print "[WARN] No se ha actualizado METRICA=$M{id_metric}\n";}
+   else {print "[OK] Actualizada METRICA=$M{id_metric} ($rv)\n";}
+}
+
+#--------------------------------------------------------------------------
+sub do_list {
+my $ropt=shift;
+my ($id,$type,$name,$label)=qw(ID MTYPE NAME LABEL);
+
+   # Store ------------------------------------
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+
+   my $dbh=$store->open_db();
+
+	my %M=();
+	#Para identificar
+	if (defined $ropt->{dev}) { $M{id_dev} = $ropt->{dev}; }
+	if (defined $ropt->{name}) { $M{name} = $ropt->{name}; }
+	if (defined $ropt->{domain}) { $M{domain} = $ropt->{domain}; }
+	if (defined $ropt->{ip}) { $M{ip} = $ropt->{ip}; }
+
+	# Para definir lo que se presenta
+	if (defined $ropt->{f}) { 
+		$M{f} = 1; 
+		($id,$type,$label,$name)=qw(ID MTYPE LABEL FILE);
+	}
+   elsif (defined $ropt->{s}) {
+      $M{s} = 1;
+      ($id,$type,$label,$name)=qw(ID MTYPE LABEL OID);
+   }
+	else { 
+		$M{label} = 1; 
+		($id,$type,$label,$name)=qw(ID MTYPE LABEL NAME);
+	}
+
+	my $res=$store->get_metrics_from_device($dbh,\%M);
+	if (! defined $res) {print "[ERROR] en list\n";}
+
+format MY_DATA =
+@<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$id,$type,              $label,                     $name
+.
+
+	$~ = 'MY_DATA';
+   write();
+	foreach my $l (@$res) { ($id,$type,$label,$name)=@$l; write() }
+
+	
+
+}
+
+
+__DATA__
+#-----------------------------------------------------------------------
+=head1 NAME
+
+cfg_metric - Configurador de metricas
+
+=head1 SYNOPSIS
+
+cfg_metric [list|update|unset|help] 
+
+=head2 I<list>
+
+Muestra las metricas definidas para un determinado dispositivo
+cfg_metric -list [dev|name|domain|ip] [f|s]
+
+	dev: Id del dispositivo
+	name: Nombre del pispositivo
+	domain: Dominio del dispositivo
+	ip: IP del dispositivo
+
+	Formato de salida:
+	f: ID MTYPE LABEL FILE
+	s: ID MTYPE LABEL OID
+	Por defecto: ID MTYPE LABEL NAME 
+	
+
+=head2 I<update>
+
+Permite actualizar valores de las metricas definidas para un dispositivo
+cfg_metric -update -metric [name|type|subtype|label|items|lapse|file_path|file|host|vlabel|graph|mtype|status] 
+
+
+=head2 I<unset>
+
+Permite eliminar una metrica determinada
+cfg_metric -unset metric
+
+	metric: Id de la metrica (o varios Ids separados por comas)
+
+
+=head2 I<help>
+
+Muestra la ayuda
+cfg_metric -help
+
+=head1 EJEMPLOS 
+
+cfg_metric -list -dev routerx
+
+=cut

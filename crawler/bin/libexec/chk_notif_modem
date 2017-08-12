@@ -1,0 +1,127 @@
+#!/usr/bin/perl -w
+#----------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Device::Modem;
+use Device::Gsm;
+use ONMConfig;
+
+# Informacion ---------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] [-s puerto_serie] [-p pin] [-v verbose]
+$fpth[$#fpth] -s /dev/ttyS0 -p 1234
+
+Si no se especifica puerto serie se usa /dev/ttyS0.
+Si no se especifica pin se supone vacio.
+
+USAGE
+
+my %opts=();
+getopts("hvs:p:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+my $port = $opts{s} || '/dev/ttyS1';
+my $pin = $opts{p} || '';
+
+#------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $baudrate = (defined $rcfgbase->{'serial_port_baudrate'}) ? $rcfgbase->{'serial_port_baudrate'}->[0] : '9600';
+my $parity = (defined $rcfgbase->{'serial_port_parity'}) ? $rcfgbase->{'serial_port_parity'}->[0] : 'none';
+my $databits = (defined $rcfgbase->{'serial_port_databits'}) ? $rcfgbase->{'serial_port_databits'}->[0] : '8';
+my $stopbits = (defined $rcfgbase->{'serial_port_stopbits'}) ? $rcfgbase->{'serial_port_stopbits'}->[0] : '1';
+my $handshake = (defined $rcfgbase->{'serial_port_handshake'}) ? $rcfgbase->{'serial_port_handshake'}->[0] : 'xoff';
+
+
+print "port = $port\n";
+
+my $modem = new Device::Modem( port => $port );
+
+eval {
+if( $modem->connect( baudrate => $baudrate || 19200 ) ) {
+	print "modem connect = ok\n";
+} 
+else { print "modem connect = error\n"; exit; }
+
+#FML/20161113 - Parece que el chequeo de modem activo no es muy fiable en modems usb. Por eso se comenta.
+#if( $modem->is_active() ) {
+#
+#	print "modem active = ok\n";
+#
+#} 
+#else { print "modem active = error\n"; exit; }
+
+};
+if ($@) { print "modem connect = ERROR\n"; exit; }
+
+
+my $file_debug='/tmp/chk_notif_modem.log';
+if (-f $file_debug) { unlink $file_debug; }
+
+my $gsm = new Device::Gsm( port => $port, pin => $pin ,log => "file,$file_debug",
+        loglevel => 'info',  # default is 'warning'
+);
+
+my $con=$gsm->connect();
+
+#if( $con ) {
+#	print "connected = OK ($con)\n";
+#} else {
+#	print "connected = NOK***($con)\n";
+#}
+
+my $reg=$gsm->register();
+if (!defined $reg) { print "register = ERROR\n"; exit; }
+else { print "register = OK ($reg)\n"; }
+
+my $imei = $gsm->imei();
+print "imei = $imei\n";
+
+my $man_name = $gsm->manufacturer();
+print "manufacturer = $man_name\n";
+
+my $model = $gsm->model();
+print "model = $model\n";
+
+my $rev = $gsm->software_version();
+print "rev = $rev\n";
+
+my $net_name = $gsm->network();
+print "network = $net_name\n";
+
+my $level = $gsm->signal_quality();
+print "level=$level\n";
+
+my $storage = $gsm->storage();
+if (! defined $storage) { $storage='none'; }
+print "SMS storage = $storage\n";
+
+my $srv_cnt = $gsm->service_center();
+print "Service Center Number = $srv_cnt\n";
+
+
+##AT+CSQ: [Signal Quality]
+##- Devuelve el estado de calidad de la señde cobertura.
+##- Sintaxis: AT+CSQ | +CSQ: <rssi>,<ber>
+##<rssi> = 0 indica -113 dBm o menos
+##       = 1 indica -111 dBm
+##       = 2..30 indica -109..-53 dBm
+##       = 31 indica -51dBm o má       = 99 indica desconocido
+##<ber> = 99 indica porcentaje desconocido
+##
+#
+##AT+CREG?<CR>
+##Posibles respuestas:
+##+CREG: 0,0 No registrado.
+##+CREG: 0,1 Registrado en red GSM a nivel nacional.
+##+CREG: 0,2 No registrado pero en busca de un operador
+##+CREG: 0,3 Registro denegado
+##+CREG: 0,4 Desconocido
+##+CREG: 0,5 Registrado con roaming
+##

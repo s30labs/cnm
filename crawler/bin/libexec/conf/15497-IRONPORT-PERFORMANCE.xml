@@ -1,0 +1,102 @@
+
+<mibtable>
+
+   <mode>get</mode>
+	<tune>none</tune>
+
+	<oid_items>
+		<item>
+         <id>0</id>
+			<col_name>Uso de CPU (%)</col_name>
+			<oid>ASYNCOS-MAIL-MIB::perCentCPUUtilization.0</oid>
+		</item>
+      <item>
+         <id>1</id>
+         <col_name>Uso de Memoria (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentMemoryUtilization.0</oid>
+      </item>
+      <item>
+         <id>2</id>
+         <col_name>Uso de Disco (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentDiskIOUtilization.0</oid>
+      </item>
+      <item>
+         <id>3</id>
+         <col_name>Uso de la cola (%)</col_name>
+         <oid>ASYNCOS-MAIL-MIB::perCentQueueUtilization.0</oid>
+      </item>
+      <item>
+         <id>4</id>
+         <col_name>Ficheros abiertos o sockets</col_name>
+         <oid>ASYNCOS-MAIL-MIB::openFilesOrSockets.0</oid>
+      </item>
+      <item>
+         <id>5</id>
+         <col_name>Threads de correo</col_name>
+         <oid>ASYNCOS-MAIL-MIB::mailTransferThreads.0</oid>
+      </item>
+      <item>
+         <id>6</id>
+         <col_name>Peticiones DNS sin respuesta</col_name>
+         <oid>ASYNCOS-MAIL-MIB::outstandingDNSRequests.0</oid>
+      </item>
+      <item>
+         <id>7</id>
+         <col_name>Peticiones DNS pendientes</col_name>
+         <oid>ASYNCOS-MAIL-MIB::pendingDNSRequests.0</oid>
+      </item>
+      <item>
+         <id>8</id>
+         <col_name>Mensajes en la cola de trabajo</col_name>
+         <oid>ASYNCOS-MAIL-MIB::workQueueMessages.0</oid>
+      </item>
+      <item>
+         <id>9</id>
+         <col_name>Tiempo en la cola del mensaje mas antiguo</col_name>
+         <oid>ASYNCOS-MAIL-MIB::oldestMessageAge.0</oid>
+      </item>
+	</oid_items>
+
+	<title>Estado de las licencias en __IP__ (__COMMUNITY__)</title>
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+
+</mibtable>
+
+

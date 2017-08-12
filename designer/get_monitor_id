@@ -1,0 +1,35 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use lib '/opt/custom_pro/conf';
+use strict;
+use Data::Dumper;
+use Getopt::Std;
+use Digest::MD5 qw(md5_hex);
+
+#---------------------------------------------------------------------------
+my %opts=();
+getopts("hs:",\%opts);
+
+if (! $opts{s}) { 
+	my $USAGE = usage(); die $USAGE;
+}
+
+my $t=time();
+my $md5=md5_hex($t);
+my $monitor='s_'.$opts{s}.'-'.substr ($md5,0,8);
+print "subtype=$opts{s}\tmonitor=$monitor\n";
+
+#--------------------------------------------------------------------------------
+sub usage {
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+Generador del campo monitor (clave a partir de subtype)
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -s  : subtype (ej: xagt_4500)
+
+USAGE
+
+}

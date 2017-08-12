@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin", "/opt/crawler/bin/support";
+use strict;
+use Getopt::Std;
+use MCNM;
+use Data::Dumper;
+
+# Informacion ------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Chequea la configuracion basica de la maquina.
+(c) s30labs
+
+$fpth[$#fpth] -h  			: Ayuda
+$fpth[$#fpth] -k a.b.c.d  	: Actualiza la clave del sistema con el valor especificado
+$fpth[$#fpth] -k  			: Actualiza la clave del sistema con el valor que exista en /cfg/key
+
+USAGE
+
+my %opts=();
+getopts("hfk:",\%opts);
+if ($opts{h}) { die $USAGE; }
+my $key='';
+if (exists $opts{k}) { $key=$opts{k}; }
+
+store_key($key);
+

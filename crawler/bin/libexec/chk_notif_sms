@@ -1,0 +1,132 @@
+#!/usr/bin/perl -w
+#----------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Device::SerialPort;
+use ONMConfig;
+
+# Informacion ---------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -t numero_de_telefono [-s puerto_serie] [-p pin] [-v verbose]
+$fpth[$#fpth] -t 666116611 -s /dev/ttyS0 -p 1234 -m [texto]
+
+Si no se especifica puerto serie se usa /dev/ttyS0.
+Si no se especifica pin se considera nulo.
+Se puede enviar el mensaje a varios numeros de telefono si se separan por ';'
+
+USAGE
+
+my %opts=();
+getopts("hvs:p:t:m:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+my $number = $opts{t} || die $USAGE;
+my $port = $opts{s} || '/dev/ttyS0';
+my $pin= $opts{p} || '';
+my $text = $opts{m} || 'CNM :: TEST DE ENVIO DE SMS.';
+
+#-------------------------------------------------------------------------------------------
+my $ob = Device::SerialPort->new($port);
+
+die "Error de conexion con $port: $!\n" unless ($ob);
+
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+my $rcfgbase=conf_base($FILE_CONF);
+my $baudrate = (defined $rcfgbase->{'serial_port_baudrate'}) ? $rcfgbase->{'serial_port_baudrate'}->[0] : '9600';
+my $parity = (defined $rcfgbase->{'serial_port_parity'}) ? $rcfgbase->{'serial_port_parity'}->[0] : 'none';
+my $databits = (defined $rcfgbase->{'serial_port_databits'}) ? $rcfgbase->{'serial_port_databits'}->[0] : '8';
+my $stopbits = (defined $rcfgbase->{'serial_port_stopbits'}) ? $rcfgbase->{'serial_port_stopbits'}->[0] : '1';
+my $handshake = (defined $rcfgbase->{'serial_port_handshake'}) ? $rcfgbase->{'serial_port_handshake'}->[0] : 'xoff';
+
+
+$ob->user_msg(1); # misc. warnings
+$ob->error_msg(1);   # hardware and data errors
+
+# SSV: Los modems GSM que utilizamos nosotros estan configurados a 19200 bps
+# y sin control de flujo (handshake). Los modems GSM de los clientes funcionan
+# a 9600 bps y control de flujo xof
+
+##$ob->baudrate(9600);
+##$ob->handshake('xoff');
+#$ob->parity("none");
+### $ob->parity_enable(1);   # for any parity except "none"
+#$ob->databits(8);
+#$ob->stopbits(1);
+#$ob->baudrate(19200);
+#$ob->handshake('none');
+
+
+$ob->baudrate($baudrate);
+$ob->parity($parity);
+$ob->databits($databits);
+$ob->stopbits($stopbits);
+$ob->handshake($handshake);
+
+
+
+
+my @p=split(/\;/,$number);
+foreach my $tfno (@p) { tx_sms($tfno,$port,$text,$pin); }
+undef $ob;
+
+
+
+#------------------------------------------------------------------------
+sub tx_sms {
+my ($tfno,$port,$text,$pin)=@_;
+
+	my $res;
+
+	#-------------------------------------------------------
+	$res=send_cmd($ob,"AT");
+	if ($opts{v}) { print "$res\n"; }
+
+	if ($res=~/OK/s) { print "CONEXION: OK\n"; }
+	else { print "ERROR EN CONEXION\n"; return; }
+
+	#-------------------------------------------------------
+	$res=send_cmd($ob,"AT+CPIN=\"$pin\"");
+	if ($opts{v}) { print "$res\n"; }
+
+	#-------------------------------------------------------
+	$res=send_cmd($ob,"AT+CMGF=1");
+	if ($opts{v}) { print "$res\n"; }
+	if ($res !~/OK/s) { print "ERROR EN CONEXION (AT+CMGF)\n"; return; }
+
+	#-------------------------------------------------------
+	if ($tfno !~ /^\+34/) {
+   	if ($tfno=~/^34/) { $tfno = '+'.$tfno; }
+   	else { $tfno = '+34'.$tfno; }
+	}
+	$res=send_cmd($ob,"AT+CMGS=\"$tfno\"");
+	if ($opts{v}) { print "$res\n"; }
+
+	if ($res !~/>/s) { print "ERROR EN CONEXION (AT+CMGS)\n"; return; }
+
+	#-------------------------------------------------------
+	$res=send_cmd($ob,$text);
+	$res=send_cmd($ob,"\cZ");
+	if ($opts{v}) { print "$res\n"; }
+
+	print "MENSAJE ENVIADO A $tfno usando el puerto:$port (PIN=$pin)\n";
+}
+
+#------------------------------------------------------------------------
+sub send_cmd {
+my ($ob,$cmd)=@_;
+
+	my $CMD_LAPSE_TIME=2;
+   $ob->write("$cmd\r");
+   select (undef, undef, undef, $CMD_LAPSE_TIME);
+   my $result = $ob->input;
+   return $result;
+}
+

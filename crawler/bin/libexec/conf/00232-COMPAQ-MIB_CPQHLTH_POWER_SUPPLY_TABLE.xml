@@ -1,0 +1,151 @@
+<mibtable>
+
+   <oid_cols>cpqHeFltTolPowerSupplyChassis_cpqHeFltTolPowerSupplyBay_cpqHeFltTolPowerSupplyPresent_cpqHeFltTolPowerSupplyCondition_cpqHeFltTolPowerSupplyStatus_cpqHeFltTolPowerSupplyMainVoltage_cpqHeFltTolPowerSupplyCapacityUsed_cpqHeFltTolPowerSupplyCapacityMaximum_cpqHeFltTolPowerSupplyRedundant_cpqHeFltTolPowerSupplyModel_cpqHeFltTolPowerSupplySerialNumber_cpqHeFltTolPowerSupplyAutoRev_cpqHeFltTolPowerSupplyHotPlug_cpqHeFltTolPowerSupplyFirmwareRev</oid_cols>
+	<oid_last>CPQHLTH-MIB::cpqHeFltTolPowerSupplyTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyChassis</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyBay</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyPresent</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyCondition</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyMainVoltage</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyCapacityUsed</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyCapacityMaximum</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyRedundant</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyModel</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplySerialNumber</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyAutoRev</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyHotPlug</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>13</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cpqHeFltTolPowerSupplyFirmwareRev</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

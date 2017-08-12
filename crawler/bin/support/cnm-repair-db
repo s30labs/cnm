@@ -1,0 +1,9 @@
+#!/bin/sh
+# Repara las tablas de la BBDD de CNM
+
+x=`cat /cfg/onm.conf | perl -ne 'if (/DB_PWD/) {chomp; @d=split; print "$d[2]\n";}'`
+mysqlcheck -u onm -p$x --auto-repair onm 
+mysqlcheck -u onm -p$x --auto-repair cnm 
+
+exit 0
+

@@ -1,0 +1,99 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>ESTADO DEL VENTILADOR</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalSystemFanStatus.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>TEMPERATURA DEL SISTEMA</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalTempStatus.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>TEMPERATURA DE LA CPU</col_name>
+         <oid>CPQHLTH-MIB::cpqHeThermalCpuFanStatus.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>THREADS DE SISTEMA OPERATIVO</col_name>
+         <oid>CPQOS-MIB::cpqOsSystemThreads.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>CAMBIOS DE CONTEXTO EN SISTEMA OPERATIVO</col_name>
+         <oid>CPQOS-MIB::cpqOsSysContextSwitchesPersec.0</oid>
+      </item>
+
+      <item>
+         <id>5</id>
+         <col_name>TRHEADS EN COLA DE PROCESO</col_name>
+         <oid>CPQOS-MIB::cpqOsSysCpuQueueLength.0</oid>
+      </item>
+
+      <item>
+         <id>6</id>
+         <col_name>NUMERO DE PROCESOS</col_name>
+         <oid>CPQOS-MIB::cpqOsSysProcesses.0</oid>
+      </item>
+
+      <item>
+         <id>7</id>
+         <col_name>ESTADO DEL PROCESADOR</col_name>
+         <oid>CPQOS-MIB::cpqOsProcessorStatus.0</oid>
+      </item>
+
+      <item>
+         <id>8</id>
+         <col_name>ERRORES EN CONEXIONES TCP</col_name>
+         <oid>CPQOS-MIB::cpqOsTcpConnectionFailures.1</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

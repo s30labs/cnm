@@ -1,0 +1,141 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: notificationsd
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Notifications;
+use ONMConfig;
+
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $STORE_PATH='/opt/data/rrd/';
+$0='[notificationsd.010.notificationsd.60]';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+#my $LAPSE=$rcfgbase->{notif_lapse}->[0];
+my $MX=$rcfgbase->{notif_mx}->[0];
+my $FROM=$rcfgbase->{notif_from}->[0];
+my $FROM_NAME=$rcfgbase->{notif_from_name}->[0];
+my $SUBJECT=$rcfgbase->{notif_subject}->[0];
+my $SERIAL_PORT=$rcfgbase->{notif_serial_port}->[0];
+my $PIN=$rcfgbase->{notif_pin}->[0];
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+#while (my ($k,$v)=each %$rcfgbase) {print "$k ";foreach (@$v) {print "$_ ";} print "\n";}
+#exit;
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("l:t:d:h",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+#my $LAPSE = (defined $opts{l}) ? $opts{l} : $rcfgbase->{notif_lapse}->[0];
+my $LAPSE = (defined $opts{l}) ? $opts{l} : '60';
+my $TYPE = (defined $opts{t}) ? lc $opts{t} : 'all';
+if ($opts{h}) { my $USAGE=usage(); die "$USAGE\n"; }
+
+#-------------------------------------------------------------------------------------------
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level);
+$store->store_path($STORE_PATH);
+my $dbh=$store->open_db();
+my $params=$store->get_mcnm_credentials($dbh,{'host_ip'=>$ip});
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Cada cid tiene su proceso de notificationsd
+foreach my $cid (keys %$params) {
+
+	my $hidx=$params->{$cid}->{'hidx'};
+   eval {
+
+		$rcfgbase->{db_server}->[0]=$params->{$cid}->{'db_server'};
+		$rcfgbase->{db_name}->[0]=$params->{$cid}->{'db_name'};
+		$rcfgbase->{db_user}->[0]=$params->{$cid}->{'db_user'};
+		$rcfgbase->{db_pwd}->[0]=$params->{$cid}->{'db_pwd'};
+
+		#-------------------------------------------------------------------------------------------
+
+		$store->log('info',"Starting ip=$ip cid=$cid hidx=$hidx");
+	
+		# Crea el objeto Crawler::Notifications y lo arranca ---------------------------------------
+		my $notifications=Crawler::Notifications->new(
+										user=>$USER, group=>$GROUP, name=>"notificationsd", store_path=>$STORE_PATH, 
+										#lapse=>$LAPSE,	cfg=>$rcfgbase, range=>0, log_level=>$log_level, cfg=>$rcfgbase,
+										cfg=>$rcfgbase, range=>0, log_level=>$log_level,
+										mx=>$MX, from=>$FROM, from_name=>$FROM_NAME, subject=>$SUBJECT,
+										serial_port=>$SERIAL_PORT, pin=>$PIN, cid=>$cid, cid_ip=>$ip );
+
+
+		if ($TYPE eq 'all') {
+			$notifications->range(Crawler::Notifications::TASK_NORMAL);
+			$notifications->lapse(60);
+			$notifications->run();
+
+			$notifications->range(Crawler::Notifications::TASK_NOTIFICATIONS);
+			$notifications->lapse(15);
+			$notifications->run();
+
+			$notifications->range(Crawler::Notifications::TASK_SEV4);
+			$notifications->lapse(900);
+			$notifications->run();
+		}
+
+		elsif ($TYPE eq 'normal') {
+   		$notifications->range(Crawler::Notifications::TASK_NORMAL);
+   		$notifications->lapse(60);
+   		$notifications->run();
+		}
+
+      elsif ($TYPE eq 'notifications') {
+         $notifications->range(Crawler::Notifications::TASK_NOTIFICATIONS);
+         $notifications->lapse(15);
+         $notifications->run();
+      }
+
+		elsif ($TYPE eq 'sev4') {
+   		$notifications->range(Crawler::Notifications::TASK_SEV4);
+   		$notifications->lapse(900);
+	   	$notifications->run();
+		}
+	};
+
+	if ($@) {$store->log('info',"ERROR host_ip=$ip cid=$cid hidx=$hidx ($@)"); }	
+}
+#-------------------------------------------------------------------------------------------
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Demonio monitor de alertas.
+
+$fpth[$#fpth] -d [debug|info]  : Nivel de depuracion
+$fpth[$#fpth] -l [60|120|900]  : Periodo de muestreo
+$fpth[$#fpth] -t [all|normal|analysis|sev4] : Tipo de alerta
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

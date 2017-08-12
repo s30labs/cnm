@@ -1,0 +1,117 @@
+#!/usr/bin/perl -w
+#----------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use strict;
+use Getopt::Std;
+use Net::SSH::Perl;
+use Stdout;
+
+#----------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+ssh2cmd. $VERSION
+
+$fpth[$#fpth] [-n IP] [-u user] [-p pwd] [-c cmd] [-w xml]
+$fpth[$#fpth] -h  : Ayuda
+
+-n		IP remota
+-u		user
+-p		pwd
+-c 	cmd
+-w		Formato de salida (xml|txt)
+
+USAGE
+
+#----------------------------------------------------------------
+my %opts=();
+getopts("hn:u:p:c:w:",\%opts);
+my $monitor;
+if ($opts{h}) { die $USAGE;}
+my $ip=$opts{n} || die $USAGE;
+my $user=$opts{u} || die $USAGE;
+my $pwd=$opts{p} || die $USAGE;
+my @cmds=();
+if (-f $opts{c}) {
+	open (F,"<$opts{c}");
+	while (<F>) {
+		chomp;
+		push @cmds,$_;
+	}
+	close F;
+}
+else { push @cmds,$opts{c}; }
+my $FORMAT='txt';
+if ($opts{w}) { $FORMAT='xml'; }
+
+#----------------------------------------------------------------
+#my $ip=$ARGV[0];
+#my %REMOTE=(
+#   '10.2.2.2' => { 'user'=>'root', 'pwd'=>'1234', 'cmd'=>'ls /tmp/|wc' },
+#   '10.3.3.3' => { 'user'=>'root', 'pwd'=>'1234', 'cmd'=>'ls /tmp/|wc' },
+#   'i10.1.1.1' => { 'user'=>'admin', 'pwd'=>'i1234', 'cmd'=>'hoststatus cisco'},
+#);
+#
+#if (! exists $REMOTE{$ip}) { die "Uso: $0 ip\n"; }
+
+#----------------------------------------------------------------
+
+
+#----------------------------------------------------------------
+#my $ssh = Net::SSH::Perl->new($ip, debug=>1 , protocol => '2 1', identity_files => []);
+my $ssh = Net::SSH::Perl->new($ip, protocol => '2,1');
+$ssh->login($user, $pwd);
+
+foreach my $cmd (@cmds) {
+
+	#print "CMD=$cmd\n";
+
+	my($stdout, $stderr, $exit) = $ssh->cmd($cmd);
+
+
+	if ($FORMAT eq 'txt') {
+	
+		print "stdout=$stdout\n";
+		if ($exit != 0) {
+   		print "stderr=$stderr\n";
+   		print "exit=$exit\n";
+		}
+	}
+	else {
+
+
+	   my @COL_KEYS = (
+   	   {'name_col'=>'descr', 'width'=>'60', 'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter'},
+   	);
+
+   	my %COL_MAP=('descr'=>'Description');
+
+
+	   my $ts=time;
+   	my $TIMEDATE=time2date($ts);
+
+   	my %results_vector=();
+		my %line=('descr'=>$stdout);
+   	$results_vector{$ip}=[\%line];
+
+	   my $xml = dumph2xml(\@COL_KEYS, \%COL_MAP, \%results_vector, $TIMEDATE);
+   	print "$xml\n";
+	
+	}
+}
+
+
+#----------------------------------------------------------------------------
+sub time2date {
+my ($ts)=@_;
+
+   if (! $ts) { $ts=time(); }
+   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+   $year += 1900;
+   $mon += 1;
+   my $datef=sprintf("%02d/%02d/%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
+   #return  "$year-$mon-$mday  $hour:$min:$sec";
+   return  $datef;
+}
+

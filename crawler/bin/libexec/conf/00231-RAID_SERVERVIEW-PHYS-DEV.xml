@@ -1,0 +1,221 @@
+<mibtable>
+
+   <oid_cols>svrPhysicalDeviceCtrlNr_svrPhysicalDeviceChannel_svrPhysicalDeviceTarget_svrPhysicalDeviceLUN_svrPhysicalDeviceModelName_svrPhysicalDeviceVendorName_svrPhysicalDeviceCapacity_svrPhysicalDeviceMaxTransferRate_svrPhysicalDeviceType_svrPhysicalDeviceConfiguredDisk_svrPhysicalDeviceInterface_svrPhysicalDeviceErrors_svrPhysicalDeviceNrBadBlocks_svrPhysicalDeviceSmartStatus_svrPhysicalDeviceStatus_svrPhysicalDeviceFirmwareRevision_svrPhysicalDeviceSerialNumber_svrPhysicalDeviceForeignConfig_svrPhysicalDeviceIdx_svrPhysicalDeviceStatusEx_svrPhysicalDeviceCapacityMB</oid_cols>
+	<oid_last>FSC-RAID-MIB::svrPhysicalDeviceTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceCtrlNr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceChannel</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceTarget</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceLUN</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceModelName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceVendorName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceCapacity</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceMaxTransferRate</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceConfiguredDisk</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceInterface</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceErrors</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceNrBadBlocks</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>13</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceSmartStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>14</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>15</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceFirmwareRevision</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>16</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceSerialNumber</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>17</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceForeignConfig</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>18</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceIdx</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>19</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceStatusEx</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>20</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>svrPhysicalDeviceCapacityMB</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

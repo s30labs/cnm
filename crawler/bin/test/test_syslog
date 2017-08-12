@@ -1,0 +1,14 @@
+use Logger;
+init_log();
+log_debug ('fmlfml prueba de syslog');
+print "HOLA\n";
+
+log_notice ('fmlfml prueba de syslog');
+print "HOLA\n";
+
+log_info ('fmlfml prueba de syslog');
+print "HOLA\n";
+
+log_warn ('fmlfml prueba de syslog');
+print "HOLA\n";
+

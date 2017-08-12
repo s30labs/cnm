@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Se debe parar cnm-watch"
+rm -f /opt/data/idx/0*.info
+rm -f /opt/data/idx/register/*
+mysql -p onm -e 'update metrics set crawler_idx=NULL;'
+/opt/crawler/bin/cnm-watch

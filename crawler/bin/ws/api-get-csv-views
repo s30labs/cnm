@@ -1,0 +1,61 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - GET CSV Devices
+(c) s30labs
+
+$fpth[$#fpth] [-d debug|info] [-c cid] -n host/ip 
+$fpth[$#fpth] -h  : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %opts=();
+getopts("hd:c:n:",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+my $host_ip = (defined $opts{n}) ? $opts{n} : 'localhost';
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $cid = (defined $opts{c}) ? $opts{c} : 'default';
+
+
+#-------------------------------------------------------------------------------------------
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+my $class='';
+my $endpoint='views.json';
+my $response = $api->ws_get($class,$endpoint);
+my $serialized_data=encode_json($response);
+
+#print Dumper($response);
+my @COL_MAP = (
+   {'label'=>'ID', 'width'=>'4' , 'name_col'=>'id_dev',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter', ,'hidden'=>'true' },
+   {'label'=>'NOMBRE', 'width'=>'10' , 'name_col'=>'name',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'DOMINIO', 'width'=>'10' , 'name_col'=>'domain',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'IP', 'width'=>'10' , 'name_col'=>'ip',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'ESTADO', 'width'=>'5' , 'name_col'=>'status',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'TIPO', 'width'=>'10' , 'name_col'=>'type',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'SYSOID', 'width'=>'15' , 'name_col'=>'sysloc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSLOC', 'width'=>'15' , 'name_col'=>'sysdesc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSDESC', 'width'=>'20' , 'name_col'=>'sysoid',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+);
+
+my $col_map=encode_json(\@COL_MAP);
+
+print "$serialized_data\n";
+print "$col_map\n";
+
+

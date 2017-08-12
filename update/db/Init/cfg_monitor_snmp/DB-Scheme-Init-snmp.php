@@ -1,0 +1,1426 @@
+<?php
+
+//---------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------
+// myrange permite comprobar si el dispositivo soporta la metrica en cuestion.
+// Puede ser de tipo tabla (HOST-RESOURCES-MIB::hrStorageTable) o de tipo escalar (HOST-RESOURCES-MIB::hrSystemProcesses.0)
+// Se diferencian porque los escalares terminan en \.\d+
+// Si una metrica tiene varios escalares o elementos de tablas distintas, se valida una de ellas
+// Por otra parte, se debe seguir el mismo criterio con las aplicaciones
+
+      // CASO ESPECIAL ---------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mon_snmp',
+            'class' => 'cnm',
+            'lapse' => '300',
+            'descr' => 'SIN RESPUESTA SNMP',
+            'items' => '',
+            'oid' => '',
+            'get_iid' => '',
+            'oidn' => '',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'bytes',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '-1',
+            'custom' => '0',
+            'myrange' => '',
+            'enterprise' => '0',
+            'include'=> 1,
+            'itil_type'=>4,   'apptype'=>'IPSERV.SNMP',
+
+      );
+
+//---------------------------------------------------------------------------------------------------------
+// MIB-HOST
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+         	'subtype' => 'disk_mibhost',
+         	'class' => 'MIB-HOST - rfc2790',
+         	'lapse' => '300',
+	         'descr' => 'USO DE DISCO',
+   	      'items' => 'Disco Total|Disco Usado',
+      	   'oid' => '.1.3.6.1.2.1.25.2.3.1.4.IID|.1.3.6.1.2.1.25.2.3.1.5.IID|.1.3.6.1.2.1.25.2.3.1.6.IID',
+         	'get_iid' => 'hrStorageDescr',
+	         'oidn' => 'hrStorageAllocationUnits.IID|hrStorageSize.IID|hrStorageUsed.IID',
+   	      'oid_info' => 'HOST-RESOURCES-MIB|hrStorageAllocationUnits|Integer32|The size, in bytes, of the data objects allocated from this pool.  If this entry is monitoring sectors, blocks, buffers, or packets, for example, this number will commonly be greater than one.  Otherwise this number will typically be one.<br>HOST-RESOURCES-MIB|hrStorageSize|Integer32|The size of the storage represented by this entry, in units of hrStorageAllocationUnits. This object is writable to allow remote configuration of the size of the storage area in those cases where such an operation makes sense and is possible on the underlying system. For example, the amount of main memory allocated to a buffer pool might be modified or the amount of disk space allocated to virtual memory might be modified.<br>HOST-RESOURCES-MIB|hrStorageUsed|Integer32|The amount of the storage represented by this entry that is allocated, in units of hrStorageAllocationUnits.',
+
+				'module' => 'mod_snmp_get_ext:ext_mibhost_disk',
+				'mtype' => 'STD_AREA',
+				'vlabel' => 'bytes',
+				'mode' => 'GAUGE',
+				'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'HOST-RESOURCES-MIB::hrStorageTable',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'disk_mibhostp',
+            'class' => 'MIB-HOST - rfc2790',
+            'lapse' => '300',
+            'descr' => 'USO DE DISCO (%)',
+            'items' => 'Disco Usado (%)',
+            'oid' => '.1.3.6.1.2.1.25.2.3.1.5.IID|.1.3.6.1.2.1.25.2.3.1.6.IID',
+				'esp' => '100*o2/o1',
+            'get_iid' => 'hrStorageDescr',
+            'oidn' => 'hrStorageSize.IID|hrStorageUsed.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => '% de uso',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'myrange' => 'HOST-RESOURCES-MIB::hrStorageTable',
+            'enterprise' => '0',
+            'include'=> 0,
+            'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+      );
+
+
+      $CFG_MONITOR_SNMP[]=array(
+	         'subtype' => 'proc_cnt_mibhost',
+   	      'class' => 'MIB-HOST - rfc2790',
+      	   'lapse' => '300',
+         	'descr' => 'NUMERO DE PROCESOS',
+	         'items' => 'Numero de Procesos',
+   	      'oid' => '.1.3.6.1.2.1.25.1.6.0',
+      	   'get_iid' => '',
+         	'oidn' => 'hrSystemProcesses.0',
+         	'oid_info' => 'HOST-RESOURCES-MIB|hrSystemProcesses|GAUGE|The number of process contexts currently loaded or running on this system.',
+
+            'module' => 'mod_snmp_get',
+	         'mtype' => 'STD_AREA',
+   	      'vlabel' => 'procesos',
+      	   'mode' => 'GAUGE',
+         	'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HOST-RESOURCES-MIB::hrSystemProcesses.0',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+
+      );
+		$CFG_MONITOR_SNMP[]=array(
+	         'subtype' => 'users_cnt_mibhost',
+				'class' => 'MIB-HOST - rfc2790',
+      	   'lapse' => '300',
+         	'descr' => 'NUMERO DE USUARIOS',
+	         'items' => 'Numero de Usuarios',
+   	      'oid' => '.1.3.6.1.2.1.25.1.5.0',
+      	   'get_iid' => '',
+         	'oidn' => 'hrSystemNumUsers.0',
+	        	'oid_info' => 'HOST-RESOURCES-MIB|hrSystemNumUsers.0|GAUGE|The number of user sessions for which this host is storing state information. A session is a collection of processes requiring a single act of user authentication and possibly subject to collective job control.',
+
+            'module' => 'mod_snmp_get',
+   	      'mtype' => 'STD_AREA',
+      	   'vlabel' => 'usuarios',
+         	'mode' => 'GAUGE',
+         	'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HOST-RESOURCES-MIB::hrSystemNumUsers.0',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+
+		);
+
+		// Esta es una metrica especial que no requiere parametros de usuario por lo que se puede tener instanciada directamente.
+		// Incluye el campo label que en otras metricas se compone del campo descr + los parametros de usuario.
+		// Tambien incluye en items una funcion (items_fx) para calcular dinamicamente el numero de valores a incluir 
+		// en la grafica. El parametroque se pasa es el texto que se indexara para cada item (cpu-1, cpu-2 ....)
+		// ESTE TIPO DE METRICA TIENE EN ITEMS UNA FUNCION, YA QUE A PRIORI NO SE PUEDEN DEFINIR LOS ELEMENTOS DE OTRA FORMA
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'esp_cpu_mibhost',
+            'class' => 'MIB-HOST - rfc2790',
+            'lapse' => '300',
+            'descr' => 'USO DE CPU',
+            'label' => 'USO DE CPU',
+            'items' => 'items_fx(cpu)',
+            'oid' => 'hrProcessorFrwID_hrProcessorLoad',
+            'get_iid' => '1',
+            'oidn' => 'hrProcessorLoad.x',
+            'oid_info' => 'HOST-RESOURCES-MIB|hrProcessorLoad.x|Integer32|The average, over the last minute, of the percentage of time that this processor was not idle. Implementations may approximate this one minute smoothing period if necessary.',
+
+            'module' => 'mod_snmp_walk:ordinal_iid()(v1=2)',
+            'mtype' => 'STD_BASE',
+            'vlabel' => '%',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '3',
+            'custom' => '0',
+				'myrange' => 'HOST-RESOURCES-MIB::hrProcessorTable',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+      );
+
+
+      $CFG_MONITOR_SNMP[]=array(
+         'subtype' => 'esp_cpu_avg_mibhost',
+         'class' => 'MIB-HOST - rfc2790',
+         'lapse' => '300',
+         'descr' => 'USO PROMEDIADO DE CPU',
+   		'label' => 'Promedio de CPU',
+  		   'items' => 'Promedio de CPU',
+         'oid' => 'hrProcessorFrwID_hrProcessorLoad',
+         'get_iid' => '1',
+			'oidn' => 'hrProcessorLoad.x',
+         'oid_info' => 'HOST-RESOURCES-MIB|hrProcessorLoad|Integer32|The average, over the last minute, of the percentage of time that this processor was not idle. Implementations may approximate this one minute smoothing period if necessary.',
+         'module' => 'mod_snmp_walk:avg(.*)(txt=1;v1=2)',
+         'mtype' => 'STD_BASE',
+         'vlabel' => '%',
+         'mode' => 'GAUGE',
+         'top_value' => '1',
+         'cfg' => '3',
+         'custom' => '0',
+			'myrange' => 'HOST-RESOURCES-MIB::hrProcessorTable',
+        	'enterprise' => '0',
+			'include'=> 1,
+			'itil_type'=>4,   'apptype'=>'SO.MIBHOST',
+
+      );
+
+
+
+//---------------------------------------------------------------------------------------------------------
+// MIB-II, TCP-MIB, UDP-MIB, IP-MIB
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'traffic_mibii_if',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'TRAFICO EN INTERFAZ ',
+            'items' => 'Bits RX|Bits TX',
+            'oid' => '.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInOctets.IID|ifOutOctets.IID',
+            'oid_info' => 'RFC1213-MIB|ifInOctets|Counter32|The total number of octets received on the interface, including framing characters.<br>RFC1213-MIB|ifOutOctets|Counter32|The total number of octets transmitted out of the interface, including framing characters.',
+
+            'module' => 'mod_snmp_get',
+	         'mtype' => 'STD_TRAFFIC',
+   	      'vlabel' => 'bits/seg',
+      	   'mode' => 'COUNTER',
+         	'top_value' => '1',
+				'cfg' => '2',
+			 	'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+/*
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'traffic_mibii_if_perc',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'CONSUMO DE ANCHO DE BANDA',
+            'items' => 'Porcentaje de uso',
+            'oid' => '.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID|.1.3.6.1.2.1.2.2.1.5.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInOctets.IID|ifOutOctets.IID|ifSpeed.IID',
+            'oid_info' => 'RFC1213-MIB|ifInOctets|Counter32|The total number of octets received on the interface, including framing characters.<br>RFC1213-MIB|ifOutOctets|Counter32|The total number of octets transmitted out of the interface, including framing characters.<br>RFC1213-MIB|ifOutOctets||',
+
+            'module' => 'mod_snmp_get_ext:ext_fx([(o1+o2/o3)*100])',
+            'mtype' => 'STD_TRAFFIC',
+            'vlabel' => 'perc',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'myrange' => 'IF-MIB::ifTable',
+            'enterprise' => '0',
+            'include'=> 1,
+      );
+*/
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'traffic_mibii_if_hc',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'TRAFICO EN INTERFAZ (HC)',
+            'items' => 'Bits RX|Bits TX',
+            'oid' => '.1.3.6.1.2.1.31.1.1.1.6.IID|.1.3.6.1.2.1.31.1.1.1.10.IID',
+				'esp' => 'o1|o2',
+            'get_iid' => 'ifName',
+            'oidn' => 'ifHCInOctets.IID|ifHCOutOctets.IID',
+            'oid_info' => 'RFC1213-MIB|ifHCInOctets|Counter64|The total number of octets received on the interface, including framing characters.<br>RFC1213-MIB|ifHCOutOctets|Counter64|The total number of octets transmitted out of the interface, including framing characters.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_TRAFFIC',
+            'vlabel' => 'bits/seg',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+				'myrange' => 'IF-MIB::ifXTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'pkts_type_mibii_if',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'TIPO DE TRAFICO EN INTERFAZ (UCAST/NUCAST)',
+            'items' => 'PKTS ucast in|PKTS nucast in|PKTS ucast out|PKTS nucast out',
+            'oid' => '.1.3.6.1.2.1.2.2.1.11.IID|.1.3.6.1.2.1.2.2.1.12.IID|.1.3.6.1.2.1.2.2.1.17.IID|.1.3.6.1.2.1.2.2.1.18.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInUcastPkts.IID|ifInNUcastPkts.IID|ifOutUcastPkts.IID|ifOutNUcastPkts.IID',
+            'oid_info' => 'RFC1213-MIB|ifInUcastPkts|Counter32|The number of subnetwork-unicast packets delivered to a higher-layer protocol.<br>RFC1213-MIB|ifInNUcastPkts|Counter32|The number of non-unicast (i.e., subnetwork-broadcast or subnetwork-multicast) packets delivered to a higher-layer protocol.<br>RFC1213-MIB|ifOutUcastPkts|Counter32|The total number of packets that higher-level protocols requested be transmitted to a subnetwork-unicast address, including those that were discarded or not sent.<br>RFC1213-MIB|ifOutNUcastPkts|Counter32|The total number of packets that higher-level protocols requested be transmitted to a non-unicast (i.e., a subnetwork-broadcast or subnetwork-multicast) address, including those that were discarded or not sent.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'pkts/seg',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'pkts_type_mibii_if_ext',
+            'class' => 'MIB-II-ext',
+            'lapse' => '300',
+            'descr' => 'TIPO DE TRAFICO EN INTERFAZ (UCAST/MUCAST/BCAST)',
+            'items' => 'pkts ucast in|pkts mucast in|pkts bcast in|pkts ucast out|pkts mcast out|pkts bcast out',
+            'oid' => '.1.3.6.1.2.1.2.2.1.11.IID|.1.3.6.1.2.1.31.1.1.1.2.IID|.1.3.6.1.2.1.31.1.1.1.3.IID|.1.3.6.1.2.1.2.2.1.17.IID|.1.3.6.1.2.1.31.1.1.1.4.IID|.1.3.6.1.2.1.31.1.1.1.5.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInUcastPkts.IID|ifInMulticastPkts.IID|ifInBroadcastPkts.IID|ifOutUcastPkts.IID|ifOutMulticastPkts.IID|ifOutBroadcastPkts.IID',
+            'oid_info' => 'RFC1213-MIB|ifInUcastPkts|Counter32|The number of subnetwork-unicast packets delivered to a higher-layer protocol.<br>RFC1213-MIB|ifInMulticastPkts|Counter32|The number of packets, delivered by this sub-layer to a higher (sub-)layer, which were addressed to a multicast address at this sub-layer. For a MAC layer protocol, this includes both Group and Functional addresses. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.<br>RFC1213-MIB|ifInBroadcastPkts|Counter32|The number of packets, delivered by this sub-layer to a higher (sub-)layer, which were addressed to a broadcast address at this sub-layer. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.<br>RFC1213-MIB|ifOutUcastPkts|Counter32|The total number of packets that higher-level protocols requested be transmitted to a subnetwork-unicast address, including those that were discarded or not sent.<br>RFC1213-MIB|ifOutMulticastPkts|Counter32|The total number of packets that higher-level protocols requested be transmitted, and which were addressed to a multicast address at this sub-layer, including those that were discarded or not sent. For a MAC layer protocol, this includes both Group and Functional addresses. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.<br>RFC1213-MIB|ifOutBroadcastPkts|Counter32|The total number of packets that higher-level protocols requested be transmitted, and which were addressed to a broadcast address at this sub-layer, including those that were discarded or not sent. Discontinuities in the value of this counter can occur at re-initialization of the management system, and at other times as indicated by the value of ifCounterDiscontinuityTime.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'pkts/seg',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'pkts_type_mibrmon',
+            'class' => 'MIB-RMON',
+            'lapse' => '300',
+            'descr' => 'TIPO DE TRAFICO EN INTERFAZ (RMON)',
+            'items' => 'pkts totales |pkt broadcast |pkts multicast',
+            'oid' => '.1.3.6.1.2.1.16.1.1.1.5.IID|.1.3.6.1.2.1.16.1.1.1.6.IID|.1.3.6.1.2.1.16.1.1.1.7.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'etherStatsPkts.IID|etherStatsBroadcastPkts.IID|etherStatsMulticastPkts.IID',
+            'oid_info' => 'RMON-MIB|etherStatsPkts|Counter32|The total number of packets (including bad packets, broadcast packets, and multicast packets) received.<br>RMON-MIB|etherStatsBroadcastPkts|Counter32|The total number of good packets received that were directed to the broadcast address.  Note that this does not include multicast packets.<br>RMON-MIB|etherStatsMulticastPkts|Counter32|The total number of good packets received that were directed to a multicast address.  Note that this number does not include packets directed to the broadcast address.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'pkts/seg',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'RMON-MIB::etherStatsTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ip_pkts_discard',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'PAQUETES IP DESCARTADOS',
+            'items' => 'PKTS in|PKTS out',
+            'oid' => '.1.3.6.1.2.1.4.8.0|.1.3.6.1.2.1.4.11.0',
+            'get_iid' => '',
+            'oidn' => 'ipInDiscards.0|ipOutDiscards.0',
+            'oid_info' => 'RFC1213-MIB|ipInDiscards.0|Counter32|The number of input IP datagrams for which no problems were encountered to prevent their continued processing, but which were discarded (e.g., for lack of buffer space). Note that this counter does not include any datagrams discarded while awaiting re-assembly.<br>RFC1213-MIB|ipInDiscards.0|Counter32|The number of output IP datagrams for which no problem was encountered to prevent their transmission to their destination, but which were discarded (e.g., for lack of buffer space).  Note that this counter would include datagrams counted in ipForwDatagrams if any such packets met this (discretionary) discard criterion.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'RFC1213-MIB::ipInDiscards.0',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'tcp_estab',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'SESIONES TCP ESTABLECIDAS',
+            'items' => 'Sesiones TCP',
+            'oid' => '.1.3.6.1.2.1.6.9.0',
+            'get_iid' => '',
+            'oidn' => 'tcpCurrEstab.0',
+            'oid_info' => 'RFC1213-MIB|tcpCurrEstab.0|GAUGE|The number of TCP connections for which the current state is either ESTABLISHED or CLOSE-WAIT.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'RFC1213-MIB::ipInDiscards.0',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'tcp_ap',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'SESIONES TCP ACTIVAS/PASIVAS',
+            'items' => 'Sesiones TCP Activas|Sesiones TCP Pasivas',
+            'oid' => '.1.3.6.1.2.1.6.5.0|.1.3.6.1.2.1.6.6.0',
+            'get_iid' => '',
+            'oidn' => 'tcpActiveOpens.0|tcpPassiveOpens',
+            'oid_info' => 'RFC1213-MIB|tcpActiveOpens.0|Counter32|The number of times TCP connections have made a direct transition to the SYN-SENT state from the CLOSED state.<br>RFC1213-MIB|tcpPassiveOpens.0|Counter32|The number of times TCP connections have made a direct transition to the SYN-RCVD state from the LISTEN state.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'RFC1213-MIB::tcpActiveOpens.0',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'udp_pkts',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'PAQUETES UDP',
+            'items' => 'Datagramas UDP IN|Datagramas UDP OUT',
+            'oid' => '.1.3.6.1.2.1.7.1.0|.1.3.6.1.2.1.7.4.0',
+            'get_iid' => '',
+            'oidn' => 'udpInDatagrams.0|udpOutDatagrams.0',
+            'oid_info' => 'RFC1213-MIB|udpInDatagrams.0|Counter32|The total number of UDP datagrams delivered to UDP users.<br>RFC1213-MIB|udpOutDatagrams.0|Counter32|The total number of UDP datagrams sent from this entity.',
+
+            'module' => 'mod_snmp_get',
+	         'mtype' => 'STD_AREA',
+   	      'vlabel' => 'num',
+      	   'mode' => 'COUNTER',
+         	'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'RFC1213-MIB::udpInDatagrams.0',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+/*
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'arp_mibii_cnt',
+            'class' => 'MIB-II',
+            'lapse' => '3600',
+            'descr' => 'VECINOS EN LAN - ARP',
+            'items' => 'Entradas en la tabla ARP',
+            'oid' => 'ipNetToMediaNetAddress_ipNetToMediaPhysAddress',
+            'get_iid' => '',
+            'oidn' => 'ipNetToMediaNetAddress|ipNetToMediaPhysAddress',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Entradas ARP',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'RFC1213-MIB::ipNetToMediaTable',
+         	'enterprise' => '0',
+      );
+*/
+
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'esp_arp_mibii_cnt',
+            'class' => 'MIB-II',
+            'lapse' => '3600',
+            'descr' => 'VECINOS EN LAN - ARP',
+            'label' => 'VECINOS EN LAN - ARP',
+            'items' => 'Entradas en la tabla ARP',
+            'oid' => 'ipNetToMediaNetAddress_ipNetToMediaPhysAddress',
+            'get_iid' => '1',
+            'oidn' => 'ipNetToMediaNetAddress|ipNetToMediaPhysAddress',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_walk:match(.*)(txt=1;v1=2)',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Entradas ARP',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '3',
+            'custom' => '0',
+            'myrange' => 'RFC1213-MIB::ipNetToMediaTable',
+            'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'pkts_discard_mibii_if',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'PAQUETES DESCARTADOS EN INTERFAZ',
+            'items' => 'pkts descartados in|pkts descartados out',
+            'oid' => '.1.3.6.1.2.1.2.2.1.13.IID|.1.3.6.1.2.1.2.2.1.19.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInDiscards.IID|ifOutDiscards.IID',
+            'oid_info' => 'RFC1213-MIB|ifInDiscards|Counter32|The number of inbound packets which were chosen to be discarded even though no errors had been detected to prevent their being deliverable to a higher-layer protocol.  One possible reason for discarding such a packet could be to free up buffer space.<br>RFC1213-MIB|ifOutDiscards|Counter32|The number of outbound packets which were chosen to be discarded even though no errors had been detected to prevent their being transmitted. One possible reason for discarding such a packet could be to free up buffer space.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'pkts',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'errors_mibii_if',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'ERRORES EN INTERFAZ',
+            'items' => 'errores in|errores out',
+            'oid' => '.1.3.6.1.2.1.2.2.1.14.IID|.1.3.6.1.2.1.2.2.1.20.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifInErrors.IID|ifOutErrors.IID',
+            'oid_info' => 'RFC1213-MIB|ifInErrors|Counter32|The number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol.<br>RFC1213-MIB|ifOutErrors|Counter32|The number of outbound packets that could not be transmitted because of errors.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'errores',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 0,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'status_mibii_if',
+            'class' => 'MIB-II',
+            'lapse' => '300',
+            'descr' => 'ESTADO DE INTERFAZ',
+            'items' => 'Up|Admin Down|Down|Unk',
+            'oid' => '.1.3.6.1.2.1.2.2.1.7.IID|.1.3.6.1.2.1.2.2.1.8.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifAdminStatus.IID|ifOperStatus.IID',
+            'oid_info' => 'RFC1213-MIB|ifAdminStatus|INTEGER {up(1); down(2), testing(3)}|The desired state of the interface. The testing(3) state indicates that no operational packets can be passed.<br>RFC1213-MIB|ifOperStatus|INTEGER {up(1), down(2), testing(3)}|The current operational state of the interface. The testing(3) state indicates that no operational packets can be passed.',
+
+            'module' => 'mod_snmp_get_ext:ext_status_if',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'IF-MIB::ifTable',
+         	'enterprise' => '0',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.MIB2',
+      );
+
+//---------------------------------------------------------------------------------------------------------
+// NORTEL
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'nortel_memory',
+            'class' => 'NORTEL',
+            'lapse' => '300',
+            'descr' => 'USO DE MEMORIA',
+            'items' => 'Bytes libres|Bytes Totales',
+            'oid' => '.1.3.6.1.4.1.18.3.3.2.5.7.1.6.1|.1.3.6.1.4.1.18.3.3.2.5.7.1.7.1',
+            'get_iid' => '',
+            'oidn' => 'wfGameGroup.7.1.6.1|wfGameGroup.7.1.6.1',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'bytes',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'Wellfleet-Series7-MIB::wfGameGroup.7.1.6.1',
+         	'enterprise' => '18',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NORTEL',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'nortel_cpu',
+            'class' => 'NORTEL',
+            'lapse' => '300',
+            'descr' => 'USO DE CPU',
+            'items' => 'Porcentaje de uso de CPU',
+            'oid' => '.1.3.6.1.4.1.18.3.3.2.5.7.1.2.1',
+            'get_iid' => '',
+            'oidn' => 'wfGameGroup.7.1.2.1',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Porcentaje',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'Wellfleet-Series7-MIB::wfGameGroup.7.1.2.1',
+         	'enterprise' => '18',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NORTEL',
+
+      );
+//---------------------------------------------------------------------------------------------------------
+// CISCO
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_memory',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'USO DE MEMORIA',
+            'items' => 'Bytes usados|Bytes libres',
+            'oid' => '.1.3.6.1.4.1.9.9.48.1.1.1.5.IID|.1.3.6.1.4.1.9.9.48.1.1.1.6.IID',
+            'get_iid' => 'ciscoMemoryPoolName',
+            'oidn' => 'ciscoMemoryPoolUsed.IID|ciscoMemoryPoolFree.IID',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'bytes',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolTable',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_cpu',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'USO DE CPU',
+            'items' => 'Porcentaje de uso de CPU',
+            'oid' => '.1.3.6.1.4.1.9.2.1.58.0',
+            'get_iid' => '',
+            'oidn' => 'avgBusy5.0',
+            'oid_info' => 'OLD-CISCO-SYS-MIB|avgBusy5.0|INTEGER|5 minute exponentially-decayed moving average of the CPU busy percentage.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Procentaje',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'OLD-CISCO-SYS-MIB::avgBusy5.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_buffer_usage',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'USO DE BUFFERS DE MEMORIA',
+            'items' => 'bufferSmallTotal|bufferMiddleTotal|bufferBigTotal|bufferLargeTotal|bufferHugeTotal',
+            'oid' => '.1.3.6.1.4.1.9.2.1.15.0|.1.3.6.1.4.1.9.2.1.23.0|.1.3.6.1.4.1.9.2.1.31.0|.1.3.6.1.4.1.9.2.1.39.0|.1.3.6.1.4.1.9.2.1.63.0',
+            'get_iid' => '',
+            'oidn' => 'bufferSmTotal.0|bufferMdTotal.0|bufferBgTotal.0|bufferLgTotal.0|bufferHgTotal.0',
+            'oid_info' => 'OLD-CISCO-SYS-MIB|bufferSmTotal.0|INTEGER|Contains the total number of small buffers.<br>OLD-CISCO-SYS-MIB|bufferMdTotal.0|INTEGER|Contains the total number of medium buffers.<br>OLD-CISCO-SYS-MIB|bufferBgTotal.0|INTEGER|Contains the total number of big buffers.<br>OLD-CISCO-SYS-MIB|bufferLgTotal.0|INTEGER|Contains the total number of large buffers.<br>OLD-CISCO-SYS-MIB|bufferHgTotal.0|INTEGER|Contains the total number of huge buffers.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'OLD-CISCO-SYS-MIB::bufferSmTotal.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_buffer_errors',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ERRORES EN BUFFERS DE MEMORIA',
+            'items' => 'Buffer Failures|No Free Memory',
+            'oid' => '.1.3.6.1.4.1.9.2.1.46.0|.1.3.6.1.4.1.9.2.1.47.0',
+            'get_iid' => '',
+            'oidn' => 'bufferFail.0|bufferNoMem.0',
+            'oid_info' => 'OLD-CISCO-SYS-MIB|bufferFail.0|INTEGER|Count of the number of buffer allocation failures.<br>OLD-CISCO-SYS-MIB|bufferNoMem.0|INTEGER|Count of the number of buffer create failures due to no free memory.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'OLD-CISCO-SYS-MIB::bufferFail.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_ds0_usage',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'OCUPACION DE BASICOS-RDSI',
+            'items' => 'Ocupados RDSI (DS0s)|Maximo valor en DS0s',
+            'oid' => '.1.3.6.1.4.1.9.10.19.1.1.4.0|.1.3.6.1.4.1.9.10.19.1.1.8.0',
+            'get_iid' => '',
+            'oidn' => 'cpmActiveDS0s.0|cpmActiveDS0sHighWaterMark.0',
+            'oid_info' => 'CISCO-POP-MGMT-MIB|cpmActiveDS0s.0|GAUGE|The number of DS0s that are currently in use.<br>CISCO-POP-MGMT-MIB|cpmActiveDS0sHighWaterMark.0|Gauge32|The high water mark for number of DS0s that are active simultaneously',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CISCO-POP-MGMT-MIB::cpmActiveDS0s.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_ds0_errors',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ERRORES EN BASICOS-RDSI',
+            'items' => 'Reject RDSI|Sin recursos RDSI',
+            'oid' => '.1.3.6.1.4.1.9.10.19.1.2.1.0|.1.3.6.1.4.1.9.10.19.1.2.5.0',
+            'get_iid' => '',
+            'oidn' => 'cpmISDNCallsRejected.0|cpmISDNNoResource.0',
+            'oid_info' => 'CISCO-POP-MGMT-MIB|cpmISDNCallsRejected.0|Counter32|The number of rejected ISDN calls in this managed device.<br>CISCO-POP-MGMT-MIB|cpmISDNNoResource.0|Counter32|The number of ISDN calls that have been rejected because there is no B-Channel available to handle the call.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CISCO-POP-MGMT-MIB::cpmISDNCallsRejected.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_modem_usage',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'OCUPACION DE MODEMS ANALOGICOS',
+            'items' => 'Modems ocupados|Modems disponibles',
+            'oid' => '.1.3.6.1.4.1.9.10.19.1.1.2.0|.1.3.6.1.4.1.9.9.47.1.1.7.0',
+            'get_iid' => '',
+            'oidn' => 'cpmISDNCfgBChanInUseForAnalog.0|cmSystemModemsAvailable.0',
+            'oid_info' => 'CISCO-POP-MGMT-MIB|cpmISDNCfgBChanInUseForAnalog.0|GAUGE|The number of configured ISDN B-Channels that are currently occupied by analog calls.<br>CISCO-POP-MGMT-MIB|cmSystemModemsAvailable.0|Gauge32|The number of modems in the system that are onHook. That is, they are ready to accept a call.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CISCO-POP-MGMT-MIB::cpmISDNCfgBChanInUseForAnalog.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_modem_errors',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ERRORES EN MODEMS ANALOGICOS',
+            'items' => 'Reject en modem|Sin recursos de modem',
+            'oid' => '.1.3.6.1.4.1.9.10.19.1.2.2.0|.1.3.6.1.4.1.9.10.19.1.2.6.0',
+            'get_iid' => '',
+            'oidn' => 'cpmModemCallsRejected.0|cpmModemNoResource.0',
+            'oid_info' => 'CISCO-POP-MGMT-MIB|cpmModemCallsRejected.0|Counter32|The number of rejected modem calls in this managed device.<br>CISCO-POP-MGMT-MIB|cpmModemNoResource.0|Counter32|The number of modem calls that have been rejected because there is no modem available to handle the call.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'Num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CISCO-POP-MGMT-MIB::cpmModemCallsRejected.0',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_wap_users',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'USUARIOS ACTIVOS EN ACCESS POINT',
+            'items' => 'Usuarios',
+            'oid' => '1.3.6.1.4.1.9.9.273.1.1.2.1.1.1',
+            'get_iid' => '',
+            'oidn' => '',
+            'oid_info' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CISCO-DOT11-ASSOCIATION-MIB::cDot11ActiveWirelessClients.1',
+				'enterprise' => '9',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CISCO',
+
+      );
+
+//---------------------------------------------------------------------------------------------------------
+// ENTERASYS
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'enterasys_cpu_usage',
+            'class' => 'ENTERASYS',
+            'lapse' => '300',
+            'descr' => 'USO DE CPU',
+            'items' => 'Uso de CPU',
+            'oid' => '.1.3.6.1.4.1.52.2501.1.270.2.1.1.2.1',
+            'get_iid' => '',
+            'oidn' => 'capCPUCurrentUtilization.1',
+            'oid_info' => 'CTRON-SSR-CAPACITY-MIB|capCPUCurrentUtilization.1|INTEGER (0..100)|The CPU utilization expressed as an integer percentage. This is calculated over the last 5 seconds at a 0.1 second interval as a simple average.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'percent',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CTRON-SSR-CAPACITY-MIB::capCPUCurrentUtilization.1',
+				'enterprise' => '52',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.ENTERASYS',
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'enterasys_flow3',
+            'class' => 'ENTERASYS',
+            'lapse' => '300',
+            'descr' => 'FLUJOS DE NIVEL3',
+            'items' => 'Flujos de nivel 3 Aprendidos|Flujos de nivel 3 Caducados',
+            'oid' => '.1.3.6.1.4.1.52.2501.1.270.2.1.1.3.1|.1.3.6.1.4.1.52.2501.1.270.2.1.1.4.1',
+            'get_iid' => '',
+            'oidn' => 'capCPUL3Learned.1|capCPUL3Aged.1',
+            'oid_info' => 'CTRON-SSR-CAPACITY-MIB|capCPUL3Learned.1|Counter32|The total number of new layer 3 flows the CPU has processed and programmed into the Layer 3 hardware flow tables. Layer 3 flows are packets for IP or IPX protocols that will be routed from one subnet to another. Bridged flows or IP and IPX flows that originate and terminate in the same subnet are accounted for by capCPUL2Learned object.<br>CTRON-SSR-CAPACITY-MIB|capCPUL3Aged.1|Counter32|The total number of Layer 3flows that have been removed from the layer 3 hardware flow tables across all modules by the Layer 3 aging task. This number may increase quickly if routing protocols are not stable. Removal or insertion of routes into the forwarding table will cause premature aging of flows. Flows are normally aged/removed from the hardware when there are no more packets being sent for a defined time period.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CTRON-SSR-CAPACITY-MIB::capCPUL3Learned.1',
+				'enterprise' => '52',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.ENTERASYS',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'enterasys_flow2',
+            'class' => 'ENTERASYS',
+            'lapse' => '300',
+            'descr' => 'FLUJOS DE NIVEL2',
+            'items' => 'Flujos de nivel 2 Aprendidos|Flujos de nivel 2 Caducados',
+            'oid' => '.1.3.6.1.4.1.52.2501.1.270.2.1.1.5.1|.1.3.6.1.4.1.52.2501.1.270.2.1.1.6.1',
+            'get_iid' => '',
+            'oidn' => 'capCPUL2Learned.1|capCPUL2Aged.1',
+            'oid_info' => 'CTRON-SSR-CAPACITY-MIB|capCPUL2Learned.1|Counter32|The number of L2 flows or addresses learned. The intended result here is to see how many stations attempt to establish switched communication through the SSR.<br>CTRON-SSR-CAPACITY-MIB|capCPUL2Aged.1|Counter32|The total number of L2 addresses or flows aged out.  Hosts that end switched communication through the SSR are aged out every 15 seconds.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CTRON-SSR-CAPACITY-MIB::capCPUL2Learned.1',
+				'enterprise' => '52',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.ENTERASYS',
+
+      );
+//---------------------------------------------------------------------------------------------------------
+// BROCADE
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'brocade_frames_port',
+            'class' => 'BROCADE',
+            'lapse' => '300',
+            'descr' => 'TRAFICO POR PUERTO FIBER-CHANNEL',
+            'items' => 'Frames Tx (IID)|Frames Rx (IID)',
+            'oid' => '.1.3.6.1.4.1.1588.2.1.1.1.6.2.1.13.IID|.1.3.6.1.4.1.1588.2.1.1.1.6.2.1.14.IID',
+            'get_iid' => 'fcPortIndex',
+            'oidn' => 'swFCPortTxFrames.IID|swFCPortRxFrames.IID',
+            'oid_info' => 'SW-MIB|swFCPortTxFrames|Counter32|This object counts the number of (Fibre Channel)frames that the port has transmitted.<br>SW-MIB|swFCPortRxFrames|Counter32|This object counts the number of (Fibre Channel) frames that the port has received.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'frames',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'SW-MIB::swFCPortTable',
+				'enterprise' => '1588',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.BROCADE',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'brocade_status_port',
+            'class' => 'BROCADE',
+            'lapse' => '300',
+            'descr' => 'ESTADO DEL PUERTO FIBER-CHANNEL',
+            'items' => 'UP (IID)|DOWN (IID)|UNK (IID)',
+            'oid' => '.1.3.6.1.4.1.1588.2.1.1.1.6.2.1.5.IID|.1.3.6.1.4.1.1588.2.1.1.1.6.2.1.4.IID',
+            'get_iid' => 'fcPortIndex',
+            'oidn' => 'swFCPortAdmStatus|swFCPortOpStatus',
+            'oid_info' => 'SW-MIB|swFCPortAdmStatus|INTEGER { unknown(0); online(1), offline(2), testing(3), faulty(4) }|The desired state of the port.<br>SW-MIB|swFCPortOpStatus|INTEGER { unknown(0), online(1), offline(2), testing(3), faulty(4) }|Identifies the operational status of the port. {online(1), offline(2), testing(3), faulty(4)} ',
+
+            'module' => 'mod_snmp_get_ext:ext_brocade_status_port',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'SW-MIB::swFCPortTable',
+				'enterprise' => '1588',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.BROCADE',
+
+      );
+//---------------------------------------------------------------------------------------------------------
+// NOVELL
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'novell_nw_fs_read_write',
+            'class' => 'NOVELL',
+            'lapse' => '300',
+            'descr' => 'ACTIVIDAD DEL SISTEMA DE FICHEROS',
+            'items' => 'Lecturas|Escrituras',
+            'oid' => '.1.3.6.1.4.1.23.2.28.2.1.0|.1.3.6.1.4.1.23.2.28.2.2.0',
+            'get_iid' => '',
+            'oidn' => 'NetWare-Server-MIB::nwFSReads.0|NetWare-Server-MIB::nwFSWrites.0',
+            'oid_info' => 'NetWare-Server-MIB|nwFSWrites|Counter32|The total number of file writes the file system has made since this server was started. This value provides a relative measure of server activity.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'NetWare-Server-MIB::nwFSReads.0',
+				'enterprise' => '23',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NOVELL',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'novell_nw_fs_cache',
+            'class' => 'NOVELL',
+            'lapse' => '300',
+            'descr' => 'USO DEL CACHE',
+            'items' => 'Checks|Hits',
+            'oid' => '.1.3.6.1.4.1.23.2.28.2.5.0|.1.3.6.1.4.1.23.2.28.2.6.0',
+            'get_iid' => '',
+            'oidn' => 'NetWare-Server-MIB::nwFSCacheChecks.0|NetWare-Server-MIB::nwFSCacheHits.0',
+            'oid_info' => 'NetWare-Server-MIB|nwFSCacheChecks|Counter32|The total number of checks that have been made against the file cache.<br>NetWare-Server-MIB|nwFSCacheHits|Counter32|The total number of times a file cache check has resulted in a hit.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'NetWare-Server-MIB::nwFSCacheChecks.0',
+				'enterprise' => '23',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NOVELL',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'novell_nw_open_files',
+            'class' => 'NOVELL',
+            'lapse' => '300',
+            'descr' => 'FICHEROS EN USO',
+            'items' => 'Ficheros abiertos',
+            'oid' => '.1.3.6.1.4.1.23.2.28.2.7.0',
+            'get_iid' => '',
+            'oidn' => 'NetWare-Server-MIB::nwFSOpenFiles.0',
+            'oid_info' => 'NetWare-Server-MIB|nwFSOpenFiles|INTEGER|The number of open files in the file system.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'NetWare-Server-MIB::nwFSOpenFiles.0',
+				'enterprise' => '23',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NOVELL',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'novell_nw_disk_usage',
+            'class' => 'NOVELL',
+            'lapse' => '300',
+            'descr' => 'USO DE DISCO',
+            'items' => 'Disco Total (IID)|Disco Libre (IID)|Disco Liberable (IID)',
+            'oid' => '.1.3.6.1.4.1.23.2.28.2.14.1.3.IID|.1.3.6.1.4.1.23.2.28.2.14.1.4.IID|.1.3.6.1.4.1.23.2.28.2.14.1.5.IID',
+            'get_iid' => 'nwVolPhysicalName',
+            'oidn' => 'nwVolSize.IID|nwVolFree.IID|nwVolFreeable.IID',
+            'oid_info' => 'NetWare-Server-MIB|nwVolSize|Integer32|The size of the volume in KBytes.<br>NetWare-Server-MIB|nwVolFree|Integer32|The free space on the volume in KBytes. As this number approaches zero, the volume is running out of space for new or expanding files.<br>NetWare-Server-MIB|nwVolFreeable|Integer32|The amount of freeable space (in KBytes) being used by previously deleted files on this volume. The freeable space can be reclaimed as free space by purging deleted files.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_DISK',
+            'vlabel' => 'bytes',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'NetWare-Server-MIB::nwFSVolTable',
+				'enterprise' => '23',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NOVELL',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'novell_nw_disk_dir',
+            'class' => 'NOVELL',
+            'lapse' => '300',
+            'descr' => 'USO DE DIRECTORIOS',
+            'items' => 'Directorios Totales (IID)|Directorios en Uso (IID)',
+            'oid' => '.1.3.6.1.4.1.23.2.28.2.14.1.11.IID|.1.3.6.1.4.1.23.2.28.2.14.1.12.IID',
+            'get_iid' => 'nwVolPhysicalName',
+            'oidn' => 'nwVolTotalDirEntries.IID|nwVolUsedDirEntries.IID',
+            'oid_info' => 'NetWare-Server-MIB|nwVolTotalDirEntries|INTEGER|The total number of directory table entries available on this volume.<br>NetWare-Server-MIB|nwVolUsedDirEntries|INTEGER|The number of directory table entries that are currently being used on this volume.',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASEIP1',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '2',
+				'custom' => '0',
+				'myrange' => 'NetWare-Server-MIB::nwFSVolTable',
+				'enterprise' => '23',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.NOVELL',
+
+      );
+//---------------------------------------------------------------------------------------------------------
+// CHECKPOINT
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'checkpoint_numconex',
+            'class' => 'CHECKPOINT',
+            'lapse' => '300',
+            'descr' => 'NUMERO DE CONEXIONES',
+            'items' => 'fwNumConn',
+            'oid' => '.1.3.6.1.4.1.2620.1.1.25.3.0',
+            'get_iid' => '',
+            'oidn' => 'fwNumConn.0',
+            'oid_info' => 'CHECKPOINT-MIB|fwNumConn|INTEGER|Number of connections.<br>',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CHECKPOINT-MIB::fwNumConn.0',
+				'enterprise' => '2620',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CHECKPOINT',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'checkpoint_peakconex',
+            'class' => 'CHECKPOINT',
+            'lapse' => '300',
+            'descr' => 'MAXIMO NUMERO DE CONEXIONES',
+            'items' => 'fwPeakNumConn',
+            'oid' => '.1.3.6.1.4.1.2620.1.1.25.4.0',
+            'get_iid' => '',
+            'oidn' => 'fwPeakNumConn.0',
+            'oid_info' => 'CHECKPOINT-MIB|fwPeakNumConn|INTEGER|Peak number of connections',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'CHECKPOINT-MIB::fwPeakNumConn.0',
+				'enterprise' => '2620',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.CHECKPOINT',
+
+      );
+//---------------------------------------------------------------------------------------------------------
+// UCDAVIS
+//---------------------------------------------------------------------------------------------------------
+/* OBSOLETAS (pkgs)
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ucdavis_interrupts',
+            'class' => 'UCDAVIS',
+            'lapse' => '300',
+            'descr' => 'USO DE INTERRUPCIONES',
+            'items' => 'Interrupciones|Cambios de Contexto',
+            'oid' => '.1.3.6.1.4.1.2021.11.59.0|.1.3.6.1.4.1.2021.11.60.0',
+            'get_iid' => '',
+            'oidn' => 'ssRawInterrupts.0|ssRawContexts.0',
+            'oid_info' => 'UCD-SNMP-MIB|ssRawInterrupts|Counter32|Number of interrupts processed.<br>UCD-SNMP-MIB|ssRawContexts|Counter32|Number of context switches.<br>',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'UCD-SNMP-MIB::ssRawInterrupts.0',
+				'enterprise' => '2021',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO',
+
+      );
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ucdavis_cpu',
+            'class' => 'UCDAVIS',
+            'lapse' => '300',
+            'descr' => 'USO DE CPU',
+            'items' => 'User|System|Idle',
+            'oid' => '.1.3.6.1.4.1.2021.11.50.0|.1.3.6.1.4.1.2021.11.52.0|.1.3.6.1.4.1.2021.11.53.0',
+            'get_iid' => '',
+            'oidn' => 'ssCpuRawUser.0|ssCpuRawSystem.0|ssCpuRawIdle.0',
+            'oid_info' => 'UCD-SNMP-MIB|ssCpuRawUser|Counter32|user CPU time.<br>UCD-SNMP-MIB|ssCpuRawSystem|Counter32|system CPU time.<br>UCD-SNMP-MIB|ssCpuRawIdle|Counter32|idle CPU time.<br>',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'UCD-SNMP-MIB::ssCpuRawUser.0',
+				'enterprise' => '2021',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'SO',
+      );
+*/
+//---------------------------------------------------------------------------------------------------------
+// HTTP-SERVER
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_files_sent',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Numero Total de Ficheros enviados',
+            'items' => 'Ficheros',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.5.0',
+            'oidn' => 'HttpServer-MIB::totalFilesSent.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::totalFilesSent.0|COUNTER|This is the total number of files sent by this Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+				'module' => 'mod_snmp_get',
+				'mtype' => 'STD_AREA',
+				'vlabel' => 'num',
+				'mode' => 'COUNTER',
+				'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::totalFilesSent.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_current_users',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Usuarios conectados actualmente',
+            'items' => 'Anonimos|NoAnonimos',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.6.0|.1.3.6.1.4.1.311.1.7.3.1.7.0',
+            'oidn' => 'HttpServer-MIB::currentAnonymousUsers.0|HttpServer-MIB::currentNonAnonymousUsers.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::currentAnonymousUsers.0|COUNTER|....<br>HttpServer-MIB|HttpServer-MIB::currentNonAnonymousUsers.0|COUNTER|....',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::currentAnonymousUsers.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_total_users',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Usuarios conectados',
+            'items' => 'Anonimos|NoAnonimos',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.8.0|.1.3.6.1.4.1.311.1.7.3.1.9.0',
+            'oidn' => 'HttpServer-MIB::totalAnonymousUsers.0|HttpServer-MIB::totalNonAnonymousUsers.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::totalAnonymousUsers.0|COUNTER|This is the total number of anonymous users that have ever connected to the Http Server<br>HttpServer-MIB|HttpServer-MIB::totalNonAnonymousUsers.0|COUNTER|This is the total number of nonanonymous users that have ever connected to the Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::totalAnonymousUsers.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_max_users',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Maximo numeo de Usuarios conectados',
+            'items' => 'Anonimos|NoAnonimos',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.10.0|.1.3.6.1.4.1.311.1.7.3.1.11.0',
+            'oidn' => 'HttpServer-MIB::maxAnonymousUsers.0|HttpServer-MIB::maxNonAnonymousUsers.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::maxAnonymousUsers.0|COUNTER|This is the maximum number of anonymous users simultaneously connected to the Http Server<br>HttpServer-MIB|HttpServer-MIB::maxNonAnonymousUsers.0|COUNTER|This is the maximum number of nonanonymous users simultaneously connected to the Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::maxAnonymousUsers.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_current_connections',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Conexiones actuales',
+            'items' => 'Conexiones',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.12.0',
+            'oidn' => 'HttpServer-MIB::currentConnections.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::currentConnections.0|GAUGE|This is the current number of connections to the Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::currentConnections.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+ 
+       $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_connections',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Intentos de conexion',
+            'items' => 'connectionAttempts|logonAttempts',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.14.0|.1.3.6.1.4.1.311.1.7.3.1.15.0',
+            'oidn' => 'HttpServer-MIB::connectionAttempts.0|HttpServer-MIB::logonAttempts.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::connectionAttempts.0|COUNTER|This is the number of connection attempts that have been made to the Http Server<br>HttpServer-MIB|HttpServer-MIB::logonAttempts.0|COUNTER|This is the number of logon attempts that have been made to this Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::connectionAttempts.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+       $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_request_type1',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Peticiones de tipo GET/POST/HEAD/Otros',
+            'items' => 'totalGets|totalPosts|totalHeads|totalOthers',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.16.0|.1.3.6.1.4.1.311.1.7.3.1.17.0|.1.3.6.1.4.1.311.1.7.3.1.18.0|.1.3.6.1.4.1.311.1.7.3.1.19.0',
+            'oidn' => 'HttpServer-MIB::totalGets.0|HttpServer-MIB::totalPosts.0|HttpServer-MIB::totalHeads.0|HttpServer-MIB::totalOthers.0 ',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::totalGets.0|COUNTER|This is the number of requests using the GET method that have been made to this Http Server<br>HttpServer-MIB|HttpServer-MIB::totalPosts.0|COUNTER|This is the number of requests using the POST method that have been made to this Http Server<br>HttpServer-MIB|HttpServer-MIB::totalHeads.0|COUNTER|This is the number of requests using the HEAD method that have been made to this Http Server<br>HttpServer-MIB|HttpServer-MIB::totalOthers.0|COUNTER|This is the number of requests not using the GET, POST or HEAD method that have been made to this Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::totalGets.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+       $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_request_type2',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Peticiones de tipo CGI/BGI',
+            'items' => 'totalCGIRequests.0|totalBGIRequests.0',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.20.0|.1.3.6.1.4.1.311.1.7.3.1.21.0',
+            'oidn' => 'HttpServer-MIB::totalCGIRequests.0|HttpServer-MIB::totalBGIRequests.0 ',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::totalCGIRequests.0|COUNTER|This is the number of Common Gateway Interface (CGI) requests that have been made to this Http Server<br>HttpServer-MIB|HttpServer-MIB::totalBGIRequests.0|COUNTER|This is the number of Binary Gateway Interface (BGI) requests that have been made to this Http Server',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::totalCGIRequests.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+       $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'httpserver_error_notfound',
+            'class' => 'HTTP-SERVER-MIB',
+            'descr' => 'Error 404 - Page Not Found',
+            'items' => 'totalNotFoundErrors.0',
+            'oid' => '.1.3.6.1.4.1.311.1.7.3.1.22.0',
+            'oidn' => 'HttpServer-MIB::totalNotFoundErrors.0',
+            'oid_info' => 'HttpServer-MIB|HttpServer-MIB::totalNotFoundErrors.0|COUNTER|This is the number of requests the Http server could not satisfy because the requested resource could not be found',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+				'cfg' => '1',
+				'custom' => '0',
+				'myrange' => 'HttpServer-MIB::totalNotFoundErrors.0',
+				'enterprise' => '311',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'WWW.HTTP-MIB',
+      );
+
+//---------------------------------------------------------------------------------------------------------
+// SQUID-PROXY
+//---------------------------------------------------------------------------------------------------------
+      $CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'squid_cache_memory',
+            'class' => 'SQUID-PROXY',
+            'descr' => 'Uso de memoria por la cache',
+            'items' => 'Kb',
+            'oid' => '.1.3.6.1.4.1.3495.1.3.1.4.0',
+            'oidn' => 'SQUID-MIB::cacheMemUsage.0',
+            'oid_info' => 'SQUID-MIB|SQUID-MIB::cacheMemUsage.0|GAUGE|Amount of system memory allocated by the cache',
+            'lapse' => '300',
+            'get_iid' => '',
+
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_AREA',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+				'myrange' => 'SQUID-MIB::cacheMemUsage.0',
+				'enterprise' => '3495',
+				'include'=> 1,
+				'itil_type'=>4,   'apptype'=>'NET.SQUID',
+      );
+
+//---------------------------------------------------------------------------------------------------------
+
+?>

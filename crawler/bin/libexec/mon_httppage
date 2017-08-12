@@ -1,0 +1,116 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id: mon_httplinks,v 1.2 2004/02/18 13:22:30 fml Exp $
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Getopt::Long;
+use Monitor;
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -u=url -page=file1[-t get|post -e extra_params -p port] : Chequea http
+$fpth[$#fpth] -u=url -v -page=file1[-t get|post -e extra_params -p port] : Chequea http y presenta la pagina
+
+-h (-help): Ayuda
+-v (-verbose): verbose
+
+-u (-url): URL
+-p (-port): port
+-t (-type): type (get/post)
+-e (extra): Extra parameters
+
+-page: Pagina de referencia
+
+-use_proxy: Utiliza proxy
+-proxy_user: Usuario de proxy
+-proxy_pwd: Clave del usuario del proxy
+-proxy_host: Maquina Proxy
+-proxy_port: puerto del proxy
+
+-use_realm: Utiliza realm
+-realm_user: Usuario del realm
+-realm_pwd: Clave del usuario del realm
+
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+#my %opts=();
+#getopts("hvu:t:e:p:b:",\%opts);
+#
+#if ($opts{'h'}) { die $USAGE;}
+#elsif ($opts{'u'}) {
+#	$DESC{'url'}=$opts{'u'};
+#	if ($opts{'u'} =~ /^\d+\.\d+\.\d+\.\d+$/) { $DESC{'url'}="http://$opts{u}";}	
+#	if ($opts{'u'} !~ /^http/) { $DESC{'url'}="http://$opts{u}";}	
+#	$DESC{'port'}=$opts{'p'};
+#	$DESC{'url_type'}=uc $opts{'t'};
+#	$DESC{'params'}=lc $opts{'e'};
+#	$DESC{'page'}=lc $opts{'b'};
+#}
+#else { die $USAGE;}
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','u=s','url=s','p=s','port=s','t=s','type=s','e=s','extra=s','page=s',
+                     'use_realm','realm_user=s','realm_pwd=s',
+                     'use_proxy','proxy_user=s','proxy_pwd=s','proxy_host=s','proxy_port=s')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+
+if (! $OPTS{'page'}) { die $USAGE; }
+else { $DESC{'page'}=$OPTS{'page'}; }
+
+if ($OPTS{'u'}) {
+   $DESC{'url'}=$OPTS{'u'};
+   if ($OPTS{'u'} =~ /^\d+\.\d+\.\d+\.\d+$/) { $DESC{'url'}="http://$OPTS{u}";}
+   if ($OPTS{'u'} !~ /^http/) { $DESC{'url'}="http://$OPTS{u}";}
+
+   $DESC{'port'} = (defined $OPTS{'p'}) ?  $OPTS{'p'} : $OPTS{'port'};
+   $DESC{'url_type'} = (defined $OPTS{'t'}) ? uc $OPTS{'t'} : uc $OPTS{'type'};
+   $DESC{'params'} = (defined $OPTS{'e'}) ? lc $OPTS{'e'} : lc $OPTS{'extra'};
+}
+
+elsif ($OPTS{'url'}) {
+   $DESC{'url'}=$OPTS{'url'};
+   if ($OPTS{'url'} =~ /^\d+\.\d+\.\d+\.\d+$/) { $DESC{'url'}="http://$OPTS{url}";}
+   if ($OPTS{'url'} !~ /^http/) { $DESC{'url'}="http://$OPTS{url}";}
+
+   $DESC{'port'} = (defined $OPTS{'p'}) ?  $OPTS{'p'} : $OPTS{'port'};
+   $DESC{'url_type'} = (defined $OPTS{'t'}) ? uc $OPTS{'t'} : uc $OPTS{'type'};
+   $DESC{'params'} = (defined $OPTS{'e'}) ? lc $OPTS{'e'} : lc $OPTS{'extra'};
+}
+
+
+else { die $USAGE;}
+
+if ($OPTS{'use_realm'}) {
+   $DESC{'use_realm'}=$OPTS{'use_realm'};
+   $DESC{'realm_user'}=$OPTS{'realm_user'};
+   $DESC{'realm_pwd'}=$OPTS{'realm_pwd'};
+}
+if ($OPTS{'use_proxy'}) {
+   $DESC{'use_proxy'}=$OPTS{'use_proxy'};
+   $DESC{'proxy_user'}=$OPTS{'proxy_user'};
+   $DESC{'proxy_pwd'}=$OPTS{'proxy_pwd'};
+   $DESC{'proxy_host'}=$OPTS{'proxy_host'};
+   $DESC{'proxy_port'}=$OPTS{'proxy_port'};
+}
+
+
+#--------------------------------------------------------------------
+my $r=mon_httppage(\%DESC);
+foreach (@$r) {print "$_\n";}
+#if ($opts{'v'}) { 
+if ( ($OPTS{'v'}) || ($OPTS{'verbose'}) ) {
+	if ($DESC{'rc'}) { print "RC=$DESC{rc}\n";  }
+	if ($DESC{'rcstr'}) { print "RCSTR=$DESC{rcstr}\n";  }
+	if ($DESC{'rcdata'}) { print "RCDATA=$DESC{rcdata}\n";  }
+	if ($DESC{'elapsed'}) { print "ELAPSED=$DESC{elapsed}\n";  }
+}
+

@@ -1,0 +1,454 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Test::More tests => 11;
+use strict;
+use Crawler::FXM;
+
+#------------------------------------------------------------------------------
+my %DESC=('mode'=>'GAUGE');
+my $log_level='debug';
+my $FXM=Crawler::FXM->new(log_level=>$log_level);
+
+
+#------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+ok( do_esp_fx_int_001('INT(o1)|INT(o2)|INT(o3)'),								'do_esp_fx: INT(o1)|INT(o2)|INT(o3)' );
+ok( do_esp_fx_int_002('CSV(o1,";",1)|CSV(o2,";",2)|CSV(o3,";",3)'),		'do_esp_fx: CSV(o1,";",1)|CSV(o2,";",2)|CSV(o3,";",3)' );
+ok( do_esp_fx_int_003("CSV(o1,';',3)|CSV(o2,';',2)|CSV(o3,';',1)"),		"do_esp_fx: CSV(o1,';',3)|CSV(o2,';',2)|CSV(o3,';',1)" );
+ok( do_esp_fx_int_004('CSV(o1,",",1)|CSV(o2,",",2)|CSV(o3,",",3)'),		'do_esp_fx: CSV(o1,",",1)|CSV(o2,",",2)|CSV(o3,",",3)' );
+ok( do_esp_fx_int_005('CSV(o1," ",1)|CSV(o2," ",2)|CSV(o3," ",3)'),		'do_esp_fx: CSV(o1," ",1)|CSV(o2," ",2)|CSV(o3," ",3)' );
+ok( do_esp_fx_int_006('o2* 100 / (o1+2)'),			'do_esp_fx: o2* 100 / (o1+2)' );
+ok( do_esp_fx_int_007('MAP(0,0)(0,0,0,1)|MAP(0,1)(0,0,1,0)|MAP(1,0)(0,1,0,0)|MAP(1,1)(1,0,0,0)'),			'do_esp_fx: MAP(0,0)(0,0,0,1)|MAP(0,1)(0,0,1,0)|MAP(1,0)(0,1,0,0)|MAP(1,1)(1,0,0,0)' );
+ok( do_esp_fx_int_008('MAPS(pepe)(1)|MAPS(juan)(2)|MAPS(fernando)(3)|MAPS(javier)(4)'),			'do_esp_fx: MAPS(pepe)(1)|MAPS(juan)(2)|MAPS(fernando)(3)|MAPS(javier)(4)' );
+ok( do_esp_fx_int_009('MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)'),			'do_esp_fx: MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)' );
+ok( do_esp_fx_int_010('IF(o1+o2>5,o1,o2)|IF(o1+o2>50,o1+5,o2+10)|IF(o1+o2>=8,o1+2*o2,o2+5*o1)'),			'do_esp_fx: IF(o1+o2>5,o1,o2)|IF(o1+o2>50,o1+5,o2+10)|IF(o1+o2>=8,o1+2*o2,o2+5*o1)' );
+ok( do_esp_fx_int_011('BIT(0)(o1)|BIT(1)(o1)|BIT(2)(o1)|BIT(3)(o1)'),                       'do_esp_fx: BIT(0)(o1)|BIT(1)(o1)|BIT(2)(o1)|BIT(3)(o1)' );
+
+
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# FUNCIONES DE TEST
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# do_esp_fx_int_001
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_001 {
+my ($fx)=@_;
+
+	my @values=("12 mW.","33 mv.","  99,4 vv ");
+	my @new_values_ok=('12','33','99.4');
+	$FXM->subtype('test001');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+	my $rc=1;
+	my $n=scalar(@$new_values);
+	if ($n==0) { $rc=0; }
+	for my $i (0..$n-1) {
+		if ($new_values->[$i] != $new_values_ok[$i]) { $rc=0; } 
+	}
+
+	return $rc;
+}
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_002
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_002 {
+my ($fx)=@_;
+
+   my @values=("1;2;3","10;20;30","100;200;300");
+   my @new_values_ok=('1','20','300');
+
+	$FXM->subtype('test002');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+	if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_003
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_003 {
+my ($fx)=@_;
+
+   my @values=("1;2;3","10;20;30","100;200;300");
+   my @new_values_ok=('3','20','100');
+
+	$FXM->subtype('test003');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+	if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_004
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_004 {
+my ($fx)=@_;
+
+   my @values=("1,2,3","10,20,30","100,200,300");
+   my @new_values_ok=('1','20','300');
+
+	$FXM->subtype('test004');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_005
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_005 {
+my ($fx)=@_;
+
+   my @values=("\"1 2 3 \"","\"10 20 30 \"","\"100 200 300 \"");
+   my @new_values_ok=('1','20','300');
+
+	$FXM->subtype('test005');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_006
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_006 {
+my ($fx)=@_;
+
+   my @values=(2,5);
+   my @new_values_ok=(125);
+
+	$FXM->subtype('test006');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_007
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_007 {
+my ($fx)=@_;
+
+	# ------------------------------------------
+	# Hay que chequear todas las posibilidades
+	# ------------------------------------------
+   my @values=(0, 0);
+   my @new_values_ok=(0, 0, 0, 1);
+	$FXM->subtype('test007');
+
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+	if (! $rc) { return $rc; }
+
+	# ------------------------------------------
+   @values=(0, 1);
+   @new_values_ok=(0, 0, 1, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=(1, 0);
+   @new_values_ok=(0, 1, 0, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=(1, 1);
+   @new_values_ok=(1, 0, 0, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+print "\n";
+   return $rc;
+}
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_008
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_008 {
+my ($fx)=@_;
+
+   # ------------------------------------------
+   # Hay que chequear todas las posibilidades
+   # ------------------------------------------
+   my @values=('pepe');
+   my @new_values_ok=(1);
+
+	$FXM->subtype('test008');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=('juan');
+   @new_values_ok=(2);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=('fernando');
+   @new_values_ok=(3);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=('javier');
+   @new_values_ok=(4);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+print "\n";
+   return $rc;
+}
+
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_009
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_009 {
+my ($fx)=@_;
+
+   # ------------------------------------------
+   # Hay que chequear todas las posibilidades
+   # ------------------------------------------
+   my @values=(1);
+   my @new_values_ok=(1, 0, 0, 0, 0, 0);
+
+	$FXM->subtype('test009');
+	my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=(2);
+   @new_values_ok=(0, 1, 0, 0, 0, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=(3);
+   @new_values_ok=(0, 0, 1, 0, 0, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+   if (! $rc) { return $rc; }
+
+   # ------------------------------------------
+   @values=(4);
+   @new_values_ok=(0, 0, 0, 1, 0, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   # ------------------------------------------
+   @values=(5);
+   @new_values_ok=(0, 0, 0, 0, 1, 0);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   # ------------------------------------------
+   @values=(6);
+   @new_values_ok=(0, 0, 0, 0, 0, 1);
+	$new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+print "@values\t===>\t@$new_values\n";
+   $rc=1;
+   $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+print "\n";
+   return $rc;
+}
+
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_010
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_010 {
+my ($fx)=@_;
+
+#'IF(o1+o2>5,o1,o2)|IF(o1+o2>50,o1+5,o2+10)|IF(o1+o2>=8,o1+2*o2,o2+5*o1)'
+
+	#IF(o1+o2>5,o1,o2)
+   my @values=("5","3","4");
+   my @new_values_ok=('5','13','11');
+
+   $FXM->subtype('test010');
+   my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+
+#------------------------------------------------------------------------------
+# do_esp_fx_int_011
+#------------------------------------------------------------------------------
+sub do_esp_fx_int_011 {
+my ($fx)=@_;
+
+   my @values=(7);
+   my @new_values_ok=(1,1,1,0);
+   $FXM->subtype('test011');
+   my $new_values=$FXM->parse_fx($fx,\@values,\%DESC);
+
+print "@values\t===>\t@$new_values\t===>\tOK:  @new_values_ok\n\n";
+
+   my $rc=1;
+   my $n=scalar(@$new_values);
+   if ($n==0) { $rc=0; }
+   for my $i (0..$n-1) {
+      if ($new_values->[$i] ne $new_values_ok[$i]) { $rc=0; }
+   }
+
+   return $rc;
+}
+

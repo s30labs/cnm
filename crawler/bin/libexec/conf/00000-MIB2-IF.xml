@@ -1,0 +1,85 @@
+<mibtable>
+
+   <oid_cols>ifDescr_ifType_ifMtu_ifSpeed_ifPhysAddress_ifAdminStatus_ifOperStatus</oid_cols>
+	<oid_last>RFC1213-MIB::ifTable</oid_last>
+	<UseEnums>0</UseEnums>
+   <mode>table</mode>
+   <tune>ascii</tune>
+
+	<map>ifAdminStatus::up(1),down(2),testing(3),unknown(4),dormant(5),notPresent(6),lowerLayerDown(7)</map>
+	<map>ifOperStatus::up(1),down(2),testing(3),unknown(4),dormant(5),notPresent(6),lowerLayerDown(7)</map>
+	<map>ifType::other(1),ethernetCsmacd(6),fddi(15),lapb(16),sdlc(17),ds1(18),e1(19),basicISDN(20),primaryISDN(21),propPointToPointSerial(22),ppp(23),softwareLoopback(24),eon(25),ethernet3Mbit(26),nsip(27),slip(28),ultra(29),ds3(30),sip(31),frameRelay(32),rs232(33),para(34),arcnet(35),arcnetPlus(36),atm(37),miox25(38),sonet(39),x25ple(40),iso88022llc(41),localTalk(42),smdsDxi(43),frameRelayService(44),v35(45),hssi(46),hippi(47),modem(48),aal5(49),sonetPath(50),sonetVT(51),propVirtual(53),propMultiplexor(54),ieee80212(55),fibreChannel(56),aflane8023(59),aflane8025(60),cctEmul(61),isdn(63),v11(64),v36(65),g703at64k(66),g703at2mb(67),qllc(68),channel(70),ieee80211(71),dlsw(74),isdns(75),isdnu(76),lapd(77),ipSwitch(78),rsrb(79),atmLogical(80),ds0(81),ds0Bundle(82),frameRelayMPI(92),adsl(94),radsl(95),sdsl(96),vdsl(97),voiceEM(100),voiceFXO(101),voiceFXS(102),voiceEncap(103),voiceOverIp(104),atmDxi(105),atmFuni(106),pppMultilinkBundle(108),virtualIpAddress(112),ipOverAtm(114),hdlc(118),tunnel(131)</map>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>ifDescr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>ifType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>ifMtu</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>ifSpeed</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ifPhysAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>ifAdminStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>ifOperStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

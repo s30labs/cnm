@@ -1,0 +1,58 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id: crawler,v 1.4 2004/10/04 10:38:21 fml Exp $
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ProxyCNM;
+use libSQL;
+
+use Data::Dumper;
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+cnm-proxy $VERSION
+(c) fml
+
+$fpth[$#fpth] [-d	debug|info] : Fija el nivel de depuracion 
+$fpth[$#fpth] -h	: Ayuda
+$fpth[$#fpth] [-c 7000]	: Arranca el proxy con la tarea del crawler.7000 
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hc:d:",\%opts);
+#my $range = (defined $opts{c}) ? $opts{c} : 0;
+#my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+#
+my @task=();
+my @ranges=();
+if ($opts{'c'}) { push @ranges,$opts{'c'}; }
+else { 
+   opendir (DIR,$ProxyCNM::IDX_PATH);
+	my @files = readdir(DIR);
+   closedir(DIR);
+   foreach my $f (@files) {
+		if ($f=~/(\d+)\.\w+\.info/) { push @ranges, $1; }
+	}
+
+	#die "Uso: $0 -c id\n"; 
+}
+
+foreach my $range (@ranges) {
+
+	my $proxy=ProxyCNM->new( 'range'=>$range );
+	$proxy->init();
+	my $pid=$proxy->procreate($range);
+
+	if ($pid == 0) {
+
+		$proxy->do_task(20);
+		print Dumper(\@task);
+	}
+}

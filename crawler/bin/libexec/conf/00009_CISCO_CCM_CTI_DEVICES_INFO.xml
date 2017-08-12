@@ -1,0 +1,121 @@
+<mibtable>
+
+   <oid_cols>ccmCTIDeviceName_ccmCTIDeviceType_ccmCTIDeviceDescription_ccmCTIDeviceStatus_ccmCTIDevicePoolIndex_ccmCTIDeviceInetAddressType_ccmCTIDeviceInetAddress_ccmCTIDeviceAppInfo_ccmCTIDeviceStatusReason_ccmCTIDeviceTimeLastStatusUpdt_ccmCTIDeviceTimeLastRegistered</oid_cols>
+	<oid_last>CISCO-CCM-MIB::ccmCTIDeviceTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceDescription</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDevicePoolIndex</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceInetAddressType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceInetAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceAppInfo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceStatusReason</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceTimeLastStatusUpdt</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmCTIDeviceTimeLastRegistered</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

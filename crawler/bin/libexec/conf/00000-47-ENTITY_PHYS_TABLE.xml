@@ -1,0 +1,101 @@
+<mibtable>
+
+   <oid_cols>entPhysicalContainedIn_entPhysicalDescr_entPhysicalClass_entPhysicalSerialNum_entPhysicalSoftwareRev_entPhysicalFirmwareRev_entPhysicalModelName_entPhysicalVendorType_entPhysicalIsFRU</oid_cols>
+	<oid_last>ENTITY-MIB::entPhysicalTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalContainedIn</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>35%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalDescr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalClass</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalSerialNum</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalSoftwareRev</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalFirmwareRev</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalModelName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalVendorType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>entPhysicalIsFRU</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

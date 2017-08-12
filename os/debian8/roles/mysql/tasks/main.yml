@@ -1,0 +1,106 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: mysql
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes
+  with_items:
+   - libdbd-mysql-perl
+   - libmysqlclient-dev
+   - libmysqlclient18
+   - mysql-client
+   - mysql-common
+   - mysql-server
+   - php5-mysql
+   - python-mysqldb
+  tags: mysql
+
+
+- name: Verify base directories
+  file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+  with_items:
+    - { path: '/store/mysql', owner: 'mysql', group: 'mysql',  mode: '0775' }
+    - { path: '/store/mysql_tmp', owner: 'mysql', group: 'mysql', mode: '0755' }
+    - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
+  tags: mysql
+
+
+#   if (-d '/var/lib/mysql') { system ("mv /var/lib/mysql $dir"); }
+#   if (! -l '/var/lib/mysql') { system ("ln -s $dir /var/lib/mysql"); }
+
+
+- name: Verify base symlinks
+  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode={{ item.mode }}
+  with_items:
+    - { path: '/opt/data', src: '/store/data', mode: '0777' }
+    - { path: '/os', src: '/opt/cnm-os', mode: '0640' }
+  tags: mysql
+
+
+- name: Start MySQL service
+  sudo: yes
+  service: name=mysql state=started enabled=true
+  tags: mysql
+
+- name: Se actualiza la clave de root para todas las cuentas
+  mysql_user: name=root host={{ item }} password={{ db_root_password }} priv=*.*:ALL,GRANT
+  with_items:
+     - "{{ ansible_hostname }}"
+     - 127.0.0.1
+     - ::1
+     - localhost
+  when: db_root_password is defined
+  tags: mysql
+
+- name: Create .my.cnf file with root password credentials
+  sudo: yes
+  template: src=my.cnf.root.j2 dest=/root/.my.cnf owner=root group=root mode=0600
+  when: db_root_password is defined
+  tags: mysql
+  notify:
+  - restart mysql
+
+- name: Create my.cnf file for runtime operation
+  sudo: yes
+  template: src=my.cnf.j2 dest=/etc/mysql/my.cnf owner=root group=root mode=0600
+  when: db_root_password is defined
+  tags: mysql
+  notify:
+  - restart mysql
+
+- name: delete anonymous MySQL server user for localhost
+  action: mysql_user user="" host=localhost state="absent"
+  tags: mysql
+
+- name: remove the MySQL test database
+  action: mysql_db db=test state=absent
+  tags: mysql
+
+- name: Create databases
+  mysql_db: name={{ item }} state=present
+  with_items:
+   - onm
+   - cnm
+  tags: mysql
+
+- name: Create onm user and set privileges
+  mysql_user: name={{db_user}} password={{db_pwd}} host=localhost priv=*.*:ALL,GRANT state=present
+  tags: mysql
+
+- name: logrotate config
+  copy: src=mysql-server.logrotate dest=/etc/logrotate.d/mysql-server  owner=root group=root mode=0640
+  tags: mysql
+
+- name: Script de arranque
+  copy: src=mysql.init dest=/etc/init.d/mysql  owner=root group=root mode=0755
+  tags: mysql
+
+- meta: flush_handlers
+
+...
+

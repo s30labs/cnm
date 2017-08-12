@@ -1,0 +1,437 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id: mib2_if,v 1.2 2004/05/02 15:36:29 fml Exp $
+# Permite probar rapidamente tablas del tipo:
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName.1 = STRING: Processor
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolName.3 = STRING: I/O
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolAlternate.1 = INTEGER: 0
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolAlternate.3 = INTEGER: 0
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolValid.1 = INTEGER: true(1)
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolValid.3 = INTEGER: true(1)
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolUsed.1 = Gauge32: 3086008
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolUsed.3 = Gauge32: 467592
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolFree.1 = Gauge32: 1572676
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolFree.3 = Gauge32: 900472
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolLargestFree.1 = Gauge32: 1515412
+#CISCO-MEMORY-POOL-MIB::ciscoMemoryPoolLargestFree.3 = Gauge32: 869368
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use strict;
+use XML::Simple;
+use Getopt::Std;
+use Crawler::SNMP;
+use Libexec;
+use Encode;
+
+#---------------------------------------------------------------------------
+my @RES=();
+my %SNMPCFG=();
+my $CONF;
+my $NCOLS;
+my $TUNE='';
+my $SHOW_IDX=0;
+my $PATH_FILE_XML='/opt/crawler/bin/libexec/conf';
+#------------------------------------------------------------------------
+my %TuneFunction = (
+
+   #------------------------------------------------------------
+	# Funcion por defecto. No hace nada
+   'none' => \&Libexec::tune_none,
+	# Da un formato mas amigable a la mac (separada por :)
+   'mac1' => \&Libexec::tune_mac1,
+	#Obtiene ifName y si existe sustituye el ifDescr por el ifName
+   'ifname' => \&Libexec::tune_ifname,	
+	#Convierte los valores a ascii
+   'ascii' => \&Libexec::tune_ascii,	
+   #Obtiene ifName y si existe sustituye el ifDescr por el ifName
+   'disk1' => \&Libexec::tune_disk1,
+
+);
+
+
+#-------------------------------------------------------------------------------------------
+#my %opts=();
+#getopts("n:f:c:o:l:v:wh",\%opts);
+
+
+my $snmp=Crawler::SNMP->new();
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFG);
+my $FORMAT = $SNMPCFG{'format'};
+
+#if ($opts{f}) {
+if ($SNMPCFG{'descriptor'}) {
+	#my $FILE_XML=$opts{f};
+	my $FILE_XML=$SNMPCFG{'descriptor'};
+	my $xs1 = XML::Simple->new();
+	$CONF = $xs1->XMLin("$PATH_FILE_XML/$FILE_XML");
+
+	#$SNMPCFG{host_ip}=$CONF->{ip};
+	$SNMPCFG{oid} = $CONF->{oid_cols};
+	$SNMPCFG{last} = $CONF->{oid_last};
+	#$SNMPCFG{version} = $CONF->{version} || 1 ;
+	#$SNMPCFG{community} = $CONF->{community} || 'public';
+	$NCOLS = $CONF->{ncols};
+	$TUNE=$CONF->{tune} || 'tune_none';
+	if ($CONF->{idx}) { $SHOW_IDX=1; }
+
+	# Si junto con el xml se meten opciones por linea de comandos, estas tienen prioridad
+#	if ($opts{n}) { $SNMPCFG{host_ip}=$opts{n}; $CONF->{ip}=$opts{n}; }
+#	if ($opts{c}) { $SNMPCFG{community} = $opts{c}; $CONF->{community}=$opts{c}; }
+#	if ($opts{o}) { $SNMPCFG{oid} = $opts{o}; }
+#	if ($opts{l}) { $SNMPCFG{last} = $opts{l}; }
+#	if (! $SNMPCFG{version}) {
+#		$SNMPCFG{version} = (defined $opts{v}) ? $opts{v} : '1';
+#	}
+
+#	use Data::Dumper;
+#	print Dumper($CONF);
+}
+
+else {
+#   $SNMPCFG{host_ip}=$opts{n} || die "Uso: $0 -f descriptor.xml -n host -o oid1_oid1_oid3 -l oid_last [-c comunity] [-w]\n";
+#   $SNMPCFG{community} = (defined $opts{c}) ? $opts{c} : 'public';
+#	$SNMPCFG{version} = (defined $opts{v}) ? $opts{v} : '1';
+#   $SNMPCFG{oid} = $opts{o} || die "Uso: $0 -f descriptor.xml -n host -o oid1_oid1_oid3 -l oid_last [-c comunity] [-w]\n";
+#   $SNMPCFG{last} = $opts{l} || die "Uso: $0 -f descriptor.xml -n host -o oid1_oid1_oid3 -l oid_last [-c comunity] [-w]\n";
+
+	if ( (! $SNMPCFG{host_ip}) || (!$SNMPCFG{oid}) || (!$SNMPCFG{last})) {
+		die "Uso: $0 -f descriptor.xml -n host -o oid1_oid1_oid3 -l oid_last [-c comunity] [-w]\n";
+	}
+}
+
+#use Data::Dumper;
+#print Dumper(\%SNMPCFG);
+
+
+#----------------------------------------------------------------------------
+#my $snmp=Crawler::SNMP->new();
+$Libexec::SNMP=$snmp;
+#----------------------------------------------------------------------------
+
+# Si se usa el tune use_ifName. Lo primero es obtenerlo.
+# Se almacena en el hash %IFNAME.
+if ($TUNE eq 'ifname') {
+	# Miro si existe ifName -----------------------------------
+	my %IFNAME=();
+	my %snmp_cfg=%SNMPCFG;
+	$snmp_cfg{oid}='ifName';
+	$snmp_cfg{last}='ifInMulticastPkts';
+	my $res=$snmp->core_snmp_table(\%snmp_cfg);
+	for my $l ( @$res ) {
+   	my ($id,$name)=split(':@:',$l);
+	   $Libexec::ifName{$id}=$name;
+	}
+}
+
+
+
+#----------------------------------------------------------------------------
+#my $SNMPCFG{oid}='ifIndex_ifDescr_ifType_ifMtu_ifSpeed_ifAdminStatus_ifOperStatus_ifLastChange';
+#$SNMPCFG{oid}='ciscoMemoryPoolName_ciscoMemoryPoolUsed_ciscoMemoryPoolFree';
+#$SNMPCFG{last}='ciscoMemoryPoolLargestFree';
+#my ($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7)=('Idx','ciscoMemoryPoolName','ciscoMemoryPoolUsed','ciscoMemoryPoolFree');
+
+my ($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7)=('Idx','','','','','','','');
+my @O=split(/_/,$SNMPCFG{oid});
+$c1=$O[0]; $c2=$O[1]; $c3=$O[2]; $c4=$O[3]; $c5=$O[4]; $c6=$O[5]; $c7=$O[6]; 
+
+my $res=$snmp->core_snmp_table(\%SNMPCFG);
+#my $FORMAT = (defined $opts{w}) ? 'html' : 'txt';
+
+
+#----------------------------------------------------------------------------
+if (!defined $res) {
+   print "NO SE HA OBTENIDO RESPUESTA A LA PETICION SOLICITADA\n";
+   my $error=$snmp->err_str();
+   print "**>$error\n";
+}
+else {
+	if ($FORMAT eq 'txt') {
+	   print '-' x85,"\n";
+  	 	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\n";
+   	print '-' x85,"\n";
+		dump2txt(\@$res);
+	}
+
+	elsif ($FORMAT eq 'xml') {  dump2xml($res); }
+
+	else 	{ dump2html($res); }
+}
+
+
+
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# RUTINAS AUXILIARES ----------------------------------------------------------
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+sub interpolate {
+my ($rcfg,$var)=@_;
+
+
+   while (my ($k,$v)=each %$rcfg) {
+
+      my $tag='__'. uc $k .'__';
+#print "TAG=$tag   K=$k    V=$v\n";
+      $var=~s/$tag/$v/g;
+   }
+   return $var;
+}
+
+#------------------------------------------------------------------------------
+# FORMATO HTML ----------------------------------------------------------------
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+sub dump2html {
+my $vector=shift;
+my $descr1;
+
+my $HTML_HEADER='
+	<TR class="VentDat"> 
+		<TD align="left" width="100%"><b>&nbsp;__TITULO__</b></TD> 
+	</TR>  
+	<tr ><td class="VentPar"><img src="../images/magic.gif" width="1" height="5"></td></tr> 
+';
+
+my $HTML_LINE_HEADER='
+<TR class="VentDat">
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+';
+
+my $HTML_LINE=' <TD align="left" width="__WIDTH__%">__BS__ __NAME_COL__ __BE__ </TD> ';
+
+
+my $HTML_LINE_FOOTER='
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+</TR>
+<tr ><td colspan="__NCOLS__" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>
+';
+
+
+	# Pongo el titulo ---------------------------------
+   my $t=$CONF->{title};
+   my $titulo= interpolate($CONF,$t);
+
+   $HTML_HEADER =~s/__TITULO__/$titulo/;
+   $HTML_HEADER =~s/\n//g;
+   print "$HTML_HEADER\n";
+
+	my $start_counter=1;
+	if ($SHOW_IDX) { $start_counter=0; }
+	# -------------------------------------------------
+
+	# Pongo la primera fila (nombre de las columnas)---
+   my $OUT="$HTML_LINE_HEADER\n";
+   for (my $i=$start_counter; $i<$NCOLS; $i++) {
+
+      my $w=$CONF->{col}->{$i}->{width};
+      my $name=$CONF->{col}->{$i}->{name_col};
+		# Significado de bold: 0->Todo sin negrita, 1: Todo con negrita: 
+		# 2:Titulo con negrita y resto no.
+      my $b=$CONF->{col}->{$i}->{bold};
+
+      my $line=$HTML_LINE;
+      $line=~s/__WIDTH__/$w/;
+      $line=~s/__NAME_COL__/$name/;
+      if ($b) {
+         $line =~ s/__BS__/<b>/g;
+         $line =~ s/__BE__/<\/b>/g;
+      }
+      else {
+         $line =~ s/__BS__//g;
+         $line =~ s/__BE__//g;
+      }
+
+      $OUT .= $line;
+   }
+	$OUT .= "\n";
+   my $footer= interpolate($CONF,$HTML_LINE_FOOTER);
+	$OUT .= "$footer\n";
+
+	# -------------------------------------------------
+
+   # Pongo los datos ---------------------------------
+   for my $l ( @$vector ) {
+
+     	my @data=split(':@:',$l);
+		my $r=&{$TuneFunction{$TUNE}}(\@data);
+
+		$OUT .= "$HTML_LINE_HEADER\n";
+	   for (my $i=$start_counter; $i<$NCOLS; $i++) {
+
+	      my $w=$CONF->{col}->{$i}->{width};
+   	   my $name=$CONF->{col}->{$i}->{name_col};
+
+	      # Significado de bold: 0->Todo sin negrita, 1: Todo con negrita:
+   	   # 2:Titulo con negrita y resto no.
+      	my $b=$CONF->{col}->{$i}->{bold};
+			if ($b==2) { $b=0; }
+
+			my $line=$HTML_LINE;
+	      $line=~s/__WIDTH__/$w/;
+   	   $line=~s/__NAME_COL__/$data[$i]/;
+      	if ($b) {
+         	$line =~ s/__BS__/<b>/g;
+	         $line =~ s/__BE__/<\/b>/g;
+   	   }
+      	else {
+         	$line =~ s/__BS__//g;
+	         $line =~ s/__BE__//g;
+   	   }
+
+			$OUT .= $line;
+
+		}
+		$OUT .= "\n";
+	   #my $footer= interpolate($CONF,$HTML_LINE_FOOTER);
+	   my $footer=$HTML_LINE_FOOTER;
+		my $ncol=$NCOLS+2;
+		$footer=~s/__NCOLS__/$ncol/;
+   	$OUT .=  "$footer\n";
+
+   }
+
+	print "$OUT\n";
+	# -------------------------------------------------
+
+}
+
+
+
+#------------------------------------------------------------------------------
+# FORMATO TXT -----------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+sub dump2txt {
+my $vector=shift;
+my $descr1;
+#my ($id,$descr,$type,$mtu,$speed)=('Idx','Description','Type','MTU','Speed');
+#format IFACES_DATA =
+#@>>>>>>>>>>>>>> @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<@<<<<<<<<<@<<<<<<<<<@<<<<<<<<<
+#$id,$c1,              $c2,                     $c3,     $c4,      $c5,	$c6,	$c7
+#.
+
+format FORMAT_DATA1 =
+@<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<@<<<<<<<<<@<<<<<<<<<
+$id,$c1,              $c2,                     $c3,     $c4,      $c5,  $c6,  $c7
+.
+
+format FORMAT_DATA2 =
+@<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<<<@<<<<<<<<<<@<<<<<<<<<<<<
+$c1,              $c2,                     $c3,     $c4,      $c5,  $c6,  $c7
+.
+
+
+	if ($SHOW_IDX) {	$~ = 'FORMAT_DATA1'; }
+	else { $~ = 'FORMAT_DATA2'; }
+
+	#write($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7);
+	write();
+   for my $l ( @$vector ) {
+		#($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7)=split(':@:',$l);
+		my @data=split(':@:',$l);
+
+		my $r=&{$TuneFunction{$TUNE}}(\@data);
+		($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7)=@data;
+
+		#if (exists $IFNAME{$id}) { $descr1 = $IFNAME{$id}; }
+		#$descr=$snmp->hex2ascii($descr1);
+   	#$id 		= $_->[0] ? $_->[0] : 'NULL';
+      #$descr 	= $_->[1] ? $_->[1] : 'NULL';
+      #$type    = $_->[2] ? $_->[2] : 'NULL';
+      #$mtu     = $_->[2] ? $_->[2] : 'NULL';
+      #$speed	= $_->[2] ? $_->[2] : 'NULL';
+		write();
+      #write($id,$c1,$c2,$c3,$c4,$c5,$c6,$c7);
+   }
+}
+
+
+#------------------------------------------------------------------------------
+# FORMATO XML -----------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+sub dump2xml {
+my $vector=shift;
+
+
+	my $start_counter=0;
+	my $crow=0;
+
+   my $xml ='<?xml version="1.0" ?>';
+
+	# Se ponen las filas de datos
+   $xml.='<rows>';
+   for my $l ( @$vector ) {
+
+      my @data=split(':@:',$l);
+      my $r=&{$TuneFunction{$TUNE}}(\@data);
+
+		$xml.="<row id=\"$crow\">";
+		$crow+=1;
+		for (my $i=$start_counter; $i<$NCOLS; $i++) {
+			$xml.="<cell><![CDATA[$data[$i]]]></cell>";
+		}
+		$xml.='</row>';
+	}
+
+	# Se ponen las columnas de los titulos
+   $xml.='<head>';
+	for (my $i=$start_counter; $i<$NCOLS; $i++) {
+
+      my $w=$CONF->{col}->{$i}->{width};
+      my $name=$CONF->{col}->{$i}->{name_col};
+      my $sort=$CONF->{col}->{$i}->{sort};
+      my $align=$CONF->{col}->{$i}->{align};
+
+		$w=~s/%//;
+		$xml.="<column type=\"ro\" width=\"$w\" sort=\"$sort\" align=\"$align\">$name</column>";
+	}
+
+	# Resto de parametros de la tabla
+	#Se indica que el tamano de las columnas viene dado en %
+   $xml.='<settings>';
+   $xml.='<colwidth>%</colwidth>';
+   $xml.='</settings>';
+
+   $xml.='<beforeInit>';
+	#No se puede redimensionar la tabla
+   $xml.='<call command="enableResizing">';
+   $xml.='<param>false,false</param>';
+   $xml.='</call>';
+
+	#Indicamos el estilo que va a tener la tabla
+   $xml.='<call command="setSkin">';
+   $xml.='<param>light</param>';
+   $xml.='</call>';
+   $xml.='</beforeInit>';
+
+
+   $xml.='<afterInit>';
+   $xml.='<call command="attachHeader">';
+	my @filter=();
+	for (my $i=$start_counter; $i<$NCOLS; $i++) { 
+		push @filter,$CONF->{col}->{$i}->{filter};; 
+	}
+	$xml.='<param>'. join(',', @filter) .'</param>';
+   $xml.='</call>';
+   $xml.='</afterInit>';
+
+
+   $xml.='</head>';
+
+   $xml.='</rows>';
+
+	#print $xml;		
+   print encode('utf8', $xml);
+
+}

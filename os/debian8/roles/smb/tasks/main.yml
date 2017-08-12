@@ -1,0 +1,31 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: smb
+  
+- name: Install packages
+  apt: name={{item}} state=installed force=yes
+  with_items:
+   - samba
+   - samba-common
+   - samba-doc
+   - smbclient
+  tags: smb
+
+- name: Config Files
+  copy: src=smb.conf dest=/etc/samba/smb.conf  owner=root group=root mode=0640
+  tags: smb
+  notify:
+   - restart smbd
+
+- name: restart nmbd
+  command: service nmbd restart
+
+- name: restart smbd
+  command: service smbd restart
+
+...

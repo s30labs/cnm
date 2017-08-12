@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+use strict;
+
+
+my $RRD_DIR='/opt/data/rrd/';
+
+my $rfiles=get_files($RRD_DIR);
+
+foreach (@$rfiles) { 
+#	print "$_\n";
+	my $old=$_;
+	my $new='';
+	if (/^(.*?)(\-LAN_ETH_1\.rrd)/) {$new="$1-TRAFFIC_STD$2";}
+	if (/^(.*?)(\-WAN_FR_1\.rrd)/) {$new="$1-TRAFFIC_STD$2";}
+	if (/^(.*?)(\-WAN_RDSI_1\.rrd)/) {$new="$1-TRAFFIC_STD$2";}
+	if (/^(.*?)(\-CPU_1\.rrd)/) {$new="$1-STD$2";}
+	if (/^(.*?)(\-LAN_ARP_1\.rrd)/) {$new="$1-STD$2";}
+	if (/^(.*?)(\-LAT_1\.rrd)/) {$new="$1-STD$2";}
+	if (/^(.*?)(\-LAT_SERV1\.rrd)/) {$new="$1-STD$2";}
+	if (/^(.*?)(\-MEM_1\.rrd)/) {$new="$1-STD$2";}
+
+	if ($new) {
+		rename ($old,$new);
+		print "$old->$new\n";
+	}
+}
+
+
+#-------------------------------------------------------------------------
+sub get_files {
+my $dir=shift;
+
+	my @result=();
+   opendir (DIR, $dir) or die "No esta disponible el directorio $dir: $!";
+   while (defined (my $file=readdir(DIR))) {
+  		if ((-d "$dir$file") && ($file=~/r17o\d+/)) {
+      	#if ($file !~ /^(\d{4})(\d{2})(\d{2})\.log$/) {next;}
+
+			opendir (SUBDIR, "$dir$file");
+			while (defined (my $file1=readdir(SUBDIR))) {
+				if ($file1=~/^\./) {next;}
+				#print "$dir$file/$file1\n";
+         	push @result,"$dir$file/$file1";
+			}
+   		closedir (SUBDIR);
+		}
+   }
+   closedir (DIR);
+   return \@result;
+}
+

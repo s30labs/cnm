@@ -1,0 +1,8 @@
+#!/bin/sh
+
+mkdir -p /home/cnm/backup
+/bin/tar -czvf /home/cnm/backup/data.tar.gz /opt/data/rrd/*
+/usr/bin/mysqldump -u onm -p  onm | /bin/gzip > /home/cnm/backup/db.gz
+chown -R cnm:cnm /home/cnm/backup
+
+

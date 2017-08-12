@@ -1,0 +1,67 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::CNMAPI::Functions;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Se crea un evento a partir del API de CNM
+(c) fml
+
+$fpth[$#fpth] [-d] [-n IP] [-m MSG] [-k EVKEY]
+$fpth[$#fpth] -h  : Ayuda
+
+-n IP sobre la que se asocia el evento. Por defecto es 127.0.0.1
+-m Mensaje del evento. Si no seespecifica se incluye mensaje por defecto.
+-k Clave del evento. Por defecto es "evtest"
+-d Indica modo debug.
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %opts=();
+getopts("hdn:m:k:",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+my $host_ip='localhost';
+my $log_level='info';
+if (defined $opts{d}) { $log_level='debug'; }
+
+my $ip = (defined $opts{n}) ? $opts{n} : '127.0.0.1';
+my $msg = (defined $opts{m}) ? $opts{m} : 'Evento creado mediante llamada al API. Purebas';
+my $evkey = (defined $opts{k}) ? $opts{k} : 'evtest';
+
+my $api=Crawler::CNMAPI::Functions->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+
+my $id_device=1;
+my ($user,$pwd)=('admin','cnm123');
+my $sid=$api->authenticate($user,$pwd);
+
+if ($log_level eq 'debug') { print "sid=$sid\n"; }
+
+#my $response=$api->get_device_by_id($id_device);
+#print Dumper($response);
+
+my $response=$api->set_event_by_ip($ip,$msg,$evkey);
+
+if ($log_level eq 'debug') {
+	#print Dumper($response);
+	print 'RC='.$response->{'rc'}."\n";
+	print 'RCSTR='.$response->{'rcstr'}."\n";
+	if ($response->{'rc'}==0) {
+		print 'eventid='.$response->{'eventid'}."\n";
+		print 'deviceip='.$response->{'deviceip'}."\n";
+		print 'msg='.$response->{'msg'}."\n";
+		print 'evkey='.$response->{'evkey'}."\n";
+		if ($response->{'alertid'}) { print 'alertid='.$response->{'alertid'}."\n"; }
+	}
+}
+
+

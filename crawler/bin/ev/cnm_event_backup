@@ -1,0 +1,74 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("dhc:m:k:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+my $log_level = 'info';
+if (defined $opts{d}) { $log_level = 'debug'; }
+
+my ($cnmNotifCode,$cnmNotifMsg,$cnmNotifKey) = (0,'cnm_event_backup','key');
+if ($opts{c}) { $cnmNotifCode=$opts{c}; }
+if ($opts{m}) { $cnmNotifMsg=$opts{m}; }
+if ($opts{k}) { $cnmNotifKey=$opts{k}; }
+
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+my $snmp=Crawler::SNMP->new();
+
+my $r=$snmp->core_snmp_trap_ext(
+
+      {'comunity'=>'public', 'version'=>2, 'host_ip'=>$ip, 'agent'=>$ip },
+      {'enterprise'=>'CNM-NOTIFICATIONS-MIB::cnmNotifMCNMBackupFailure', 'uptime'=>1234,
+         'vardata'=> [  [ 'cnmNotifCode', 1, $cnmNotifCode ],
+                        [ 'cnmNotifMsg', 1, $cnmNotifMsg ],
+                        [ 'cnmNotifKey', 1, $cnmNotifKey ]  ]
+      }
+);
+
+
+$ip='127.0.0.1';
+$r=$snmp->core_snmp_trap_ext(
+
+      {'comunity'=>'public', 'version'=>2, 'host_ip'=>$ip, 'agent'=>$ip },
+      {'enterprise'=>'CNM-NOTIFICATIONS-MIB::cnmNotifMCNMBackupFailure', 'uptime'=>1234,
+         'vardata'=> [  [ 'cnmNotifCode', 1, $cnmNotifCode ],
+                        [ 'cnmNotifMsg', 1, $cnmNotifMsg ],
+                        [ 'cnmNotifKey', 1, $cnmNotifKey ]  ]
+      }
+);
+
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Genera el trap snmp que indica un error en el backup (CNM-NOTIFICATIONS-MIB).
+Se genera sobre la IP local.
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] [-c codigo numerico] [-m Mensaje] [-k clave]: Genera el trap y especifica valores para cnmNotifCode,cnmNotifMsg y cnmNotifKey.
+
+-h:  Ayuda
+-d:  Debug
+-c:  Permite especificar un valor para cnmNotifCode. Por defecto es 0.
+-m:  Permite especificar un texto para cnmNotifMsg. Por defecto es 'cnm_event_backup'
+-k:  Permite especificar un valor para cnmNotifKey. Por defecto es 'key'
+
+USAGE
+
+   return $USAGE;
+
+}
+

@@ -1,0 +1,121 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: sync_alerts
+# Sincroniza las alertas de alerts con alerts_read y cfg_views
+#
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Data::Dumper;
+
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hx:c:d:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Para conexion a BBDD cnm
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+
+#-------------------------------------------------------------------------------------------
+# Se obtienen los datos de conexion a la BBDD onm a partir de las credenciales de
+# $CID en cnm.cfg_cnms
+
+my ($CID,$HIDX,$host_ip,$params)=('','','',{});
+# Si se especifica el CID obtengo los datos de conexion de ese CID
+if ($opts{c}) { 
+	$CID=$opts{c}; 
+	$params=$store->get_mcnm_credentials($dbh,{'cid'=>$CID});
+}
+# Si se especifica el HIDX obtengo los datos de conexion de ese HIDX
+elsif ($opts{x}) {
+   $HIDX=$opts{x};
+   $params=$store->get_mcnm_credentials($dbh,{'hidx'=>$HIDX});
+}
+# Si no se especifica otra cosa, obtengo todos los CIDs del host
+else {
+	$host_ip=my_ip(); 
+	$params=$store->get_mcnm_credentials($dbh,{'host_ip'=>$host_ip});
+}
+
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+foreach my $cid (keys %$params) {
+
+	eval {
+
+		$store=Crawler::Store->new(	db_server=>$params->{$cid}->{'db_server'},
+												db_name=>$params->{$cid}->{'db_name'},
+												db_user=>$params->{$cid}->{'db_user'},
+												db_pwd=>$params->{$cid}->{'db_pwd'}, 
+												log_level=>$log_level );
+		$store->store_path($store_path);
+		$dbh=$store->open_db();
+
+		#-------------------------------------------------------------------------------------------
+		# alerts -> cfg_views
+      my $VIEWS2ALERTS=$store->analize_views_ruleset($dbh,$cid);
+		# alerts -> alerts_read
+      $store->store_alerts_read($dbh);
+
+		#-------------------------------------------------------------------------------------------
+		$store->close_db($dbh);
+	};
+
+	if ($@) {$store->log('info',"ERROR host_ip=$host_ip cid=$cid ($@)"); }
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Sincronizacion de alertas por cid.
+
+$fpth[$#fpth]  -c [cid] [-d] [-h]
+-c [cid]: CID Client ID
+-x [hidx]: HIDX Client ID
+-d: [debug|info] Fija el nivel de depuracion (por defecto info)
+-h: Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

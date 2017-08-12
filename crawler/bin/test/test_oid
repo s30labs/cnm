@@ -1,0 +1,47 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+
+	
+   #---------------------------------------------------------------
+   # Busco version SNMP
+	my %SNMPCFG = ();
+	$SNMPCFG{'host_ip'} = $ARGV[0] || die "USO: $0 ip\n" ;
+	$SNMPCFG{'community'} = (defined $ARGV[1]) ? $ARGV[1] : 'public';
+	$SNMPCFG{'version'} = 2;
+   my $snmp=Crawler::SNMP->new();
+
+	#my %TABLES=('ifTable'=>0, 'hrSWRunTable'=>0, 'cpmCPUTotalTable'=>0, 'sysORTable'=>0, 'hrStorageTable'=>0 );
+	#my %TABLES=('HOST-RESOURCES-MIB::hrSWRunTable'=>0 );
+	my %TABLES=('RFC1213-MIB::ifNumber'=>0 );
+
+#	$snmp->snmp_check_table(\%SNMPCFG, \%TABLES);
+#	while (my ($k,$v)=each %TABLES) { print "****>>>$k == $v\n"; }
+
+#.1.3.6.1.2.1.2.2.1.2
+#iso(1) org(3) dod(6) internet(1) mgmt(2) mib-2(1) interfaces(2) 1
+
+	$SNMPCFG{'oid'}='RFC1213-MIB::ifNumber.0';
+	#$SNMPCFG{'oid'}='.1.3.6.1.2.1.2.1.0';
+	my $v=$snmp->core_snmp_get(\%SNMPCFG);
+	print "RES=@$v\n";
+
+
+#my $host=$desc->{host_ip};
+#my $oid=$desc->{oid};
+#my $community=$desc->{community};
+#my $version= (defined $desc->{version}) ? $desc->{version} : 1;
+#my $auth_proto = (defined $desc->{'auth_proto'}) ? $desc->{'auth_proto'} : 'MD5' ;
+#my $auth_pass = (defined $desc->{'auth_pass'}) ? $desc->{'auth_pass'} : '' ;
+#my $priv_proto = (defined $desc->{'priv_proto'}) ? $desc->{'priv_proto'} : 'DES' ;
+#my $priv_pass = (defined $desc->{'priv_pass'}) ? $desc->{'priv_pass'} : '' ;
+#my $sec_name = (defined $desc->{'sec_name'}) ? $desc->{'sec_name'} : '' ;
+#my $sec_level = (defined $desc->{'sec_level'}) ? $desc->{'sec_level'} : '' ;
+
+

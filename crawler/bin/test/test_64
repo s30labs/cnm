@@ -1,0 +1,26 @@
+use NetAddr::IP;
+use Data::Dumper;
+my $ip = new NetAddr::IP('10.0.0.0/30');
+print join(' ', @$ip), "\n";
+
+#exit;
+
+my $ip1 = '10.220.58.0';
+my $subnet=$ip1.'/'.'24';
+print "$subnet\n";
+my $ipa = new NetAddr::IP('192.168.0.0/24');
+print join(' ', @$ipa), "\n";
+
+print Dumper($ipa);
+
+my $h = $ipa->hostenum();
+print @$h."\n";
+
+
+my $c1=618554678058;
+my $c2=620256565792;
+#my $c2=270929910912;
+
+my $d=$c2-$c1;
+print "D=$d\n";
+

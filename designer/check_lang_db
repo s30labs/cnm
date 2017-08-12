@@ -1,0 +1,601 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+
+#---------------------------------------------------------------------------
+my ($PLUGIN,$LANG)=('','');
+my $LANG_ES_BASE_PATH='/update/db/Init';
+my %TABLES = ( 
+
+#	'cfg_monitor_snmp' => \&lang_cfg_monitor_snmp, 
+#	'cfg_monitor_apps' => \&lang_cfg_monitor_apps,
+#	'cfg_monitor' => \&lang_cfg_monitor,
+#	'cfg_monitor_agent' => \&lang_cfg_monitor_agent,
+#	'cfg_remote_alerts' => \&lang_cfg_remote_alerts,
+	'tips' => \&lang_tips,
+
+);
+
+
+#---------------------------------------------------------------------------
+my %opts=();
+getopts("hvp:l:",\%opts);
+
+if (! $opts{l}) { die "USO: $0 -l [en] [-p xxx]\n$0 -l es\n$0 -l en\n$0 -l en -p vmware-performance\n"; }
+$LANG = lc $opts{l};
+my $LANG_NEW_BASE_PATH="/opt/cnm-lang/$LANG/update/db/Init";
+
+if ($opts{p}) { 
+	$PLUGIN=$opts{p}; 
+	$LANG_ES_BASE_PATH = "/opt/cnm-sp/$PLUGIN$LANG_ES_BASE_PATH";
+	$LANG_NEW_BASE_PATH="/opt/cnm-sp/$PLUGIN/lang/$LANG/update/db/Init";
+}
+
+my $VERBOSE=0;
+if ($opts{v}) { $VERBOSE=1; }
+
+foreach my $table (keys %TABLES) {
+	my $base_dir=$LANG_ES_BASE_PATH.'/'.$table;
+	if (! -d $base_dir) { 
+		print "No existe directorio $base_dir ...\n"; 
+		next; 
+	}
+	opendir (DIR,$base_dir);
+	my @php_files = readdir(DIR);
+	closedir(DIR);
+
+	my $n = scalar(@php_files) - 2;
+	print "PROCESANDO TABLA: $table (DIR=$LANG_ES_BASE_PATH/$table) ($n ficheros) ...\n";
+	foreach my $f (@php_files) {
+		if ($f=~/^\./) { next; } 
+		my $data = &{$TABLES{$table}}($f);
+		#print "$data\n";
+	}
+}
+
+
+
+
+
+#---------------------------------------------------------------------------
+# FUNCIONES
+#---------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------
+sub lang_cfg_monitor_snmp {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/cfg_monitor_snmp/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/cfg_monitor_snmp';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+	print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$CFG_MONITOR_SNMP\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$subtype,$descr,$items,$end)=('$CFG_MONITOR_SNMP[]=array(','','','',');');
+      if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+      if ($block=~/'descr'\s*=>\s*'(.+?)',/) { $descr= $1;}
+      if ($block=~/'items'\s*=>\s*'(.+?)',/) { $items = $1;}
+      $in_data{$subtype}={'subtype'=>$subtype, 'descr'=>$descr, 'items'=>$items, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $subtype;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+      while ($data=~/\$CFG_MONITOR_SNMP\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+
+         my ($start,$subtype,$descr,$items,$end)=('$CFG_MONITOR_SNMP[]=array(','','','',');');
+         if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+         if ($block=~/'descr'\s*=>\s*'(.+?)',/) { $descr= $1;}
+         if ($block=~/'items'\s*=>\s*'(.+?)',/) { $items = $1;}
+         $out_data{$subtype}={'subtype'=>$subtype, 'descr'=>$descr, 'items'=>$items, 'start'=>$start, 'end'=>$end};
+      }
+   }
+
+	my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'subtype' => '".$out_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$out_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t\t'items' => '".$out_data{$key}->{'items'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'subtype' => '".$in_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$in_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t\t'items' => '".$in_data{$key}->{'items'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+      if (!-f $file_base_out) {
+         system("/bin/mkdir -p $dir_base_out");
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+		elsif ($out_data{$key}->{'descr'} eq $in_data{$key}->{'descr'}) { 
+			$items_to_change += 1; 
+			if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+		}
+   }
+   $lang_data .= "?>\n";
+
+	if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+	else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+	return $lang_data;
+}
+
+#---------------------------------------------------------------------------
+sub lang_cfg_monitor_apps {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/cfg_monitor_apps/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/cfg_monitor_apps';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+	print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$CFG_MONITOR_APPS\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$aname,$name,$end)=('$CFG_MONITOR_APPS[]=array(','','',');');
+      if ($block=~/'aname'\s*=>\s*'(.+?)',/) { $aname = $1;}
+      if ($block=~/'name'\s*=>\s*'(.+?)',/) { $name= $1;}
+      $in_data{$aname}={'aname'=>$aname, 'name'=>$name, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $aname;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+      while ($data=~/\$CFG_MONITOR_APPS\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+
+      	my ($start,$aname,$name,$end)=('$CFG_MONITOR_APPS[]=array(','','',');');
+	      if ($block=~/'aname'\s*=>\s*'(.+?)',/) { $aname = $1;}
+   	   if ($block=~/'name'\s*=>\s*'(.+?)',/) { $name= $1;}
+      	$out_data{$aname}={'aname'=>$aname, 'name'=>$name, 'start'=>$start, 'end'=>$end};
+      }
+   }
+
+	my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'aname' => '".$out_data{$key}->{'aname'}."',\n";
+         $lang_data .= "\t\t'name' => '".$out_data{$key}->{'name'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'aname' => '".$in_data{$key}->{'aname'}."',\n";
+         $lang_data .= "\t\t'name' => '".$in_data{$key}->{'name'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+      if (!-f $file_base_out) {
+         system("/bin/mkdir -p $dir_base_out");
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+      elsif ($out_data{$key}->{'name'} eq $in_data{$key}->{'name'}) {
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+
+   }
+   $lang_data .= "?>\n";
+
+   if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+   else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+   return $lang_data;
+}
+
+
+#---------------------------------------------------------------------------
+sub lang_cfg_monitor {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/cfg_monitor/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/cfg_monitor';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+	print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$CFG_MONITOR\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$monitor,$descr,$items,$vlabel,$end)=('$CFG_MONITOR[]=array(','','','','',');');
+      if ($block=~/'monitor'\s*=>\s*'(.+?)',/) { $monitor = $1;}
+      if ($block=~/'description'\s*=>\s*'(.+?)',/) { $descr= $1;}
+      if ($block=~/'items'\s*=>\s*'(.+?)',/) { $items = $1;}
+      if ($block=~/'vlabel'\s*=>\s*'(.+?)',/) { $vlabel = $1;}
+      $in_data{$monitor}={'monitor'=>$monitor, 'descr'=>$descr, 'items'=>$items, 'vlabel'=>$vlabel, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $monitor;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+      while ($data=~/\$CFG_MONITOR\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+
+	      my ($start,$monitor,$descr,$items,$vlabel,$end)=('$CFG_MONITOR[]=array(','','','','',');');
+	      if ($block=~/'monitor'\s*=>\s*'(.+?)',/) { $monitor = $1;}
+   	   if ($block=~/'description'\s*=>\s*'(.+?)',/) { $descr= $1;}
+      	if ($block=~/'items'\s*=>\s*'(.+?)',/) { $items = $1;}
+      	if ($block=~/'vlabel'\s*=>\s*'(.+?)',/) { $vlabel = $1;}
+       	$out_data{$monitor}={'monitor'=>$monitor, 'descr'=>$descr, 'items'=>$items, 'vlabel'=>$vlabel, 'start'=>$start, 'end'=>$end};
+      }
+   }
+
+	my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'monitor' => '".$out_data{$key}->{'monitor'}."',\n";
+         $lang_data .= "\t\t'description' => '".$out_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t\t'items' => '".$out_data{$key}->{'items'}."',\n";
+         $lang_data .= "\t\t'vlabel' => '".$out_data{$key}->{'vlabel'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'monitor' => '".$in_data{$key}->{'monitor'}."',\n";
+         $lang_data .= "\t\t'description' => '".$in_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t\t'items' => '".$in_data{$key}->{'items'}."',\n";
+         $lang_data .= "\t\t'vlabel' => '".$in_data{$key}->{'vlabel'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+
+		if (!-f $file_base_out) {
+			system("/bin/mkdir -p $dir_base_out");
+			$items_to_change += 1;
+			if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+     elsif ($out_data{$key}->{'descr'} eq $in_data{$key}->{'descr'}) {
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+
+   }
+   $lang_data .= "?>\n";
+
+   if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+   else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+   return $lang_data;
+}
+
+#---------------------------------------------------------------------------
+sub lang_cfg_monitor_agent {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/cfg_monitor_agent/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/cfg_monitor_agent';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+	print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$CFG_MONITOR_AGENT\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$subtype,$descr,$end)=('$CFG_MONITOR_AGENT[]=array(','','',');');
+      if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+      if ($block=~/'description'\s*=>\s*'(.+?)',/) { $descr= $1;}
+      $in_data{$subtype}={'subtype'=>$subtype, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $subtype;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+      while ($data=~/\$CFG_MONITOR_AGENT\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+	      my ($start,$subtype,$descr,$end)=('$CFG_MONITOR_AGENT[]=array(','','',');');
+   	   if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+      	if ($block=~/'description'\s*=>\s*'(.+?)',/) { $descr= $1;}
+      	$out_data{$subtype}={'subtype'=>$subtype, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+      }
+   }
+
+	my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'subtype' => '".$out_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'description' => '".$out_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'subtype' => '".$in_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'description' => '".$in_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+
+      if (!-f $file_base_out) {
+         system("/bin/mkdir -p $dir_base_out");
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+		elsif ( 	(! exists $out_data{$key}->{'descr'}) ||
+      		($out_data{$key}->{'descr'} eq $in_data{$key}->{'descr'})) {
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+   }
+   $lang_data .= "?>\n";
+
+   if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+   else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+   return $lang_data;
+}
+
+
+#---------------------------------------------------------------------------
+sub lang_cfg_remote_alerts {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/cfg_remote_alerts/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/cfg_remote_alerts';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+   print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$CFG_REMOTE_ALERTS\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$type,$subtype,$hiid,$descr,$end)=('$CFG_REMOTE_ALERTS[]=array(','','','','',');');
+      if ($block=~/'type'\s*=>\s*'(.+?)',/) { $type = $1;}
+      if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+      if ($block=~/'hiid'\s*=>\s*'(.+?)',/) { $hiid = $1;}
+      if ($block=~/'descr'\s*=>\s*'(.+?)',/) { $descr= $1;}
+		my $key = join ('.',$type,$subtype,$hiid);
+      $in_data{$key}={'type'=>$type, 'subtype'=>$subtype, 'hiid'=>$hiid, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $key;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+		while ($data=~/\$CFG_REMOTE_ALERTS\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+      	my ($start,$type,$subtype,$hiid,$descr,$end)=('$CFG_REMOTE_ALERTS[]=array(','','','','',');');
+   	   if ($block=~/'type'\s*=>\s*'(.+?)',/) { $type = $1;}
+      	if ($block=~/'subtype'\s*=>\s*'(.+?)',/) { $subtype = $1;}
+      	if ($block=~/'hiid'\s*=>\s*'(.+?)',/) { $hiid = $1;}
+      	if ($block=~/'descr'\s*=>\s*'(.+?)',/) { $descr= $1;}
+			my $key = join ('.',$type,$subtype,$hiid);
+      	$out_data{$key}={'type'=>$type, 'subtype'=>$subtype, 'hiid'=>$hiid, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+
+      }
+   }
+
+	my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'type' => '".$out_data{$key}->{'type'}."',\n";
+         $lang_data .= "\t\t'subtype' => '".$out_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'hiid' => '".$out_data{$key}->{'hiid'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$out_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+			$lang_data .= "\t\t'type' => '".$in_data{$key}->{'type'}."',\n";
+         $lang_data .= "\t\t'subtype' => '".$in_data{$key}->{'subtype'}."',\n";
+         $lang_data .= "\t\t'hiid' => '".$in_data{$key}->{'hiid'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$in_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+      if (!-f $file_base_out) {
+         system("/bin/mkdir -p $dir_base_out");
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+      elsif (  (! exists $out_data{$key}->{'descr'}) ||
+            ($out_data{$key}->{'descr'} eq $in_data{$key}->{'descr'})) {
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+
+   }
+   $lang_data .= "?>\n";
+
+   if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+   else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+   return $lang_data;
+}
+
+#---------------------------------------------------------------------------
+sub lang_tips {
+#---------------------------------------------------------------------------
+my ($f)=@_;
+
+   my %in_data=();
+   my %out_data=();
+   my $file_base_in=$LANG_ES_BASE_PATH.'/tips/'.$f;
+   my $dir_base_out=$LANG_NEW_BASE_PATH.'/tips';
+   my $file_base_out=$dir_base_out.'/'.$f;
+   my @ordered_keys=();
+
+   print "\tIN:$file_base_in\n";
+
+   local $/=undef;
+   open (F,"<$file_base_in");
+   my $data=<F>;
+   close F;
+
+   while ($data=~/\$TIPS\[\]=array\((.*?)\)\;/sg) {
+      my $block=$1;
+      #print "block=$block\n";
+
+      my ($start,$id_ref,$tip_type,$name,$descr,$end)=('$TIPS[]=array(','','','','',');');
+      if ($block=~/'id_ref'\s*=>\s*'(.+?)',/) { $id_ref = $1;}
+      if ($block=~/'tip_type'\s*=>\s*'(.+?)',/) { $tip_type = $1;}
+      if ($block=~/'name'\s*=>\s*'(.+?)',/) { $name = $1;}
+      if ($block=~/'descr'\s*=>\s*'([^']+)'/) { $descr = $1;}
+#print "descr=$descr\n";
+
+      my $key = join ('.',$id_ref,$tip_type,$name);
+      $in_data{$key}={'id_ref'=>$id_ref, 'tip_type'=>$tip_type, 'name'=>$name, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+      push @ordered_keys, $key;
+   }
+
+   if (-f $file_base_out) {
+      open (F,"<$file_base_out");
+      my $data=<F>;
+      close F;
+
+      while ($data=~/\$TIPS\[\]=array\((.*?)\)\;/sg) {
+         my $block=$1;
+         #print "block=$block\n";
+	      my ($start,$id_ref,$tip_type,$name,$descr,$end)=('$TIPS[]=array(','','','','',');');
+   	   if ($block=~/'id_ref'\s*=>\s*'(.+?)',/) { $id_ref = $1;}
+      	if ($block=~/'tip_type'\s*=>\s*'(.+?)',/) { $tip_type = $1;}
+      	if ($block=~/'name'\s*=>\s*'(.+?)',/) { $name = $1;}
+      	if ($block=~/'descr'\s*=>\s*'([^']+)'/) { $descr = $1;}
+      	my $key = join ('.',$id_ref,$tip_type,$name);
+      	$out_data{$key}={'id_ref'=>$id_ref, 'tip_type'=>$tip_type, 'name'=>$name, 'descr'=>$descr, 'start'=>$start, 'end'=>$end};
+
+      }
+   }
+
+   my $items_to_change=0;
+   my $lang_data = "<?\n";
+   foreach my $key (@ordered_keys) {
+      if (exists $out_data{$key}) {
+         $lang_data .= "\t".$out_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'id_ref' => '".$out_data{$key}->{'id_ref'}."',\n";
+         $lang_data .= "\t\t'tip_type' => '".$out_data{$key}->{'tip_type'}."',\n";
+         $lang_data .= "\t\t'name' => '".$out_data{$key}->{'name'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$out_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$out_data{$key}->{'end'}."\n\n";
+      }
+      else {
+         $lang_data .= "\t".$in_data{$key}->{'start'}."\n";
+         $lang_data .= "\t\t'id_ref' => '".$in_data{$key}->{'id_ref'}."',\n";
+         $lang_data .= "\t\t'tip_type' => '".$in_data{$key}->{'tip_type'}."',\n";
+         $lang_data .= "\t\t'name' => '".$in_data{$key}->{'name'}."',\n";
+         $lang_data .= "\t\t'descr' => '".$in_data{$key}->{'descr'}."',\n";
+         $lang_data .= "\t".$in_data{$key}->{'end'}."\n\n";
+      }
+      if (!-f $file_base_out) {
+         system("/bin/mkdir -p $dir_base_out");
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+      elsif (  (! exists $out_data{$key}->{'id_ref'}) ||
+            ($out_data{$key}->{'descr'} eq $in_data{$key}->{'descr'})) {
+         $items_to_change += 1;
+         if ($VERBOSE) { print "--DEBUG-- key=$key\n"; }
+      }
+
+   }
+   $lang_data .= "?>\n";
+
+   if ($items_to_change>0) { print "\tOUT:$file_base_out ***ITEMS_TO_CHANGE=$items_to_change*** \n\n"; }
+   else { print "\tOUT:$file_base_out\n\n"; }
+   open (F,">$file_base_out");
+   print F $lang_data;
+   close F;
+
+   return $lang_data;
+}
+

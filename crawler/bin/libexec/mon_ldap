@@ -1,0 +1,39 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Getopt::Std;
+use Monitor;
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -i ip -u user -c password -p port -v version -b base_dn -f filter: Chequea conexion LDAP
+
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("hi:u:c:p:v:b:f:",\%opts);
+
+if ($opts{h}) { die $USAGE; }
+if ( (!$opts{f}) || (!$opts{b}) ) { die $USAGE; }
+$DESC{host_ip}=$opts{i};
+$DESC{user}=$opts{u};
+$DESC{pwd}=$opts{c};
+$DESC{port}=$opts{p} || 3268;  #389
+$DESC{version}=$opts{v};
+
+$DESC{base_dn}=$opts{b};
+$DESC{filter}=$opts{f};
+
+#--------------------------------------------------------------------
+my $r=mon_ldap(\%DESC);
+foreach (@$r) {print "$_\n";}
+

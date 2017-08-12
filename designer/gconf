@@ -1,0 +1,1350 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+#use lib '/opt/custom_pro/conf';
+use lib '/opt/cnm-designer';
+#use lib '/opt/custom_pro/conf/pkgs';
+use strict;
+use Data::Dumper;
+use Getopt::Std;
+use File::Basename;
+use Digest::MD5 qw(md5_hex);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#use ENT_00311_WINDOWS_NT_PERFORMANCE;
+#use ENT_00000_MIB_II;
+#---------------------------------------------------------------------------
+BEGIN {  $ENV{'MIBS'}='ALL';  };
+
+#---------------------------------------------------------------------------
+#my $MODULES_PATH = "$PKGS_DIR/*.pm";
+#my @files = < $MODULES_PATH >;
+#
+#foreach my $mod(@files){
+#   my($filename, $directories, $suffix) = fileparse($mod);
+#   if ($filename =~/(\S+)\.pm/) { print "/opt/custom_pro/conf/gconf $1\n"; }
+#}
+#
+#--------------------------------------------------------------------------------
+my %opts=();
+getopts("hbm:c:d:i:l:",\%opts);
+
+#my $PKGS_DIR='/opt/custom_pro/conf/pkgs';
+my $PKGS_DIR='/opt/cnm-designer/pkgs';
+if ($opts{l}) { $PKGS_DIR=$opts{l}; }
+push @INC,$PKGS_DIR;
+#use lib $PKGS_DIR;
+#---------------------------------------------------------------------------
+my $MODULES_PATH = "$PKGS_DIR/*.pm";
+my @files = < $MODULES_PATH >;
+
+foreach my $mod(@files){
+   my($filename, $directories, $suffix) = fileparse($mod);
+   #if ($filename =~/(\S+)\.pm/) { print "/opt/custom_pro/conf/gconf -m $1\n"; }
+   if ($filename =~/(\S+)\.pm/) { print "/opt/cnm-designer/gconf -m $1\n"; }
+}
+#---------------------------------------------------------------------------
+
+if ((! $opts{m}) || ($opts{m} !~ /^(ENT|MIB)/) ) { 
+print "***1111\n";
+	my $USAGE = usage(); die $USAGE;
+}
+$opts{m}=~s/\.pm//;
+my $MODULE=$opts{m};
+
+my $file_pm=$PKGS_DIR.'/'.$MODULE.'.pm';
+if ( ! -f $file_pm) {
+print "***$file_pm\n";
+
+	my $USAGE = usage(); die $USAGE;
+}
+
+my %TRANSLATE_EXT_CACHE=();
+if ($opts{c}) { 
+	if (-f $opts{c}) { 
+		require $opts{c}; 
+		%TRANSLATE_EXT_CACHE = eval '%GconfCache::TRANSLATE_EXT_CACHE';
+	}
+}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#---------------------------------------------------------------------------
+#if ( (! $ARGV[0]) || ($ARGV[0] !~ /^(ENT|MIB)/) ) {
+#   die "Uso: $0 [nombre de modulo]\nEj : $0 ENT_00000_MIB_II\n";
+#}
+#
+#my $file_pm='/opt/custom_pro/conf/pkgs/'.$ARGV[0].'.pm';
+#if ( ! -f $file_pm) {
+#	die "Uso: $0 [nombre de modulo]\nEj : $0 ENT_00000_MIB_II\n";
+#}
+
+#---------------------------------------------------------------------------
+#$ARGV[0]=~s/\.pm//;
+#my $MODULE=$ARGV[0];
+
+#---------------------------------------------------------------------------
+foreach my $mod(@files){
+    my($filename, $directories, $suffix) = fileparse($mod);
+		if ($filename eq "$MODULE.pm") {
+print "Cargando: $filename\n";
+
+	    	require $filename;
+		}
+}
+
+#---------------------------------------------------------------------------
+my $results_dir='/tmp/GCONF_OUT';
+system ("mkdir -p $results_dir");
+my ($OID_COLS, $COL_FILTERS, $TUNE, $COL_WIDTHS, $COL_SORTING, $OID_LAST, $NAME, $DESCR, $XML_FILE, $PARAMS, $RANGE, $ENTERPRISE, $CMD, $IPPARAM, $SUBTYPE, $ANAME, $ITEMS, $ITIL_TYPE, $APPTYPE,$USE_ENUMS) = ( '', '', '', '', '', '', '', '', '', '', '', '', '', '', '','', 2,'',1);
+
+
+my $SP_BASE_DIR='/opt/cnm-sp/'.$MODULE;
+my $WWW_INIT_DIR=$SP_BASE_DIR.'/update/db/Init';
+my $install_file='';
+
+if ($opts{b}) { $WWW_INIT_DIR='/update/db/Init'; }
+else {
+	system ("mkdir -p $WWW_INIT_DIR");
+
+   $install_file .= "[ -f $SP_BASE_DIR/pre-install  ] && $SP_BASE_DIR/pre-install\n\n";
+   $install_file .= "/update/db/db-manage.php -p $SP_BASE_DIR\n\n";
+   $install_file .= "if [ -f $SP_BASE_DIR/post-install  ]; then\n";
+   $install_file .= "   $SP_BASE_DIR/post-install\n";
+   $install_file .= "else exit 0\nfi\n";
+
+   open (F,">$SP_BASE_DIR/install");
+   print F $install_file;
+   close F;
+   system ("/bin/chmod 755 $SP_BASE_DIR/install");
+
+   open (F,">$SP_BASE_DIR/update/db/DB-Scheme-Create.php");
+   print F "<?php\n\$DBScheme = array();\n?>\n";
+   close F;
+
+}
+
+
+my $XML_CONF_DIR='/opt/crawler/bin/libexec/conf';
+
+my $INIT_APPS_FILE=$results_dir.'/'.$MODULE.'-Init-apps.php';
+my $INIT_APPS_PARAM_FILE=$results_dir.'/'.$MODULE.'-Init-apps-param.php';
+my $INIT_SNMP_FILE=$results_dir.'/'.$MODULE.'-Init-snmp.php';
+my $INIT_TIPS_FILE=$results_dir.'/'.$MODULE.'-Init-tips.php';
+my $INIT_TIPS_APP_FILE=$results_dir.'/'.$MODULE.'-Init-tips-apps.php';
+my $INIT_TIPS_REMOTE_FILE=$results_dir.'/'.$MODULE.'-Init-tips-remote.php';
+my $INIT_REMOTEA_FILE=$results_dir.'/'.$MODULE.'-Init-remote_alerts.php';
+
+unlink $INIT_APPS_FILE;
+unlink $INIT_APPS_PARAM_FILE;
+unlink $INIT_SNMP_FILE;
+unlink $INIT_TIPS_FILE;
+unlink $INIT_TIPS_APP_FILE;
+unlink $INIT_REMOTEA_FILE;
+
+my $TIME=time();
+
+#---------------------------------------------------------------------------
+my $start='<mibtable>';
+#---------------------------------------------------------------------------
+my $head_table_base='
+   <oid_cols>__OID_COLS__</oid_cols>
+	<oid_last>__OID_LAST__</oid_last>
+	<UseEnums>__USE_ENUMS__</UseEnums>
+   <mode>table</mode>
+   <tune>__TUNE__</tune>
+
+	<title></title>
+';
+#---------------------------------------------------------------------------
+my $head_get_start='
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+';
+
+my $head_get_end='
+   </oid_items>';
+
+my $head_item='
+      <item>
+         <id>__ID__</id>
+         <col_name>__ITEM_NAME__</col_name>
+         <oid>__ITEM_OID__</oid>
+      </item>
+';
+
+#---------------------------------------------------------------------------
+my $end='</mibtable>';
+
+#---------------------------------------------------------------------------
+my $col_table='
+      <col>
+         <id>__ID__</id>
+         <width>__COL_WIDTH__%</width>
+         <bold>2</bold>
+         <name_col>__NAME_COL__</name_col>
+         <sort>__COL_SORTING__</sort>
+         <align>left</align>
+         <filter>__COL_FILTER__</filter>
+      </col>
+';
+
+
+my $col_get='
+      <col>
+         <id>0</id>
+         <width>45%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+';
+
+
+#---------------------------------------------------------------------------
+my $SQLMET = <<"SQLMET";
+
+		\$CFG_MONITOR_SNMP[]=array(
+            'subtype' => '__SUBTYPE__',
+            'class' => '__CLASS__',
+            'lapse' => '300',
+            'descr' => '__NAME__',
+            'items' => '__ITEMS__',
+            'oid' => '__OID__',
+            'get_iid' => '__GET_IID__',
+            'oidn' => '__OIDN__',
+            'oid_info' => '__INFO__',
+            'module' => 'mod_snmp_get',
+            'mtype' => '__MTYPE__',
+            'vlabel' => '__VLABEL__',
+            'mode' => '__MODE__',
+            'top_value' => '1',
+            'cfg' => '__CFG__',
+            'custom' => '0',
+            'include' => '__INCLUDE__',
+            'myrange' => '__RANGE__',
+            'enterprise' => '__ENTERPRISE__',
+            'esp' => '__ESP__',
+            'params' => '__PARAMS__',
+            'itil_type' => '__ITIL_TYPE__',
+            'apptype' => '__APPTYPE__',
+      );
+
+SQLMET
+
+
+#---------------------------------------------------------------------------
+my $SQLMETTIP = <<"SQLMETTIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',	'tip_type' => 'cfg',	'url' => '',
+         'date' => '',     'tip_class' => 1,	'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLMETTIP
+
+#---------------------------------------------------------------------------
+my $SQLAPPTIP = <<"SQLAPPTIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'app', 'url' => '',
+         'date' => __DATE__,     'tip_class' => 1, 'name' => 'Descripcion',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLAPPTIP
+
+
+#---------------------------------------------------------------------------
+# __SUBTYPE__ => UCD-SNMP-MIB::ucdavis.991.17
+# __DESCR_REMOTE__ => ALERTA TEST TRAP V2
+# __MONITOR__ => ''
+# __VDATA__ => '',
+# __SEVERITY__ => 1,2 o 3
+# __ACTION__ => SET o CLR
+# __SCRIPT__ => ''
+# __ITIL_TYPE__ =>''
+my $SQLREMOTEA = <<"SQLREMOTEA";
+
+   \$CFG_REMOTE_ALERTS[]=array(
+      'type' => '__TYPE__',     'subtype' => '__SUBTYPE__',      'hiid' => '__HIID__',
+      'descr' => '__DESCR_REMOTE__',    'mode'=>'__MODE__',    'expr'=>'__EXPR__',
+		'vardata' =>'__VARDATA__',
+      'monitor' => '__MONITOR__',     'vdata' => '__VDATA__', 'severity' => '__SEVERITY__',   'action' => '__ACTION__',   'script' => '__SCRIPT__', 'enterprise' => '__ENTERPRISE__',
+      'apptype' => '__APPTYPE__', 'itil_type' => '__ITIL_TYPE__', 'class'=>'__CLASS__', 'include'=>'__INCLUDE__',
+		__SET_ALERT_COLUMNS__
+      'cfg_remote_alerts2expr' => array ( 'id'=>'id_remote_alert',
+				__REMOTE2EXPR__
+      )
+   );
+
+SQLREMOTEA
+
+#---------------------------------------------------------------------------
+my $SQLREMOTETIP = <<"SQLREMOTETIP";
+      \$TIPS[]=array(
+         'id_ref' => '__ID_REF__',  'tip_type' => 'remote', 'url' => '',
+         'date' => '',     'tip_class' => 1, 'name' => 'CNM-Info', 'hiid' => '__HIID__',
+         'descr' => '__DESCR_TIP__',
+      );
+
+SQLREMOTETIP
+
+#      array(
+#         'id_remote_alert' => '12',    'type' => 'snmp',    'subtype' => '2.0',
+#         'descr' => 'INTERFAZ CAIDO (Link Down)',
+#         'monitor' => '',     'vdata' => '', 'severity' => '1',   'action' => 'SET',   'script' => '',
+#         'apptype' => 'net.generic', 'itil_type' => '1',
+#      ),
+#      array(
+#         'id_remote_alert' => '13',    'type' => 'snmp',    'subtype' => '3.0',
+#         'descr' => 'INTERFAZ ACTIVO (Link Up)',
+#         'monitor' => '',     'vdata' => 'id=12',  'severity' => '1',   'action' => 'CLR',   'script' => '',
+#         'apptype' => 'net.generic', 'itil_type' => '1',
+#      ),
+
+#---------------------------------------------------------------------------
+my %TABLE_APPS = eval '%'.$MODULE.'::TABLE_APPS';
+my %GET_APPS = eval '%'.$MODULE.'::GET_APPS';
+my @METRICS = eval '@'.$MODULE.'::METRICS';
+my @METRICS_TAB = eval '@'.$MODULE.'::METRICS_TAB';
+my @REMOTE_ALERTS = eval '@'.$MODULE.'::REMOTE_ALERTS';
+my $ENTERPRISE_PREFIX1 = eval '@'.$MODULE.'::ENTERPRISE_PREFIX';
+my $ENTERPRISE_PREFIX = sprintf("%05d",$ENTERPRISE_PREFIX1);
+my $cmd;
+# Definido en fichero auxiliar
+my %TRANSLATE_E_CACHE=();
+my %TRANSLATE_INT_CACHE=();
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# MAIN
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------
+# 1. TABLE_APPS
+#---------------------------------------------------------------------------
+if ( (scalar (keys %TABLE_APPS)>0) || (scalar (keys %GET_APPS)>0) ) {
+
+   open (F,">>$INIT_APPS_FILE");
+   print F "<?php\n";
+   close F;
+
+   open (P,">>$INIT_APPS_PARAM_FILE");
+   print P "<?php\n";
+   close P;
+
+   open (T,">>$INIT_TIPS_APP_FILE");
+   print T "<?php\n";
+   close T;
+
+}
+
+if (scalar (keys %TABLE_APPS)>0) {
+
+	foreach my $a (sort keys %TABLE_APPS) {
+		my $h=$TABLE_APPS{$a};
+		$TUNE=$h->{'tune'} || 'none';
+		$USE_ENUMS=(exists $h->{'use_enums'}) ? $h->{'use_enums'} : 1;
+		$OID_COLS=$h->{'oid_cols'};
+		$COL_FILTERS=$h->{'col_filters'};
+		$COL_WIDTHS=$h->{'col_widths'};
+		$COL_SORTING=$h->{'col_sorting'};
+		$OID_LAST=$h->{'oid_last'};
+		$NAME=$h->{'name'};
+		$DESCR=$h->{'descr'};
+		$XML_FILE=$h->{'xml_file'};
+		$PARAMS=$h->{'params'};
+		$IPPARAM=$h->{'ipparam'};
+		$SUBTYPE=$h->{'subtype'};
+		$ANAME=$h->{'aname'};
+		$RANGE=$h->{'range'};
+		$ENTERPRISE=$h->{'enterprise'};
+		$CMD=$h->{'cmd'};
+		$ITIL_TYPE=$h->{'itil_type'} || 1;
+		$APPTYPE=$h->{'apptype'} || '';
+		generate_sql_app_table();
+	}
+}
+
+#---------------------------------------------------------------------------
+# 2. GET_APPS
+#---------------------------------------------------------------------------
+if (scalar (keys %GET_APPS)>0) {
+
+   foreach my $a (sort keys %GET_APPS) {
+      my $h=$GET_APPS{$a};
+#print Dumper($h);
+  	   $TUNE=$h->{'tune'} || 'none';
+		$USE_ENUMS=(exists $h->{'use_enums'}) ? $h->{'use_enums'} : 1;
+		$OID_COLS=$h->{'oid_cols'};
+      $ITEMS=$h->{'items'};
+      $COL_FILTERS=$h->{'col_filters'};
+     	$COL_WIDTHS=$h->{'col_widths'};
+      $COL_SORTING=$h->{'col_sorting'};
+  	   $NAME=$h->{'name'};
+     	$DESCR=$h->{'descr'};
+     	$XML_FILE=$h->{'xml_file'};
+     	$PARAMS=$h->{'params'};
+      $IPPARAM=$h->{'ipparam'};
+  	   $SUBTYPE=$h->{'subtype'};
+     	$ANAME=$h->{'aname'};
+		$RANGE=$h->{'range'};
+      $ENTERPRISE=$h->{'enterprise'};
+     	$CMD=$h->{'cmd'};
+     	$ITIL_TYPE=$h->{'itil_type'};
+		$APPTYPE=$h->{'apptype'} || '';
+      generate_sql_app_get();
+   }
+}
+
+if ( (scalar (keys %TABLE_APPS)>0) || (scalar (keys %GET_APPS)>0) ) {
+
+   open (F,">>$INIT_APPS_FILE");
+  	print F "?>\n";
+   close F;
+
+   open (F,">>$INIT_APPS_PARAM_FILE");
+  	print F "?>\n";
+   close F;
+
+   open (T,">>$INIT_TIPS_APP_FILE");
+   print T "?>\n";
+   close T;
+
+}
+
+if (-f $INIT_APPS_FILE) {
+	if (! -d "$WWW_INIT_DIR/cfg_monitor_apps") { system ("mkdir -p $WWW_INIT_DIR/cfg_monitor_apps"); }
+	$cmd="cp $INIT_APPS_FILE $WWW_INIT_DIR/cfg_monitor_apps";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+}
+if (-f $INIT_APPS_PARAM_FILE) {
+	if (! -d "$WWW_INIT_DIR/cfg_app_param") { system ("mkdir -p $WWW_INIT_DIR/cfg_app_param"); }
+	$cmd="cp $INIT_APPS_PARAM_FILE $WWW_INIT_DIR/cfg_app_param";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+}
+if (-f $INIT_TIPS_APP_FILE) {
+	if (! -d "$WWW_INIT_DIR/tips") { system ("mkdir -p $WWW_INIT_DIR/tips"); }
+	$cmd="cp $INIT_TIPS_APP_FILE $WWW_INIT_DIR/tips";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+}
+
+
+#---------------------------------------------------------------------------
+#my $XML_FILE_GET=$MODULE.'-metrics.xml';
+my $XML_FILE_GET=$ENTERPRISE_PREFIX.'-'.$MODULE.'-metrics.xml';
+$ANAME='app_'.$ENTERPRISE.'_base';
+#generate_sql_app_get_from_metrics(\@METRICS);
+
+#---------------------------------------------------------------------------
+# 3. GET METRICS
+#---------------------------------------------------------------------------
+#generate_sql_metrics(0,\@METRICS);
+
+#---------------------------------------------------------------------------
+# 4. TABLE METRICS
+#---------------------------------------------------------------------------
+#generate_sql_metrics(1,\@METRICS_TAB);
+
+my @ALL_METRICS=();
+for my $i (0..scalar(@METRICS)-1){
+	$METRICS[$i]->{'cfg'}=1;
+	push @ALL_METRICS,$METRICS[$i];
+}
+for my $i (0..scalar(@METRICS_TAB)-1){
+   $METRICS_TAB[$i]->{'cfg'}=2;
+	push @ALL_METRICS,$METRICS_TAB[$i];
+}
+
+generate_sql_metrics(1,\@ALL_METRICS);
+
+#---------------------------------------------------------------------------
+# 5. REMOTE ALERTS
+#---------------------------------------------------------------------------
+generate_sql_remote_alerts(\@REMOTE_ALERTS);
+
+
+#---------------------------------------------------------------------------
+my $CNT_APPS_TABLE = scalar(keys %TABLE_APPS) + scalar(keys %GET_APPS);
+my $CNT_METRICS = scalar(@METRICS) + scalar(@METRICS_TAB);
+my $CNT_REMOTE = scalar(@REMOTE_ALERTS);
+
+print "$MODULE ===> TOTAL METRICAS=$CNT_METRICS  TOTAL APPS=$CNT_APPS_TABLE TOTAL ALERTAS-REMOTAS=$CNT_REMOTE\n";
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# FUNCIONES AUXILIARES
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#
+#---------------------------------------------------------------------------
+# generate_sql_app_table
+#---------------------------------------------------------------------------
+sub generate_sql_app_table {
+
+print "***************************************************************************\n";
+print "**** PASO1: GENERADA APLICACION (generate_sql_app_table) ******************\n";
+print "****REVISAR: WIDTH, ALIGN Y FILTER !!\n";
+print "***************************************************************************\n";
+
+	my $xml_file="$results_dir/$XML_FILE";
+	open (XML,">$xml_file");
+ 
+   print XML "$start\n";
+	my $head_table=$head_table_base;
+   $head_table=~s/__OID_COLS__/$OID_COLS/;
+   $head_table=~s/__OID_LAST__/$OID_LAST/;
+   $head_table=~s/__TUNE__/$TUNE/;
+   $head_table=~s/__USE_ENUMS__/$USE_ENUMS/;
+   print XML "$head_table\n";
+
+
+   my @cols=split('_',$OID_COLS);
+   my @filter=split(/\./,$COL_FILTERS);
+   my @width=split(/\./,$COL_WIDTHS);
+   my @sorting=split(/\./,$COL_SORTING);
+
+
+	my $tpl='';
+   my $cnt=0;
+   foreach my $c (@cols) {
+      $tpl=$col_table;
+      $tpl=~s/__ID__/$cnt/;
+      $tpl=~s/__NAME_COL__/$c/;
+
+		my $f='#text_filter';
+		if (exists $filter[$cnt]) { $f=$filter[$cnt]; }
+      $tpl=~s/__COL_FILTER__/$f/;
+
+		my $s='str';
+      if (exists $sorting[$cnt]) { $s=$sorting[$cnt]; }
+      $tpl=~s/__COL_SORTING__/$s/;
+
+      my $w=20;
+      if (exists $width[$cnt]) { $w=$width[$cnt]; }
+      $tpl=~s/__COL_WIDTH__/$w/;
+
+      print XML $tpl;
+      $cnt++;
+   }
+   print XML "$end\n";
+	close(XML);
+
+
+#------------------------
+my $SQLAPP = <<"SQLAPP";
+
+      \$CFG_MONITOR_APPS[]=array(
+         'type' => 'snmp', 'subtype'=>'$SUBTYPE', 'itil_type'=>'$ITIL_TYPE',  'name'=>'$NAME',
+         'descr' => '$DESCR',
+         'cmd' => '$CMD ',
+         'params' => '$PARAMS',			'iptab'=>'1',	'ready'=>1,
+         'myrange' => '$RANGE',
+         'cfg' => '0',  'platform' => '*',   'script' => 'snmptable',   'format'=>1,   'enterprise'=>'$ENTERPRISE',
+			'custom' => '0', 'aname'=>'$ANAME', 'res'=>1, 'ipparam'=>'$IPPARAM',  'apptype'=>'$APPTYPE', 
+      );
+
+SQLAPP
+#------------------------
+#      array(
+#         'type' => 'snmp', 'subtype'=>'MIB-2', 'itil_type'=>'2',  'name'=>'TABLA DE PEERS BGP ',
+#         'descr' => 'Muestra la tabla de peers BGP. ',
+#         'cmd' => '/opt/crawler/bin/libexec/mibtable -f 00000-MIB2-BGP4-PEER_TABLE.xml -w xml -i ',
+#         'params' => '[-n;IP;]',
+#         'range' => 'BGP4-MIB::bgpPeerTable',
+#         'cfg' => '0',  'platform' => '*',   'script' => '',   'format'=>1,   'enterprise'=>'00000',
+#         'custom' => '0', 'aname'=> 'app_mib2_bgppeers', 'res'=>1, 'ipparam'=>'[-n;IP;]',
+#      ),
+
+
+   print "$SQLAPP\n";
+
+	open (F,">>$INIT_APPS_FILE");
+	print F "$SQLAPP\n";
+	close F;
+
+
+	#--------------------------------------------
+	# APP PARAMS
+	#--------------------------------------------
+
+
+#------------------------
+my $SQLAPPPARAM = <<"SQLAPPPARAM";
+
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '20000008', 'type' => 'snmp', 'enable' => '1', 'value' => '$XML_FILE',
+      'script' => 'snmptable',
+   );
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '20000009', 'type' => 'snmp', 'enable' => '1', 'value' => 'json',
+      'script' => 'snmptable',
+   );
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '2000000a', 'type' => 'snmp', 'enable' => '1', 'value' => '',
+      'script' => 'snmptable',
+   );
+
+SQLAPPPARAM
+
+
+	open (P,">>$INIT_APPS_PARAM_FILE");
+	print P "$SQLAPPPARAM\n";
+	close P;
+
+
+	#--------------------------------------------
+	# TIPS
+	# __ID_REF__ y __DESCR_TIP__
+	#--------------------------------------------
+   $tpl=$SQLAPPTIP;
+   $tpl=~s/__DATE__/$TIME/g;
+   $tpl=~s/__ID_REF__/$ANAME/g;
+
+	my @oid_list=split(/_/,$OID_COLS);
+	my $INFO=mib_translate_table(1,$RANGE,\@oid_list);
+   my $descr_tip1='';
+   my $MIB_NAME='';
+   foreach my $linfo (@$INFO) {
+      my @l = split (/\|/,$linfo);
+      $MIB_NAME=$l[0];
+#        $descr_tip .=  'MIB: '.$l[0]."\n".
+#                       'VARIABLE: '.$l[1]."\n".
+#                       'TIPO: '.$l[2]."\n".
+#                       'DESCRIPCION: '.$l[3]."\n\n";
+      $descr_tip1 .= "<strong>$l[0]::$l[1] ($l[2]):</strong><br>$l[3]";
+   }
+   #my $descr_tip="Mide: <strong>$mitems</strong> a partir de los siguientes atributos de la mib $MIB_NAME:<br><br>$descr_tip1";
+	my $descr_tip = "<strong>$DESCR</strong><br>Utiliza la tabla SNMP $RANGE (Enterprise=$ENTERPRISE)<br><br>$descr_tip1";
+   $descr_tip=~s/'//g;
+   $tpl=~s/__DESCR_TIP__/$descr_tip/g;
+
+   open (T,">>$INIT_TIPS_APP_FILE");
+   print T "$tpl\n";
+   close T;
+
+
+	my $cmd="cp $xml_file $XML_CONF_DIR";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+}
+
+#---------------------------------------------------------------------------
+# generate_sql_app_get
+#---------------------------------------------------------------------------
+sub generate_sql_app_get {
+my ($items)=@_;
+
+print "****************************************************************************\n";
+print "**** PASO2: GENERADA APLICACION (generate_sql_app_get) *********************\n";
+print "****REVISAR: WIDTH, ALIGN Y FILTER !!\n";
+print "****************************************************************************\n";
+
+	my $xml_file="$results_dir/$XML_FILE";
+  	open (XML,">$xml_file");
+
+print "**FML** generate_sql_app_get >> xml_file=$xml_file\n";
+
+	my $tpl='';
+   print XML "$start\n";
+   print XML "$head_get_start\n";
+   my $cnt=0;
+   foreach my $item (@$ITEMS) {
+      $tpl=$head_item;
+      my ($n,$o)=($item->{'name'}, $item->{'oid'});
+
+print "**FML**($n,$o)\n";
+
+      $tpl=~s/__ID__/$cnt/;
+      $tpl=~s/__ITEM_NAME__/$n/;
+      $tpl=~s/__ITEM_OID__/$o/;
+      print XML $tpl;
+      $cnt++;
+   }
+   print XML "$head_get_end\n";
+
+   print XML "$col_get\n";
+   print XML "$end\n";
+   close(XML);
+
+
+#------------------------
+my $SQLAPP = <<"SQLAPP";
+
+      \$CFG_MONITOR_APPS[]=array(
+         'type' => 'snmp', 'subtype'=>'$SUBTYPE', 'itil_type'=>'$ITIL_TYPE',  'name'=>'$NAME',
+         'descr' => '$DESCR',
+         'cmd' => '$CMD ',
+         'params' => '$PARAMS',        'iptab'=>'1',	'ready'=>1,
+         'myrange' => '$RANGE',
+         'cfg' => '0',  'platform' => '*',   'script' => 'snmptable',   'format'=>1,   'enterprise'=>'$ENTERPRISE',
+         'custom' => '0', 'aname'=>'$ANAME', 'res'=>1, 'ipparam'=>'$IPPARAM', 'apptype'=>'$APPTYPE',
+      );
+
+SQLAPP
+
+   print "$SQLAPP\n";
+
+   open (F,">>$INIT_APPS_FILE");
+   print F "$SQLAPP\n";
+   close F;
+
+
+   #--------------------------------------------
+   # APP PARAMS
+   #--------------------------------------------
+
+
+#------------------------
+my $SQLAPPPARAM = <<"SQLAPPPARAM";
+
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '20000008', 'type' => 'snmp', 'enable' => '1', 'value' => '$XML_FILE',
+      'script' => 'snmptable',
+   );
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '20000009', 'type' => 'snmp', 'enable' => '1', 'value' => 'json',
+      'script' => 'snmptable',
+   );
+   \$CFG_APP_PARAM[]=array(
+      'aname' => '$ANAME', 'hparam' => '2000000a', 'type' => 'snmp', 'enable' => '1', 'value' => '',
+      'script' => 'snmptable',
+   );
+
+SQLAPPPARAM
+
+
+   open (P,">>$INIT_APPS_PARAM_FILE");
+   print P "$SQLAPPPARAM\n";
+   close P;
+
+
+   #--------------------------------------------
+   # TIPS
+   # __ID_REF__ y __DESCR_TIP__
+   #--------------------------------------------
+   $tpl=$SQLAPPTIP;
+   $tpl=~s/__DATE__/$TIME/g;
+   $tpl=~s/__ID_REF__/$ANAME/g;
+
+   my @oid_list=split(/_/,$OID_COLS);
+   my $INFO=mib_translate_table(1,$RANGE,\@oid_list);
+   my $descr_tip1='';
+   my $MIB_NAME='';
+   foreach my $linfo (@$INFO) {
+      my @l = split (/\|/,$linfo);
+      $MIB_NAME=$l[0];
+#        $descr_tip .=  'MIB: '.$l[0]."\n".
+#                       'VARIABLE: '.$l[1]."\n".
+#                       'TIPO: '.$l[2]."\n".
+#                       'DESCRIPCION: '.$l[3]."\n\n";
+      $descr_tip1 .= "<strong>$l[0]::$l[1] ($l[2]):</strong>&nbsp;$l[3]<br>";
+   }
+   my $descr_tip="<strong>$DESCR</strong><br>Utiliza atributos de la mib $MIB_NAME:<br><br>$descr_tip1";
+   #my $descr_tip = "<strong>$DESCR</strong><br>Utiliza la tabla SNMP $RANGE (Enterprise=$ENTERPRISE)<br><br>$descr_tip1";
+   $descr_tip=~s/'//g;
+   $tpl=~s/__DESCR_TIP__/$descr_tip/g;
+
+   open (T,">>$INIT_TIPS_APP_FILE");
+   print T "$tpl\n";
+   close T;
+
+
+
+   my $cmd="cp $xml_file $XML_CONF_DIR";
+	system($cmd);
+#  print "++++++CMD=$cmd\n";
+
+}
+
+
+#---------------------------------------------------------------------------
+# generate_sql_app_get_from_metrics
+#---------------------------------------------------------------------------
+sub generate_sql_app_get_from_metrics {
+my ($items)=@_;
+
+print "****************************************************************************\n";
+print "**** PASO2: GENERADA APLICACION (generate_sql_app_get_from_metrics) ********\n";
+print "****REVISAR: WIDTH, ALIGN Y FILTER !!\n";
+print "****************************************************************************\n";
+
+   my $xml_file="$results_dir/$XML_FILE_GET";
+   open (XML,">$xml_file");
+
+   print XML "$start\n";
+   print XML "$head_get_start\n";
+   my $cnt=0;
+   foreach my $item (@$items) {
+      my $tpl=$head_item;
+      my ($n,$o)=($item->{'name'}, $item->{'oid'});
+      $tpl=~s/__ID__/$cnt/;
+      $tpl=~s/__ITEM_NAME__/$n/;
+      $tpl=~s/__ITEM_OID__/$o/;
+      print XML $tpl;
+      $cnt++;
+   }
+   print XML "$head_get_end\n";
+
+   print XML "$col_get\n";
+   print XML "$end\n";
+	close(XML);
+
+
+#------------------------
+my $SQLAPP = <<"SQLAPP";
+
+      \$CFG_MONITOR_APPS[]=array(
+         'type' => 'snmp', 'subtype'=>'$SUBTYPE', 'itil_type'=>'$ITIL_TYPE',  'name'=>'PARAMETROS BASICOS',
+         'descr' => 'Muestra los parametros relevantes del equipo',
+         'cmd' => '/opt/crawler/bin/libexec/mibtable -f $XML_FILE_GET -w xml  ',
+         'params' => '[-n;IP;]',
+         'myrange' => '',
+         'cfg' => '0',  'platform' => '*',   'script' => 'snmptable',   'format'=>1,   'enterprise'=>'$ENTERPRISE',
+         'custom' => '0', 'aname'=>'$ANAME', 'res'=>1, 'ipparam'=>'[-n;IP;]',
+      );
+
+SQLAPP
+
+	print "$SQLAPP\n";
+
+}
+
+#---------------------------------------------------------------------------
+# generate_sql_metrics
+# $mode:	0=>GET, 1=>TABLE
+#---------------------------------------------------------------------------
+sub generate_sql_metrics {
+my ($mode,$items)=@_;
+
+#print "****************************************************************************************************************\n";
+#if ($mode) {
+#print "***** PASO3a: generate_sql_metrics  *TABLA* (Insertar en /update/db/Init/DB-Scheme-Init-snmp.php) *****\n";
+#}
+#else {
+#print "***** PASO3b: generate_sql_metrics  *GET* (Insertar en /update/db/Init/DB-Scheme-Init-snmp.php) *******\n";
+#}
+#print "****************************************************************************************************************\n";
+#
+
+print "****************************************************************************************************************\n";
+print "***** PASO3a: generate_sql_metrics  *GET/TABLA* (Insertar en /update/db/Init/DB-Scheme-Init-snmp.php) *****\n";
+print "****************************************************************************************************************\n";
+
+
+	if (scalar(@$items)==0) { return; }
+
+#[root@sliromrtg1 libexec]# snmptranslate -On -Td ASYNCOS-MAIL-MIB::perCentCPUUtilization.0
+#.1.3.6.1.4.1.15497.1.1.1.2.0
+#perCentCPUUtilization OBJECT-TYPE
+#  -- FROM       ASYNCOS-MAIL-MIB
+##  SYNTAX        INTEGER (0..100)
+#  MAX-ACCESS    read-only
+#  STATUS        mandatory
+#  DESCRIPTION   "Percent CPU utilization."
+#::= { iso(1) org(3) dod(6) internet(1) private(4) enterprises(1) ironPort(15497) asyncOSAppliances(1) asyncOSMail(1) asyncOSMailObjects(1) perCentCPUUtilization(2) 0 }
+
+   open (F,">>$INIT_SNMP_FILE");
+   print F "<?php\n";
+   close F;
+
+   open (F,">>$INIT_TIPS_FILE");
+   print F "<?php\n";
+   close F;
+
+			
+   foreach my $item (@$items) {
+
+		$mode=0;
+		if ($item->{'cfg'} eq '2') { $mode=1; }
+
+      my $tpl=$SQLMET;
+      my ($NAME,$o1,$SUBTYPE,$CLASS,$RANGE,$GET_IID)=($item->{'name'}, $item->{'oid'}, $item->{'subtype'}, $item->{'class'}, $item->{'range'}, $item->{'get_iid'});
+		my ($VLABEL,$INCLUDE,$MTYPE,$ESP,$PARAMS,$USER_ITEMS,$ITIL_TYPE,$APPTYPE)=('num','1','STD_BASE','','','',1,'');
+		if (exists $item->{'vlabel'}) {$VLABEL = $item->{'vlabel'}; }
+		if (exists $item->{'include'}) {$INCLUDE = $item->{'include'}; }
+		if (exists $item->{'mtype'}) {$MTYPE = $item->{'mtype'}; }
+		if (exists $item->{'esp'}) {$ESP = $item->{'esp'}; }
+		if (exists $item->{'params'}) {$PARAMS = $item->{'params'}; }
+		if (exists $item->{'items'}) {$USER_ITEMS = $item->{'items'}; }
+		if (exists $item->{'itil_type'}) {$ITIL_TYPE = $item->{'itil_type'}; }
+		if (exists $item->{'apptype'}) {$APPTYPE = $item->{'apptype'}; }
+		my ($mib_descr,$mib_type,$enterprise);
+		my @OID=();
+		my @OIDN=();
+		my @INFO=();
+		my @ITEMS=();
+
+		my $prefix='';
+		if ((exists $item->{'range'}) && ($item->{'range'}=~/(\S+)\:\:\S+/)) { $prefix=$1; }
+
+		my @oid_list=split(/\|/,$o1);
+		foreach my $o (@oid_list) {
+
+			if ($o !~ /\S+\:\:\S+/) { $o=$prefix.'::'.$o; }
+      	my $CMD="snmptranslate -On -Td $o";
+      	my @r=`$CMD`;
+      	chomp $r[0];
+			push @OID,$r[0];
+#print "R************************@r\n";
+print "**********TIP****** TRANSLATE: $o (de $o1) CMD=$CMD\n";
+
+     #'RFC1213-MIB|tcpActiveOpens.0|Counter32|The number of times TCP connections have made a direct transition to the SYN-SENT state from the CLOSED state.'
+	      my $mib_name='';
+   	   my $mib_attrib=$o;
+      	$mib_type='';
+	      $mib_descr='';
+			$enterprise=0;
+      	if ($o=~/(\S+)\:\:(\S+)/) {$mib_name=$1; $mib_attrib=$2; }
+	      my $translate=join(' ', @r);
+   	   if ($translate=~/SYNTAX\s+(.*)\s+MAX-ACCESS/) { $mib_type=$1; }
+      	if ($translate=~/DESCRIPTION\s+(.*)\s+\:\:=/s) { $mib_descr=$1; }
+	      if ($translate=~/private\(4\)\s*enterprises\(1\)\s*\S+\((\d+)\)/) { $enterprise=$1; }
+
+#     foreach my $l (@r) {
+#        chomp $l;
+#        if ($l=~/SYNTAX\s+(.*)$/) { $mib_type=$1; }
+#        if ($l=~/DESCRIPTION\s+(.*)$/) { $mib_descr=$1; }
+#     }
+
+   	   if ($mib_type=~/INTEGER/i) { $mib_type='GAUGE'; }
+   	   elsif ($mib_type=~/Gauge32/i) { $mib_type='GAUGE'; }
+   	   elsif ($mib_type=~/Counter/i) { $mib_type='COUNTER'; }
+   	   elsif ($mib_type=~/TimeTicks/i) { $mib_type='GAUGE'; }
+			else { $mib_type='GAUGE'; }
+
+   	   #$info=$mib_name.'|'.$mib_attrib.'|'.$mib_type.'|'.$mib_descr;
+	      #$oidn=$mib_name.'::'.$mib_attrib;
+			push @ITEMS,$mib_attrib;
+			#Caso GET ($mode=0)
+			if ($mode == 0) { push @OIDN,$mib_name.'::'.$mib_attrib; }
+			else { push @OIDN,$mib_attrib; }
+			push @INFO,$mib_name.'|'.$mib_attrib.'|'.$mib_type.'|'.$mib_descr;
+		}
+
+		my ($oidv,$oidn,$cfg);
+		#TABLA---------------
+		if ($mode) {
+			@OID=map($_.'.IID',@OID);
+			@OIDN=map($_.'.IID',@OIDN);
+			$cfg=2;
+			$oidv=join('|',@OID);
+			$oidn=join('|',@OIDN);
+		}
+		#GET-----------------
+		else {
+			$cfg=1;
+			$oidv=join('|',@OID);
+			$oidn=join('|',@OIDN);
+			$RANGE=$OIDN[0];
+			$GET_IID='';
+		}
+
+		my $mitems=join('|',@ITEMS);
+		if ($USER_ITEMS ne '') { $mitems=$USER_ITEMS; }
+		if (exists $item->{'items'}) { $mitems=$item->{'items'}; }
+		my $info=join('<br>',@INFO);
+		#Elimino la comilla simple para evitar posibles errores al insertar en BBDD
+		$mib_descr=~s/'//g;
+
+  	   $tpl=~s/__SUBTYPE__/$SUBTYPE/g;
+  	   $tpl=~s/__CLASS__/$CLASS/g;
+  	   $tpl=~s/__NAME__/$NAME/g;
+  	   $tpl=~s/__ITEMS__/$mitems/g;
+     	$tpl=~s/__DESCR__/$mib_descr/g;
+      $tpl=~s/__OID__/$oidv/g;
+  	   $tpl=~s/__OIDN__/$oidn/g;
+  	   $tpl=~s/__RANGE__/$RANGE/g;
+  	   $tpl=~s/__VLABEL__/$VLABEL/g;
+  	   $tpl=~s/__INCLUDE__/$INCLUDE/g;
+  	   $tpl=~s/__MTYPE__/$MTYPE/g;
+		#fml quito la info de esta tabla. Se usa tips
+     	#$tpl=~s/__INFO__/$info/g;
+     	$tpl=~s/__INFO__//g;
+      $tpl=~s/__MODE__/$mib_type/g;
+  	   $tpl=~s/__ENTERPRISE__/$enterprise/g;
+		$tpl=~s/__CFG__/$cfg/g;
+		$tpl=~s/__GET_IID__/$GET_IID/g;
+		$tpl=~s/__ESP__/$ESP/g;
+		$tpl=~s/__PARAMS__/$PARAMS/g;
+		$tpl=~s/__ITIL_TYPE__/$ITIL_TYPE/g;
+		$tpl=~s/__APPTYPE__/$APPTYPE/g;
+     	print $tpl;
+		print "\n";
+
+      open (F,">>$INIT_SNMP_FILE");
+      print F "$tpl\n";
+      close F;
+
+
+		$tpl=$SQLMETTIP;
+		my $id_ref=$SUBTYPE;
+      $tpl=~s/__ID_REF__/$id_ref/g;
+      #$tpl=~s/__NAME_TIP__/$NAME/g;
+		#my $descr_tip='';
+		my $descr_tip1='';
+		my $MIB_NAME='';
+		foreach my $linfo (@INFO) {
+			my @l = split (/\|/,$linfo);
+			$MIB_NAME=$l[0];
+#			$descr_tip .= 	'MIB: '.$l[0]."\n".
+#								'VARIABLE: '.$l[1]."\n".
+#								'TIPO: '.$l[2]."\n".
+#								'DESCRIPCION: '.$l[3]."\n\n";
+			$descr_tip1 .= "<strong>$l[0]::$l[1] ($l[2]):</strong> $l[3]";
+		}
+		my $descr_tip="Mide: <strong>$mitems</strong> a partir de los siguientes atributos de la mib $MIB_NAME:<br><br>$descr_tip1";
+
+		$descr_tip=~s/'//g;
+      $tpl=~s/__DESCR_TIP__/$descr_tip/g;
+      print $tpl;
+
+	   open (F,">>$INIT_TIPS_FILE");
+   	print F "$tpl\n";
+   	close F;
+
+   }
+
+   open (F,">>$INIT_SNMP_FILE");
+   print F "?>\n";
+   close F;
+
+   open (F,">>$INIT_TIPS_FILE");
+   print F "?>\n";
+   close F;
+
+
+	if (! -d "$WWW_INIT_DIR/cfg_monitor_snmp") { system ("mkdir -p $WWW_INIT_DIR/cfg_monitor_snmp"); }
+	my $cmd="cp $INIT_SNMP_FILE $WWW_INIT_DIR/cfg_monitor_snmp";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+	if (! -d "$WWW_INIT_DIR/tips") { system ("mkdir -p $WWW_INIT_DIR/tips"); }
+	$cmd="cp $INIT_TIPS_FILE $WWW_INIT_DIR/tips";
+	system($cmd);
+	print "++++++CMD=$cmd\n";
+
+}
+#            'oid' => '.1.3.6.1.2.1.6.5.0|.1.3.6.1.2.1.6.6.0',
+#            'oidn' => 'tcpActiveOpens.0|tcpPassiveOpens',
+#            'oid_info' => 'RFC1213-MIB|tcpActiveOpens.0|Counter32|The number of times TCP connections have made a direct transition to the SYN-SENT state from the CLOSED state.<br>RFC1213-MIB|tcpPassiveOpens.0|Counter32|The number of times TCP connections have made a direct transition to the SYN-RCVD state from the LISTEN state.',
+
+
+
+
+#---------------------------------------------------------------------------
+# generate_sql_remote_alerts
+#---------------------------------------------------------------------------
+sub generate_sql_remote_alerts {
+my ($items)=@_;
+
+	print "***** generate_sql_remote_alerts  (cp $INIT_REMOTEA_FILE /update/db/Init/cfg_remote_alerts) *****\n";
+
+   if (scalar(@$items)==0) { return; }
+
+   open (F,">$INIT_REMOTEA_FILE");
+   print F "<?php\n";
+   close F;
+
+   open (F,">$INIT_TIPS_REMOTE_FILE");
+   print F "<?php\n";
+   close F;
+
+	my $cnt=1;
+	%TRANSLATE_INT_CACHE=();
+   foreach my $item (@$items) {
+
+      print "REMOTE_ALERT $cnt ....\n";
+#print  Dumper($item);
+
+      my $tpl=$SQLREMOTEA;
+
+		my @VDATA=();
+		my @VDATA_DESCR=();
+		my @VDATA_SYNTAX=();
+		my $mib_descr='';
+		my $syntax='';
+		my $TYPE = $item->{'type'};
+		my $SUBTYPE = $item->{'subtype'};
+		my $DESCR = $item->{'descr'};
+		my $VARDATA = $item->{'vardata'};
+		my	$SEVERITY= $item->{'severity'};
+		my $MODE = $item->{'mode'};
+		my $EXPR = $item->{'expr'};
+		my $MONITOR = $item->{'monitor'};
+		my $VDATA = $item->{'vdata'};
+		my $ACTION = $item->{'action'};
+		my $SCRIPT = $item->{'script'};
+		my $APPTYPE = $item->{'apptype'};
+		my $CLASS = $item->{'class'};
+		my $ITIL_TYPE = $item->{'itil_type'};
+		my $ENTERPRISE = (exists $item->{'enterprise'}) ? $item->{'enterprise'} : '0';
+		my $INCLUDE = (exists $item->{'include'}) ? $item->{'include'} : '1';
+#if (exists $TRANSLATE_INT_CACHE{$SUBTYPE}) {$INCLUDE=$TRANSLATE_INT_CACHE{$SUBTYPE}->{'include'}; }
+
+		my $SET_TYPE = (exists $item->{'set_type'}) ? $item->{'set_type'} : '';
+		my $SET_SUBTYPE = (exists $item->{'set_subtype'} ) ? $item->{'set_subtype'} : '';
+		my $SET_HIID = (exists $item->{'set_hiid'}) ? $item->{'set_hiid'} : '';
+
+print "+++++++++++++++++++++++SET_TYPE=$SET_TYPE SET_SUBTYPE=$SET_SUBTYPE SET_HIID=$SET_HIID INCLUDE=$INCLUDE\n";
+
+
+		my ($MIB,$VAR)=split('::',$SUBTYPE);
+      if ($TYPE eq 'snmp') {
+
+         my @INFO=();
+
+			my $subtype_oid=$SUBTYPE;
+			$subtype_oid =~ s/^\S+\:\:\S+\:6\.(\S+)$/$1/;
+         ($mib_descr,$syntax)=mib_translate($subtype_oid);
+         @VDATA=split(';', $VARDATA);
+         foreach my $vb (@VDATA) {
+				my $o=$MIB.'::'.$vb;
+				my ($descr,$syntax)=('','');
+				if (exists $TRANSLATE_INT_CACHE{$o}) { 
+					($descr,$syntax) = ($TRANSLATE_INT_CACHE{$o}->{'descr'}, $TRANSLATE_INT_CACHE{$o}->{'syntax'}) ; 
+				}
+            else { 
+					($descr,$syntax)=mib_translate($o); 
+					$TRANSLATE_INT_CACHE{$o} = { 'descr'=>$descr, 'syntax'=>$syntax };
+				}
+            push @VDATA_DESCR,$descr;
+            push @VDATA_SYNTAX,$syntax;
+         }
+      }
+
+		my $seed='';
+		my @REMOTE2EXPR=();
+		foreach my $x (@{$item->{'remote2expr'}}) {
+			my $v=$x->{'v'};
+			my $descr=$x->{'descr'};
+			my $fx=$x->{'fx'};
+			my $expr=$x->{'expr'};
+			$seed.=$v.$fx.$expr;
+			push @REMOTE2EXPR, "array(\'v\'=>\'$v\', \'descr\'=>'$descr', \'fx\'=>\'$fx\',  \'expr\'=>\'$expr\')";
+		}
+		my $hiidl=md5_hex($seed);
+		my $HIID=substr $hiidl,0,10;
+		my $REMOTE2EXPR_LINES=join(",\n",@REMOTE2EXPR);
+
+		# fml. Revisar que aporta SET_ALERT_COLUMNS ¿?
+		# Esto parece mas obvio.
+		if ($SET_HIID ne '') { $HIID = $SET_HIID; }
+		
+      $tpl=~s/__TYPE__/$TYPE/g;
+      $tpl=~s/__SUBTYPE__/$SUBTYPE/g;
+      $tpl=~s/__HIID__/$HIID/g;
+      $tpl=~s/__DESCR_REMOTE__/$DESCR/g;
+      $tpl=~s/__MODE__/$MODE/g;
+      $tpl=~s/__EXPR__/$EXPR/g;
+      $tpl=~s/__VARDATA__/$VARDATA/g;
+      $tpl=~s/__MONITOR__/$MONITOR/g;
+      $tpl=~s/__VDATA__/$VDATA/g;
+      $tpl=~s/__ENTERPRISE__/$ENTERPRISE/g;
+      $tpl=~s/__INCLUDE__/$INCLUDE/g;
+      $tpl=~s/__SEVERITY__/$SEVERITY/g;
+      $tpl=~s/__ACTION__/$ACTION/g;
+      $tpl=~s/__SCRIPT__/$SCRIPT/g;
+      $tpl=~s/__APPTYPE__/$APPTYPE/g;
+      $tpl=~s/__ITIL_TYPE__/$ITIL_TYPE/g;
+      $tpl=~s/__CLASS__/$CLASS/g;
+      $tpl=~s/__REMOTE2EXPR__/$REMOTE2EXPR_LINES/g;
+
+		my $set_cols='';
+		#if ( ($SET_TYPE ne '') || ($SET_SUBTYPE ne '') || ($SET_HIID ne '') ) {
+	#		my $set_cols='';
+			if ($SET_TYPE ne '')  { $set_cols .= "\'set_type\' => \'$SET_TYPE\', "; }
+			if ($SET_SUBTYPE ne '')  { $set_cols .= "\'set_subtype\' => \'$SET_SUBTYPE\', "; }
+			if ($SET_HIID ne '')  { $set_cols .= "\'set_hiid\' => \'$SET_HIID\', "; }
+	#	}
+		$tpl=~s/__SET_ALERT_COLUMNS__/$set_cols/;
+
+#print "+++++++++++++++++++++++++++++++++++set_cols=$set_cols+++++++++++++++++++++++++++++++\n";
+
+#      print $tpl;
+#      print "\n";
+
+      open (F,">>$INIT_REMOTEA_FILE");
+      print F "$tpl\n";
+      close F;
+
+		#-------------------------------------------------------------------------------------
+      $tpl=$SQLREMOTETIP;
+      $tpl=~s/__ID_REF__/$SUBTYPE/g;
+
+      #my $descr_tip='';
+      #my $descr_tip='Alerta generada por <strong>trap SNMP</strong> definido em la MIB <strong>'.$MIB.'</strong> por el atributo <strong>'.$VAR.':</strong>.<br><br><strong>'.$mib_descr.'</strong>';
+      my $descr_tip=$mib_descr;
+
+print "++++++++++++++++++++++++++++++++++++++++++++mib_descr=$mib_descr\n";
+		my $j=0;
+		my $N=scalar(@VDATA);
+		for my $j (0..$N-1) {
+			my $c=$j+1;
+			my $item=$VDATA[$j];
+			my $descr=$VDATA_DESCR[$j];
+			my $syntax=$VDATA_SYNTAX[$j];
+			$descr_tip .= 'v'.$c.': <strong>'.$item.'</strong><br>'.$descr.'<br>'.$syntax.'<br>';
+		}
+
+      $tpl=~s/__DESCR_TIP__/$descr_tip/g;
+      $tpl=~s/__HIID__/$HIID/g;
+#      print $tpl;
+
+
+      open (F,">>$INIT_TIPS_REMOTE_FILE");
+      print F "$tpl\n";
+      close F;
+
+
+		$cnt +=1;
+   }
+
+   open (F,">>$INIT_REMOTEA_FILE");
+   print F "?>\n";
+   close F;
+
+   open (F,">>$INIT_TIPS_REMOTE_FILE");
+   print F "?>\n";
+   close F;
+
+	if (! -d "$WWW_INIT_DIR/cfg_remote_alerts") { system ("mkdir -p $WWW_INIT_DIR/cfg_remote_alerts"); }
+   my $cmd="cp $INIT_REMOTEA_FILE $WWW_INIT_DIR/cfg_remote_alerts";
+	system($cmd);
+   print "++++++CMD=$cmd\n";
+	if (! -d "$WWW_INIT_DIR/tips") { system ("mkdir -p $WWW_INIT_DIR/tips"); }
+   $cmd="cp $INIT_TIPS_REMOTE_FILE $WWW_INIT_DIR/tips";
+	system($cmd);
+   print "++++++CMD=$cmd\n";
+
+}
+
+
+
+#---------------------------------------------------------------------------
+# mib_translate
+#---------------------------------------------------------------------------
+sub mib_translate {
+my ($oid_name)=@_;
+
+	my ($mib_descr,$syntax)=('','');
+
+   if (exists $TRANSLATE_EXT_CACHE{$oid_name}) {
+  		($mib_descr,$syntax) = ($TRANSLATE_EXT_CACHE{$oid_name}->{'descr'}, $TRANSLATE_EXT_CACHE{$oid_name}->{'syntax'}) ;
+   }
+   else {
+   
+		my $CMD="snmptranslate -Td $oid_name";
+
+print "********************************CMD=$CMD\n";
+	   my @r=`$CMD`;
+   	my $translate=join(' ', @r);
+	   if ($translate=~/DESCRIPTION\s+(.*)\s+\:\:=/s) { $mib_descr=$1; }
+   	if ($translate=~/SYNTAX\s+(.*)DISPLAY-HINT/s) { $syntax=$1; }
+		elsif ($translate=~/SYNTAX\s+(.*)MAX-ACCESS/s) { $syntax=$1; }
+   	$mib_descr=~s/'//g;
+	}
+
+	return ($mib_descr,$syntax);
+}
+
+
+
+#---------------------------------------------------------------------------
+# mib_translate_table
+#---------------------------------------------------------------------------
+sub mib_translate_table {
+my ($mode,$table,$oid_list)=@_;
+
+	#CISCO-CCM-MIB::ccmCTIDeviceTable
+	
+	my ($prefix,$table1) =('','');
+	if ($table =~ /(\S+)\:\:(\S+)/){
+		($prefix,$table1) =($1,$2);
+	}
+
+	my @OID=();
+	my @OIDN=();
+	my @ITEMS=();
+	my @INFO=();
+   foreach my $o (@$oid_list) {
+
+      if ($o !~ /\S+\:\:\S+/) { $o=$prefix.'::'.$o; }
+      my $CMD="snmptranslate -On -Td $o";
+      my @r=`$CMD`;
+      chomp $r[0];
+      push @OID,$r[0];
+print "**********TIP****** TRANSLATE: $o CMD=$CMD\n";
+
+      my $mib_name='';
+      my $mib_attrib=$o;
+      my $mib_type='';
+      my $mib_descr='';
+      my $enterprise=0;
+      if ($o=~/(\S+)\:\:(\S+)/) {$mib_name=$1; $mib_attrib=$2; }
+      my $translate=join(' ', @r);
+      if ($translate=~/SYNTAX\s+(.*)\s+MAX-ACCESS/) { $mib_type=$1; }
+      if ($translate=~/DESCRIPTION\s{1}(.*)\s+\:\:=/s) { $mib_descr=$1; }
+      if ($translate=~/private\(4\)\s*enterprises\(1\)\s*\S+\((\d+)\)/) { $enterprise=$1; }
+
+      if ($mib_type=~/INTEGER/i) { $mib_type='GAUGE'; }
+      elsif ($mib_type=~/Gauge32/i) { $mib_type='GAUGE'; }
+      elsif ($mib_type=~/Counter/i) { $mib_type='COUNTER'; }
+      elsif ($mib_type=~/TimeTicks/i) { $mib_type='GAUGE'; }
+      else { $mib_type='GAUGE'; }
+
+      push @ITEMS,$mib_attrib;
+
+      #Caso GET ($mode=0)
+      if ($mode == 0) { push @OIDN,$mib_name.'::'.$mib_attrib; }
+      else { push @OIDN,$mib_attrib; }
+      push @INFO,$mib_name.'|'.$mib_attrib.'|'.$mib_type.'|'.$mib_descr;
+   }
+
+	return \@INFO;
+
+}
+
+
+#--------------------------------------------------------------------------------
+sub usage {
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+Compilador de MIB descriptors 
+hf:c:d:
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -m  : Nombre de modulo p.ej: ENT_00000_MIB_II 
+$fpth[$#fpth] -b  : Indica si se incluye en la base. Por defecto se instalan en cnm-sp
+$fpth[$#fpth] -c  : Fichero de CACHE
+$fpth[$#fpth] -l  : Lib Dir (por defecto es /opt/cnm-designer/pkgs)
+
+USAGE
+
+}
+

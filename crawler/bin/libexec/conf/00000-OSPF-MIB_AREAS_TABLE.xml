@@ -1,0 +1,101 @@
+<mibtable>
+
+   <oid_cols>ospfAuthType_ospfImportAsExtern_ospfSpfRuns_ospfAreaBdrRtrCount_ospfAsBdrRtrCount_ospfAreaLsaCount_ospfAreaLsaCksumSum_ospfAreaSummary_ospfAreaStatus</oid_cols>
+	<oid_last>OSPF-MIB::ospfAreaTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAuthType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfImportAsExtern</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfSpfRuns</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAreaBdrRtrCount</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAsBdrRtrCount</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAreaLsaCount</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAreaLsaCksumSum</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAreaSummary</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ospfAreaStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

@@ -1,0 +1,47 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+CNM API test
+(c) fml
+
+$fpth[$#fpth] [-d debug|info] [-c cid]
+$fpth[$#fpth] -h  : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %opts=();
+getopts("hd:c:",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+my $host_ip='localhost';
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+my $api=Crawler::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+
+
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+print "sid=$sid\n";
+
+my $class='devices';
+my $endpoint='12.json';
+my $response = $api->ws_get($class,$endpoint);
+
+print Dumper($response);
+
+$class='views';
+$endpoint='search.json';
+$response = $api->ws_put($class,$endpoint);
+print Dumper($response);
+

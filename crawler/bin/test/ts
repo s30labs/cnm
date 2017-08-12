@@ -1,0 +1,30 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::SNMP ('snmp_get_location');
+
+print_time();
+my $snmp=Crawler::SNMP->new();
+$snmp->retries(5);
+$snmp->timeout(500000);
+
+print_time();
+
+my %params=(host_ip=>'10.64.100.100', comunity=>'public', oid=>'.1.3.6.1.2.1.2.2.1.10.2');
+#my %params=(host_ip=>'localhost', comunity=>'public', oid=>'.1.3.6.1.2.1.2.2.1.10.2');
+
+my $r=$snmp->snmp_get_location($params{host_ip});
+my $rc=$snmp->err_num();
+my $rcstr=$snmp->err_str();
+print "RES [get_location]: $r  [rc=$rc] (rcstr=$rcstr)\n";
+print_time();
+
+
+sub print_time {
+
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year += 1900; $mon+=1;
+	print "***>$mday-$mon-$year  $hour:$min:$sec\n";
+
+}

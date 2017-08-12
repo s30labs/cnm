@@ -1,0 +1,251 @@
+<mibtable>
+
+   <oid_cols>bgpPeerIdentifier_bgpPeerState_bgpPeerAdminStatus_bgpPeerNegotiatedVersion_bgpPeerLocalAddr_bgpPeerLocalPort_bgpPeerRemoteAddr_bgpPeerRemotePort_bgpPeerRemoteAs_bgpPeerInUpdates_bgpPeerOutUpdates_bgpPeerInTotalMessages_bgpPeerOutTotalMessages_bgpPeerLastError_bgpPeerFsmEstablishedTransitions_bgpPeerFsmEstablishedTime_bgpPeerConnectRetryInterval_bgpPeerHoldTime_bgpPeerKeepAlive_bgpPeerHoldTimeConfigured_bgpPeerKeepAliveConfigured_bgpPeerMinASOriginationInterval_bgpPeerMinRouteAdvertisementInterval_bgpPeerInUpdateElapsedTime</oid_cols>
+	<oid_last>BGP4-MIB::bgpPeerTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerIdentifier</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerState</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerAdminStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerNegotiatedVersion</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerLocalAddr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerLocalPort</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerRemoteAddr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerRemotePort</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerRemoteAs</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerInUpdates</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerOutUpdates</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerInTotalMessages</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerOutTotalMessages</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>13</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerLastError</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>14</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerFsmEstablishedTransitions</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>15</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerFsmEstablishedTime</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>16</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerConnectRetryInterval</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>17</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerHoldTime</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>18</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerKeepAlive</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>19</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerHoldTimeConfigured</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>20</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerKeepAliveConfigured</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>21</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerMinASOriginationInterval</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>22</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerMinRouteAdvertisementInterval</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>23</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bgpPeerInUpdateElapsedTime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

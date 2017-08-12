@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::SNMP;
+
+print_time();
+my %SNMPCFG=();
+my $snmp=Crawler::SNMP->new(log_level=>'debug');
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFG);
+
+$snmp->retries(1);
+$snmp->timeout(5000000);
+
+print_time();
+
+$SNMPCFG{'oid'} =  'ifName_ifHCInOctets_ifHCOutOctets';
+$SNMPCFG{'last'} = 'ifHCOutMulticastPkts';
+
+#$SNMPCFG{'oid'} =  'ifDescr_ifType_ifSpeed';
+#$SNMPCFG{'last'} = 'ifAdminStatus';
+
+my $r=$snmp->core_snmp_table(\%SNMPCFG);
+foreach (@$r) {
+	print "RES [core_snmp_table]: $_\n";
+}
+
+
+
+
+sub print_time {
+
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year += 1900; $mon+=1;
+	print "***>$mday-$mon-$year  $hour:$min:$sec\n";
+
+}

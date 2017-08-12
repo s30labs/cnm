@@ -1,0 +1,48 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use strict;
+
+#---------------------------------------------------------------------------
+my $lang=$ARGV[0] || die "Uso: $0 lang secundario [en, fr ...]\n";
+#---------------------------------------------------------------------------
+my $file_es='/opt/cnm/onm/lang/es.lang';
+if (! -f $file_es) { die "No existe $file_es\n"; }
+
+my $file_lang='/opt/cnm/onm/lang/'.$lang.'.lang';
+if (! -f $file_lang) { die "No existe $file_lang\n"; }
+
+#---------------------------------------------------------------------------
+my %LANG_KEYS=();
+my @LINES=();
+my $n=1;
+
+#---------------------------------------------------------------------------
+open (F,"<$file_es");
+while (<F>) {
+	chomp;
+	if (/(\S+)\|\|(.*)/) { 
+		my ($k,$txt)=($1,$2);
+		$LANG_KEYS{$k} = {'stat'=>0, 'es'=>$txt, 'n'=>$n}; 
+		$LANG_KEYS{$k}->{'lang'} = '__NOEXISTE__ >> '.$txt;
+		push @LINES, $k;
+	}
+	$n+=1;
+}
+close F;
+
+open (F,"<$file_lang");
+while (<F>) {
+   chomp;
+   if (/(\S+)\|\|(.*)/) { $LANG_KEYS{$1}->{'stat'}=1; $LANG_KEYS{$1}->{'lang'}=$2; }
+}
+close F;
+
+#foreach my $k (keys %LANG_KEYS) {
+#	my ($stat,$txt,$n)=($LANG_KEYS{$k}->{'stat'}, $LANG_KEYS{$k}->{'txt'}, $LANG_KEYS{$k}->{'n'});
+#	if ($stat == 0) { print "**FALTA** [$n] $k >> ($txt)\n"; }
+#}
+
+foreach my $k (@LINES) {
+	print $k.'||'.$LANG_KEYS{$k}->{'lang'}."\n";
+}
+

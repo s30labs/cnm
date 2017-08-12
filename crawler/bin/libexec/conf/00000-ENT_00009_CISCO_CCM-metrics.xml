@@ -1,0 +1,75 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>TELEFONOS REGISTRADOS</col_name>
+         <oid>CISCO-CCM-MIB::ccmRegisteredPhones.0|CISCO-CCM-MIB::ccmUnregisteredPhones.0|CISCO-CCM-MIB::ccmRejectedPhones.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>GATEWAYS REGISTRADOS</col_name>
+         <oid>CISCO-CCM-MIB::ccmRegisteredGateways.0|CISCO-CCM-MIB::ccmUnregisteredGateways.0|CISCO-CCM-MIB::ccmRejectedGateways.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>DISPOSITIVOS REGISTRADOS</col_name>
+         <oid>CISCO-CCM-MIB::ccmRegisteredMediaDevices.0|CISCO-CCM-MIB::ccmUnregisteredMediaDevices.0|CISCO-CCM-MIB::ccmRejectedMediaDevices.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>DISPOSITIVOS CTI REGISTRADOS</col_name>
+         <oid>CISCO-CCM-MIB::ccmRegisteredCTIDevices.0|CISCO-CCM-MIB::ccmUnregisteredCTIDevices.0|CISCO-CCM-MIB::ccmRejectedCTIDevices.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>DISPOSITIVOS VOICE MAIL REGISTRADOS</col_name>
+         <oid>CISCO-CCM-MIB::ccmRegisteredVoiceMailDevices.0|CISCO-CCM-MIB::ccmUnregisteredVoiceMailDevices.0|CISCO-CCM-MIB::ccmRejectedVoiceMailDevices.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

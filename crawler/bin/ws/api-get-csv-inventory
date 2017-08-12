@@ -1,0 +1,124 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my %INVENTORY=(
+
+	'devices' => { 'class'=>'', 'endpoint'=>'devices.json',
+						'col_desc'=>
+[
+   {'label'=>'ID', 'width'=>'4' , 'name_col'=>'id_dev',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter', ,'hidden'=>'true' },
+   {'label'=>'NOMBRE', 'width'=>'10' , 'name_col'=>'name',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'DOMINIO', 'width'=>'10' , 'name_col'=>'domain',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'IP', 'width'=>'10' , 'name_col'=>'ip',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'ESTADO', 'width'=>'5' , 'name_col'=>'status',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'TIPO', 'width'=>'10' , 'name_col'=>'type',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'SYSOID', 'width'=>'15' , 'name_col'=>'sysloc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSLOC', 'width'=>'15' , 'name_col'=>'sysdesc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSDESC', 'width'=>'20' , 'name_col'=>'sysoid',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+],
+
+		},
+
+   'metrics' => { 'class'=>'', 'endpoint'=>'metrics/info.json',
+                  'col_desc'=>
+
+[
+   { 'label'=>'ID', 'width'=>'4' , 'name_col'=>'id_dev',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter', ,'hidden'=>'true' },
+   { 'label'=>'NOMBRE', 'width'=>'10' , 'name_col'=>'name',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'DOMINIO', 'width'=>'10' , 'name_col'=>'domain',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'IP', 'width'=>'10' , 'name_col'=>'ip',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'ESTADO (D)', 'width'=>'5' , 'name_col'=>'status',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'TIPO', 'width'=>'6' , 'name_col'=>'type',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+
+   { 'label'=>'METRICA', 'width'=>'25' , 'name_col'=>'label',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'ITEMS', 'width'=>'25' , 'name_col'=>'items',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+#   { 'label'=>'ID_METRIC', 'width'=>'5' , 'name_col'=>'id_metric',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'ESTADO (M)', 'width'=>'10' , 'name_col'=>'mstatus',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'MONITOR', 'width'=>'20' , 'name_col'=>'monitor',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'EXPR', 'width'=>'15' , 'name_col'=>'expr',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'SEV', 'width'=>'5' , 'name_col'=>'severity',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   { 'label'=>'SUBTYPE', 'width'=>'15' , 'name_col'=>'subtype',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   { 'label'=>'MNAME', 'width'=>'15' , 'name_col'=>'mname',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+],
+
+      },
+
+   'views' => { 'class'=>'', 'endpoint'=>'views.json',
+                  'col_desc'=>
+[
+   {'label'=>'ID', 'width'=>'4' , 'name_col'=>'id_dev',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter', ,'hidden'=>'true' },
+   {'label'=>'NOMBRE', 'width'=>'10' , 'name_col'=>'name',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'DOMINIO', 'width'=>'10' , 'name_col'=>'domain',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'IP', 'width'=>'10' , 'name_col'=>'ip',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'ESTADO', 'width'=>'5' , 'name_col'=>'status',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'TIPO', 'width'=>'10' , 'name_col'=>'type',  'sort'=>'text', 'align'=>'left', 'filter'=>'#select_filter' },
+   {'label'=>'SYSOID', 'width'=>'15' , 'name_col'=>'sysloc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSLOC', 'width'=>'15' , 'name_col'=>'sysdesc',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+   {'label'=>'SYSDESC', 'width'=>'20' , 'name_col'=>'sysoid',  'sort'=>'text', 'align'=>'left', 'filter'=>'#text_filter' },
+
+],
+
+      },
+
+);
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - GET CNM Inventory
+(c) s30labs
+
+$fpth[$#fpth] [-d] [-cid default] [-host 1.1.1.1] -what [devices|views|metrics|metrics_in_views] 
+$fpth[$#fpth] -h  : Ayuda
+
+host: Direccion IP del CNM al que se interroga, por defecto es localhost.
+what: Tipo de inventario: devices, views, metrics, metrics_in_views
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my ($what,$extra,$log_mode)=('devices','',3);
+my %OPTS=();
+GetOptions (\%OPTS, 'h','help','d','debug','host=s','cid=s','what=s','w=s','extra=s','e=s')
+	or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+
+if ( !($OPTS{'what'}) && !($OPTS{'w'}) ) { die $USAGE; }
+if ($OPTS{'what'}) { $what=$OPTS{'what'}; }
+else { $what=$OPTS{'w'}; }
+
+if ($OPTS{'extra'}) { $extra=$OPTS{'extra'}; }
+elsif ($OPTS{'e'}) { $what=$OPTS{'e'}; }
+
+if (! exists $INVENTORY{$what}) {
+	print "**ERROR** al especificar el valor de what/w\n";
+	die $USAGE;
+}
+
+my $log_level='info';
+if ( ($OPTS{'debug'}) || ($OPTS{'d'}) ) { $log_level='debug'; }
+my $host_ip = (defined $OPTS{host}) ? $OPTS{host} : 'localhost';
+my $cid = (defined $OPTS{cid}) ? $OPTS{cid} : 'default';
+
+#-------------------------------------------------------------------------------------------
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+my $class=$INVENTORY{$what}->{'class'};
+my $endpoint=$INVENTORY{$what}->{'endpoint'};
+if ($extra) { $endpoint .= '?'.$extra; }
+
+my $response = $api->ws_get($class,$endpoint);
+$api->table_col_descriptor ( $INVENTORY{$what}->{'col_desc'});
+$api->print_app_table($response);
+

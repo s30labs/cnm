@@ -1,0 +1,111 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          syslog
+# Required-Start:    $local_fs $network $time
+# Required-Stop:     $local_fs $network $time
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starting system logging daemon
+# Description:       Starting syslog-NG, the next generation
+#  syslog daemon.
+### END INIT INFO#
+#
+# skeleton	example file to build /etc/init.d/ scripts.
+#		This file should be used to construct scripts for /etc/init.d.
+#
+#		Written by Miquel van Smoorenburg <miquels@cistron.nl>.
+#		Modified for Debian GNU/Linux
+#		by Ian Murdock <imurdock@gnu.ai.mit.edu>.
+#
+# Version:	@(#)skeleton  1.8  03-Mar-1998  miquels@cistron.nl
+# This file was customized by SZALAY Attila <sasa@debian.org>
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+test -f /usr/sbin/syslog-ng || exit 0
+#we source /etc/default/syslog-ng if exists
+[ -r /etc/default/syslog-ng ] && . /etc/default/syslog-ng
+
+case "x$CONSOLE_LOG_LEVEL" in
+  x[1-8])
+    dmesg -n $CONSOLE_LOG_LEVEL
+    ;;
+  x)
+    ;;
+  *)
+    echo "CONSOLE_LOG_LEVEL is of unaccepted value."
+    ;;
+esac
+
+if [ -n "$KERNEL_RINGBUF_SIZE" ]
+then
+  echo "KERNEL_RINGBUF_SIZE option is useless and therefore removed."
+fi
+
+# stop syslog-ng before changing its PID file!
+PIDFILE="/var/run/syslog-ng.pid"
+
+SYSLOGNG="/usr/sbin/syslog-ng"
+SYSLOGNG_OPTS="--no-caps"
+
+NAME="syslog-ng"
+
+create_xconsole() {
+  if [ ! -e /dev/xconsole ]
+  then
+    mknod -m 640 /dev/xconsole p
+  fi
+}
+                                
+syslogng_start() {
+    echo -n "Starting system logging: $NAME"
+    start-stop-daemon --start --quiet --exec "$SYSLOGNG" --pidfile "$PIDFILE" -- -p "$PIDFILE" $SYSLOGNG_OPTS\
+      || { echo " start failed."; return 1; }
+    echo "."
+    return 0
+}
+
+syslogng_stop() {
+    echo -n "Stopping system logging: $NAME"
+    start-stop-daemon --stop --quiet --name "$NAME" --retry 3 --pidfile "$PIDFILE" || { echo " not running."; return 1; }
+    echo "."
+    rm -f "$PIDFILE"
+    return 0
+}
+
+syslogng_reload() {
+    echo -n "Reload system logging: $NAME"
+    if /usr/sbin/syslog-ng -s $SYSLOGNG_OPTS
+    then
+      start-stop-daemon --stop --signal 1 --quiet --exec "$SYSLOGNG" --pidfile "$PIDFILE" -- $SYSLOGNG_OPTS || return 1
+      echo "."
+      return 0
+    else
+      echo " Failed"
+      return 1
+    fi
+}
+
+
+case "$1" in
+  start)
+    create_xconsole
+    syslogng_start || exit 1
+    ;;
+  stop)
+    syslogng_stop || exit 1
+    ;;
+  reload|force-reload)
+    syslogng_reload || exit 1
+    ;;
+  restart)
+    syslogng_stop
+    syslogng_start || exit 1
+    ;;
+  *)
+    echo "Usage: /etc/init.d/$NAME {start|stop|restart|reload|force-reload}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0
+

@@ -1,0 +1,46 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: test_notif_mailer
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Crawler::Notifications;
+use ONMConfig;
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+#my $LAPSE=$rcfgbase->{notif_lapse}->[0];
+my $MX=$rcfgbase->{notif_mx}->[0];
+my $FROM=$rcfgbase->{notif_from}->[0];
+my $FROM_NAME=$rcfgbase->{notif_from_name}->[0];
+my $SUBJECT=$rcfgbase->{notif_subject}->[0];
+my $SERIAL_PORT=$rcfgbase->{notif_serial_port}->[0];
+my $PIN=$rcfgbase->{notif_pin}->[0];
+
+my $log_level='debug';
+#-------------------------------------------------------------------------------------------
+
+# Crea el objeto Crawler::Notifications y lo arranca ---------------------------------------
+my $notifications=Crawler::Notifications->new(user=>$USER, group=>$GROUP, name=>"notificationsd", store_path=>$STORE_PATH, 
+															#lapse=>$LAPSE,	cfg=>$rcfgbase, range=>0, log_level=>$log_level, cfg=>$rcfgbase,
+															cfg=>$rcfgbase, range=>0, log_level=>$log_level, cfg=>$rcfgbase,
+															mx=>$MX, from=>$FROM, from_name=>$FROM_NAME, subject=>$SUBJECT,
+															serial_port=>$SERIAL_PORT, pin=>$PIN );
+
+
+   my $store=$notifications->create_store();
+   my $dbh=$store->open_db();
+   $notifications->store($store);
+   $notifications->dbh($dbh);
+   $store->dbh($dbh);
+
+	$notifications->mail_alert_processor();
+
+#-------------------------------------------------------------------------------------------
+

@@ -1,0 +1,8 @@
+---
+
+- name: restart nmbd
+  service: name=nmbd state=restarted
+
+- name: restart smbd
+  service: name=smbd state=restarted
+

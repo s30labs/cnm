@@ -1,0 +1,83 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: notificationsd
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Notifications;
+use ONMConfig;
+
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+#my $LAPSE=$rcfgbase->{notif_lapse}->[0];
+my $MX=$rcfgbase->{notif_mx}->[0];
+my $FROM=$rcfgbase->{notif_from}->[0];
+my $FROM_NAME=$rcfgbase->{notif_from_name}->[0];
+my $SUBJECT=$rcfgbase->{notif_subject}->[0];
+my $SERIAL_PORT=$rcfgbase->{notif_serial_port}->[0];
+my $PIN=$rcfgbase->{notif_pin}->[0];
+
+#while (my ($k,$v)=each %$rcfgbase) {print "$k ";foreach (@$v) {print "$_ ";} print "\n";}
+#exit;
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("l:t:d:h",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die "$USAGE\n"; }
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+#my $LAPSE = (defined $opts{l}) ? $opts{l} : $rcfgbase->{notif_lapse}->[0];
+my $LAPSE = (defined $opts{l}) ? $opts{l} : '20';
+
+#-------------------------------------------------------------------------------------------
+#fml Revisar el valor correcto de cid para multi-cnm
+my $cid='default';
+
+#-------------------------------------------------------------------------------------------
+
+# Crea el objeto Crawler::Notifications y lo arranca ---------------------------------------
+my $notifications=Crawler::Notifications->new(
+         user=>$USER, group=>$GROUP, name=>"mail_manager", store_path=>$STORE_PATH,
+			#lapse=>$LAPSE,	cfg=>$rcfgbase, range=>0, log_level=>$log_level, cfg=>$rcfgbase,
+			cfg=>$rcfgbase, range=>0, log_level=>$log_level, cfg=>$rcfgbase,
+			mx=>$MX, from=>$FROM, from_name=>$FROM_NAME, subject=>$SUBJECT,
+			serial_port=>$SERIAL_PORT, pin=>$PIN, cid=>$cid, cid_ip=>$ip  );
+
+
+$notifications->range(Crawler::Notifications::TASK_MAIL);
+$notifications->lapse($LAPSE);
+$notifications->run();
+
+
+#-------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Gestor de eventos por email.
+
+$fpth[$#fpth] -d [debug|info]  : Nivel de depuracion
+$fpth[$#fpth] -l [60|120|900]  : Periodo de muestreo (Por defecto 20 segs.)
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}

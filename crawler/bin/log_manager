@@ -1,0 +1,133 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# log_manager
+#-------------------------------------------------------------------------------------------
+# 1. 	Arrancado por syslog-ng.
+#		Por STDIN procesa linea a linea cada entrada de syslog.
+#		syslog-ng tiene configurados el local2, local3, local4 y local5 para recibir eventos
+#		desde equipos externos. Estos son los eventos procesados por log_manager.
+#
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+#use Crawler::Store;
+use Metrics::Base;
+use Crawler::LogManager::Syslog;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+# Luego se concatena el tag para evitar colisiones.
+my $RELOAD_FILE='/var/www/html/onm/tmp/log_manager.reload';
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $store_path=$rcfgbase->{'store_path'}->[0];
+my $cnt_path=$store_path.'trap_counter';
+mkdir $cnt_path,0755;
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("t:l:hd:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+my $tag='unk';
+if ($opts{t}) { $tag=$opts{t}; }
+$RELOAD_FILE.=".$tag";
+
+#-------------------------------------------------------------------------------------------
+# Para conexion a BBDD cnm
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+
+#-------------------------------------------------------------------------------------------
+# Se obtienen los datos de conexion a la BBDD onm a partir de las credenciales de
+# $CID en cnm.cfg_cnms
+
+my ($CID,$HIDX,$params)=('','',{});
+# Si se especifica el CID obtengo los datos de conexion de ese CID
+# En este caso, si no se especifica ip el cid_ip es el de la maquina
+if ($opts{c}) {
+   $CID=$opts{c};
+   $params=$store->get_mcnm_credentials($dbh,{'cid'=>$CID, 'host_ip'=>$ip});
+}
+# Si se especifica el HIDX obtengo los datos de conexion de ese HIDX
+elsif ($opts{x}) {
+   $HIDX=$opts{x};
+   $params=$store->get_mcnm_credentials($dbh,{'hidx'=>$HIDX});
+}
+# Si no se especifica otra cosa, utilizo el cid con hidx=1
+else {
+   $params=$store->get_mcnm_credentials($dbh,{'hidx'=>1});
+}
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+# Solo debe haber un cid !!!
+my @CIDs=keys %$params;
+my $cid=$CIDs[0];
+$rcfgbase->{db_server}->[0]=$params->{$cid}->{'db_server'};
+$rcfgbase->{db_name}->[0]=$params->{$cid}->{'db_name'};
+$rcfgbase->{db_user}->[0]=$params->{$cid}->{'db_user'};
+$rcfgbase->{db_pwd}->[0]=$params->{$cid}->{'db_pwd'};
+
+#-------------------------------------------------------------------------------------------
+my $log_manager=Crawler::LogManager::Syslog->new(store_path=>$store_path, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path, 'reload_file'=>$RELOAD_FILE, cid=>$cid, cid_ip=>$ip, 'tag'=>$tag );
+$log_manager->create_store();
+#$log_manager->connect();
+
+#-------------------------------------------------------------------------------------------
+# Reacargo la configuracion de B.D
+#$log_manager->check_configuration();
+
+my $reload_file=$log_manager->reload_file();
+system("/usr/bin/touch $reload_file");
+
+$log_manager->log('info',"Waiting for data...");
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+if ($opts{l}) { $log_manager->line_processor($opts{l}); }
+else {
+	while (<STDIN>) { $log_manager->line_processor($_); }
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Gestor de eventos/alertas por syslog.
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -d [debug|info] : Adapta el nivel de depuracion
+$fpth[$#fpth] -t [2|3|4|5] : Tag, en este caso es la facility (local2, local3, local4 o local5=filters)
+
+USAGE
+
+   return $USAGE;
+
+}
+

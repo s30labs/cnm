@@ -1,0 +1,141 @@
+<mibtable>
+
+   <oid_cols>bsnMobileStationMacAddress_bsnMobileStationIpAddress_bsnMobileStationUserName_bsnMobileStationAPMacAddr_bsnMobileStationAPIfSlotId_bsnMobileStationEssIndex_bsnMobileStationSsid_bsnMobileStationAID_bsnMobileStationStatus_bsnMobileStationReasonCode_bsnMobileStationMobilityStatus_bsnMobileStationVlanId_bsnMobileStationPolicyType</oid_cols>
+	<oid_last>AIRESPACE-WIRELESS-MIB::bsnMobileStationTable</oid_last>
+	<UseEnums>0</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationMacAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationIpAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationUserName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationAPMacAddr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationAPIfSlotId</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationEssIndex</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationSsid</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationAID</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationReasonCode</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationMobilityStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>11</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationVlanId</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>12</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnMobileStationPolicyType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

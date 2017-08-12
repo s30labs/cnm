@@ -1,0 +1,215 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+BEGIN { $ENV{'MIBS'}='ALL'; };
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my @RESULTS=();
+my $WALK='/usr/local/bin/snmpwalk';
+my $INFO='images/ico_metrinf_on.gif';
+
+#------------------------------------------------------------------------------
+my $HTML_TITLE='
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO1__</b></TD>
+</TR>
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO2__</b></TD>
+</TR>
+<tr ><td class="VentPar"><img src="../images/magic.gif" width="1" height="5"></td></tr>';
+
+
+#   <TD align="left" width="__WOIDN__%">__BS__ __OIDN__ __BE__ </TD>
+my $HTML_DATA='
+<TR class="VentDat">
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+
+   <TD align="left" width="__WICO__%"><a href=javascript:enviof1("__OID__")><IMG SRC="../images/about16.png" BORDER=0 ALT="Info"></a>__BE__ &nbsp;</TD>
+   <TD align="left" width="__WOID__%">__BS__ __OID__ __BE__ </TD>
+   <TD align="left" width="__WRES__%">__BS__ __RES__ __BE__ </TD>
+   <TD align="left" width="__WICO__%">__BS__ __ICO__ __BE__ </TD>
+
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+</TR>
+<tr ><td colspan="__NCOLS__" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -d ip|nombre [-c community -v version -o oid] : Chequea metrica
+$fpth[$#fpth] -d ip|nombre [-c community -v version -o oid] -w : Salida con <td></td>
+
+Para el caso de SNMP v3:
+-v 3 -c [nombre de perfil snmp v3 definido en el cnm]
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %device=();
+my $subtype=undef;
+my %opts=();
+getopts("hwc:d:v:o:",\%opts);
+
+my $FORMAT = (defined $opts{w}) ? 'html' : 'txt';
+my $rcfgbase=conf_base($FILE_CONF);
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+my $STORE_PATH=$rcfgbase->{store_path}->[0];
+my $PROFILEV3=();
+
+#-------------------------------------------------------------------------------------------
+if ($opts{h}) { die $USAGE;}
+elsif ($opts{d}) {
+	$device{ip}=$opts{d};
+
+	# Store ------------------------------------
+  	my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+		        	   					db_server=>$db_server,
+                	              	db_name=>$db_name,
+                        	      db_user=>$db_user,
+                            	   db_pwd=>$db_pwd );
+	my $dbh=$store->open_db();
+  	my $indb=$store->get_device($dbh,\%device,'community,version');
+
+	$device{community}='public';
+	if (defined $opts{c}) { $device{community}=$opts{c}; }
+	elsif ( defined $indb->[0][0] ){ $device{community}=$indb->[0][0]; }
+	$device{version}=1;
+	if (defined $opts{v}) { $device{version}=$opts{v}; }
+	elsif ( defined $indb->[0][1] ){ $device{version}=$indb->[0][1]; }
+
+	$device{oid}= (defined $opts{o}) ? $opts{o} : '.1';
+
+	if ($device{version}==3) {
+		$PROFILEV3=$store->get_profiles_snmpv3($dbh,[$device{community}]);
+	}
+
+	$store->close_db($dbh);
+}
+
+else { die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+	if ($FORMAT eq 'txt') {
+		#print '-' x25, "\n";
+		print "DISPOSITIVO: $device{ip}\n";
+		print "COMMUNITY SNMP: $device{community}\n";
+		print "VERSION SNMP: $device{version}\n";
+		#print '-' x25, "\n\n";
+	}
+	else {
+	   my $titulo="MIB-WALK";
+   	$HTML_TITLE =~s/__TITULO1__/$titulo/;
+	   $titulo="Host=$device{ip}&nbsp;&nbsp;(community=$device{community}&nbsp;|&nbsp;V=$device{version})";
+   	$HTML_TITLE =~s/__TITULO2__/$titulo/;
+  	 	$HTML_TITLE =~s/\n//g;
+	   print "$HTML_TITLE\n";
+		push @RESULTS, ['OID','MIB-OID','RESULTADO'];
+	}
+
+#-------------------------------------------------------------------------------------------
+#my @OIDN=`$WALK -Cc  -On -v $device{version} -c $device{community} $device{ip} $device{oid}`;
+#my @OID=`$WALK -Cc  -v $device{version} -c $device{community} $device{ip} $device{oid}`;
+#
+#my $c=0;
+#foreach my $l (@OIDN) {
+#	$l =~ s/\n/ /g;
+#	my ($oidn,$res)=split (/\s*=\s*/,$l);
+#
+# 	my $size=length $oidn;
+#	my $smax=50;
+#	if ($size>$smax) {
+#		my @d=();
+#		my $i=0;
+#		my $offset=0;
+#		while ($offset<$size) {
+#			$d[$i]=substr $oidn,$offset,$smax;
+#			$i+=1;
+#			$offset=$i*$smax;
+#		}
+#		$oidn=join(' ',@d);
+#	}
+#
+#	my ($oid,$kk) = split (/\s*=\s*/,$OID[$c]);
+#	$c+=1;
+#	do_write($oidn, $oid, $res); 
+#}
+
+	my $oidn='';
+	my $port='161';
+	if ($device{'oid'} =~ /\.1\.3\.6\.1\.4\.1\.3495/) { $port='3401'; }
+
+	my $CMD="$WALK -Cc  -v $device{version} -c $device{community} $device{ip}:$port $device{oid} 2>&1";
+	if ($device{'version'} == 3) { 
+		my $id=$device{community};
+		if (! exists $PROFILEV3->{'priv_pass'}) {
+			$CMD="$WALK -Cc  -v $device{version} -u $PROFILEV3->{$id}{'sec_name'} -l $PROFILEV3->{$id}{'sec_level'} -a $PROFILEV3->{$id}{'auth_proto'} -A $PROFILEV3->{$id}{'auth_pass'} $device{ip}:$port $device{oid} 2>&1";
+		}
+		else {
+			$CMD="$WALK -Cc  -v $device{version} -u $PROFILEV3->{$id}{'sec_name'} -l $PROFILEV3->{$id}{'sec_level'} -a $PROFILEV3->{$id}{'auth_proto'} -A $PROFILEV3->{$id}{'auth_pass'} -x $PROFILEV3->{$id}{'priv_proto'} -X $PROFILEV3->{$id}{'priv_pass'}  $device{ip}:$port $device{oid} 2>&1";
+		}
+	}
+
+	#open(WALK, "$WALK -Cc  -v $device{version} -c $device{community} $device{ip}:$port $device{oid} 2>&1 |");
+	open(WALK, "$CMD |");
+   while (<WALK>) {
+		chomp;
+		my ($oid,$res)=split (/\s*=\s*/,$_);
+		do_write($oidn, $oid, $res);
+   }
+	close WALK;
+
+#------------------------------------------------------------------------------
+sub do_write {
+my ($oidn,$oid,$res)=@_;
+
+	if ((!defined $oidn) || (!defined $oid) || (!defined $res)) {return; }
+   if ($FORMAT eq 'txt') { print "$oidn ($oid): $res\n"; }
+   else {
+
+      my $html_out=$HTML_DATA;
+
+      if ($oidn eq 'OID') {
+         $html_out =~ s/__BS__/<b>/g;
+         $html_out =~ s/__BE__/<\/b>/g;
+      }
+      else {
+         $html_out =~ s/__BS__//g;
+         $html_out =~ s/__BE__//g;
+      }
+
+      $html_out =~s/__NCOLS__/6/;
+
+#      $html_out =~s/__WOIDN__/33/;
+#      $html_out =~s/__OIDN__/$oidn/;
+
+      $html_out =~s/__WICO__/4/g;
+
+      $html_out =~s/__WOID__/51/g;
+      $html_out =~s/__OID__/$oid/g;
+
+      $html_out =~s/__WRES__/40/g;
+      $html_out =~s/__RES__/$res/g;
+
+      $html_out =~s/__WICO__/2/g;
+      $html_out =~s/__ICO__//g;
+
+      $html_out =~s/\n//g;
+      print "$html_out\n";
+   }
+}
+

@@ -1,0 +1,293 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Metrics::Base;
+use Crawler::SNMP;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my @RESULTS=();
+
+#------------------------------------------------------------------------------
+my $HTML_TITLE='
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO1__</b></TD>
+</TR>
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO2__</b></TD>
+</TR>
+<tr ><td class="VentPar"><img src="../images/magic.gif" width="1" height="5"></td></tr>';
+
+
+my $HTML_DATA='
+<TR class="VentDat">
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+
+   <TD align="left" width="__WOIDN__%">__BS__ __OIDN__ __BE__ </TD>
+   <TD align="left" width="__WOID__%">__BS__ __OID__ __BE__ </TD>
+   <TD align="left" width="__WRES__%">__BS__ __RES__ __BE__ </TD>
+   <TD align="left" width="__WICO__%">__BS__ __ICO__ __BE__ </TD>
+
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+</TR>
+<tr ><td colspan="__NCOLS__" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -d ip|nombre -s subtype [-i iids -c community -v version] : Chequea metrica
+$fpth[$#fpth] -d ip|nombre -s subtype [-i iids -c community -v version] -w : Salida con <td></td>
+$fpth[$#fpth] -d ip|nombre -s subtype -t: Muestra informacion detallada de MIB
+$fpth[$#fpth] -l : Lista los tipos de metricas snmp soportados
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %device=();
+my $subtype=undef;
+my %opts=();
+getopts("htwli:c:d:s:o:v:",\%opts);
+
+my $FORMAT = (defined $opts{w}) ? 'html' : 'txt';
+my $rcfgbase=conf_base($FILE_CONF);
+
+#-------------------------------------------------------------------------------------------
+if ($opts{h}) { die $USAGE;}
+elsif ($opts{d}) {
+	$device{ip}=$opts{d};
+	$device{community}= (defined $opts{c}) ? $opts{c} : 'public';
+	$device{version}= (defined $opts{v}) ? $opts{v} : 1;
+
+
+	if ($opts{s}) {
+		$device{metric_cnt}=1;
+		$subtype=$opts{s};
+
+		if ($subtype =~ /custom_/) {
+			my $oid=get_oid_by_subtype($rcfgbase,$subtype);
+
+			if ($oid) { @Metrics::Base::OIDs=split(/\|/,$oid); }
+		}
+		else {
+
+			if (! defined $Metrics::Base::Functions{$subtype}) { die "[ERROR] METRICA $subtype NO DEFINIDA\n"; }
+
+      	if ($opts{i}) {
+         	my @ii=split(/\,/,$opts{i});
+         	foreach  my $i (@ii) { $Metrics::Base::AssignedIIDs{$i}=0; }
+      	}
+	      else { $Metrics::Base::AssignedIIDs{'all'}=0; }
+
+			no strict "subs";
+			my $r=&{$Metrics::Base::Functions{$subtype}}(\%device,$rcfgbase,$subtype);
+
+			if (!defined $r) { 
+				die "ERROR!! EL DISPOSITIVO $device{ip} NO RESPONDE A LOS VALORES SOLICITADOS ($Metrics::Base::Error)\n"; 
+			}
+		}
+	}
+	elsif ($opts{o}) { @Metrics::Base::OIDs=split(/\|/,$opts{o}); }
+	else { die $USAGE;}
+}
+
+elsif ($opts{t}) {
+
+	if ($opts{s}) {
+		my $oid=get_oid_by_subtype($rcfgbase,$opts{s});
+   	if ($oid) { 
+			$oid=~s/\.IID//g;
+			@Metrics::Base::OIDs=split(/\|/,$oid); 
+		}
+	}
+	elsif ($opts{o}) {
+		my $oid=$opts{o};
+		$oid=~s/\.IID//g;
+      #RFC1213-MIB::ifOutUcastPkts.1
+      $oid=~s/(\S+\:\:\S+)\.\d+$/$1/g;
+      @Metrics::Base::OIDs=split(/\|/,$oid);
+	}
+}
+elsif ($opts{l}) {
+	foreach (sort keys %Metrics::Base::Functions) { print "$_\n"; }
+	exit;	
+}
+
+else { die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my $snmp=Crawler::SNMP->new();
+
+if (! $opts{t}) {
+	if ($FORMAT eq 'txt') {
+		#print '-' x25, "\n";
+		print "DISPOSITIVO: $device{ip}\n";
+		print "COMMUNITY SNMP: $device{community}\n";
+		print "VERSION SNMP: $device{version}\n";
+		print 'INTERFACES: '.scalar @Metrics::Base::IIDs."\n\n";
+		#print '-' x25, "\n\n";
+	}
+	else {
+		my $ni=scalar @Metrics::Base::IIDs;
+	   my $titulo="Validaci&oacute;n de variables SNMP";
+   	$HTML_TITLE =~s/__TITULO1__/$titulo/;
+	   $titulo="Host=$device{ip}&nbsp;&nbsp;Interfaces=$ni&nbsp;&nbsp;(community=$device{community}&nbsp;|&nbsp;V=$device{version})";
+   	$HTML_TITLE =~s/__TITULO2__/$titulo/;
+  	 	$HTML_TITLE =~s/\n//g;
+	   print "$HTML_TITLE\n";
+		push @RESULTS, ['MIB-OID','OID','RESULTADO'];
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+
+foreach my $oid (@Metrics::Base::OIDs) {
+
+   $device{host_ip}=$device{ip};
+   my $oid_name='';
+   if ($oid=~/(\d+|\.+)+/) {
+      $oid_name=`/usr/local/bin/snmptranslate $oid 2>&1`;
+      if ($oid_name=~/Unknown/i) {next;}
+   }
+   else { $oid_name=$oid;}
+
+   chomp $oid_name;
+
+	if (scalar @Metrics::Base::IIDs) {
+		if (!$oid_name) {$oid_name=$oid; }
+
+		foreach my $iid (@Metrics::Base::IIDs) {
+			
+			$device{oid} = "$oid.$iid";
+			$snmp->core_snmp_get(\%device);
+			my $rc=$snmp->err_num();
+			my $rcstr=$snmp->err_str();
+			if ($rc ==0) { push @RESULTS, [$oid_name,$device{oid},'SI RESPONDE']; }
+			else { push @RESULTS, [$oid_name,$device{oid},"NO RESPONDE ($rc:$rcstr)"]; }
+	
+#			if (scalar @$r) {	
+#				if ($r->[0] eq 'U') { push @RESULTS, [$oid_name,$device{oid},'NO RESPONDE']; }
+#				else {push @RESULTS, [$oid_name,$device{oid},'SI RESPONDE']; }
+#			}
+#			else { push @RESULTS, [$oid_name,$device{oid},'NO RESPONDE']; }
+
+
+			last; #Con un valor de muestra es suficiente
+		}
+	}
+	else { 
+      $device{oid}=$oid_name;
+      $snmp->core_snmp_table(\%device);
+		my $rc=$snmp->err_num();
+		my $rcstr=$snmp->err_str();
+		if ($rc ==0) { push @RESULTS, [$oid_name,$device{oid},'SI RESPONDE']; }
+		else { push @RESULTS, [$oid_name,$device{oid},"NO RESPONDE ($rc:$rcstr)"]; }
+
+#		chomp @$r;
+#      if (scalar @$r) {
+#			push @RESULTS, [$oid_name,$device{oid},'SI RESPONDE']; 
+#		}	
+#		else {
+#			push @RESULTS, [$oid_name,$device{oid},'NO RESPONDE']; }
+	}
+}
+
+foreach my $l (@RESULTS) { 
+	if ($opts{t}) {
+		my $info=`/usr/local/bin/snmptranslate -Td $l->[1]`;
+		do_write1($info);
+	}
+	else {
+		do_write($l->[0], $l->[1], $l->[2]); 
+	}
+}
+
+
+#------------------------------------------------------------------------------
+sub do_write {
+my ($oidn,$oid,$res)=@_;
+
+   if ($FORMAT eq 'txt') { print "$oidn ($oid): $res\n"; }
+   else {
+
+      my $html_out=$HTML_DATA;
+
+      if ($oidn eq 'MIB-OID') {
+         $html_out =~ s/__BS__/<b>/g;
+         $html_out =~ s/__BE__/<\/b>/g;
+      }
+      else {
+         $html_out =~ s/__BS__//g;
+         $html_out =~ s/__BE__//g;
+      }
+
+      $html_out =~s/__NCOLS__/6/;
+
+      $html_out =~s/__WOIDN__/30/;
+      $html_out =~s/__OIDN__/$oidn/;
+
+      $html_out =~s/__WOID__/35/;
+      $html_out =~s/__OID__/$oid/;
+
+      $html_out =~s/__WRES__/30/;
+      $html_out =~s/__RES__/$res/;
+
+      $html_out =~s/__WICO__/5/;
+      $html_out =~s/__ICO__//;
+
+      $html_out =~s/\n//g;
+      print "$html_out\n";
+   }
+}
+
+#------------------------------------------------------------------------------
+sub do_write1 {
+my ($info)=@_;
+
+my $HTML_DATA1='
+<TR class="VentDat"><TD><img src="../images/magic.gif" width="5" height="1"></TD><TD align="left" width="100%">__DATA__</TD><TD><img src="../images/magic.gif" width="5" height="1"></TD></TR>
+<tr ><td colspan="3" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+
+   if ($FORMAT eq 'txt') { print "$info\n\n"; }
+   else {
+
+      my $html_out=$HTML_DATA1;
+
+      $html_out =~s/__DATA__/$info/;
+
+      $html_out =~s/\n/<br>/g;
+      print "$html_out\n";
+   }
+}
+
+#------------------------------------------------------------------------------
+sub get_oid_by_subtype  {
+my ($rcfgbase,$subtype)=@_;
+
+	my $db_server=$rcfgbase->{db_server}->[0];
+   my $db_name=$rcfgbase->{db_name}->[0];
+   my $db_user=$rcfgbase->{db_user}->[0];
+   my $db_pwd=$rcfgbase->{db_pwd}->[0];
+   my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+   my $dbh=$store->open_db();
+   my $oid=$store->get_from_db($dbh,'oid','cfg_monitor_snmp',"subtype=\'$subtype\'");
+   $store->close_db($dbh);
+	return $oid->[0][0];
+}

@@ -1,0 +1,165 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-set-HA-mode
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use lib "/opt/crawler/bin/support";
+use strict;
+use System;
+use Getopt::Std;
+use ONMConfig;
+use NetAddr::IP;
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+
+my $USAGE = <<USAGE;
+cnm-set-HA-mode. $VERSION
+
+$fpth[$#fpth] -i IP  -m MASK -g GW -a -x ACTIVE_IP
+$fpth[$#fpth] -i IP  -m MASK -g GW -p -x ACTIVE_IP
+
+-i    IP a configurar.
+-m    Mascara a configurar.
+-g    Default gateway a configurar.
+-a		Se configura en modo activo.
+-p		Se configura en modo pasivo.
+-x		IP del activo
+-v    Verbose
+USAGE
+
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hi:m:g:x:ap",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+if ( (!$opts{i}) && (!$opts{m}) && (!$opts{g})) { die $USAGE;}
+if ( (!$opts{a}) && (!$opts{p})) { die $USAGE;}
+
+my $ACTIVE='';
+if ($opts{x}) { $ACTIVE=$opts{x}; }
+
+my $ROLE = 'active';
+if ($opts{p}) { $ROLE = 'passive'; }
+elsif ($opts{a}) { $ROLE = 'active'; }
+
+my $IP = $opts{i};
+my $NETMASK = $opts{m};
+my $GW = $opts{g};
+
+#-------------------------------------------------------------------------------------------
+my $oip = new NetAddr::IP($IP,$NETMASK);
+my $BROADCAST = $oip->broadcast();
+$BROADCAST =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+my $NETWORK = $oip->network();
+$NETWORK =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+
+
+#-------------------------------------------------------------------------------------------
+print '-' x60 ."\n";
+print "SE DISPONE A CAMBIAR LA CONFIGURACION DE RED DE ESTE EQUIPO Y CONVERTIRLO EN ***$ROLE***\nIP=$IP/$NETMASK GW=$GW\nSI CONTINUA PERDERA ESTA CONEXION Y SE TENDRA QUE RECONECTAR A LA IP INDICADA\nESTA SEGURO DE QUERER CONTINUAR (S/N)?\n";
+print '-' x60 ."\n";
+my $userinput =  <STDIN>;
+chomp ($userinput);
+my $r = lc $userinput;
+
+if ($r ne 's') { exit; }
+$|=1;
+
+#-------------------------------------------------------------------------------------------
+print "a. PASANDO EL EQUIPO A MODO: $ROLE ";
+
+set_role_info($ROLE,$ACTIVE);
+`/etc/init.d/cnmd stop >/dev/null 2>&1`;
+`/etc/init.d/cnmd kill >/dev/null 2>&1`;
+my $n=5;
+while ($n>0) {
+	print '.';
+	sleep 1;
+	$n-=1;
+}
+print "\n";
+
+#-------------------------------------------------------------------------------------------
+print "b. SE MODIFICA INFO EN BBDD\n";
+`php /opt/cnm/update/db/update/update_scheme_ip.php ip=$IP`;
+
+`/opt/crawler/bin/workset -f`;
+
+set_snmp_cfg($IP);
+
+#-------------------------------------------------------------------------------------------
+print "c. SE CAMBIA LA CONFIGURACION DE RED Y SE REINICIA ....\n";
+set_network();
+
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub set_network {
+
+	local($/) = undef;
+	my $interfaces = <DATA>;
+	$interfaces =~ s/__IP__/$IP/g;
+	$interfaces =~ s/__NETMASK__/$NETMASK/g;
+	$interfaces =~ s/__NETWORK__/$NETWORK/g;
+	$interfaces =~ s/__BCAST__/$BROADCAST/g;
+	$interfaces =~ s/__GW__/$GW/g;
+
+	my $f='/etc/network/interfaces';
+	open (F,">$f");
+	print F $interfaces;
+	close F;
+
+	my $if=my_if();
+  	system ("/sbin/ifdown $if && /sbin/ifup $if");
+
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub set_snmp_cfg {
+my ($ip) = @_;
+
+   my $os = check_os();
+   my $file="/os/$os/etc/snmp/snmp/snmpd.conf.base";
+	my $file_res='/etc/snmp/snmp/snmpd.conf';
+   my $tpl='';
+   if (open (F,"<$file")) {
+      local $/=undef;
+      $tpl=<F>;
+      close F;
+   }
+	$tpl =~ s/__IPADDR__/$ip/g;
+
+   if (open (F,">$file_res")) {
+      print F $tpl;
+      close F;
+   }
+}
+
+
+
+
+__DATA__
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+# The loopback network interface
+auto lo
+auto eth0
+iface lo inet loopback
+
+# The primary network interface
+allow-hotplug eth0
+iface eth0 inet static
+        address __IP__ 
+        netmask __NETMASK__
+        network __NETWORK__
+        broadcast __BCAST__
+        gateway __GW__
+

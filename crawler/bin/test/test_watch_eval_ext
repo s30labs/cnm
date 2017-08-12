@@ -1,0 +1,50 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# test_store1
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Data::Dumper;
+use ONMConfig;
+use Crawler;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+my $log_level='debug';
+
+#-------------------------------------------------------------------------------------------
+#my $expr='v1 =~/picor/';
+#my $expr='v1 contains(picor)';
+
+#a.id_remote_alert,a.expr as expr_logic, b.v,b.descr,b.fx,b.expr
+#my @ALERT2EXPR=(
+	##{'v'=>'v1', 'descr'=>'Primer valor', 'fx'=>'MATCH', 'expr'=>'pelo'}
+	#{'v'=>'v2=1||v2=20', 'descr'=>'Primer valor', 'fx'=>'MATCH', 'expr'=>''}
+#);
+
+
+my @ALERT2EXPR = (            
+{'expr' => 'Accepted password .* root',             'expr_logic' => 'AND',             'fx' => 'MATCH',             'v' => 'v1',             'descr' => 'root login'}
+);
+
+#my $expr='v1<9';
+my @values=();
+#push @values,'El picor del pelo';
+#push @values,2;
+#push @values,1;
+
+push @values,'Mar  8 13:34:04 cnm-devel2 sshd[9581]: Accepted password for root from 10.2.254.222 port 51423 ssh2, name=>cnm-devel2, domain=>s30labs.local';
+
+my $expr_logic='AND';
+
+my $crawler=Crawler->new('log_level'=>$log_level);
+my $condition=$crawler->watch_eval_ext(\@ALERT2EXPR,$expr_logic,\@values);
+
+print "RESULTADO=$condition\n";
+
+#my $kk="'El picor del pelo' =~/picor/i";
+#my $rc=eval $kk;
+#print "RC=$rc\n";
+

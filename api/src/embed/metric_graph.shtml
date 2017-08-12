@@ -1,0 +1,47 @@
+<html>
+<head>
+   <!-- metric_graph.shtml -->
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+   <title>Dashboard</title>
+
+   <script type="text/javascript" src="../../libs/jquery/flot/jquery.min.js"></script>
+   <link rel="stylesheet" type="text/css" href="../../css/mod_css.css" />
+
+	<script type="text/javascript" src="../../libs/jquery/flot/jquery.flot.js"></script>
+	<script type="text/javascript" src="../../libs/jquery/flot/jquery.flot.time.min.js"></script>
+
+   <script type="text/javascript" src="../../libs/mod_graficas_flot.js"></script>
+   <script type="text/javascript" src="../../libs/mod_dashboard.js"></script>
+   <!--[if IE]><script language="javascript" type="text/javascript" src="../../../../libs/excanvas.min.js"></script><![endif]-->
+
+
+	<style type="text/css">
+      body {
+         background-color:#FFFFFF;
+         overflow: visible;
+      }
+		.ui-widget-content {
+			background: none !important;
+         background-color: #FFF !important;
+         border: none;
+		}
+		.ui-widget-content p {
+			margin: 0 0;
+		}
+	</style>
+	<script>
+		var data   = eval({json_data});
+
+	   $().ready(function() {
+         widget_full('graph_rrd','d1','id_container_d1',data['params']['label'],2,1,data['data'],'','no',1,1,'',data['params']);
+		});
+	</script>
+
+</head>
+<body>
+	<table>
+		<tr>
+			<td style="width:100%;vertical-align:top;" id="id_container_d1"></td>
+		</tr>
+	</table>
+</body>

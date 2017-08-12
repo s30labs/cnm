@@ -1,0 +1,157 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# trap_manager
+# 1. 	Arrancado por syslog-ng.
+#     Por STDIN procesa linea a linea cada entrada de snmptrapd (syslog->/var/log/traps.log).
+#     syslog-ng tiene configurado el local1 para recibir los traps de snmptrapd a syslog
+#
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+#use Crawler::Store;
+use Metrics::Base;
+use Crawler::LogManager::SNMPTrap;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $store_path=$rcfgbase->{'store_path'}->[0];
+my $cnt_path=$store_path.'trap_counter';
+mkdir $cnt_path,0755;
+
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hc:x:i:d:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+my $tag='unk';
+if ($opts{t}) { $tag=$opts{t}; }
+
+#-------------------------------------------------------------------------------------------
+# Para conexion a BBDD cnm
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+
+#-------------------------------------------------------------------------------------------
+# Se obtienen los datos de conexion a la BBDD onm a partir de las credenciales de
+# $CID en cnm.cfg_cnms
+
+my ($CID,$HIDX,$params)=('','',{});
+# Si se especifica el CID obtengo los datos de conexion de ese CID
+# En este caso, si no se especifica ip el cid_ip es el de la maquina
+if ($opts{c}) {
+   $CID=$opts{c};
+   $params=$store->get_mcnm_credentials($dbh,{'cid'=>$CID, 'host_ip'=>$ip});
+}
+# Si se especifica el HIDX obtengo los datos de conexion de ese HIDX
+elsif ($opts{x}) {
+   $HIDX=$opts{x};
+   $params=$store->get_mcnm_credentials($dbh,{'hidx'=>$HIDX});
+}
+# Si no se especifica otra cosa, utilizo el cid con hidx=1
+else {
+   $params=$store->get_mcnm_credentials($dbh,{'hidx'=>1});
+}
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+# Solo debe haber un cid !!!
+my @CIDs=keys %$params;
+my $cid=$CIDs[0];
+$rcfgbase->{db_server}->[0]=$params->{$cid}->{'db_server'};
+$rcfgbase->{db_name}->[0]=$params->{$cid}->{'db_name'};
+$rcfgbase->{db_user}->[0]=$params->{$cid}->{'db_user'};
+$rcfgbase->{db_pwd}->[0]=$params->{$cid}->{'db_pwd'};
+
+
+#-------------------------------------------------------------------------------------------
+#my $STORE=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,log_level=>$log_level);
+
+my $trap_manager=Crawler::LogManager::SNMPTrap->new(store_path=>$store_path, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path, cid=>$cid, cid_ip=>$ip, 'tag'=>$tag );
+$trap_manager->create_store();
+$trap_manager->connect();
+
+#-------------------------------------------------------------------------------------------
+# Reacargo la configuracion de B.D
+#$trap_manager->reload_snmp_cfg();
+$trap_manager->check_configuration();
+
+$trap_manager->log('info',"cid=$cid Waiting for data..."); 
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+while (<STDIN>) {
+
+	eval {	
+  		my ($proccess,$monitor,$msg,$ip,$addr,$full_name,$name,$domain)=('-','-','-','-','-','-','-','-');
+	  	my $t=time;
+
+		$trap_manager->connect();
+		my $store=$trap_manager->store();
+
+   	# Reviso si hay que recargar la tabla de traps -> alertas --------------------------------
+      my $reload_file=$trap_manager->reload_file();
+      if (-f $reload_file) {
+			$trap_manager->log('debug',"EXISTE reload_file ($reload_file)");
+			$trap_manager->check_configuration();
+  		}
+
+  		chomp $_;
+		if (! $trap_manager->check_event($_)) { return; }
+
+		# Gestiono el trap recibido --------------------------------------------------------------
+		$trap_manager->check_alert();
+
+		$trap_manager->trap2engine();
+	
+		$trap_manager->disconnect();
+	};
+
+	if ($@) { $trap_manager->log('warning',"[ERROR] EN BUCLE DE CONTROL ($@)");  }
+
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Gestor de traps.
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] [-c cid] [-x hidx] : Expecifica cuales el cliente por hidx o cid.
+Si no se especifica cliente se asigna al cliente de hidx=1
+$fpth[$#fpth] -d [debug|info] : Adapta el nivel de depuracion
+$fpth[$#fpth] -t [traps] : Tag para el proceso
+
+USAGE
+
+   return $USAGE;
+
+}
+

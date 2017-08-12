@@ -1,0 +1,107 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------
+use Test::More tests => 6;
+use SNMP;
+
+#------------------------------------------------------------------------------
+my $HOST='localhost';
+my $COMMUNITY='public';
+my $V=1;
+
+
+#------------------------------------------------------------------------------
+ok( get_shell_snmp_var(),			'SNMP: GET from shell' );
+ok( get_perl_snmp_var(),			'SNMP: GET from Perl' );
+ok( snmp_check_trap(),				'SNMP: RX trap -> traps.log' );
+ok( snmp_check_mibs(),				'SNMP: Installed MIBS' );
+ok( system_check_agent(),			'SYSTEM: CNM Agent running locally' );
+ok( system_check_log_files(),		'SYSTEM: verify log files' );
+
+
+
+
+#------------------------------------------------------------------------------
+# get_perl_snmp_var
+#------------------------------------------------------------------------------
+sub get_perl_snmp_var {
+
+	my $sess = new SNMP::Session(DestHost => $HOST, Community => $COMMUNITY, Version=>$V, Timeout=>'5000000', Retries=>'5' );
+
+	my $val = $sess->get('.1.3.6.1.2.1.1.1.0');
+#my $val = $sess->get('sysDescr.0');
+	if ($val =~ /Linux/) {return 1; }
+	else { return 0; }
+
+}
+
+#------------------------------------------------------------------------------
+# get_perl_snmp_var
+#------------------------------------------------------------------------------
+sub get_shell_snmp_var {
+
+	my $cmd="/opt/snmp/bin/snmpget -v $V -c $COMMUNITY $HOST .1.3.6.1.2.1.1.1.0";
+	my $val=`$cmd`;
+	chomp $val;
+   if ($val =~ /Linux/) {return 1; }
+   else { return 0; }
+
+}
+
+#------------------------------------------------------------------------------
+# snmp_check_trap
+#------------------------------------------------------------------------------
+sub snmp_check_trap {
+
+	my $txt='TRAPV2-'.time();
+   my $cmd="/opt/snmp/bin/snmptrap -v 2c -c public localhost '' NOTIFICATION-TEST-MIB::demo-notif SNMPv2-MIB::sysLocation.0 s \"$txt\"";
+   `$cmd`;
+	sleep 1;
+	$cmd="/usr/bin/tail -n 1 /var/log/traps.log | /bin/grep $txt | /usr/bin/wc -l";
+	my $val=`$cmd`;
+   chomp $val;
+	return $val;
+
+}
+
+#------------------------------------------------------------------------------
+# snmp_check_mibs
+#------------------------------------------------------------------------------
+sub snmp_check_mibs {
+
+   my $cmd="/opt/snmp/bin/snmptranslate -m ALL -Td .1.3.6.1.4.1.34225.6 | /bin/grep 's30labs' | /usr/bin/wc -l";
+   my $val=`$cmd`;
+   chomp $val;
+	return $val;
+}
+
+
+#------------------------------------------------------------------------------
+# system_check_agent
+#------------------------------------------------------------------------------
+sub system_check_agent {
+
+   my $cmd="/opt/crawler/bin/support/chk-agent -e unix -s unix_ls -i localhost -p /cfg | /bin/grep onm.conf | /usr/bin/wc -l";
+   my $val=`$cmd`;
+   chomp $val;
+   return $val;
+}
+
+#------------------------------------------------------------------------------
+# system_check_log_files
+#------------------------------------------------------------------------------
+sub system_check_log_files {
+
+	my $error=0;
+	my $dir_log='/var/log';
+	my @log_files = qw(crawler_debug.log traps.log remote_channel2.log remote_channel3.log remote_channel4.log remote_channel5.log apache2/access.log apache2/error.log apache2/cnm_gui.log);
+	foreach my $f (@log_files) {
+		my $file_path=$dir_log.'/'.$f;
+		if (! -f $file_path) {
+			$error += 1; 
+			print "**ERROR** No existe $file_path\n";
+		}
+	}
+	if ($error > 0) {return 0; }
+	else {return 1; }
+}
+

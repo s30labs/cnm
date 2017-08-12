@@ -1,0 +1,20 @@
+---
+# Variables con los valores por defecto
+# Las particulares de cada equipo estan en /cfg/cnm_vars.yml
+# Si se quieren modificar se deben incluir los nuevos valores en /cfg/cnm_vars.yml
+# ansible-playbook --connection=local  cnm.yml --extra-vars="db_root_password=xxxxxx"
+
+cnm_apt_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+cnm_git_repo: "https://git@software.s30labs.com"
+drbd_partition:
+key: gpl
+
+ntpserver: pool.ntp.org
+
+db_server: localhost
+db_user: onm
+db_pwd: onm1234
+db_type: mysql
+db_port: 3306
+db_max_connections: 300
+

@@ -1,0 +1,151 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes update_cache=yes
+  with_items:
+   - apache2
+   - apache2-mpm-prefork
+   - apache2-dev
+   - apache2-utils
+   - apache2.2-common
+   - libapache2-mod-perl2
+   - libapache2-mod-php5
+   - libapache2-mod-proxy-html
+   - php-db
+   - php-fpdf
+   - php-mail
+   - php-net-smtp
+   - php-net-socket
+   - php-pear
+   - php-xml-parser
+   - php5
+   - php5-cli
+   - php5-common
+   - php5-dev
+   - php5-gd
+   - php5-mysql
+   - php5-raphf
+   - php5-raphf-dev
+   - php5-propro
+   - php5-propro-dev
+   - php5-curl
+   - php5-xsl
+   - php5-ldap
+   - php5-imap
+#   - php5-pecl-http
+#   - php5-pecl-http-dev
+   - php5-apcu
+
+  tags: apache
+
+- name: Check directory /var/log/apache2
+  file: path=/var/log/apache2 state=directory owner=www-data group=www-data mode=0755
+  tags: apache
+
+- name: Check /var/log/apache2/cnm_gui.log
+  stat: path=/var/log/apache2/cnm_gui.log
+  register: cnm_gui
+
+- name: Verify /var/log/apache2/cnm_gui.log
+  file: path=/var/log/apache2/cnm_gui.log state=touch owner=www-data group=www-data mode=0755
+  tags: apache
+
+- name: Enable modules
+  apache2_module: state=present name={{ item }}
+  with_items:
+    - ssl
+    - deflate
+    - proxy
+    - proxy_http
+    - headers
+    - expires
+    - rewrite
+  tags: apache
+
+- name: cnm_default.pem
+  copy: src=cnm_default.pem dest=/etc/apache2  owner=root group=root mode=0600
+  tags: apache
+
+- name: Check directory /store/www-user/apache2
+  file: path=/store/www-user/apache2 state=directory owner=www-data group=www-data mode=0755
+  tags: apache
+
+- name: Check /store/www-user/apache2/cnm-http-proxy
+  stat: path=/store/www-user/apache2/cnm-http-proxy
+  register: cnm_http_proxy
+
+- name: cnm-proxy option
+  file: path=/store/www-user/apache2/cnm-http-proxy state=touch owner=www-data group=www-data mode=0755
+  when: cnm_http_proxy.stat.exists == 0
+  tags: apache
+
+- name: logrotate
+  copy: src=httpd.logrotate dest=/etc/logrotate.d/httpd  owner=root group=root mode=0600
+  tags: apache
+
+- name: PHP Apache config file
+  copy: src=php.ini.apache dest=/etc/php5/apache2/php.ini  owner=root group=root mode=0644
+  tags: apache
+  notify:
+   - restart apache2
+
+- name: PHP CLI config file
+  copy: src=php.ini.cli dest=/etc/php5/cli/php.ini  owner=root group=root mode=0644
+  tags: apache
+
+
+- name: Check for HTTPREQUEST PHP module
+  shell: php -i|grep -i 'http support'|wc -l
+  register: http_support
+
+- name: Create /tmp/src/pecl_http
+  file: path=/tmp/src/pecl_http state=directory owner=root group=root mode=0640
+  when: http_support.stdout == "0"
+  tags: apache
+
+- name: Verify pear symlinks
+  file: path=/usr/share/pear src=/usr/share/php state=link owner=root group=root mode=0755
+  tags: apache
+
+# Para evitar warning sobre llamada a metodo estatico:
+# line 965: $this->PEAR_Error('DB Error: ' . DB::errorMessage($code), $code,
+# -> $this->PEAR_Error('DB Error: ' . @DB::errorMessage($code), $code,
+
+- name: Modify pear DB.php
+  copy: src=DB.php dest=/usr/share/php/DB.php owner=root group=root mode=0644 
+  tags: apache
+
+- name: Extract from source
+  command: tar -C /tmp/src/pecl_http -xzvf  /opt/cnm-os/deb8/updates/0000_php_modules/pecl_http-2.4.3.tgz
+  when: http_support.stdout == "0"
+  tags: apache
+
+- name: PHP Install pecl_http-2.4.3
+  shell: "{{ item }}"
+  with_items:
+     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && phpize
+     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && ./configure
+     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && make
+     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && make install
+  when: http_support.stdout == "0"
+  tags: apache
+  notify:
+   - restart apache2
+
+- name: Apache config file 
+  copy: src=apache2.conf dest=/etc/apache2/apache2.conf  owner=root group=root mode=0644
+  tags: apache
+  notify:
+   - restart apache2
+
+- name: Verify 000-default -> sites-enabled
+  copy: src=000-default dest=/etc/apache2/sites-enabled/000-default  owner=root group=root mode=0644
+  tags: apache
+  notify:
+   - restart apache2
+
+- meta: flush_handlers
+
+...

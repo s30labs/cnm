@@ -1,0 +1,312 @@
+#!/usr/bin/perl -w
+#-----------------------------------------------------
+# /opt/crawler/bin/libexec/get_iid -i localhost -o hrStorageDescr -v 2c -c public -t snmp
+#
+#-----------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::SNMP;
+use Crawler::Xagent;
+use Data::Dumper;
+
+#-----------------------------------------------------
+BEGIN {    $ENV{'MIBS'}='ALL';  };
+
+#-----------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+
+
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -z : Verbose
+$fpth[$#fpth] -i 10.2.84.161 -o hrStorageDescr -v version -c public -t snmp
+$fpth[$#fpth] -i 10.2.84.161 -o Win32_PerfRawData_PerfDisk_LogicalDisk -u user -p pwd -t wbem
+$fpth[$#fpth] -i 10.2.84.161 -o win32_metric_wmi_core.vbs [-u 0|1] -p "[;Clase;Win32_PerfRawData_PerfDisk_LogicalDisk]:[;Atributo;Name]" -g id_proxy -t xagent [-k class]
+$fpth[$#fpth] -i 10.2.84.161 -o snmp_metric_count_proc_multiple_devices -k 001 -p "[-n;Host;;2]:[-r;Resto de equipos;10.2.254.221;0]:[-p;Proceso;kk;0]" -t xagent 
+i: IP/Host
+u: 1(custom)/0(base)
+m: params
+g: id del proxy utilizado (solo agente)
+t: tipo (snmp|xagent)
+j: oid_tab
+
+Para las ed tipo snmp:
+o: oids de la tabla
+
+Para las de tipo xagent:
+o: script
+k: Tag
+p: Parametros del script
+
+$fpth[$#fpth] -i 10.2.84.161 -s subtype
+
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("zhi:o:c:s:t:m:p:d:g:k:v:u:l:a:A:x:X:j:",\%opts);
+
+
+
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my ( $ip,$community,$version,$oid_descr_param,$subtype,$type,$oid_tab ) = ( $opts{i},$opts{c},$opts{v},$opts{o},$opts{s},$opts{t},$opts{j} );
+if (!$opts{c}) { $community='public'; }
+if (!$opts{v}) { $version=2; }
+if (!$opts{t}) { $type='snmp'; }
+
+# Si no se especifica proxy, se utiliza id_proxy=1 ==> localhost
+my $id_proxy=$opts{g} || 1;
+
+if ($opts{h}) { die $USAGE; }
+if ( !$ip ) { die $USAGE; }
+
+
+
+# Objeto store ---------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                           db_server=>$db_server,
+                           db_name=>$db_name,
+                           db_user=>$db_user,
+                           db_pwd=>$db_pwd,
+                           db_debug=>1, 'log_level'=>$log_level);
+
+
+if ( $oid_descr_param ) {
+	#-----------------------------------------------------------------
+	# SNMP
+	#-----------------------------------------------------------------
+	if ($type eq 'snmp') {
+
+
+	   my %SNMPCFG = ();
+
+#  $SNMPCFG{'host_ip'} ='1.1.1.1';
+#  $SNMPCFG{'version'} = 3;
+#
+#  $SNMPCFG{'auth_proto'} = 'SHA';
+#  $SNMPCFG{'auth_pass'} = '123';
+#  $SNMPCFG{'priv_proto'} = '';
+#  $SNMPCFG{'priv_pass'} = '';
+#  $SNMPCFG{'sec_name'} = 'my_sec_name';
+#  $SNMPCFG{'sec_level'} = 'AuthnoPriv';
+# snmpwalk -v 3 -u my_sec_name -l AuthnoPriv -a SHA -A 123 1.1.1.1 .1.3.6.1.2.1.1.1.0
+
+   	#my $timeout=$self->timeout();
+   	my $snmp=Crawler::SNMP->new('log_level'=>$log_level);
+		# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+		$opts{n}=$ip;
+		$opts{i}=undef;
+   	$snmp->get_command_options_ext(\%opts,\%SNMPCFG);
+
+#print Dumper (\%opts);
+#print Dumper (\%SNMPCFG);
+		if ((defined $oid_tab) && ($oid_tab ne '')) {  $SNMPCFG{'oid_tab'}=$oid_tab; }
+   	my $IIDS = $snmp->snmp_get_iid(\%SNMPCFG);
+      foreach my $k (sort {$a<=>$b} keys %$IIDS) {
+            print "$k : $IIDS->{$k}\n";
+         }
+
+
+#		my @oids=split(/\|/,$oid_descr_param);
+#		my @IIDS=();
+#		my %SEARCHED_IIDS=();
+#
+#      my $cmd_base='';
+#      if ($version==3) {
+#         $cmd_base="/usr/local/bin/snmpwalk -v $version ";
+#
+#         $cmd_base .=  ($opts{'l'}) ? "-l $opts{'l'} " : "";
+#         $cmd_base .=  ($opts{'u'}) ? "-u $opts{'u'} " : "";
+#         $cmd_base .=  ($opts{'a'}) ? "-a $opts{'a'} " : "";
+#         $cmd_base .=  ($opts{'A'}) ? "-A $opts{'A'} " : "";
+#         $cmd_base .=  ($opts{'x'}) ? "-x $opts{'x'} " : "";
+#         $cmd_base .=  ($opts{'X'}) ? "-X $opts{'X'} " : "";
+#      }
+#      else {
+#         if ($version eq '2') { $version='2c'; }
+#         $cmd_base="/usr/local/bin/snmpwalk -v $version -c $community";
+#      }
+#
+#		$cmd_base .= " $ip __OID__ 2>/dev/null";
+#
+#		if ( $oid_tab ) {
+#			my $cmd1=$cmd_base;
+#         $cmd1 =~ s/__OID__/$oid_tab/;
+#         if ($opts{z}) { print "get_iid::[DEBUG] CMD=$cmd1\n"; }
+#         my @r1=`$cmd1`;
+#			foreach (@r1) {
+#           	#IF-MIB::ifDescr.1 = STRING: lo
+#           	if ($opts{z}) { print "get_iid::[DEBUG] EVALUO $_\n"; }
+#           	if (/$oid_tab\.(\S+)\s*\=\s*.*?\:\s*(.*)$/) { 
+#					if ($opts{z}) { print "get_iid::[DEBUG] SEARCHED_IID =$1\n"; } 
+#					$SEARCHED_IIDS{$1}='';
+#				}
+#        	}
+#		}
+#
+#		foreach my $oid_descr (@oids) { 
+#
+#			my $oid_descr_short=$oid_descr;
+#			if ($oid_descr=~/^.*\:\:(.*)$/) { $oid_descr_short=$1; }
+#
+#			if ($opts{z}) { print "get_iid::[DEBUG] OID-DESCR=$oid_descr\n"; }
+#
+#			my $cmd1=$cmd_base;
+#			$cmd1 =~ s/__OID__/$oid_descr/;
+#			if ($opts{z}) { print "get_iid::[DEBUG] CMD=$cmd1\n"; }
+#
+#			my @r1=`$cmd1`;
+#
+#			my %d=();
+#			my ($oidx,$descrx)=('','');
+#			foreach (@r1) {
+#				if ($opts{z}) { print "get_iid::[DEBUG] EVALUO $_\n"; }
+#            if (/\S+\:\:$oid_descr_short\.(\S+)\s*\=\s*.*?\:\s*(.*)$/) {$oidx=$1; $descrx=$2; $d{$oidx}=$descrx; }	
+#				if ( ! $oid_tab ) { $SEARCHED_IIDS{$oidx}=''; } 
+#			}
+#			push @IIDS, \%d;
+#		}
+#
+#		foreach my $iid (keys %SEARCHED_IIDS) {
+#			my @parts=split(/\./,$iid);
+#			my $c=0;
+#			foreach my $i (@parts) {
+#				my $h=$IIDS[$c];
+#				foreach my $k (keys %$h) {
+#					if ($k eq $i) { 
+#						$SEARCHED_IIDS{$iid} .= $h->{$k}; 
+#						last;
+#					}
+#				}	
+#				$c+=1;
+#			}
+#		} 
+##		print Dumper(\%SEARCHED_IIDS);
+#
+#		foreach my $k (sort {$a<=>$b} keys %SEARCHED_IIDS) {
+#				print "$k : $SEARCHED_IIDS{$k}\n";
+#			}
+#
+
+
+	}
+   #-----------------------------------------------------------------
+   # XAGENT
+   #-----------------------------------------------------------------
+   elsif ($type eq 'xagent') {
+
+      my $xagent=Crawler::Xagent->new( 'timeout'=>60, 'log_level'=>$log_level);
+      my %desc=();
+
+#my $custom=0;
+#my $script='win32_metric_wmi_core.vbs';
+##my $params="Win32_PerfRawData_PerfDisk_LogicalDisk Name";
+#my $params='[;Clase;Win32_PerfRawData_PerfDisk_LogicalDisk]:[;Atributo;Name]';
+#      $desc{'custom'}=$custom;
+#      $desc{'script'}=$script;
+#      $desc{'params'}=$params;
+
+      $desc{'host_ip'} = $ip;
+      $desc{'custom'} = $opts{m} || 0;
+      $desc{'script'} = $opts{o};
+      $desc{'params'} = $opts{p};
+      $desc{'id_proxy'} = $id_proxy;
+      $desc{'cfg'} = 2;
+
+		my @t = split(/\|/,$opts{k});
+		$desc{'tag'} = $t[0];
+
+	   my $dbh=$store->open_db();
+		$xagent->store($store);
+		$xagent->dbh($dbh);
+		my $where = "script='".$desc{'script'}."'"; 
+	   my $rres=$store->get_from_db($dbh,'proxy_type,proxy_user,proxy_pwd','cfg_monitor_agent_script',$where,'');
+   	#$desc{'class'}=$rres->[0][0]; #proxy_type
+   	$desc{'proxy_type'}=$rres->[0][0]; #proxy_type
+   	$desc{'proxy_user'}=$rres->[0][1];
+   #	$proxy_pwd=$rres->[0][2];
+
+
+      my $res=$xagent->mod_xagent_get_iids(\%desc);
+
+
+
+
+#   if ($mname =~ /^s_(xagt_\S+)_\d+$/) { $mname=$1; }
+#   #En este caso subtype debe ser realmente el nombre de la metrica metrics.name
+#   my $SAGENT=Crawler::Xagent->new( name=>"chk_metric", store_path=>$STORE_PATH, lapse=>300,
+#                                    cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+#
+#   if ($aproxy) { $SAGENT->aproxy($aproxy); }
+#
+#   $SAGENT->store($store);
+#   $SAGENT->dbh($dbh);
+#   $SAGENT->chk_metric( {id_dev => $id_dev, id_metric => $id_metric, host_ip=>$ip, mname=>$mname}
+
+
+
+
+#		my $cnt=1;
+#		foreach my $tag_iid (@$res) {
+#			my ($tag,$iid)=split(/\./,$tag_iid);
+#			if ($tag eq $desc{'tag'}) {
+#				print "$cnt:\t$iid\n";
+#				$cnt +=1;
+#			}
+#		}
+
+      my $cnt=1;
+      foreach my $iid (@$res) {
+         print "$cnt:\t$iid\n";
+         $cnt +=1;
+      }
+
+
+	}
+}
+
+elsif ( $subtype ) {
+
+	# Primero hay que ver si es subtype o monitor
+	$subtype =~ s/s_(\s+)_\d+/$1/g;
+
+   my $dbh=$store->open_db();
+   my $rv=$store->get_from_db($dbh,'get_iid','cfg_monitor_snmp',"subtype=\'$subtype\'");
+   $store->close_db($dbh);
+	$oid_descr_param=$rv->[0][0];
+	$oid_descr_param=~s/^.*\:\:(.*)$/$1/;
+
+   my $cmd1="/usr/local/bin/snmpwalk -v 1 -c $community $ip $oid_descr_param 2>/dev/null";
+	if ($opts{z}) { print "get_iid::[DEBUG] CMD=$cmd1\n"; }
+	my @r1=`$cmd1`;
+
+	my @ii=();
+   foreach (@r1) {
+
+      if (/\S+\:\:$oid_descr_param\.(\d+)\s*\=\s*.*?\:\s*(.*)$/) { push @ii,$1; }
+#  print "$1: $2\n"; }
+
+   }
+	print join (',',@ii) . "\n";
+}
+
+#-----------------------------------------------------
+

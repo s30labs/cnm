@@ -1,0 +1,51 @@
+<mibtable>
+
+   <oid_cols>cneAddrTranslationNumActive_cneAddrTranslationNumPeak_cneAddrTranslation1min_cneAddrTranslation5min</oid_cols>
+	<oid_last>CISCO-NAT-EXT-MIB::cneAddrTranslationStatsTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cneAddrTranslationNumActive</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cneAddrTranslationNumPeak</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cneAddrTranslation1min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cneAddrTranslation5min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+</mibtable>

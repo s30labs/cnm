@@ -1,0 +1,147 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id$
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use Crawler::SNMP;
+#---------------------------------------------------------------------------
+
+my @RES=();
+my %SNMPCFG=();
+
+#-------------------------------------------------------------------------------------------
+#my %opts=();
+#getopts("n:c:wh",\%opts);
+#
+## requires a hostname and a community string as its arguments
+#$SNMPCFG{host_ip}=$opts{n} || die "Uso: $0 -n host [-c comunity] [-w]\n";
+#$SNMPCFG{community} = (defined $opts{c}) ? $opts{c} : 'public';
+#$SNMPCFG{version}='1';
+
+my $snmp=Crawler::SNMP->new();
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFG);
+my $FORMAT = $SNMPCFG{'format'};
+
+#----------------------------------------------------------------------------
+#my $SNMPCFG{oid}='ifIndex_ifDescr_ifType_ifMtu_ifSpeed_ifAdminStatus_ifOperStatus_ifLastChange';
+$SNMPCFG{oid}='ipNetToMediaPhysAddress_ipNetToMediaNetAddress_ipNetToMediaType';
+$SNMPCFG{last}='ipRoutingDiscards';
+
+#------------------------------------------------------------------------------
+my $HTML_TITLE='
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO__</b></TD>
+</TR>
+<tr ><td class="VentPar"><img src="../images/magic.gif" width="1" height="5"></td></tr>';
+
+
+my $HTML_DATA='
+<TR class="VentDat">
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+
+   <TD align="left" width="__WMAC__%">__BS__ __MAC__ __BE__ </TD>
+   <TD align="left" width="__WIP__%">__BS__ __IP__ __BE__ </TD>
+   <TD align="left" width="__WTYPE__%">__BS__ __TYPE__ __BE__ </TD>
+
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+</TR>
+<tr ><td colspan="__NCOLS__" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+#----------------------------------------------------------------------------
+#my $snmp=Crawler::SNMP->new();
+my $res=$snmp->core_snmp_table(\%SNMPCFG);
+#my $FORMAT = (defined $opts{w}) ? 'html' : 'txt';
+
+#----------------------------------------------------------------------------
+if (!defined $res) {
+   print "NO SE HA OBTENIDO RESPUESTA A LA PETICION SOLICITADA\n";
+   my $error=$snmp->err_str();
+   print "**>$error\n";
+}
+else {
+	if ($FORMAT eq 'txt') {
+	   print '-' x85,"\n";
+   	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\n";
+   	print '-' x85,"\n";
+	}
+	else {
+      my $titulo="Lista de ARP de $SNMPCFG{host_ip} (community=$SNMPCFG{community})";
+      $HTML_TITLE =~s/__TITULO__/$titulo/;
+      $HTML_TITLE =~s/\n//g;
+      print "$HTML_TITLE\n";
+
+	}
+   dump2stdout(\@$res);
+}
+
+
+#------------------------------------------------------------------------------
+sub dump2stdout {
+my $vector=shift;
+my $descr1;
+my $mac1;
+my $idx;
+my ($mac,$ip,$type)=('MAC','IP','Type');
+format ARP_DATA =
+@<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<
+$mac,           $ip,           $type
+.
+	$~ = 'ARP_DATA';
+	do_write($mac,$ip,$type);
+   for my $l ( @$vector ) {
+      ($idx,$mac1,$ip,$type)=split(':@:',$l);
+      $mac1 =~s/\"(.*?)/$1/;
+      $mac1 =~s/(.*?)\"/$1/;
+      my @m1 = split(/\:|\s+/,$mac1);
+      #my @m2 = map { sprintf("%02c", $_) } @m1;
+      my @m2 = map { $_ } @m1;
+      $mac=join (':',@m2);
+		
+		#$descr=$snmp->hex2ascii($descr1);
+   	#$id 		= $_->[0] ? $_->[0] : 'NULL';
+      #$descr 	= $_->[1] ? $_->[1] : 'NULL';
+      #$type    = $_->[2] ? $_->[2] : 'NULL';
+      #$mtu     = $_->[2] ? $_->[2] : 'NULL';
+      #$speed	= $_->[2] ? $_->[2] : 'NULL';
+      do_write($mac,$ip,$type);
+   }
+}
+
+#------------------------------------------------------------------------------
+sub do_write {
+my ($mac,$ip,$type)=@_;
+
+   if ($FORMAT eq 'txt') { write(); }
+   else {
+
+      my $html_out=$HTML_DATA;
+
+      if ($mac eq 'MAC') {
+         $html_out =~ s/__BS__/<b>/g;
+         $html_out =~ s/__BE__/<\/b>/g;
+      }
+      else {
+         $html_out =~ s/__BS__//g;
+         $html_out =~ s/__BE__//g;
+      }
+
+      $html_out =~s/__NCOLS__/5/;
+
+      $html_out =~s/__WMAC__/30/;
+      $html_out =~s/__MAC__/$mac/;
+
+      $html_out =~s/__WIP__/30/;
+      $html_out =~s/__IP__/$ip/;
+
+      $html_out =~s/__WTYPE__/40/;
+      $html_out =~s/__TYPE__/$type/;
+
+      $html_out =~s/\n//g;
+      print "$html_out\n";
+
+   }
+}
+

@@ -1,0 +1,54 @@
+#!/usr/bin/php
+<?php
+// Programa encargado de restaurar los datos necesarios de un backup
+require('/var/www/html/onm/inc/Backup.php');
+	$action   = $GLOBALS['argv'][1];
+	$prg_name = $GLOBALS['argv'][0];
+	chop($action);
+	chop($prg_name);
+	if ($action == 'help'||$action == '-help'||$action == '--help'||$action == 'h'||$action == '-h'||$action == '--h'){help();}
+	$init = time();
+
+   ini_set('memory_limit','256M'); 
+   ini_set('max_execution_time','3600');
+
+	$rcstr = "$action::";
+	if ($action == 'restore_rrd'){$rc = restore_rrd();}
+	elseif($action == 'restore_images'){$rc = restore_images();}
+	elseif($action == 'restore_programs'){$rc = restore_programs();}
+	elseif($action == 'restore_cfg'){$rc = restore_cfg();}
+	elseif($action == 'restore_bbdd'){$rc = restore_bbdd();}
+	elseif($action == 'backup_rrd'){$rc = backup_rrd();change_group();}
+	elseif($action == 'backup_images'){$rc = backup_images();change_group();}
+	elseif($action == 'backup_programs'){$rc = backup_programs();change_group();}
+	elseif($action == 'backup_cfg'){$rc = backup_cfg();change_group();}
+	elseif($action == 'backup_bbdd'){$rc = backup_bbdd();change_group();}
+	elseif($action == 'backup_sistema'){exec('tar -cvf /home/cnm/backup/data.tar.gz /opt/data/rrd/elements',$kk,$value);$rc=($value==false)?1:0;}
+	else{help();}
+	$tiempo = time()-$init;
+	$rcstr.=($rc==0)?"OK":"NOOK";
+	$rcstr.=" TIEMPO:$tiempo SEGUNDOS";
+	print $rcstr;
+
+	function help(){
+	global $prg_name;
+		$msg = <<<HELP
+Uso $prg_name: $prg_name [accion]
+Las acciones disponibles son:
+	- restore_rrd : Restaura los ficheros rrd
+	- restore_images : Restaura las imagenes de usuario
+	- restore_programs : Restaura los programas de usuario
+	- restore_cfg : Restaura los ficheros de configuracion del sistema
+	- restore_bbdd : Restaura la base de datos
+	- backup_rrd : Hace backup de los ficheros rrd
+	- backup_images : Hace backup de las imagenes de usuario
+	- backup_programs : Hace backup de los programas de usuario
+	- backup_cfg : Hace backup de los ficheros de configuracion del sistema
+	- backup_bbdd : Hace backup de la base de datos
+
+HELP;
+	print $msg;
+	exit;
+	}
+?>
+

@@ -1,0 +1,43 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Se asigna repositorio
+  debug: msg="Usando repositorio {{ cnm_git_repo }}"
+  tags: cnm-sp
+  
+- name: cnm-sp checkout
+  git: repo={{ cnm_git_repo }}/cnm-sp.git dest=/opt/cnm-sp force=no
+  tags: cnm-sp
+
+- name: Install plugins
+  shell: /opt/cnm-sp/{{ item }}/install
+  with_items:
+    - apache-mod_status
+    - api-device
+    - api-inventory
+    - dns-check
+    - ENT_02021_UCDAVIS
+    - ENT_21796_HWGROUP
+    - ENT_25506_H3C
+    - ENT_34225_CNM
+    - icmp-dual
+    - ipmi-sensors
+    - sp-scheme
+    - ssh-linuxOS
+    - ssh-syslog
+    - ssl-certs
+    - tcp-check
+    - vmware-performance
+    - vmware-vminfo
+    - vmware-vsphere-cli-distrib-5.5.0
+    - wmi-class
+    - wmi-disk
+    - wmi-EventLog
+    - wmi-perfOS
+    - wmi-services
+    - t
+  tags: cnm-sp
+
+
+...

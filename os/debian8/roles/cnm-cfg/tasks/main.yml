@@ -1,0 +1,32 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: cnm-cfg
+  
+- name: Check /cfg/onm.conf
+  stat: path=/cfg/onm.conf
+  register: onm_conf
+  tags: cnm-cfg
+
+- name: Set default /cfg/onm.conf
+  template: src=onm.conf.j2 dest=/cfg/onm.conf
+  when: onm_conf.stat.exists is defined and onm_conf.stat.exists==0
+  tags: cnm-cfg
+
+- name: Set /cfg/onm.if
+  template: src=onm.if.j2 dest=/cfg/onm.if
+  tags: cnm-cfg
+
+- name: Set /cfg/onm.role
+  copy: src=onm.role.default dest=/cfg/onm.role owner=root group=www-data mode=0775
+  tags: cnm-cfg
+
+- name: Set /cfg/key
+  template: src=key.j2 dest=/cfg/key
+  tags: cnm-cfg
+
+...

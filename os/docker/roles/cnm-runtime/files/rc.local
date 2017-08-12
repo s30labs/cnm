@@ -1,0 +1,22 @@
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+#x=`cat /cfg/onm.conf | perl -ne 'if (/DB_PWD/) {chomp; @d=split; print "$d[2]\n";}'`
+#mysqlcheck -u onm -p$x --auto-repair onm > /tmp/rclocal.log 2>&1
+#mysqlcheck -u onm -p$x --auto-repair cnm >> /tmp/rclocal.log 2>&1
+
+date > /tmp/rclocal.log
+/opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1
+date >> /tmp/rclocal.log
+
+exit 0

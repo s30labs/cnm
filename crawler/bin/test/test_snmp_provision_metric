@@ -1,0 +1,69 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use ProvisionLite;
+use Data::Dumper;
+	
+#---------------------------------------------------------------
+my %DEVICE = ('name'=>'', 'domain'=>'', 'full_name'=>'', 'ip'=>'', 'host_ip'=>'', 'entity'=>'', 'version'=>'', 'sec_name'=>'', 'sec_level'=>'', 'auth_proto'=>'', 'auth_pass'=>'', 'priv_proto'=>'', 'priv_pass'=>'');
+
+#pply_metric_snmp_class2---------------------------------------------------------------
+my %MINFO = ( 'label'=>'', 'items'=>'','subtype'=>'', 'mtype'=>'',  'vlabel'=>'',  'mode'=>'',  'top_value'=>'',  'get_iid'=>'',  'module'=>'',  'name'=>'',  'oid'=>'');
+
+
+$MINFO{'subtype'}='traffic_mibii_if';
+$MINFO{'class'}='MIB-II';
+$MINFO{'oid'}='.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID';
+$MINFO{'get_iid'}='ifDescr';
+$MINFO{'vlabel'}='bits/seg';
+$MINFO{'mtype'}='STD_TRAFFIC';
+$MINFO{'myrange'}='IF-MIB::ifTable';
+$MINFO{'items'}='Bits RX|Bits TX';
+$MINFO{'mode'}='COUNTER';
+$MINFO{'module'}='mod_snmp_get';
+$MINFO{'top_value'}=1;
+$MINFO{'descr'}='TRAFICO EN INTERFAZ ';
+$MINFO{'label'}=$MINFO{'descr'};
+
+#            'lapse' => '300',
+#            'descr' => 'TRAFICO EN INTERFAZ ',
+#            'items' => 'Bits RX|Bits TX',
+#            'oid' => '.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID',
+#            'get_iid' => 'ifDescr',
+#            'oidn' => 'ifInOctets.IID|ifOutOctets.IID',
+#            'oid_info' => 'RFC1213-MIB|ifInOctets|Counter32|The total number of octets received on the interface, including framing characters.<br>RFC1213-MIB|ifOutOctets|Counter32|The total number of octets transmitted out of the interface, including framing characters.',
+#
+#            'module' => 'mod_snmp_get',
+#            'mtype' => 'STD_TRAFFIC',
+#            'vlabel' => 'bits/seg',
+#            'mode' => 'COUNTER',
+#            'top_value' => '1',
+#            'cfg' => '2',
+#            'custom' => '0',
+#            'myrange' => 'IF-MIB::ifTable',
+#            'enterprise' => '0',
+#            'include'=> 1,
+#            'itil_type'=>4,   'apptype'=>'NET.MIB2',
+
+
+
+   my $snmp=Crawler::SNMP->new();
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+   $snmp->get_command_options(\%DEVICE);
+
+$DEVICE{'ip'}=$DEVICE{'host_ip'};
+$DEVICE{'full_name'}='Nombre.Dominio';
+
+print Dumper (\%DEVICE);
+
+	my $f2key = $MINFO{'subtype'};
+	my $mdata = &{$ProvisionLite::Class2fx{$f2key}}(\%DEVICE,$snmp,\%MINFO);
+
+	print Dumper $mdata;
+	

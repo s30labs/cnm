@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+[root@SLIROMRTG1 r17o2413]# ls -ltr
+total 652
+-rw-rw-rw-    1 root     root        47836 May 20 16:53 r17o2413-STD-LAN_ARP_1.rrd
+-rw-rw-rw-    1 root     root        94660 May 20 16:58 r17o2413-TRAFFIC_STD-WAN_RDSI_1.rrd
+-rw-rw-rw-    1 root     root       188308 May 20 16:58 r17o2413-TRAFFIC_STD-WAN_FR_1.rrd
+-rw-rw-rw-    1 root     root        94660 May 20 16:58 r17o2413-TRAFFIC_STD-LAN_ETH_1.rrd
+-rw-rw-rw-    1 root     root        47836 May 20 16:58 r17o2413-STD-MEM_1.rrd
+-rw-rw-rw-    1 root     root        47836 May 20 16:58 r17o2413-STD-CPU_1.rrd
+-rw-rw-rw-    1 root     root        47836 May 20 16:58 r17o2413-STD-LAT_SERV1.rrd
+-rw-r--r--    1 root     root        66644 May 20 17:01 resize.rrd
+[root@SLIROMRTG1 r17o2413]# pwd
+/opt/data/rrd/elements/r17o2413
+
+
+
+
+use RRDs;
+my $RRD1=$ARGV[0] || die "Uso: $0 fichero.rrd\n";
+
+
+         my ($start,$step,$names,$data) = RRDs::fetch $RRD1, "MAX";
+         print "Start:       ", scalar localtime($start), " ($start)\n";
+         print "Step size:   $step seconds\n";
+         print "DS names:    ", join (", ", @$names)."\n";
+         print "Data points: ", $#$data + 1, "\n";
+         print "Data:\n";
+         foreach my $line (@$data) {
+           print "  ", scalar localtime($start), " ($start) ";
+           $start += $step;
+           foreach my $val (@$line) {
+             printf "%12.6f ", $val;
+           }
+           print "\n";
+         }
+

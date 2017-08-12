@@ -1,0 +1,257 @@
+#!/usr/bin/perl -w
+#-----------------------------------------------------------------------------
+
+use strict;
+use Getopt::Std;
+#use SOAP::Lite +trace => qw( debug );
+use SOAP::Lite;
+use SOAP::Transport::HTTP;
+use MIME::Base64;
+
+#-----------------------------------------------------------------------------
+BEGIN {
+	$ENV{'HTTPS_CERT_FILE'}='/etc/client.crt';
+	$ENV{'HTTPS_KEY_FILE'}='/etc/client.key';
+	$ENV{'HTTPS_CERT_PASS'}='';
+	$ENV{'HTTPS_DEBUG'}='';
+
+};
+
+#-----------------------------------------------------------------------------
+my $VBSCode='
+RANDOMIZE
+
+WScript.StdOut.Writeline Int(RND()*1000)
+';
+
+
+
+
+#-----------------------------------------------------------------------------
+my $VBSCode1='
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objFile = objFSO.GetFile("c:\WINDOWS\system32\drivers\etc\hosts")
+If objFile.Size > 0 Then
+    Set objReadFile = objFSO.OpenTextFile("c:\WINDOWS\system32\drivers\etc\hosts", 1)
+    strContents = objReadFile.ReadAll
+    Wscript.Echo strContents
+    objReadFile.Close
+Else
+    Wscript.Echo "The file is empty."
+End If
+';
+
+#-----------------------------------------------------------------------------
+my $BASHCode='#!/bin/bash
+
+DIR="./"
+if [ -d $1 ]; then
+   DIR=$1
+fi
+
+/bin/ls $DIR
+';
+
+#-----------------------------------------------------------------------------
+my $CMD='more c:\WINDOWS\system32\drivers\etc\hosts';
+
+#-----------------------------------------------------------------------------
+# DEFINICION DE SCRIPTS
+#-----------------------------------------------------------------------------
+my %SCRIPTS=(
+	'win32_random'=> { 'code'=>$VBSCode, 'agent_method'=>'execVBS', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+	'win32_rfile'=> { 'code'=>$VBSCode1, 'agent_method'=>'execVBS', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+	'win32_hosts'=> { 'code'=>$CMD, 'agent_method'=>'doCmd', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+	'unix_ls'=> { 'code'=>$BASHCode, 'agent_method'=>'execUnixScript', 'shell'=>'', 'filename'=>'/tmp/myscript.sh'  },
+	'upload_functions'=> { 'code'=>$BASHCode, 'agent_method'=>'uploadFunctions', 'shell'=>'', 'filename'=>'/tmp/myscript.sh'  }
+);
+
+#-----------------------------------------------------------------------------
+
+# Informacion ---------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Test de agente remoto. $VERSION
+(c) fml
+
+$fpth[$#fpth] -m script (clave de hash o fichero externo) [-p params] -i ip
+$fpth[$#fpth] -h  : Ayuda
+
+monitor: Funcion soportada por el agente remoto.
+params: Parametros de la funcion (si los hubiera y separados por ,)
+ip: IP del equipo dond se ejecuta el agente (por defecto localhost)
+
+$fpth[$#fpth] -m unix_ls -i 1.1.1.1
+$fpth[$#fpth] -m win32_random -i 1.1.1.1
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hm:p:i:",\%opts);
+my $monitor;
+if ($opts{h}) { die $USAGE;}
+if ($opts{m}) { 
+	if (exists $SCRIPTS{$opts{m}}) { $monitor=$SCRIPTS{$opts{m}}; }
+	#elsif (-f $opts{m}) {  $monitor=file2var($opts{m}); }
+	else { die "MONITOR NO VALIDO\n"; }
+}
+else { die $USAGE;}
+my $host_ip=$opts{i} || 'localhost';
+my $params=$opts{p} || '';
+
+
+while (1) {
+	do_test($host_ip,$monitor,$params);
+exit;
+}
+
+#-----------------------------------------------------------------------------
+sub do_test  {
+my ($host_ip,$monitor,$params)=@_;
+my @p=();
+
+	#--------------------------------------------------------------------------
+	# Cliente SOAP
+	# monitor es del tipo: TPV_GW:calls_datafono_protocol_ratio
+	#--------------------------------------------------------------------------
+	my $server=$host_ip || 'localhost';
+	my $port='7691';
+	#my $port='9000';
+	my $TIMEOUT=3;
+
+#	my %P=();
+#	if ($params) { 
+#		@p=split(/\,/,$params); 
+#		foreach my $i (@p) { 
+#			if ($i =~ /^\s*(\S+)\s*\=\s*(.+)$/) {$P{$1} = $2; }
+#		}
+#
+#	}
+
+eval {
+
+	my $proxy="https://$server:$port/soap/CNMAgentFunctions";
+	#my $proxy="https://$server:$port/soap/CNMAgentService";
+
+
+   my $soap= SOAP::Lite
+      -> uri("http://cnm.s30labs.org")
+		-> proxy($proxy);
+      #-> ns("http://cnm.s30labs.org")
+      #-> proxy("https://$server:$port/soap/CNMAgentFunctions");
+      #-> proxy("http://$server:9000/soap/CNMAgentFunctions");
+      #-> proxy("https://$server:$port/soap/CNMAgentFunctions");
+#      -> proxy("https://$server:$port/soap/CNMAgentService");
+
+	$soap->transport->timeout(30);
+
+
+
+print "*$proxy**\n";
+
+
+	my $agent_method = $monitor->{'agent_method'};
+	my $code = $monitor->{'code'};
+	my $filename = $monitor->{'filename'};
+	my $shell = $monitor->{'shell'};
+
+#my @pp=qw (10.1.254.254);
+#my $result = $soap->call('doPing' =>  @pp);
+#my @pp1=qw ($CMD);
+#my $result1 = $soap->call('doCmd' =>  @pp1);
+#print "R=$result1\n";
+#return;
+
+#public void uploadFile (String fileDir, String name, String content){
+
+#my $content1='1'; 
+#
+#my $content2=encode_base64($content1);
+#chomp $content2;
+#
+#print "**$content2**\n";
+##$content2='MTIzNA==';
+#my @pp1=('/tmp','pprr', $content2);
+#my $result1 = $soap->call('uploadFile' =>  @pp1);
+#return;
+
+
+my $version = $soap->call('getVersion');
+print "version=$version\n";
+
+#return;
+
+#my @pp= ($monitor, "myscript.vbs", "CScript //Nologo", $params);
+my @pp= ($code, $filename, $shell, $params);
+# codigo, fichero con codigo, interprete de ejecucuion, parametros
+
+#my $result = $soap->call('execVBS' =>  @pp);
+my $result = $soap->call('execWinScript' =>  @pp);
+print "result=$result\n";
+
+
+#public void uploadFunctions (String name, String content)
+#if ($monitor eq 'upload_functions') {
+#
+#	my $name = 'CNMAgentFunctions.aar';	
+#	my $f='/tmp/CNMAgentFunctions.aar';
+#	local($/) = undef;
+#	open (F,"<$f");
+#	my $content = encode_base64(<F>);
+#	close F;
+#	@pp= ($name, $content);
+#
+#   $soap= SOAP::Lite
+#      -> uri("http://cnm.s30labs.org")
+#      -> proxy("https://$server:$port/soap/CNMAgentService");
+#      #-> proxy("http://$server:$port/soap/CNMAgentFunctions");
+#      #
+#}
+#
+#my $result = $soap->call($agent_method =>  @pp);
+
+
+#my $result = $soap->doPing("10.1.254.254");
+
+	if ($result->fault) {
+     	my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+		print "$0::[WARN] acceso a $code ($host_ip) RC=$errstr\n";
+	}
+	else {
+#print "***FML***\n";
+
+		my @response=$result->paramsall();
+		foreach my $l (@response) { print "$l\n"; }
+
+#		if (ref($response) eq "ARRAY") {
+#			foreach my $l (@$response) { print "L=$l\n"; }
+#		}
+#		else {
+#			#Formato de salida para metricas
+#			#1047577725:0.369833 [OK: www.dominio.com->17.26.47.03]
+#			# Se puede valorar que el formato de respuesta sea xml (timestamp,mname,num.datos,dato1,valor1,rc1,rcstr1....)
+#			print "$response\n";
+#		}
+
+	}
+};
+
+if ($@) { print "$0::[ERROR] RC=$@"; }
+
+}
+
+
+#-----------------------------
+sub file2var {
+my $file=shift;
+
+	open INPUT, "<$file";
+	local undef $/;
+	my $content = <INPUT>;
+	close INPUT;
+	return $content;
+
+}

@@ -1,0 +1,31 @@
+<mibtable>
+
+   <oid_cols>hrSWInstalledName_hrSWInstalledDate</oid_cols>
+	<oid_last>HOST-RESOURCES-MIB::hrSWInstalledTable</oid_last>
+	<UseEnums>0</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>55%</width>
+         <bold>2</bold>
+         <name_col>hrSWInstalledName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter,#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>hrSWInstalledDate</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

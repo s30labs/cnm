@@ -1,0 +1,26 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Se asigna repositorio
+  debug: msg="Usando repositorio {{ cnm_git_repo }}"
+  tags: cnm-git
+
+
+- name: cnm checkout
+  git: repo={{ cnm_git_repo }}/cnm.git dest=/opt/cnm force=no
+  tags: cnm-git
+
+- name: cnm-os checkout
+  git: repo={{ cnm_git_repo }}/cnm-os.git dest=/opt/cnm-os force=no
+  tags: cnm-git
+
+- name: cnm-lang checkout
+  git: repo={{ cnm_git_repo }}/cnm-lang.git dest=/opt/cnm-lang force=no
+  tags: cnm-git
+
+- name: cnm-mibs checkout
+  git: repo={{ cnm_git_repo }}/cnm-mibs.git dest=/opt/cnm-mibs force=no
+  tags: cnm-git
+
+...

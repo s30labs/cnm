@@ -1,0 +1,50 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: syslog-ng
+  
+- name: Install packages
+  apt: name={{item}} state=installed force=yes
+  with_items:
+   - syslog-ng
+  tags: syslog-ng
+
+- name: Create /var/lib/syslog-ng
+  file: path=/var/lib/syslog-ng state=directory
+  tags: syslog-ng
+
+- name: Check /etc/logrotate.d/syslog
+  stat: path=/etc/logrotate.d/syslog
+  register: old_file
+
+- name: Remove old logrotate file
+  register: old_file
+  file: path=/etc/logrotate.d/syslog state=absent
+  when: old_file.stat.exists is defined and old_file.stat.exists
+
+
+- name: Config File
+  copy: src=syslog-ng.conf dest=/etc/syslog-ng/syslog-ng.conf  owner=root group=root mode=0640
+  tags: syslog-ng
+  notify:
+   - restart syslog-ng
+
+- name: Custom Config File
+  copy: src=syslog-ng-custom.conf dest=/etc/syslog-ng/syslog-ng-custom.conf force=no owner=root group=root mode=0640
+  when: 
+  tags: syslog-ng
+  notify:
+   - restart syslog-ng
+
+- name: Start up script
+  copy: src=syslog-ng.init dest=/etc/init.d/syslog-ng  owner=root group=root mode=0755
+  tags: syslog-ng
+  notify:
+   - restart syslog-ng
+
+- meta: flush_handlers
+...

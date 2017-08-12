@@ -1,0 +1,71 @@
+<mibtable>
+
+   <oid_cols>jnxContainersView_jnxContainersLevel_jnxContainersWithin_jnxContainersType_jnxContainersDescr_jnxContainersCount</oid_cols>
+	<oid_last>JUNIPER-MIB::jnxContainersTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersView</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter,#select_filter,#select_filter,#select_filter,#text_filter,#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersLevel</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersWithin</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersType</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersDescr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>jnxContainersCount</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

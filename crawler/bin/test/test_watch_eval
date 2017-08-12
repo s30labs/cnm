@@ -1,0 +1,35 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# test_store1
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Data::Dumper;
+use ONMConfig;
+use Crawler;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+my $log_level='debug';
+
+#-------------------------------------------------------------------------------------------
+#my $expr='v1 =~/picor/';
+my $expr='v1 contains(picor)';
+#my $expr='v1<9';
+my @values=();
+push @values,'El picor del pelo';
+push @values,1;
+push @values,1;
+my $file='0000000002/mib2_ent_phy_parts-STD.rrd';
+
+my $crawler=Crawler->new('log_level'=>$log_level);
+my ($condition,$lval,$oper,$rval)=$crawler->watch_eval($expr,\@values,$file,{});
+
+print "RESULTADO=$condition\t$lval $oper $rval\n";
+
+#my $kk="'El picor del pelo' =~/picor/i";
+#my $rc=eval $kk;
+#print "RC=$rc\n";
+

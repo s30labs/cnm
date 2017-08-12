@@ -1,0 +1,101 @@
+<mibtable>
+
+   <oid_cols>bsnAPName_bsnApIpAddress_bsnAPDot3MacAddress_bsnAPIfSlotId_bsnAPIfLoadRxUtilization_bsnAPIfLoadTxUtilization_bsnAPIfLoadChannelUtilization_bsnAPIfLoadNumOfClients_bsnAPIfPoorSNRClients</oid_cols>
+	<oid_last>AIRESPACE-WIRELESS-MIB::bsnAPIfLoadParametersTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter,#text_filter,#text_filter,#select_filter,#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnApIpAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPDot3MacAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfSlotId</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfLoadRxUtilization</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfLoadTxUtilization</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfLoadChannelUtilization</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfLoadNumOfClients</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>bsnAPIfPoorSNRClients</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

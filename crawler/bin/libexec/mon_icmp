@@ -1,0 +1,34 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id: mon_icmp,v 1.2 2004/02/18 13:22:30 fml Exp $
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Getopt::Std;
+use Monitor;
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -n host [-p port] : Chequea servicio ICMP 
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("hn:p:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+elsif ($opts{n}) {
+        $DESC{host_ip}=$opts{n};
+        $DESC{port_icmp}=$opts{p};
+}
+else { die $USAGE;}
+
+#--------------------------------------------------------------------
+my $r=mon_icmp(\%DESC);
+foreach (@$r) {print "$_\n";}
+

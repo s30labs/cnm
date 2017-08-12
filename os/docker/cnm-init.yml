@@ -1,0 +1,11 @@
+---
+# This playbook deploys the whole application stack in this site.
+- name: CNM Core System (Deploy and configuration)
+  hosts: all
+  remote_user: root
+
+  roles:
+    - cnm-init
+    - cnm-sp
+    - cnm-provision
+

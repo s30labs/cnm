@@ -1,0 +1,70 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::SNMP;
+
+#---------------------------------------------------------------------------------
+my $log_level='debug';
+my $snmp=Crawler::SNMP->new(log_level=>$log_level);
+
+
+#---------------------------------------------------------------------------------
+my @VALUES=();
+my %DESC=();
+my $NEWVALUES;
+my ($newval,$subtype);
+
+#---------------------------------------------------------------------------------
+#sub esp_fx_match  {
+#sub esp_fx_avg  {
+#sub esp_fx_sum  {
+#sub esp_fx_subkey  {
+#sub esp_fx_ordinal_iid  {
+
+
+#---------------------------------------------------------------------------------
+@VALUES=("12 mW.","33 mv.","  99,4 vv ");
+foreach my $val (@VALUES) {
+	$newval=$snmp->fx_INT($val);
+	print "fx_INT>>> **$val** ---> **$newval**\n";
+}
+
+#---------------------------------------------------------------------------------
+@VALUES=("1;2;3","10;20;30","100;200;300");
+foreach my $val (@VALUES) {
+	$newval=$snmp->fx_CSV($val, {'separator'=>';', 'position'=>1});
+   print "fx_CSV>>> **$val** ---> **@$newval**\n";
+}
+
+#---------------------------------------------------------------------------------
+@VALUES=("1,2,3","10,20,30","100,200,300");
+foreach my $val (@VALUES) {
+	$newval=$snmp->fx_CSV($val, {'separator'=>',', 'position'=>1});
+   print "fx_CSV>>> **$val** ---> **@$newval**\n";
+}
+
+#---------------------------------------------------------------------------------
+@VALUES=("1 2 3","10 20 30","100 200 300");
+foreach my $val (@VALUES) {
+	#$newval=$snmp->fx_CSV($val, {'separator'=>'\s+', 'position'=>1});
+	$newval=$snmp->fx_CSV($val, {'separator'=>'', 'position'=>1});
+	print "fx_CSV>>> **$val** ---> **@$newval**\n";
+}
+
+
+#---------------------------------------------------------------------------------
+@VALUES=(2, 5);
+%DESC=('subtype'=>'test', 'esp'=>'v2* 100 / (v1+2)');
+$NEWVALUES=$snmp->do_esp_fx(\%DESC,\@VALUES);
+print "do_esp_fx >> subtype=$DESC{subtype}  fx=$DESC{esp} IN=@VALUES -> OUT=@$NEWVALUES\n";
+
+
+#---------------------------------------------------------------------------------
+@VALUES=(0, '*');
+%DESC=('subtype'=>'test', 'esp'=>'MAP(0,0)(0,0,0,1)|MAP(0,1)(0,0,1,0)|MAP(1,0)(0,1,0,0)|MAP(1,1)(1,0,0,0)');
+$NEWVALUES=$snmp->do_esp_fx(\%DESC,\@VALUES);
+print "do_esp_fx >> subtype=$DESC{subtype}  fx=$DESC{esp} IN=@VALUES -> OUT=@$NEWVALUES\n";
+
+

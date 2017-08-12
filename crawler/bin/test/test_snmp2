@@ -1,0 +1,60 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use SNMP;
+use Data::Dumper;
+
+BEGIN {  $ENV{'MIBS'}='UPS-MIB'; }
+
+$SNMP::auto_init_mib=1;
+# requires a hostname and a community string as its arguments
+my $session = new SNMP::Session(DestHost => $ARGV[0], Community => $ARGV[1],
+                             Version=>'1', UseSprintValue => 1);
+
+die "session creation error: $SNMP::Session::ErrorStr" unless 
+  (defined $session);
+
+# set up the data structure for the getnext command
+#$vars = new SNMP::VarList(['ipNetToMediaNetAddress'], ['ipNetToMediaPhysAddress']);
+#$vars = new SNMP::VarList(['.1.3.6.1.2.1.4.22.1.3'],['.1.3.6.1.2.1.4.22.1.2']);
+
+#my $VARLIST='.1.3.6.1.2.1.4.22.1.3&.1.3.6.1.2.1.4.22.1.2';
+#my $OID='ipNetToMediaNetAddress_ipNetToMediaPhysAddress';
+#my $OID='upsOutputLineIndex_upsOutputVoltage_upsOutputCurrent_upsOutputPower_upsOutputPercentLoad';
+#my $OID='clusterListenAddress_clusterListenNetmask_clusterListenPort';
+my $OID='ifIndex_ifDescr_ifType_ifMtu_ifSpeed_ifPhysAddress_ifAdminStatus_ifOperStatus_ifLastChange_ifInOctets_ifInUcastPkts_ifInNUcastPkts_ifInDiscards_ifInErrors_ifInUnknownProtos_ifOutOctets_ifOutUcastPkts_ifOutNUcastPkts_ifOutDiscards_ifOutErrors_ifOutQLen_ifSpecific';
+
+my @values=();
+my @o=split(/\|/,$OID);
+foreach my $VARLIST (@o) {
+
+	my @varlist=map([$_],split(/_/,$VARLIST));
+	$vars = new SNMP::VarList(@varlist);
+
+print Dumper($vars);
+
+	my $mark=$varlist[0][0];
+	print "***$mark****\n";
+	print "***VARLIST=@varlist****\n";
+
+	do {
+
+		#($ip,$mac) = $session->getnext($vars);
+		my @r = $session->getnext($vars);
+print "**RESLTADO getnext**\n".Dumper(\@r);
+
+		if ((scalar(@r)==1) && (! defined $r[0])) { next; }
+		my $t=$$vars[0]->tag;
+		print "***VAR=$vars****\n";
+		print "***R=@r****\n";
+		print "***TAG=$t****\n";
+		if ($$vars[0]->tag eq $mark){
+			push @values, join (':',@r);
+			#print "@r\n";
+		}
+		#else {print $$vars[0]->tag,"\n";}
+		
+	} until ($session->{ErrorStr});
+
+}
+
+foreach (@values) {print "$_\n";}

@@ -1,0 +1,120 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: libexec/get_ports
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Analysis;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+#-------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Obtiene y almacena las tablas de ARP de los dispositivos especificados.
+(c) fml
+
+$fpth[$#fpth] [-d debug|info] [-m log_mode] [-i id_dev|all] [-t type] [-n ip]
+$fpth[$#fpth] -h  : Ayuda
+-m: 1 (syslog), 2 (stdout), 3 (syslog+stdout)
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hli:d:n:t:m:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $log_mode= (defined $opts{m}) ? $opts{m} : 1;
+if ($opts{h}) { die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $analysis=Crawler::Analysis->new( 'cfg'=>$rCFG, log_level=>$log_level, log_mode=>$log_mode );
+my $store=$analysis->create_store();
+my $dbh=$store->open_db();
+$analysis->dbh($dbh);
+
+my $tstart=time;
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#my @DEVICES=qw(10.6.254.254);
+my @DEVICES=();
+if ($opts{i}) {
+	if (lc $opts{i} eq 'all') {
+
+   	my $rres=$store->get_from_db( $dbh, 'ip', 'devices', 'status=0', 'order by id_dev');
+   	foreach my $l (@$rres) { push @DEVICES,$l->[0]; }
+	}
+	elsif ($opts{i}=~/\d+/) { 	
+		my $condition='id_dev='.$opts{i};
+   	my $rres=$store->get_from_db( $dbh, 'ip', 'devices', $condition, '');
+		push @DEVICES,$rres->[0][0]; 
+	}
+}
+elsif ($opts{n}) {
+	push @DEVICES,$opts{n};
+}
+elsif ($opts{t}) {
+      my $rres=$store->get_from_db( $dbh, 'ip', 'devices', "type=\'$opts{t}\'", 'order by id_dev');
+      foreach my $l (@$rres) { push @DEVICES,$l->[0]; }
+}
+else { die $USAGE;  }
+
+#-------------------------------------------------------------------------------------------
+# Recorro el vector de dispositivos
+#-------------------------------------------------------------------------------------------
+my $total=scalar(@DEVICES);
+my $c=0;
+foreach my $ip (@DEVICES) {
+	$c+=1;
+print "[$c|$total]\t$ip\t";
+	my %data = ('ip'=>$ip);
+
+	$analysis->get_system_info(\%data);
+
+	if ($analysis->sysname() =~ /timeout/i) {
+		print "\n";
+		next;
+	}
+
+	print $analysis->sysname()."\t";
+	print $analysis->sysoid()."\t";
+
+   $analysis->get_arp_info(\%data);
+	print 'arp='.$analysis->narp()."\t";
+	$analysis->get_iftable(\%data);
+	print 'nif='.$analysis->ninterfaces()."\t";
+	$analysis->get_ifip(\%data);
+	print 'nips='.$analysis->nips()."\t";
+
+	$analysis->is_bridge(\%data);
+   print 'bridge='.$analysis->bridge()."\t";
+
+	my $VLANS = $analysis->get_defined_vlans_cisco(\%data);
+   foreach my $vlan (sort keys %$VLANS) {
+#print "VLAN=$vlan\n";
+      $analysis->get_vlan_bridge_port($VLANS->{$vlan},\%data);
+	}
+	if ($data{'ntrunks'}>0) { print 'trunks='.$data{'ntrunks'}; }
+	print "\n";
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+# Consolido datos
+#-------------------------------------------------------------------------------------------
+print "Consolido datos ...\n";
+$store->db_cmd($dbh,'CALL sp_set_ipam_switch_info');
+
+$store->close_db($dbh);
+
+my $elapsed=time()-$tstart;
+print "Time elapsed = $elapsed\n";
+

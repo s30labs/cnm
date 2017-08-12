@@ -1,0 +1,160 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-reset-system
+# Restaura el sistema a una situacion inicial (sin datos)
+# Tiene la opcion de realizar un backup
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+cnm-reset-system $VERSION (c) s30labs
+
+$fpth[$#fpth] [-n] [-b]
+$fpth[$#fpth] -h  : Ayuda
+
+-n : Resetea el sistema sin hacer backup
+-b : Resetea el sistema haciendo previamente un backup en /home/cnm/backup
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hnb",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my $MODE='';
+if ($opts{b}) { $MODE='COMPLETE'; }
+elsif ($opts{n}) { $MODE='NOBACKUP'; }
+else { die $USAGE; }
+
+my $PWD=read_pwd();
+my $DOMAIN=read_chkhost('DOMAIN');
+my $HOSTNAME=read_chkhost('HOSTNAME');
+
+
+print "-" x70 ."\n";
+print "RESTORE MODE:$MODE\n";
+print "-" x70 ."\n";
+
+#-------------------------------------------------------------------------------------------
+# NOBACKUP
+#-------------------------------------------------------------------------------------------
+if ($MODE eq 'NOBACKUP') {
+	clear_database();
+	init_database();
+	clear_files();
+	first_provision();
+}
+#-------------------------------------------------------------------------------------------
+# COMLETE
+#-------------------------------------------------------------------------------------------
+else {
+	backup();	
+	clear_database();
+   init_database();
+   clear_files();
+   first_provision();
+}
+#-------------------------------------------------------------------------------------------
+system("/opt/crawler/bin/support/cnm-set-key -k");
+
+#--------------------------------------------------------------------------------
+# Función que hace el backup de todo
+sub backup {
+   print "REALIZANDO BACKUP...";
+	system ("/usr/bin/php /var/www/html/onm/inc/Backup.php action=backup database=all 2>&1");
+   print "[OK]\n";
+}
+
+#--------------------------------------------------------------------------------
+# Función que elimina el contenido de todas las tablas de la bbdd
+sub clear_database {
+	print "ELIMINANDO DATOS DE LA BBDD...";
+	`/usr/bin/mysqldump -uonm -p$PWD --add-drop-table --no-data onm | grep ^DROP | mysql -uonm -p$PWD onm`;
+	`/usr/bin/mysql -u onm -p$PWD cnm -e 'DELETE FROM work_latency' >/dev/null 2>&1`;
+	`/usr/bin/mysql -u onm -p$PWD cnm -e 'DELETE FROM work_snmp' >/dev/null 2>&1`;
+	`/usr/bin/mysql -u onm -p$PWD cnm -e 'DELETE FROM work_xagent' >/dev/null 2>&1`;
+	print "[OK]\n";
+}
+
+#--------------------------------------------------------------------------------
+# Función que inicializa la bbdd
+sub init_database {
+	print "INICIALIZANDO LA BBDD...";
+	`/usr/bin/php /update/db/db-manage.php 2>&1 | tee /tmp/update_db.log`;
+   print "[OK]\n";
+}
+
+#--------------------------------------------------------------------------------
+# Función que elimina los ficheros necesarios
+sub clear_files {
+	print "BORRANDO FICHEROS...";
+   `/bin/rm -fr /opt/data/rrd/views/*`;
+   `/bin/rm -fr /opt/data/rrd/elements/*`;
+   `/bin/rm -fr /store/www-user/background/*`;
+   `/bin/rm -fr /store/www-user/files/*`;
+   `/bin/rm -fr /store/www-user/gui_templates/*`;
+   `/bin/rm -fr /store/www-user/images/*`;
+   `/bin/rm -fr /store/www-user/resources/*`;
+   `/bin/rm -fr /store/www-user/tmp/*`;
+	`/bin/cp /opt/cnm/onm/images/magic.gif /store/www-user/background/`;
+   print "[OK]\n";
+}
+
+#--------------------------------------------------------------------------------
+# Función que provisiona el equipo CNM y da de alta ciertos datos
+sub first_provision {
+   print "INICIALIZANDO DATOS...";
+   `/usr/bin/mysql -u onm -p$PWD onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Appliance")' >/dev/null 2>&1`;
+   `/usr/bin/mysql -u onm -p$PWD onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Servidor")' >/dev/null 2>&1`;
+   `/usr/bin/mysql -u onm -p$PWD onm -e 'INSERT INTO cfg_host_types (descr) VALUES ("Router")' >/dev/null 2>&1`;
+
+   `/usr/bin/mysql -u onm -p$PWD onm -e 'INSERT INTO cfg_views_types (name) VALUES ("Servicios")' >/dev/null 2>&1`;
+   `/usr/bin/mysql -u onm -p$PWD onm -e 'INSERT INTO cfg_views_types (name) VALUES ("Infraestructura")' >/dev/null 2>&1`;
+
+   `/opt/crawler/bin/ws/api-set-device -m -a 127.0.0.1 -p name=$HOSTNAME,domain=$DOMAIN,ip=127.0.0.1,type=Appliance,snmpversion=2,snmpcommunity=public`;
+
+	print "[OK]\n";
+}
+
+#--------------------------------------------------------------------------------
+# Función que obtiene la clave de la BBDD
+sub read_pwd{
+   my $file_db_credentials='/cfg/onm.conf';
+	my $rcstr='';
+   open (F,"<$file_db_credentials");
+   while (<F>) {
+      chomp;
+      if (/^#/) {next;}
+      if (/\bDB_PWD\s*\=\s*(.*)$/) {
+         $rcstr=$1;
+         last;
+      }
+   }
+   close F;
+	return $rcstr;
+}
+#--------------------------------------------------------------------------------
+# Función que obtiene los datos de /cfg/chk-host.conf
+sub read_chkhost{
+	my $what=shift;
+   my $file_db_credentials='/cfg/chk-host.conf';
+   my $rcstr='';
+   open (F,"<$file_db_credentials");
+   while (<F>) {
+      chomp;
+      if (/^#/) {next;}
+      if (/\b$what\s*\=\s*(.*)$/) {
+         $rcstr=$1;
+         last;
+      }
+   }
+   close F;
+   return $rcstr;
+}

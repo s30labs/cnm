@@ -1,0 +1,101 @@
+<mibtable>
+
+   <oid_cols>cikeTunLocalType_cikeTunLocalValue_cikeTunLocalAddr_cikeTunLocalName_cikeTunRemoteType_cikeTunRemoteValue_cikeTunRemoteAddr_cikeTunRemoteName_cikeTunNegoMode</oid_cols>
+	<oid_last>CISCO-IPSEC-FLOW-MONITOR-MIB::cikeTunnelTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cikeTunLocalType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter,#text_filter,#text_filter,#select_filter,#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cikeTunLocalValue</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cikeTunLocalAddr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cikeTunLocalName</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cikeTunRemoteType</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cikeTunRemoteValue</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cikeTunRemoteAddr</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cikeTunRemoteName</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cikeTunNegoMode</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

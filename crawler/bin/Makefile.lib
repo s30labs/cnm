@@ -1,0 +1,63 @@
+INCDIR = /home/fml/onm/bin
+PP = /opt/perl/bin/pp
+DIR_BASE = /home/fml/onm
+DIR_LIB = /home/fml/onm/bin/libexec
+EXEC_PATH = /var/www/cgi-bin/test
+ 
+all : mon_dns.o mon_icmp.o mib2_tcpConn.o mon_tcp.o mon_snmp.o mon_http.o walk_mib.o mib2_ipArp.o mib2_ipRoute.o \
+		mon_ssh.o mibhost_sw.o mibhost_cpu.o mibhost_disk.o mon_smtp.o mon_pop3.o mon_imap.o mib2_udpPorts.o mib2_if.o
+ 
+mon_dns.o : ${DIR_LIB}/mon_dns
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_dns ${DIR_LIB}/mon_dns
+
+mon_icmp.o : ${DIR_LIB}/mon_icmp
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_icmp ${DIR_LIB}/mon_icmp
+
+mib2_tcpConn.o : ${DIR_LIB}/mib2_tcpConn
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mib2_tcpConn ${DIR_LIB}/mib2_tcpConn
+
+mon_tcp.o : ${DIR_LIB}/mon_tcp
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_tcp ${DIR_LIB}/mon_tcp
+
+mon_snmp.o : ${DIR_LIB}/mon_snmp
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_snmp ${DIR_LIB}/mon_snmp
+
+mon_http.o : ${DIR_LIB}/mon_http
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_http ${DIR_LIB}/mon_http
+
+walk_mib.o : ${DIR_LIB}/walk_mib
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/walk_mib ${DIR_LIB}/walk_mib
+
+mib2_ipArp.o : ${DIR_LIB}/mib2_ipArp
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mib2_ipArp ${DIR_LIB}/mib2_ipArp
+
+mib2_ipRoute.o : ${DIR_LIB}/mib2_ipRoute
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mib2_ipRoute ${DIR_LIB}/mib2_ipRoute
+
+mon_ssh.o : ${DIR_LIB}/mon_ssh
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_ssh ${DIR_LIB}/mon_ssh
+
+mibhost_sw.o : ${DIR_LIB}/mibhost_sw
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mibhost_sw ${DIR_LIB}/mibhost_sw
+
+mibhost_cpu.o : ${DIR_LIB}/mibhost_cpu
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mibhost_cpu ${DIR_LIB}/mibhost_cpu
+
+mibhost_disk.o : ${DIR_LIB}/mibhost_disk
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mibhost_disk ${DIR_LIB}/mibhost_disk
+
+mon_smtp.o : ${DIR_LIB}/mon_smtp
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_smtp ${DIR_LIB}/mon_smtp
+
+mon_pop3.o : ${DIR_LIB}/mon_pop3
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_pop3 ${DIR_LIB}/mon_pop3
+
+mon_imap.o : ${DIR_LIB}/mon_imap
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mon_imap ${DIR_LIB}/mon_imap
+
+mib2_udpPorts.o : ${DIR_LIB}/mib2_udpPorts
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mib2_udpPorts ${DIR_LIB}/mib2_udpPorts
+
+mib2_if.o : ${DIR_LIB}/mib2_if
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/libexec/mib2_if ${DIR_LIB}/mib2_if
+

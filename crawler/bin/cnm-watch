@@ -1,0 +1,1064 @@
+#!/usr/bin/perl
+#-------------------------------------------------------------------------------------------
+# cnm-watch
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use warnings;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::SNMP;
+use CNMScripts::CNMAPI;
+use MCNM;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $rc;
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $host_name=$rCFG->{host_name}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hwd:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+#-------------------------------------------------------------------------------------------
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,host=>$host_name,
+										cfg=>$rCFG, log_level=>$log_level, log_mode=>1 );
+$store->store_path($store_path);
+
+#-------------------------------------------------------------------------------------------
+# Permisos de los ficheros par-* del directorio /tmp
+my @tmp_par=map { glob($_) } "/tmp/par-*";
+chmod 0777, @tmp_par;
+
+chmod 0777, '/opt/crawler/conf/txml';
+
+#-------------------------------------------------------------------------------------------
+my $FILE_PID='/var/run/cnm-install.pid';
+if (-f $FILE_PID) {
+	my $x=check_pid($FILE_PID);
+	if ($x>0) {
+   	$store->log('warning',"cnm-watch:: cnm-install en curso pid=$x. Terminamos ....");
+		exit;
+	}
+	else { 
+		$x=unlink $FILE_PID; 
+   	$store->log('warning',"cnm-watch:: cnm-install sin pid. Borro fichero ($x)");
+	}
+}
+
+
+#-------------------------------------------------------------------------------------------
+# Activo bloqueo, para no acumular tareas de tipo register concurrentemente
+# Notar que lo habitual es lanzarlas en crond
+my $file_lock='/opt/crawler/bin/watch.lock';
+my $blocked = $store->init_lock($file_lock,300,1);
+if ($blocked) {
+   $store->log('warning',"cnm-watch::Bloqueo activo ($file_lock). Terminamos ....");
+   exit;
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# GESTION DE PROCESOS DE SISTEMA
+#-------------------------------------------------------------------------------------------
+my $LOAD_LEVEL=45;
+
+#-------------------------------------------------------------------------------------------
+my %running=( 	'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
+					'notificationsd.010'=>0, 'notificationsd.020'=>0, 'notificationsd.040'=>0, 
+					'snmpd'=>0, 'snmptrapd'=>0,
+					'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0 );
+
+my %load=(  	'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
+               'notificationsd.010'=>0, 'notificationsd.020'=>0, 'notificationsd.040'=>0,
+					'snmpd'=>0, 'snmptrapd'=>0,
+               'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0  );
+
+#13093 ?        Ss    46:50 [notificationsd.040.notificationsd.900]
+#13248 ?        Ss    12:40 [mail_manager.1000.notificationsd.20]
+# 3047 ?        Ss     0:04 [notificationsd.010.notificationsd.60]
+
+#--------------------------------------------------------------------------------------
+my $role_info = get_role_info();
+if (pre_watch($store,$role_info)>0) { 
+	# Desactivo el bloqueo y termino
+	$store->close_lock('/opt/crawler/bin/watch.lock');
+	exit;
+}
+
+
+#my $ACTIVE = 1;
+#if ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'passive')) { $ACTIVE = 0; }
+##print Dumper($role_info);
+#
+## Revisar que procesos hay que arrancar en passive-ha
+#
+#if (! $ACTIVE) { 
+#
+#	%running=(  'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
+#               'snmpd'=>0, 'snmptrapd'=>0,
+#               'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0 );
+#	%load=(  'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
+#               'snmpd'=>0, 'snmptrapd'=>0,
+##               'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0  );
+#}
+
+
+my $ACTIVE = 1;
+if (exists $role_info->{'ROLE'}) {
+   if (lc $role_info->{'ROLE'} eq 'passive') {
+      $ACTIVE = 0;
+
+      %running=(  'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
+                  'snmpd'=>0, 'snmptrapd'=>0,
+                  'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0 );
+
+   }
+   elsif (lc $role_info->{'ROLE'} eq 'passive-ha') {
+      $ACTIVE = 0;
+      %running=(  'syslog-ng'=>1, 'httpd'=>0, 'mysql'=>1, 'smbd'=>1, 'nmbd'=>1,
+                  'snmpd'=>0, 'snmptrapd'=>1,
+                  'actionsd'=>1, 'trap_manager'=>1, 'mail_manager'=>1 );
+
+   }
+
+}
+
+#--------------------------------------------------------------------------------------
+my %LOAD_VALUES=();
+my ($httpd,$httpd_rc)=('apache2','/etc/init.d/apache2');
+
+my @res=`/bin/ps -eo pid,bsdtime,etime,args`;
+foreach my $k (@res) {
+	$k=~s/^\s+//;
+	my ($pid,$bsdtime,$etime,@rest) = split (/\s+/,$k);
+	my $args = join (' ', @rest);
+
+	# Chequeo si el proceso esta corriendo
+	if ($args=~/grep/) { next; }
+   if ($args=~/syslog-ng/) {  
+		my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'syslog-ng'}=$value;
+		if ($value > $LOAD_LEVEL) {
+   		$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid syslog-ng LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+		}
+		else { $running{'syslog-ng'} += 1; }
+	}
+   elsif ($args=~/$httpd/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		if (! exists $LOAD_VALUES{'httpd'}) { $LOAD_VALUES{'httpd'}=$value; }
+		else { $LOAD_VALUES{'httpd'}+=$value; }
+
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid httpd  LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'httpd'} += 1; }
+	}
+   elsif ($args=~/mysql/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		# Registro datos de mysqld
+      if  ($args=~/sbin/) { $LOAD_VALUES{'mysql'}=$value; }
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'mysql'} += 1; }
+	}
+   elsif ($args=~/smbd/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid smbd LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'smbd'} += 1; }
+	}
+   elsif ($args=~/nmbd/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid nmbd LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'nmbd'} += 1; }
+	}
+   elsif ($args=~/notificationsd\.010/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'notif-010'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.010 LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'notificationsd.010'} += 1; }
+	}
+   elsif ($args=~/notificationsd\.020/) {
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+      $LOAD_VALUES{'notif-020'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.020 LOAD=$value (>$LOAD_LEVEL)\n");
+         kill 9, $pid;
+      }
+      else { $running{'notificationsd.020'} += 1; }
+   }
+   elsif ($args=~/notificationsd\.040/) {
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+      $LOAD_VALUES{'notif-040'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.040 LOAD=$value (>$LOAD_LEVEL)\n");
+         kill 9, $pid;
+      }
+      else { $running{'notificationsd.040'} += 1; }
+   }
+   elsif ($args=~/\[actionsd/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'actionsd'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid actionsd LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'actionsd'} += 1; }
+	}
+   elsif ($args=~/trap_manager/) {  
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'trap-manager'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid trap_manager LOAD=$value (>$LOAD_LEVEL)\n");
+			kill 9, $pid;
+      }
+		else { $running{'trap_manager'} += 1; }
+	}
+   elsif ($args=~/mail_manager/) {
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'mail-manager'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mail_manager LOAD=$value (>$LOAD_LEVEL)\n");
+         kill 9, $pid;
+      }
+      else { $running{'mail_manager'} += 1; }
+   }
+   elsif ($args=~/snmpd/) {
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'snmpd'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid snmpd LOAD=$value (>$LOAD_LEVEL)\n");
+         kill 9, $pid;
+      }
+      else { $running{'snmpd'} += 1; }
+   }
+   elsif ($args=~/snmptrapd/) {
+      my $value=get_cpu_load($bsdtime,$etime,$args);
+		$LOAD_VALUES{'snmptrapd'}=$value;
+      if ($value > $LOAD_LEVEL) {
+         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid snmptrapd LOAD=$value (>$LOAD_LEVEL)\n");
+         kill 9, $pid;
+      }
+      else { $running{'snmptrapd'} += 1; }
+   }
+}
+
+my $txt='';
+foreach my $k (sort keys %LOAD_VALUES) { $txt .= " $k=".sprintf("%.3f",$LOAD_VALUES{$k}); }
+$store->log('info',"cnm-watch:: LOAD_VALUES >> $txt");
+
+# snmpd/snmptrapd --------------------------------------------
+if (! $running{'snmpd'}) {
+   $rc=system ("/etc/init.d/snmpd restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: snmpd");
+}
+if (! $running{'snmptrapd'}) {
+   $rc=system ("/etc/init.d/snmptrapd restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: snmptrapd");
+}
+
+# syslog-ng / trap_manager  ----------------------------------
+if ( (! $running{'syslog-ng'}) || (! $running{'trap_manager'}) ) { 
+	$rc=system ("/etc/init.d/syslog-ng restart"); 
+	$store->log('notice',"cnm-watch::[WARN] RESTART: syslog-ng");
+}
+
+
+# smbd / nmbd  -----------------------------------------------
+if ( (! $running{'smbd'}) || (! $running{'nmbd'}) ) {
+   $rc=system ("/etc/init.d/smbd restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: samba");
+}
+
+# httpd ------------------------------------------------------
+if (! $running{'httpd'})  {
+   $rc=system ("$httpd_rc restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: $httpd");
+}
+
+# mysql ----------------------------------------------------------
+if (! $running{'mysql'})  {
+   $rc=system ("/etc/init.d/mysql restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: mysql");
+}
+
+# actionsd --------------------------------------------------
+# Debe estar funcionando siempre. Si no es asi, en modo pasivo no restaura.
+if (! $running{'actionsd'}) {
+   $rc=system ("/opt/crawler/bin/actionsd");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: actionsd");
+}
+
+if ($ACTIVE) {
+	# notificationsd.010 -----------------------------------------
+	if (! $running{'notificationsd.010'}) {
+  	 	$rc=system ("/opt/crawler/bin/notificationsd -t normal");
+   	$store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.010");
+	}
+
+   # notificationsd.020 -----------------------------------------
+   if (! $running{'notificationsd.020'}) {
+      $rc=system ("/opt/crawler/bin/notificationsd -t notifications");
+      $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.020");
+   }
+
+   # notificationsd.040 -----------------------------------------
+   if (! $running{'notificationsd.040'}) {
+      $rc=system ("/opt/crawler/bin/notificationsd -t sev4");
+      $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.040");
+   }
+
+	# mail_manager -----------------------------------------------
+	if (! $running{'mail_manager'}) {
+   	$rc=system ("/opt/crawler/bin/mail_manager");
+   	$store->log('notice',"cnm-watch::[WARN] RESTART: mail_manager");
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+# Se validan las marcas de tiemnpo de los diferentes procesos.
+$store->chk_tmark_files(0,3);
+
+#-------------------------------------------------------------------------------------------
+# Se chequea el punto de montaje de mdata
+# Si no esta montado, se monta y se hace un workset de todos los cids definidos
+# Si esta montado no se hace nada
+
+my $is_mounted=$store->check_mounted_df($Crawler::MDATA_PATH,'tmpfs');
+$store->log('debug',"cnm-watch:: is_mounted=$is_mounted ($Crawler::MDATA_PATH)");
+my $do_workset=0;
+if (! $is_mounted) {
+   $store->log('notice',"cnm-watch::[WARN] NOT MOUNTED $Crawler::MDATA_PATH");
+   system("/bin/mkdir -p $Crawler::MDATA_PATH");
+   system("/bin/mount -t tmpfs -o size=128m tmpfs $Crawler::MDATA_PATH");
+
+   $do_workset=1;
+}
+elsif (! -d "$Crawler::MDATA_PATH/input/idx") { $do_workset=1; }
+else {
+
+   my @aux=();
+   if (-d "$Crawler::MDATA_PATH/input/idx") {
+      opendir (DIR,"$Crawler::MDATA_PATH/input/idx");
+      foreach my $f (readdir(DIR)) {
+         if ($f =~ /0(\d+)\.info/) { push @aux,$1; }
+      }
+      closedir(DIR);
+		if (scalar(@aux) == 0) { $do_workset=1; }
+   }
+}
+
+# Si se especifica como opcion, se hace el workset.
+if ($opts{w}) { $do_workset=1; }
+
+if (! -d "$Crawler::MDATA_PATH/input") { mkdir "$Crawler::MDATA_PATH/input"; }
+if (! -d "$Crawler::MDATA_PATH/output") { mkdir "$Crawler::MDATA_PATH/output"; }
+if (! -d "$Crawler::MDATA_PATH/cache") { mkdir "$Crawler::MDATA_PATH/cache"; chmod 0777, "$Crawler::MDATA_PATH/cache"; }
+if (! -d "$Crawler::MDATA_PATH/lang") { 
+	mkdir "$Crawler::MDATA_PATH/lang"; 
+   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/lang");
+}
+if (! -f "$Crawler::MDATA_PATH/lang/es.lang") {
+	system ("/bin/touch $Crawler::MDATA_PATH/lang/es.lang");
+   system ("/bin/chown www-data:www-data $Crawler::MDATA_PATH/lang/es.lang");
+	system ("chmod 644 $Crawler::MDATA_PATH/lang/es.lang");
+}
+
+if (! -d "$Crawler::MDATA_PATH/scripts") {
+   mkdir "$Crawler::MDATA_PATH/scripts";
+   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/scripts");
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Se contemplan los diferentes cids definidos
+my $dbh=$store->open_db();
+my $params=$store->get_mcnm_credentials($dbh,{'host_ip'=>$ip});
+$store->close_db($dbh);
+
+my $FILE_DYN_NAMES='/cfg/names.dyn';
+my %DYN_NAMES=();
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+foreach my $cid (keys %$params) {
+
+   my $hidx=$params->{$cid}->{'hidx'};
+   eval {
+
+      $rCFG->{db_server}->[0]=$params->{$cid}->{'db_server'};
+      $rCFG->{db_name}->[0]=$params->{$cid}->{'db_name'};
+      $rCFG->{db_user}->[0]=$params->{$cid}->{'db_user'};
+      $rCFG->{db_pwd}->[0]=$params->{$cid}->{'db_pwd'};
+
+      #-------------------------------------------------------------------------------------------
+
+      $store->log('info',"+++++++check ip=$ip cid=$cid hidx=$hidx");
+
+		$store=Crawler::Store->new(	db_server=>$params->{$cid}->{'db_server'},
+												db_name=>$params->{$cid}->{'db_name'},
+												db_user=>$params->{$cid}->{'db_user'},
+												db_pwd=>$params->{$cid}->{'db_pwd'},
+												cfg=>$rCFG,
+												host=>$host_name, cfg=>$rCFG, log_level=>$log_level, log_mode=>1 );
+		$store->store_path($store_path);
+		$dbh=$store->open_db();
+
+		if ($do_workset) {
+#		   #Se regeneran las metricas en work_xxx para $id_dev y
+#  			#Se generan los ficheros idx correspondientes para los crawlers
+#		   my $rres=$store->get_from_db($dbh,'id_dev','devices','','order by id_dev');
+#			my $tnow=time;
+#			foreach my $l (@$rres) {
+#				my $id_dev=$l->[0];
+#   			$store->log('info',"cnm-watch:: DO WORKSET id_dev=$id_dev");
+#   			$store->store_crawler_work($dbh,$id_dev,$tnow,$cid);
+#			}
+
+			# Se regeneran los ficheros idx a partir de las tablas work_xxxx
+			# No se regeneran metricas porque en equipos cargados puede ralentizar el arranque de procesos
+			$store->consolidate_work_tables($dbh);
+		}
+
+		#-------------------------------------------------------------------------------------------
+		# Borro los metricas a eliminar.
+		# Especifico un maximo de 500 por precaucion
+		$store->delete_metrics ($dbh, {status=>3}, 500 );
+		$store->delete_metric_relations ($dbh);
+
+
+		#-------------------------------------------------------------------------------------------
+		# Regenera el oid mapping en caso de producirse cambios de usuario
+		#-------------------------------------------------------------------------------------------
+		# fml REVISAR!! debe ser la suma de todos los cids. Hay que cambiar la rutina
+		if ($cid eq 'default') {
+			my $snmp=Crawler::SNMP->new( store=>$store );
+			$snmp->reset_mapping();
+		}
+
+
+      #-------------------------------------------------------------------------------------------
+      # Se obtienen los nombres dinamicos y se genera $FILE_DYN_NAMES
+      #-------------------------------------------------------------------------------------------
+      my $res=$store->get_device($dbh,{'dyn'=>1},'id_dev,name,domain,ip');
+      open (F,">$FILE_DYN_NAMES");
+      foreach my $x (@$res) {
+         my $n=$x->[1];
+         if ($x->[2] ne '') { $n.='.'.$x->[2]; }
+         print F  $n."\n";
+         $DYN_NAMES{$n}={'ip'=>$x->[3], 'id_dev'=>$x->[0]} ;
+#$store->log('info',"cnm-watch:: ALMACENANDO DYN_NAMES >> $n - $DYN_NAMES{$n}->{'ip'}");
+      }
+      close F;
+
+		$store->close_db($dbh);
+   };
+
+   if ($@) {$store->log('info',"ERROR host_ip=$ip cid=$cid hidx=$hidx ($@)"); }
+}
+
+
+#-------------------------------------------------------------------------------------------
+# SESIONES MCNM
+#-------------------------------------------------------------------------------------------
+mcnm_session_keepalive();
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# GESTION DE CAMBIOS DE USUARIO
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+if ($ACTIVE) {  watchdog();  }
+
+
+#-------------------------------------------------------------------------------------------
+# Monitorizacion
+#-------------------------------------------------------------------------------------------
+my $SNMP=Crawler::SNMP->new( store=>$store );
+
+my $if=my_if();
+my $link_error=$SNMP->check_if_link($if);
+#No LINK
+if ($link_error == 1) {
+
+	my $cnmTrapMsg="No hay link en interfaz $if";
+
+#cnmTrapNoLinkSet TRAP-TYPE
+#    ENTERPRISE  cnmTrapsBase
+#    VARIABLES   { cnmTrapCode, cnmTrapMsg }
+#    DESCRIPTION
+#           "Este trap se genera cuando se detecta que no hay link en el interfaz Ethernet"
+#    ::= 100
+#
+#	my $specific=100;
+#	my $r=$SNMP->core_snmp_trap_ext(
+#
+#  			{'comunity'=>'public', 'version'=>1, 'host_ip'=>$ip, 'agent'=>$ip },
+#         {'enterprise'=>'cnmTrapsBase', 'specific'=>$specific, 'uptime'=>1234,
+#         	'vardata'=> [ 	[ 'cnmTrapCode', 1, $link_error ],
+#            					[ 'cnmTrapMsg', 2, $cnmTrapMsg ]  ]
+#         }
+#	);
+
+#cnmNotifNoLinkfSet NOTIFICATION-TYPE
+#    VARIABLES   { cnmNotifCode, cnmNotifMsg }
+#    DESCRIPTION
+#            "Este trap se genera cuando se detecta que no hay link en el interfaz Ethernet"
+#    ::= { cnmNotifBase 100 }
+
+	my $x = md5_hex("cnmNotifNoLinkSet $if");
+   my $trap_key = substr $x,0,10;
+
+	my $r=$SNMP->core_snmp_trap_ext(
+
+         {'comunity'=>'public', 'version'=>2, 'host_ip'=>$ip, 'agent'=>$ip },
+         {'enterprise'=>'CNM-NOTIFICATIONS-MIB::cnmNotifNoLinkSet', 'uptime'=>1234,
+            'vardata'=> [  [ 'cnmNotifCode', 1, $link_error ],
+                           [ 'cnmNotifMsg', 1, $cnmTrapMsg ],
+									[ 'cnmNotifKey', 1, $trap_key ]  ]
+         }
+   );
+
+}
+#LINK DOWN
+elsif ($link_error == 2) {
+
+   my $cnmTrapMsg="El interfaz $if esta caido";
+
+#cnmNotiIFDownfSet NOTIFICATION-TYPE
+#    VARIABLES   { cnmNotifCode, cnmNotifMsg }
+#    DESCRIPTION
+#            "Este trap se genera cuando se detecta que el interfaz Ethernet de trabajo esta caido o deshabilitado desde el sistema operativo del CNM"
+#    ::= { cnmNotifBase 102 }
+
+   my $x = md5_hex("cnmNotiIFDownfSet $if");
+   my $trap_key = substr $x,0,10;
+
+   my $r=$SNMP->core_snmp_trap_ext(
+
+         {'comunity'=>'public', 'version'=>2, 'host_ip'=>$ip, 'agent'=>$ip },
+         {'enterprise'=>'CNM-NOTIFICATIONS-MIB::cnmNotiIFDownfSet', 'uptime'=>1234,
+            'vardata'=> [  [ 'cnmTrapCode', 1, $link_error ],
+                           [ 'cnmTrapMsg', 2, $cnmTrapMsg ],
+									[ 'cnmNotifKey', 1, $trap_key ]  ]
+         }
+   );
+
+
+}
+
+#-------------------------------------------------------------------------------------------
+# Se proesan los dispositivos dinamicos de /cfg/name.dyn
+#-------------------------------------------------------------------------------------------
+my $api=undef;
+my @lines = `/usr/bin/dig -f $FILE_DYN_NAMES  +noall +answer`;
+my ($changes,$total)=(0,0);
+foreach my $l (@lines) {
+	chomp $l;
+	#www.s30labs.com.        14070   IN      A       178.33.163.102
+	if ($l=~/^(\S+)\s+.*?(\d+\.\d+\.\d+\.\d+)/) {
+		my ($n,$ip)=($1,$2);
+		$n=~s/\.$//;
+		$total+=1;
+		if ($DYN_NAMES{$n}->{'ip'} eq $ip) { next; }
+
+		# Ha habido cambio de IP. Se actualiza el dispositivo
+		if (! defined $api) {
+			my $host_ip = 'localhost';
+			$api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level, 'nologinit'=>1 );
+			my ($user,$pwd)=('admin','cnm123');
+			my $sid = $api->ws_get_token($user,$pwd);
+		}
+
+		$changes+=1;
+   	my $class='devices';
+  	 	my $endpoint = $DYN_NAMES{$n}->{'id_dev'}.'.json';
+  		my $response = $api->ws_put($class,$endpoint,{'ip'=>$ip});
+
+		$store->log('info',"cnm-watch:: DYN_NAMES **IP CHANGE** $n old=$DYN_NAMES{$n}->{'ip'} new=$ip [$response]");
+	}		
+}
+$store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");		
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Desactivo el bloqueo
+$store->close_lock('/opt/crawler/bin/watch.lock');
+
+
+
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# FUNCIONES AUXILIARES
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------
+# pre_watch
+# Valida los requisitos del HA (solo para deb8)
+# a. Configurar drdb (primary/secondary)
+# b. Montar /store
+# Valor de retorno:
+#  0 => OK 		-> Se continua el resto de cnm-watch
+# >0 => NO OK	-> No se continua con el resto de cnm-watch
+#-------------------------------------------------------------------------------------------
+sub pre_watch {
+my ($store,$role_info)=@_;
+
+	my ($check_mysql,$check_store)=(1,1);
+	my $os=check_os();
+
+	# Debian6 (No hay drbd ni lxc)
+	# ----------------------------------------------------------------------------
+	if ($os eq 'deb6') { 
+      $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+      if ($check_mysql !=0) {
+         $store->log('info',"cnm-watch:: pre_watch deb6 MYSQL NO ARRANCADO  ($?)");
+         system("/etc/init.d/mysql restart");
+         $store->log('info',"cnm-watch:: pre_watch deb6 SE ARRANCA MYSQL ($?)");
+         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+      }
+		return 0; 
+	}
+
+	if (! exists $role_info->{'ROLE'}) {
+   	$store->log('warning',"cnm-watch:: ROLE no definido (revisar /cfg/onm.role)");
+		return;
+	}
+	
+	# Debian8 con lxc (el drbd lo maneja el host)
+	# ----------------------------------------------------------------------------
+	if (is_lxc()) {
+
+      # CNM role == active o passive
+      # -------------------------------------------------------------------------
+      if ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'active' || lc $role_info->{'ROLE'} eq 'passive')) {
+         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         if ($check_mysql !=0) {
+            $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] MYSQL NO ARRANCADO  ($?)");
+            system("/etc/init.d/mysql restart");
+            $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE ARRANCA MYSQL ($?)");
+            $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         }
+
+         if ($check_mysql !=0) { return 3; }
+         `/opt/cnm/crawler/bin/support/cnm-repair-db`;
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_mysql=$check_mysql)");
+      }
+      # CNM role = passive-ha
+      # -------------------------------------------------------------------------
+		elsif ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'passive-ha')) {
+         # Parar procesos de CNM
+         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         if ($check_mysql == 0) {
+            system("/etc/init.d/mysql stop");
+            $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE PARA MYSQL ($?)");
+            $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         }
+
+         if ($check_mysql ==0) { return 3; }
+         $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_mysql=$check_mysql)");
+      }
+		else {
+      	$store->log('warning',"cnm-watch:: ROLE tiene un valor incorrecto ($role_info->{'ROLE'}) - Revisar /cfg/onm.role");
+		}		
+
+		return 0;	
+	}
+
+	# Debian8 sin lxc, incluye drbd
+	# ----------------------------------------------------------------------------
+   my $drbd_role = `drbdadm role store|cut -d'/' -f1`; # primary | secundary
+	
+   # CNM role == active, passive
+	# -------------------------------------------------------------------------
+   if ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'active' || lc $role_info->{'ROLE'} eq 'passive')) {
+
+      # 1. Validar si es primario o secundario DRBD
+      # DRBD role == secundary => Pasarlo a primario
+      if ($drbd_role =~ /secondary/i) {
+			system("drbdadm primary store");
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] PASO drbd a PRIMARIO ($?)");
+			sleep 3;
+			$drbd_role = `drbdadm role store|cut -d'/' -f1`;
+		}
+
+		if ($drbd_role !~ /primary/i) { 
+			$store->log('warning',"cnm-watch:: pre_watch [CNM=ACTIVE] drbd_role NO ES PRIMARIO ($drbd_role)");
+			return 1; 
+		}
+
+      $check_store = system("mountpoint -q /store");
+		if ($check_store !=0) { 
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] STORE NO MONTADO ($?)");
+         system("mount /dev/drbd1 /store");
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE MONTA STORE ($?)");
+			$check_store = system("mountpoint -q /store");
+		}
+      $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+		if ($check_mysql !=0) { 
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] MYSQL NO ARRANCADO  ($?)");
+         system("/etc/init.d/mysql restart");
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE ARRANCA MYSQL ($?)");
+			$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+		}
+		if ($check_store !=0) { return 2; }
+		if ($check_mysql !=0) { return 3; }
+
+		`/opt/cnm/crawler/bin/support/cnm-repair-db`;
+
+      $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role)");
+	}
+
+   # CNM role = passive-ha
+	# -------------------------------------------------------------------------
+	elsif ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'passive-ha')) {
+      # 1. Validar si es primario o secundario DRBD
+      # DRBD role == secundary => Revisar que estáodo parado
+      if ($drbd_role =~ /primary/i) {
+         # Parar procesos de CNM
+			$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+			if ($check_mysql == 0) {
+	         system("/etc/init.d/mysql stop");
+   	      $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE PARA MYSQL ($?)");
+				$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+			}
+
+			$check_store = system("mountpoint -q /store");
+			if ($check_store == 0) {
+	         system("umount /store");
+   	      $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE DESMONTA STORE ($?)");
+				$check_store = system("mountpoint -q /store");
+			}
+
+	      if ($check_store ==0) { return 2; }
+   	   if ($check_mysql ==0) { return 3; }
+
+         system("drbdadm secundary store");
+         $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE PASA DRBD A SECUNDARIO ($?)");
+			sleep 3;
+			$drbd_role = `drbdadm role store|cut -d'/' -f1`;
+		}
+
+      if ($drbd_role !~ /secondary/i) {
+         $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] drbd_role NO ES SECUNDARIO ($drbd_role)");
+         return 1;
+      }
+      $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role)");
+   }
+   else {
+      $store->log('warning',"cnm-watch:: ROLE tiene un valor incorrecto ($role_info->{'ROLE'}) - Revisar /cfg/onm.role");
+   }
+
+
+	return 0;
+}
+
+#-------------------------------------------------------------------------------------------
+# get_cpu_load 
+#-------------------------------------------------------------------------------------------
+sub get_cpu_load {
+my ($bsdtime,$etime,$cmd)=@_;
+
+   # Chequeo uso acumulado de cpu
+   # 1:07  4-11:59:27
+   my ($h,$s)=split(/\:/,$bsdtime);
+   my $cpu_time=$h*60+$s;
+   my $elapsed_time=0;
+   if ($etime =~ /(\d+)-(\d+)\:(\d+)\:(\d+)/) { $elapsed_time=$1*86400+$2*3600+$3*60+$4; }
+   elsif ($etime =~ /(\d+)\:(\d+)\:(\d+)/) { $elapsed_time=$1*3600+$2*60+$3; }
+
+	my $load=0;
+	if ($elapsed_time > 0) {	
+		$load= ($cpu_time/$elapsed_time)*100;
+	}
+
+	my $cmd30= substr($cmd,0,30);
+	$store->log('debug',"cnm-watch::get_cpu_load ($cmd30) LOAD=$load ($etime, $bsdtime) (ELAPSED=$elapsed_time, CPU_TIME=$cpu_time)\n");
+	return $load;
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+# watchdog
+#-------------------------------------------------------------------------------------------
+sub watchdog {
+my $rc=0;
+
+	my @r=`/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler | /bin/grep -v grep`;
+	my %ps=();
+	my @ps_extra=();
+	my %idx_extra=();
+	foreach my $v (@r) {
+		chomp $v;
+		$v=~s/^\s+//;
+   	my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$v);
+
+	   #[crawler.003.latency.300]
+   	if ($cmd=~/crawler\.(\d+)\..*?/) {
+			my $idx=$1;
+			$store->log('debug',"watchdog::[DEBUG] RES DEL PS: PID=$pid, CMD=$cmd, IDX=$idx");
+
+			my $prog="crawler.$idx";
+      	my $value=get_cpu_load($bsdtime,$etime,$cmd);
+      	if ($value > $LOAD_LEVEL) {
+         	$store->log('notice',"cnm-watch::[WARN] ELIMINO PID $pid $prog  LOAD=$value (>$LOAD_LEVEL)\n");
+				kill 9, $pid;
+      	}
+			else { 
+				if (! exists $ps{$idx}) { $ps{$idx}=$pid; }
+				else { 
+					push @ps_extra, $pid; 
+					$idx_extra{$idx}=1;
+				} 
+			}
+		}
+	}
+
+
+   if (scalar (@ps_extra>0)) {
+      foreach my $pid (@ps_extra) {
+         $store->log('notice',"watchdog::[INFO] STOP EXTRA [PID=$pid]");
+         my $rc=kill 9, $pid;
+         $store->log('notice',"watchdog::[INFO] STOP EXTRA DONE [RC=$rc]");
+      }
+      foreach my $idx (keys %idx_extra) {
+			my $pid=$ps{$idx};
+         $store->log('notice',"watchdog::[INFO] STOP EXTRA [PID=$pid, IDX=$idx]");
+         my $rc=kill 9, $pid;
+         $store->log('notice',"watchdog::[INFO] STOP EXTRA DONE [RC=$rc]");
+      }
+
+		$store->log('debug',"watchdog::[DEBUG] RECALCULO %ps");
+   	@r=`/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler | /bin/grep -v grep`;
+   	%ps=();
+   	foreach my $v (@r) {
+      	chomp $v;
+      	$v=~s/^\s+//;
+      	my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$v);
+
+      	#[crawler.003.latency.300]
+	      if ($cmd=~/crawler\.(\d+)\..*?/) {
+   	      my $idx=$1;
+      	   $store->log('debug',"watchdog::[DEBUG] RES DEL PS (2): PID=$pid, CMD=$cmd, IDX=$idx");
+	         $ps{$idx}=$pid;
+      	}
+   	}
+   }
+
+
+
+#mysql> select distinct crawler_pid,crawler_idx from metrics;
+#+-------------+-------------+
+#| crawler_pid | crawler_idx |
+#+-------------+-------------+
+#|       13484 |           3 |
+#|       13478 |           2 |
+#|       13476 |           1 |
+#|        NULL |        NULL |
+#+-------------+-------------+
+#4 rows in set (0.01 sec)
+
+	#my $rv=$store->get_crawler_status($dbh);
+
+# En lugar de crawler_pid en BBDD utilizo los ficheros:
+# /var/run/crawler.xxxx.pid 
+# /opt/data/mdata/input/idx/0xxxx.info
+
+	my %mapping=();
+	if (-d "$Crawler::MDATA_PATH/input/idx") {
+		opendir (DIR,"$Crawler::MDATA_PATH/input/idx");
+		foreach my $f (readdir(DIR)) {
+			if ($f =~ /0(\d+)\.info/) { $mapping{$1}=0; }
+		}
+		closedir(DIR);
+	}
+
+	foreach my $idx (keys %mapping) {
+		my $f="/var/run/crawler.$idx.pid";
+		if (-f $f) { $mapping{$idx}=$store->slurp_file($f); }
+	}
+
+
+	#foreach my $i (sort keys %$rv) {
+	#	my $pid=$rv->{$i};
+   foreach my $i (sort keys %mapping) {
+      my $pid=$mapping{$i};
+		if (! defined $ps{$i}) { 
+			start_one($i); 
+			$rc=1;
+			$store->log('notice',"watchdog::[INFO] START-ONE IDX=$i no existe");
+		}
+		elsif ($ps{$i} != $pid) {
+			#$rc=system ("/bin/kill -9 $ps{$i}");
+			$rc=kill 9, $pid;
+			#restart_one($i);
+			start_one($i);
+			$rc=1;
+			$store->log('notice',"watchdog::[INFO] RESTART-ONE IDX=$i (KILL $pid) BBDD=> PID=$pid | PS => PID=$ps{$i}");
+		}
+		else { $store->log('debug',"watchdog::[DEBUG] IDX=$i BBDD=> PID=$pid | PS => PID=$ps{$i}"); }
+	}
+
+	foreach my $pid (@ps_extra) {
+
+		$store->log('notice',"watchdog::[INFO] STOP EXTRA [PID=$pid]");
+      my $rc=kill 9, $pid;
+      $store->log('notice',"watchdog::[INFO] STOP EXTRA DONE [RC=$rc]");
+	}
+
+	return $rc;
+}
+
+#-------------------------------------------------------------------------------------------
+# restart_all
+#-------------------------------------------------------------------------------------------
+sub restart_all {
+my $rc;
+
+   $rc=system ('/opt/crawler/bin/crawler -i');
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (i)");
+
+   $rc=system ('/usr/bin/killall -9 crawler');
+   $rc=system ('/opt/crawler/bin/crawler -k');
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (k)");
+   sleep 1;
+   $rc=system ('/opt/crawler/bin/crawler -s');
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s)");
+   #$store->reset_crawler_changes($dbh);
+
+	#system ("/bin/echo 1 > $LOCK_FILE");
+
+}
+
+#-------------------------------------------------------------------------------------------
+# restart_one
+#-------------------------------------------------------------------------------------------
+sub restart_one {
+my ($idx)=@_;
+my $rc;
+
+   $rc=system ("/opt/crawler/bin/crawler -k -c $idx");
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (k -> $idx)");
+   sleep 1;
+   $rc=system ("/opt/crawler/bin/crawler -s -c $idx");
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
+   #$store->reset_crawler_changes($dbh,$idx);
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+# start_one
+#-------------------------------------------------------------------------------------------
+sub start_one {
+my ($idx)=@_;
+my $rc;
+
+   $rc=system ("/opt/crawler/bin/crawler -s -c $idx");
+   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
+   #$store->reset_crawler_changes($dbh,$idx);
+}
+
+#-------------------------------------------------------------------------------------------
+sub check_pid {
+my ($pid_file)=@_;
+
+	my $running=0;
+	open (F,"<$pid_file");
+	my $pid=<F>;
+	close F;
+	chomp $pid;
+	if ($pid=~/\d+/) {
+		my @r=`/bin/ps -eo pid | grep $pid`;
+		chomp $r[0];
+		if ($r[0]==$pid) { $running=$pid; }
+	}
+
+	return $running;
+}
+
+#-------------------------------------------------------------------------------------------
+sub check_os {
+#my ()=@_;
+
+   my $os='deb6';
+   if (-f '/etc/debian_version') {
+      my $version=slurp_file('/etc/debian_version');
+      chomp $version;
+      if ($version eq '8.0') { $os='deb8'; }
+   }
+   return $os;
+}
+
+#-------------------------------------------------------------------------------------------
+sub slurp_file {
+my ($file)=@_;
+
+        local($/) = undef;  # slurp
+        open (F,"<$file");
+        my $content = <F>;
+        close F;
+        return $content;
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Watchdog del sistema
+
+$fpth[$#fpth] [-d debug|info]
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

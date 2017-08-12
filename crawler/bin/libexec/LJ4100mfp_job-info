@@ -1,0 +1,162 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id$
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use Crawler::SNMP;
+use libSQL;
+BEGIN { $ENV{'MIBS'}='LJ4100mfp-MIB'; }
+#---------------------------------------------------------------------------
+
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+$VERSION="1.0";
+my $USAGE = <<USAGE;
+Monitor de trabajos de impresion paha HP4100.
+(c) fml
+
+$fpth[$#fpth] [-v 1 -c COMMUNITY -fhxyz] -d HOST
+
+USAGE
+
+#----------------------------------------------------------------------------
+my %opts=();
+getopts("hfxyzv:c:d:",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+my @RES=();
+my %SNMPCFG=();
+
+$SNMPCFG{host_ip}= $opts{d} || die $USAGE;
+$SNMPCFG{community} = 'public' || $opts{c};
+$SNMPCFG{version}= '1' || $opts{v};
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='job-info-name1_job-info-name2_job-info-pages-processed_job-info-pages-printed_job-info-size_job-info-state_job-info-attr-1_job-info-attr-2_job-info-attr-3_job-info-attr-4_job-info-attr-5';
+$SNMPCFG{last}='error1-time-stamp';
+
+#----------------------------------------------------------------------------
+
+my $snmp=Crawler::SNMP->new();
+my $res=$snmp->core_snmp_table(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+print '-' x85,"\n";
+print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\n";
+print '-' x85,"\n";
+if ($opts{x}) { dump2stdout(\@$res); }
+if ($opts{y}) { 
+	my $file="$SNMPCFG{host_ip}.csv";
+	dump2csv(\@$res,$file); 
+}
+if ($opts{z}) { dump2db(\@$res); }
+
+
+#------------------------------------------------------------------------------
+sub dump2stdout {
+my $vector=shift;
+my $idx;
+my ($name1,$name2,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5)=('NAME1','NAME2','PROC','PRINT','SIZE','STATUS','ATTR1','ATTR2','ATTR3','ATTR4','ATTR5');
+format FORMAT_DATA =
+@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<@<<<<<@<<<<<<<@<<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<<<<@<<<<<<<<<<<@<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$name1,$name2,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5
+.
+
+	$~ = 'FORMAT_DATA';
+   write();
+   for my $l ( @$vector ) {
+
+   	($idx,$name1x,$name2x,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5)=split(':@:',$l);
+
+		$attr1=~s/\"JobAcct1=(\w+)\"/$1/;
+		$attr2=~s/\"JobAcct2=(\w+)\"/$1/;
+		$attr3=~s/\"JobAcct3=(\w+)\"/$1/;
+		$attr4=~s/\"JobAcct4=(\w+)\"/$1/;
+		$attr5=~s/\"JobAcct5=(.*?)\"/$1/;
+		$name1=$snmp->hex2ascii($name1x);
+		$name2=$snmp->hex2ascii($name2x);
+
+      write();
+   }
+}
+
+#------------------------------------------------------------------------------
+sub dump2csv {
+my ($vector,$filecsv)=@_;
+
+	open (CSV,">$filecsv");
+
+   for my $l ( @$vector ) {
+
+      ($name1x,$name2x,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5)=split(':@:',$l);
+
+      $attr1=~s/\"JobAcct1=(\w+)\"/$1/;
+      $attr2=~s/\"JobAcct2=(\w+)\"/$1/;
+      $attr3=~s/\"JobAcct3=(\w+)\"/$1/;
+      $attr4=~s/\"JobAcct4=(\w+)\"/$1/;
+      $attr5=~s/\"JobAcct5=(.*?)\"/$1/;
+      $name1=$snmp->hex2ascii($name1x);
+      $name2=$snmp->hex2ascii($name2x);
+
+		my $line = join(',',$name1,$name2,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5);
+      print CSV "$line\n";
+   }
+	close CSV;
+}
+
+#------------------------------------------------------------------------------
+sub dump2db {
+my $vector=shift;
+
+my %DB = (
+        DRIVERNAME => "mysql",
+        SERVER => "localhost",
+        PORT => 3306,
+        DATABASE => "onm",
+        USER => "root",
+        PASSWORD => "",
+        TABLE => 'printer_jobs',
+);
+
+   my $dbh=sqlConnect(\%DB);
+
+   for my $l ( @$vector ) {
+
+      ($name1x,$name2x,$pages_proc,$pages_print,$size,$status,$attr1,$attr2,$attr3,$attr4,$attr5)=split(':@:',$l);
+
+      $attr1=~s/\"JobAcct1=(\w+)\"/$1/;
+      $attr2=~s/\"JobAcct2=(\w+)\"/$1/;
+      $attr3=~s/\"JobAcct3=(\w+)\"/$1/;
+      $attr4=~s/\"JobAcct4=(\w+)\"/$1/;
+      $attr5=~s/\"JobAcct5=(.*?)\"/$1/;
+      $name1=$snmp->hex2ascii($name1x);
+      $name2=$snmp->hex2ascii($name2x);
+
+		my %table=();
+		$table{printer}=$SNMPCFG{host_ip};
+		$table{name1}=$name1;
+		$table{name2}=$name2;
+		$table{processed}=$pages_proc;
+		$table{printed}=$pages_print;
+		$table{bytes}=$size;
+		$table{status}=$status;
+		$table{attr1}=$attr1;
+		$table{attr2}=$attr2;
+		$table{attr3}=$attr3;
+		$table{attr4}=$attr4;
+		$table{attr5}=$attr5;
+		
+  		my $rv=sqlInsert($dbh,$DB{TABLE},\%table);
+
+		if (!defined $rv) { print "[WARN] dump2db  $attr5 -> db (RV=undef)\n"; }
+		else { print "[OK] dump2db $attr5 -> db\n"; }
+   }
+
+	$dbh->disconnect();
+}
+
+

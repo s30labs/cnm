@@ -1,0 +1,120 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# get_metrics
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::Notifications;
+use Crawler::Transport;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $MX=$rCFG->{notif_mx}->[0];
+my $FROM=$rCFG->{notif_from}->[0];
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+my ($rres, $num_metrics, $DATA);
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,'SELECT * FROM cfg_monitor_snmp WHERE custom=1 AND cfg=1','subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA = "+++++++ METRICAS SNMP CUSTOM (cfg=1)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,'SELECT * FROM cfg_monitor_snmp WHERE custom=1 AND cfg=2','subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ METRICAS SNMP CUSTOM (cfg=2)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,'SELECT * FROM cfg_monitor_snmp WHERE custom=1 AND cfg=3','subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ METRICAS SNMP CUSTOM (cfg=3)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,'SELECT * FROM cfg_monitor WHERE custom=1 AND cfg=1','monitor');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ METRICAS LATENCY CUSTOM (cfg=1)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM cfg_monitor_agent WHERE custom=1 AND cfg=1",'subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ METRICAS XAGENT CUSTOM (cfg=1)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM alert_type",'monitor');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ MONITORES = $num_metrics\n";
+$DATA .= Dumper($rres);
+
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM cfg_remote_alerts WHERE type='snmp'",'subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ ALERTAS REMOTAS (snmp)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM cfg_remote_alerts WHERE type='email'",'subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ ALERTAS REMOTAS (email)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM cfg_remote_alerts WHERE type='syslog'",'subtype');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ ALERTAS REMOTAS (syslog)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$rres=$store->get_from_db_cmd($dbh,"SELECT * FROM cfg_remote_apps WHERE custom=1",'aname');
+$num_metrics = scalar(keys %$rres);
+$DATA .= "+++++++ APLICACIONES (custom)= $num_metrics\n";
+$DATA .= Dumper($rres);
+
+#-------------------------------------------------------------------------------------------
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my $log_level='debug';
+my $transport=Crawler::Transport->new('cfg'=>$rCFG, log_level=>$log_level);
+$transport->init();
+
+my $hostname=`hostname`;
+chomp $hostname;
+
+my ($to,$subject)=('cnmsupport@s30labs.com',"[CNM-$hostname] kbInfo");
+my $rc = $transport->notify_by_transport(
+         $Crawler::Transport::NOTIF_EMAIL,
+         {'dest'=>$to, 'subject'=>$subject, 'txt'=>$DATA}
+      );
+
+if (defined $rc) { print "[OK] RC=$rc\n"; }
+else { print "[ERROR] ".$transport->err_str()."\n"; }
+

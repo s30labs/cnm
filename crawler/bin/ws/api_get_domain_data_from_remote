@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::CNMWS;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - api_get_domain_data_from_remote (MCNM)
+(c) s30labs
+
+$fpth[$#fpth]
+$fpth[$#fpth] -h  : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("h",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+my $host_ip='localhost';
+
+my $CNMWS=Crawler::CNMWS->new( timeout=>4, log_level=>'debug' );
+my $rc = $CNMWS->api_get_domain_data_from_remote('localhost');
+print "rc=$rc\n";

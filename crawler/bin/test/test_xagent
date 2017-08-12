@@ -1,0 +1,408 @@
+#!/usr/bin/perl -w
+#-----------------------------------------------------------------------------
+use lib '/opt/crawler/bin';
+use strict;
+use Getopt::Std;
+#use SOAP::Lite +trace => qw( debug );
+use SOAP::Lite;
+use SOAP::Transport::HTTP;
+use MIME::Base64;
+use ONMConfig;
+
+#-----------------------------------------------------------------------------
+BEGIN {
+	$ENV{'HTTPS_CERT_FILE'}='/etc/client.crt';
+	$ENV{'HTTPS_KEY_FILE'}='/etc/client.key';
+	$ENV{'HTTPS_CERT_PASS'}='';
+	$ENV{'HTTPS_DEBUG'}='';
+
+};
+
+#-----------------------------------------------------------------------------
+my %SCRIPTS = (
+#-----------------------------------------------------------------------------
+	'win32_random' => '
+RANDOMIZE
+
+WScript.StdOut.Writeline Int(RND()*1000)
+',
+
+#-----------------------------------------------------------------------------
+	'unix_ls' => '#!/bin/bash
+
+DIR="./"
+if [ -d $1 ]; then
+   DIR=$1
+fi
+
+/bin/ls $DIR
+',
+#-----------------------------------------------------------------------------
+
+	'win32_read_file' => '
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objFile = objFSO.GetFile("c:\WINDOWS\system32\drivers\etc\hosts")
+If objFile.Size > 0 Then
+    Set objReadFile = objFSO.OpenTextFile("c:\WINDOWS\system32\drivers\etc\hosts", 1)
+    strContents = objReadFile.ReadAll
+    Wscript.Echo strContents
+    objReadFile.Close
+Else
+    Wscript.Echo "The file is empty."
+End If
+',
+
+);
+#-----------------------------------------------------------------------------
+
+
+#-----------------------------------------------------------------------------
+my $CMD='more c:\WINDOWS\system32\drivers\etc\hosts';
+
+#-----------------------------------------------------------------------------
+# DEFINICION DE SCRIPTS
+#-----------------------------------------------------------------------------
+#my %SCRIPTS1=(
+#	'win32_random'=> { 'code'=>$VBSCode, 'agent_method'=>'execVBS', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+#	'win32_rfile'=> { 'code'=>$VBSCode1, 'agent_method'=>'execVBS', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+#	'win32_hosts'=> { 'code'=>$CMD, 'agent_method'=>'doCmd', 'shell'=>"CScript //Nologo", 'filename'=>'myscript.vbs' },
+#	'unix_ls'=> { 'code'=>$BASHCode, 'agent_method'=>'execUnixScript', 'shell'=>'', 'filename'=>'/tmp/myscript.sh'  },
+#	'upload_functions'=> { 'code'=>$BASHCode, 'agent_method'=>'uploadFunctions', 'shell'=>'', 'filename'=>'/tmp/myscript.sh'  }
+#);
+
+my %SERVICE=();
+my %FUNCTIONS=(
+
+	'execVBS'=>('proxy'=>'', 'code'=>'', 'shell'=>'', 'filename'=>'' ),
+	'execUnixScript'=>('proxy'=>'', 'code'=>'', 'shell'=>'', 'filename'=>'' ),
+);
+
+
+my $SOAP;
+my $XAGENT_PORT='7691';
+my $XAGENT_HOST='localhost';
+my $TIMEOUT=3;
+
+#-----------------------------------------------------------------------------
+
+# Informacion ---------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Test de agente remoto. $VERSION
+(c) fml
+
+$fpth[$#fpth] -e [unix|win32] -s script (clave de hash o fichero externo) [-p params] -i ip
+$fpth[$#fpth] -v -i ip
+$fpth[$#fpth] -a mod_hosts|mod_aar -i ip
+$fpth[$#fpth] -l  : Lista los scripts soportados
+$fpth[$#fpth] -h  : Ayuda
+
+-a accion: Ejecuta acciones especiales:
+   mod_hosts: Modifica el fichero /etc/hosts (solo win32) (obsoleto se hace con script vbs)
+   mod_aar:   Modifica lof ficheros aar ==> Actualiza el agente remoto
+-e unix|win32: Hace un exec (unix o win32)
+-s script: Ejecuta el script especificado
+-p params: Parametros de la funcion (si los hubiera y separados por ,)
+-i ip: IP del equipo donde se ejecuta el agente (por defecto localhost)
+-v: Obttiene la version del agente
+
+$fpth[$#fpth] -e unix -s unix_ls -i 1.1.1.1
+$fpth[$#fpth] -e win32 -s win32_random -i 1.1.1.1
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hlve:s:p:i:a:",\%opts);
+my ($out_cmd,$script);
+if ($opts{h}) { die $USAGE; }
+if ( (!$opts{e}) && (!$opts{v}) && (!$opts{a})) { die $USAGE; }
+if ($opts{e}) { 
+	if (exists $SCRIPTS{$opts{s}}) { $script=$SCRIPTS{$opts{s}}; }
+	elsif (-f $opts{s}) {  $script=file2var($opts{s}); }
+	else { die "MONITOR NO VALIDO\n"; }
+}
+
+my $params=$opts{p} || '';
+$XAGENT_HOST=$opts{i} || 'localhost';
+
+#-------------------------------------------------------------------------------------------
+my $PROXY_SERVICE="https://$XAGENT_HOST:$XAGENT_PORT/soap/CNMAgentService";
+my $PROXY_FUNCTIONS="https://$XAGENT_HOST:$XAGENT_PORT/soap/CNMAgentFunctions";
+
+if ($opts{v}) {
+	xagent_connect($PROXY_SERVICE);
+	my $v=remote_functions_getVersion($SOAP);
+   print "VERSION SERVICE=$v\n";
+
+	xagent_connect($PROXY_FUNCTIONS);
+	$v=remote_functions_getVersion($SOAP);
+	print "VERSION FUNCTIONS=$v\n";
+}
+elsif ($opts{e}) {
+
+	xagent_connect($PROXY_FUNCTIONS);
+	if ($opts{e} eq 'unix') {
+		$out_cmd=remote_functions_execUnixScript($SOAP,$script,$params);
+
+	}
+	elsif ($opts{e} eq 'win32') {
+		$out_cmd=remote_functions_execVBS($SOAP,$script,$params);
+	}
+	print "******RESULTADO*****\n";
+	foreach my $l (@$out_cmd) { print "$l\n"; }
+}
+elsif ($opts{a} eq 'mod_hosts') {
+
+   xagent_connect($PROXY_FUNCTIONS);
+	$script = $SCRIPTS{'win32_read_file'};
+	$out_cmd=remote_functions_execVBS($SOAP,$script,$params);
+	my $ip=my_ip();
+	my $new_line="$ip cnm-manager #Generated by CNM";
+	my $done=0;
+	foreach my $l (@$out_cmd) { 
+		if (($l =~ /$ip/) && ($l !~ /\#/)) { $done=1; }
+	}
+	if (! $done) { push @$out_cmd, $new_line; }
+	my $content = join ("\n", @$out_cmd);
+	print "++$content\n";
+
+   xagent_connect($PROXY_SERVICE);
+   remote_functions_uploadFile($SOAP,'c:\WINDOWS\system32\drivers\etc','hosts',$content);
+}
+
+elsif ($opts{a} eq 'mod_aar') {
+
+	xagent_connect($PROXY_SERVICE);
+	#remote_functions_uploadFile($SOAP,'/tmp','kkkkk',"me pica un huevo");
+
+	#my $last_file_version='/opt/CNMAgent_devel/win32/repository/services/CNMAgentFunctions.aar';
+	my $last_file_version='/opt/CNMAgent_devel/repository/services/CNMAgentFunctions.aar';
+	remote_service_uploadFunctions($SOAP,$last_file_version);
+
+	#xagent_connect($PROXY_SERVICE);
+	#remote_functions_uploadFile($SOAP,'/tmp','kkkkk',"me pica un huevo");
+}
+elsif ($opts{a} eq 'mod_file') {
+
+   xagent_connect($PROXY_SERVICE);
+	remote_functions_uploadFile($SOAP,'/tmp','kkkkk',"me pica un huev +++o");
+}
+#while (1) {
+#	do_test($XAGENT_HOST,$script,$params);
+#exit;
+#}
+
+
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+sub xagent_connect  {
+my ($proxy)=@_;
+
+eval {
+   $SOAP= SOAP::Lite
+      -> uri("http://cnm.s30labs.org")
+      -> proxy($proxy);
+      #-> ns("http://cnm.s30labs.org")
+      # -> proxy("https://$server:$port/soap/CNMAgentFunctions");
+      #-> proxy("http://$server:9000/soap/CNMAgentFunctions");
+      #-> proxy("https://$server:$port/soap/CNMAgentFunctions");
+      #      -> proxy("https://$server:$port/soap/CNMAgentService");
+   $SOAP->transport->timeout(30);
+
+   return;   
+};
+if ($@) { print "$0::[ERROR] RC=$@"; }
+
+}
+
+#-----------------------------------------------------------------------------
+sub remote_functions_uploadFile   {
+my ($soap,$path,$filename,$content)=@_;
+
+#	my $content2=encode_base64($content);
+#	chomp $content2;
+
+	my $file_to_upload='/tmp/to_upload';
+   my $s = -s $file_to_upload;
+   open (F,"<$file_to_upload");
+   binmode(F);
+	my $buffer;
+   my $n=read(F, $buffer, $s, 0);
+   close(F);
+	chomp $buffer;
+   my $content2 =  encode_base64($buffer,"");
+
+print "B=$buffer";
+print "\nC=$content2\n";
+
+#	$content2 = encode_base64("1234567890");
+#	chomp $content2;
+
+#print "\nC=$content2\n";
+	#print "**$content2**\n";
+	my @p=($path,$filename, $content2);
+	my $result = $soap->call('uploadFile' =>  @p);
+
+	return $result;
+}
+
+
+#-----------------------------------------------------------------------------
+sub remote_functions_execVBS   {
+my ($soap,$code,$params)=@_;
+
+	my @response=();
+	my @p= ($code, "myscript.vbs", "CScript //Nologo", $params);
+ 	#codigo, fichero con codigo, interprete de ejecucuion, parametros
+
+	my $result = $soap->call('execVBS' =>  @p);
+
+   if ($result->fault) {
+      my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+      print "$0::[WARN] acceso a $code RC=$errstr\n";
+   }
+   else {
+      @response=$result->paramsall();
+   }
+   return \@response;
+}
+
+
+#-----------------------------------------------------------------------------
+sub remote_functions_execUnixScript   {
+my ($soap,$code,$params)=@_;
+
+	my @response=();
+   my @p= ($code, '/tmp/myscript.sh' , '', $params);
+	#codigo, fichero con codigo, interprete de ejecucuion, parametros
+   my $result = $soap->call('execUnixScript' =>  @p);
+
+   if ($result->fault) {
+      my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+      print "$0::[WARN] acceso a $code RC=$errstr\n";
+   }
+   else {
+      @response=$result->paramsall();
+	}
+   return \@response;
+
+}
+
+
+#-----------------------------------------------------------------------------
+sub remote_functions_getVersion   {
+my ($soap)=@_;
+
+	my $result = $soap->call('getVersion');
+   if ($result->fault) {
+      my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+      return "$0::[WARN] acceso a getVersion RC=$errstr";
+   }
+
+   my @response=$result->paramsall();
+   return join ('',@response);
+}
+
+
+#-----------------------------------------------------------------------------
+sub remote_service_uploadFunctions  {
+my ($soap, $file_to_upload)=@_;
+
+#uploadFunctions (String name, String content)
+
+
+#   local($/) = undef;
+#   open (F,"<$file_to_upload");
+#	my $c=<F>;
+#   #my $content2 = encode_base64(<F>,'');
+#   my $content2 = encode_base64($c);
+#	my $content = chomp $content2;
+#   close F;
+
+#	my $buffer='';
+#	my $s = -s $file_to_upload;
+#print "**FML**$soap, $file_to_upload ($s)\n";
+#   open (F,"<$file_to_upload");
+#	binmode(F); 
+#	my $n=read(F, $buffer, $s, 0);
+#print "**FML** LEIDOS $n\n";
+#	close(F);
+#	my $content2 = encode_base64($buffer);
+#
+	my $s = -s $file_to_upload;
+	open (F,"<$file_to_upload");
+	binmode(F);
+	my $buffer;
+	my $n=read(F, $buffer, $s, 0);
+	close(F);
+	chomp $buffer;
+	my $content =  encode_base64($buffer,"");
+
+#   local($/) = undef;  # slurp
+#	open (F,"<$file_to_upload");
+#   my $content2 =  encode_base64(<F>);
+#	close F;
+#	my $content = $content2;
+	#$content =~ s/^(.*?)\n$/$1/;
+#print $content;
+#return [];
+
+   my @response=();
+   my @p= ('CNMAgentFunctions.aar', $content);
+   my $result = $soap->call('uploadFunctions' =>  @p);
+
+   if ($result->fault) {
+      my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+      print "$0::[WARN] acceso a uploadFunctions RC=$errstr\n";
+   }
+   else {
+      @response=$result->paramsall();
+   }
+   return \@response;
+}
+
+#-----------------------------------------------------------------------------
+sub remote_service_uploadService  {
+my ($soap, $file_to_upload)=@_;
+
+
+   local($/) = undef;
+   open (F,"<$file_to_upload");
+   my $content2 = encode_base64(<F>,'');
+   my $content = chomp $content2;
+   close F;
+
+   my @response=();
+   my @p= ('CNMAgentService.aar', $content);
+   my $result = $soap->call('uploadService' =>  @p);
+
+   if ($result->fault) {
+      my $errstr= join ', ', $result->faultcode, $result->faultstring, $result->faultdetail;
+      print "$0::[WARN] acceso a uploadService RC=$errstr\n";
+   }
+   else {
+      @response=$result->paramsall();
+   }
+   return \@response;
+}
+
+
+
+#-----------------------------
+sub file2var {
+my $file=shift;
+
+   open INPUT, "<$file";
+   local undef $/;
+   my $content = <INPUT>;
+   close INPUT;
+   return $content;
+}
+

@@ -1,0 +1,101 @@
+<mibtable>
+
+   <oid_cols>ccmVMailDevName_ccmVMailDevProductId_ccmVMailDevDescription_ccmVMailDevStatus_ccmVMailDevInetAddressType_ccmVMailDevInetAddress_ccmVMailDevStatusReason_ccmVMailDevTimeLastStatusUpdt_ccmVMailDevTimeLastRegistered</oid_cols>
+	<oid_last>CISCO-CCM-MIB::ccmVoiceMailDeviceTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevProductId</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevDescription</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevInetAddressType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevInetAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevStatusReason</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevTimeLastStatusUpdt</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmVMailDevTimeLastRegistered</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

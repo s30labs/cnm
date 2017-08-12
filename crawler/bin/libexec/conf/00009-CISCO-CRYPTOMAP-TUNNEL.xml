@@ -1,0 +1,91 @@
+<mibtable>
+
+   <oid_cols>cipsStaticCryptomapType_cipsStaticCryptomapDescr_cipsStaticCryptomapPeer_cipsStaticCryptomapPeer_cipsStaticCryptomapNumPeers_cipsStaticCryptomapPfs_cipsStaticCryptomapLifetime_cipsStaticCryptomapLevelHost</oid_cols>
+	<oid_last>CISCO-IPSEC-MIB::cipsStaticCryptomapTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter,#text_filter,#text_filter,#select_filter,#select_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapDescr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapPeer</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapPeer</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapNumPeers</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapPfs</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapLifetime</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>cipsStaticCryptomapLevelHost</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

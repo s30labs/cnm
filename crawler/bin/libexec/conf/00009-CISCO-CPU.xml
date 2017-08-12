@@ -1,0 +1,51 @@
+<mibtable>
+
+   <oid_cols>cpmCPUTotalPhysicalIndex_cpmCPUTotal5sec_cpmCPUTotal1min_cpmCPUTotal5min</oid_cols>
+	<oid_last>CISCO-PROCESS-MIB::cpmCPUTotalTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>cpmCPUTotalPhysicalIndex</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter,#text_filter,#text_filter,#text_filter,</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>cpmCPUTotal5sec</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>cpmCPUTotal1min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>17%</width>
+         <bold>2</bold>
+         <name_col>cpmCPUTotal5min</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

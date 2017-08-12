@@ -1,0 +1,25 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes update_cache=yes
+  with_items:
+   - slapd
+   - ldap-utils
+   - libldap-2.4-2
+   - libldap2-dev
+   - libnss-ldap
+   - libpam-ldap
+   - php5-ldap
+  tags: cnm_so
+
+- name: Check directory /etc/ldap
+  file: path=/etc/ldap state=directory owner=root group=root mode=0755
+  tags: cnm_so
+
+- name: /etc/ldap/ldap.conf
+  copy: src=ldap.conf dest=/etc/ldap/ldap.conf  owner=root group=root mode=0644
+  tags: cnm_so
+
+...

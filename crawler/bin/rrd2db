@@ -1,0 +1,203 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use File::Basename;
+use File::Copy;
+use RRDs;
+use libSQL;
+
+#-------------------------------------------------------------------
+my %DB = (
+        DRIVERNAME => "mysql",
+        SERVER => "sliromrtg1",
+        PORT => 3306,
+        DATABASE => "onm",
+        USER => "onm",
+        PASSWORD => '',
+        TABLE => '',
+);
+my $DBH=undef;
+#-----------------------------------
+my $TAB_SLA_RAW_NAME = 'sla_raw';
+my %TAB_SLA_RAW = (
+        date => '?',
+        datestr => '?',
+        id_dev => '?',
+        value => '?',
+        id_data_type => '?',
+        id_function => '?',
+);
+
+#-------------------------------------------------------------------
+my @FILES=();
+my $DIR_BASE='/opt/data/rrd/elements';
+my ($dirname,$basename);
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Programa para reparar archivos rrd
+(c) fml
+
+$fpth[$#fpth] [-hsd] -f /opt/data/rrd/file.rrd 
+$fpth[$#fpth] [-hsd] -t routers.xxx [-r disp_icmp-H0]
+
+h: Help
+d: Debug
+s: Almacena en bd
+t: Tipo de dispositivo 
+r: Tipo de fichero rrd (por defecto disp_icmp-H0)   
+f: Especifica el nombre del fichero .rrd
+
+USAGE
+
+#--------------------------------------------------------------------
+my %opts=();
+getopts("hdsf:t:r:v:",\%opts);
+if ($opts{h}) { die $USAGE;}
+$DB{PASSWORD} = get_db_credentials();
+
+if ($opts{f}) { 
+	push @FILES, $opts{f}; 
+}
+elsif ($opts{t}) {
+	if (!defined $DBH) {  $DBH=sqlConnect(\%DB);  }
+	my $rres=db_get_devices($DBH,$opts{t});	
+	@FILES=();
+	foreach my $l (@$rres) {
+		my $id=sprintf("%010d", $l->[0]);
+		my $rrd_type=(defined $opts{r}) ? $opts{r} : 'disp_icmp-H0';
+		my $file=$DIR_BASE.'/'.$id.'/'.$rrd_type.'.rrd';
+		push @FILES, $file;
+	}
+}
+else {die $USAGE; }
+
+foreach my $file_rrd (@FILES) {
+
+	# Obtengo los datos del fichero .rrd
+	#--------------------------------------------------------------------
+	my ($start,$step,$names,$array) = RRDs::fetch $file_rrd, "AVERAGE";
+
+	my $ERROR = RRDs::error;
+	print "[ERROR] $ERROR\n" if $ERROR ;
+
+	if ($opts{d}) {
+		print "start=$start, step=$step\n";
+		print "                    ";
+		map {printf("%12s",$_)} @$names ;
+		print "\n";
+	}
+
+	my $date=$start;
+	$file_rrd=~/.*?\/(\d+)\/disp_icmp-H0.rrd/;
+	my $id_dev=sprintf "%d",$1;
+	my $id_data_type=1;
+	my $id_function=1;
+
+	# Inserto valores en DB
+	#--------------------------------------------
+	foreach my $line (@$array){
+
+		my $datestr=localtime($date);
+
+		if ($opts{d}) { print "$date: $datestr: "; }
+   	$date += $step;
+
+		if ( ref($line) ne  "ARRAY") {
+			if ($opts{d}) { print "[WARN] No hay datos de $date $datestr\n"; }
+			next;
+		}
+
+		my $rc=exp_disp_icmp($line);
+
+		if (! defined $rc) { next; }
+	
+		if ($opts{d}) { print "  $rc\n"; }
+
+		if ($opts{s}) { 
+			if (!defined $DBH) {  $DBH=sqlConnect(\%DB);  }
+			db_store_raw($DBH,$id_dev,$date,$datestr,$rc,$id_data_type,$id_function);  
+		}
+	}
+}
+
+if ($opts{s}) { $DBH->disconnect(); }
+
+
+#--------------------------------------------
+sub exp_disp_icmp {
+my $line=shift;
+
+	#v[0]=>DISP
+	if ($line->[0] >= 0.5) { return 1; }
+
+   #v[1]=>No Computable
+   if ($line->[1] >= 0.5) { return undef; }
+
+   #v[2]=>No DISP
+   if ($line->[2] >= 0.5) { return 0; }
+
+   #v[3]=>DESC
+   if ($line->[3] >= 0.5) { return undef; }
+}
+
+#--------------------------------------------
+sub db_store_raw {
+my ($dbh,$id_dev,$date,$datestr,$value,$id_data_type,$id_function)=@_;
+
+   if (! defined $dbh) { return undef; }
+	$TAB_SLA_RAW{'date'}=$date;
+	$TAB_SLA_RAW{'datestr'}=$datestr;
+	$TAB_SLA_RAW{'id_dev'}=$id_dev;
+	$TAB_SLA_RAW{'value'}=$value;
+	$TAB_SLA_RAW{'id_data_type'}=$id_data_type;
+	$TAB_SLA_RAW{'id_function'}=$id_function;
+	
+
+   my $rv=sqlInsert($dbh,$TAB_SLA_RAW_NAME,\%TAB_SLA_RAW);
+	return $rv;
+}
+
+#--------------------------------------------
+sub db_get_devices {
+my ($dbh,$type)=@_;
+
+   if (! defined $dbh) { return undef; }
+	my $what='id_dev';
+	my $table='devices';
+	my $where="type like \'$type%\'";
+print "$what  $table  $where \n";
+print "SQL=$libSQL::cmd\n";
+
+   my $rres=sqlSelectAll($dbh, $what, $table, $where);
+   return $rres;
+}
+
+
+#----------------------------------------------------------------------------
+# get_db_credentials
+#----------------------------------------------------------------------------
+sub get_db_credentials {
+
+   my $file='/cfg/onm.conf';
+   my $pwd='';
+   open (F,"<$file");
+   while (<F>) {
+
+      chomp;
+      if (/^#/) {next;}
+
+      if (/\bDB_PWD\s*\=\s*(.*)$/) {
+         $pwd=$1;
+         last;
+      }
+   }
+	close F;
+   return $pwd;
+}
+

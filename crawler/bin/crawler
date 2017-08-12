@@ -1,0 +1,103 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id: crawler,v 1.4 2004/10/04 10:38:21 fml Exp $
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $NPROC=2;
+my $FILE_XML='1';
+my $RANGE=undef;
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+
+#while (my ($k,$v)=each %$rcfgbase) {print "$k ";foreach (@$v) {print "$_ ";} print "\n";}
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hilskrc:d:",\%opts);
+my $range = (defined $opts{c}) ? $opts{c} : 'all';
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{i}) {
+	 # Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
+        my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+        $crawler->register();
+}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{s}) { 
+	# Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
+	my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+	my $pid=$crawler->run();
+}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{k}) {
+        # Termina los procesos crawler registrados ------------------------------------------
+        my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+        $crawler->stop();
+}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{r}) {
+        # k+s
+}
+
+#-------------------------------------------------------------------------------------------
+elsif($opts{l}) { 
+	my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+	my $store=$crawler->create_store();
+	my $dbh=$store->open_db();
+	my $types=$store->get_crawler_types($dbh);
+	my $sum=0;
+	foreach (@$types) {print "($_->[1])\t$_->[0]\n"; $sum += $_->[1];}
+	print "($sum)\tTOTAL\n";
+}
+#-------------------------------------------------------------------------------------------
+else { my $USAGE = usage(); die $USAGE;}
+
+
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+	my $legend = check_version();
+
+	my @fpth = split ('/',$0,10);
+	my @fname = split ('\.',$fpth[$#fpth],10);
+	my $USAGE = <<USAGE;
+$legend
+Demonio recolector de datos.
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -i  : Inicializa Registro
+$fpth[$#fpth] -l  : Lista informacion
+$fpth[$#fpth] -s  : Start all
+$fpth[$#fpth] -s -c 1   : Start crawler 1
+$fpth[$#fpth] -k  : Kill all
+$fpth[$#fpth] -k -c 1   : Kill crawler 1
+$fpth[$#fpth] -r  : Restart all
+$fpth[$#fpth] -r -c 1   : Restart crawler 1
+
+USAGE
+
+	return $USAGE;
+
+}

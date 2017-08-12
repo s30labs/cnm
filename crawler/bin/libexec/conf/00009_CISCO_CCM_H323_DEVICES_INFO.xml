@@ -1,0 +1,121 @@
+<mibtable>
+
+   <oid_cols>ccmH323DevName_ccmH323DevProductId_ccmH323DevDescription_ccmH323DevInetAddressType_ccmH323DevInetAddress_ccmH323DevCnfgGKInetAddressType_ccmH323DevCnfgGKInetAddress_ccmH323DevStatus_ccmH323DevStatusReason_ccmH323DevTimeLastStatusUpdt_ccmH323DevTimeLastRegistered</oid_cols>
+	<oid_last>CISCO-CCM-MIB::ccmH323DeviceTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevName</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevProductId</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevDescription</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevInetAddressType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevInetAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>5</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevCnfgGKInetAddressType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>6</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevCnfgGKInetAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevStatus</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>8</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevStatusReason</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>9</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevTimeLastStatusUpdt</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>10</id>
+         <width>25%</width>
+         <bold>2</bold>
+         <name_col>ccmH323DevTimeLastRegistered</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

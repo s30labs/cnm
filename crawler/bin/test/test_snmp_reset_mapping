@@ -1,0 +1,45 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# 	Fichero: test/test_snmp_table_hash
+#	Obtiene la respuesta de un determinado dispositivo a la consulta de una tabla SNMP
+#	mediante el metodo core_snmp_table_hash (get_table)
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use Data::Dumper;
+
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+#my $conf_path=$rCFG->{'conf_path'}->[0];
+#my $txml_path=$rCFG->{'txml_path'}->[0];
+#my $app_path=$rCFG->{'app_path'}->[0];
+#my $dev_path=$rCFG->{'dev_path'}->[0];
+#my $store_path=$rCFG->{'store_path'}->[0];
+#
+#my $db_server=$rCFG->{db_server}->[0];
+#my $db_name=$rCFG->{db_name}->[0];
+#my $db_user=$rCFG->{db_user}->[0];
+#my $db_pwd=$rCFG->{db_pwd}->[0];
+#
+#my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+#$store->store_path($store_path);
+#my $dbh=$store->open_db();
+
+	
+	my %SNMPCFG = ();
+   #my $snmp=Crawler::SNMP->new(log_level=>'debug', db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+   my $snmp=Crawler::SNMP->new(log_level=>'debug', 'cfg'=>$rCFG );
+	my $store=$snmp->create_store();
+
+	#---------------------------------------------------------------
+	# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+	#---------------------------------------------------------------
+	# test/test_snmp_table_hash -n 10.223.209.254 -o IF-MIB::ifTable
+	#---------------------------------------------------------------
+	$snmp->reset_mapping();
+

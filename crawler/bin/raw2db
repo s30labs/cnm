@@ -1,0 +1,222 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: raw2db
+# Almacena en BBDD los ficheros con los resultados obtenidos por los crawlers.
+# Son del tipo:
+#
+#-rw-rw-rw- 1 root root 108 2010-08-28 18:20 1283012441-latency-w_mon_tcp-1aa1f49e-5000
+#-rw-rw-rw- 1 root root  19 2010-08-28 18:20 1283012441-latency-w_mon_smtp-b31cd73d-5000
+#-rw-rw-rw- 1 root root  27 2010-08-28 18:20 1283012441-latency-w_mon_pop3-c2fc0864-5000
+#-rw-rw-rw- 1 root root  27 2010-08-28 18:20 1283012441-latency-w_mon_imap-e3c9525b-5000
+#-rw-rw-rw- 1 root root  20 2010-08-28 18:20 1283012441-latency-w_mon_httprc-b60aeccf-5000
+#-rw-rw-rw- 1 root root  27 2010-08-28 18:20 1283012441-latency-w_mon_dns-e26ca9da-5000
+#-rw-rw-rw- 1 root root 478 2010-08-28 18:20 1283012441-latency-mon_icmp-5000
+#-rw-rw-rw- 1 root root  25 2010-08-28 18:20 1283012441-latency-disp_icmp-5000
+#
+# cat /opt/data/mdata/1289394516-latency-GAUGE-disp_icmp-1000
+# 18;ALL;1289394512:1:0:0:0
+# 28;ALL;1289394512:1:0:0:0
+# 54;ALL;1289394515:1:0:0:0
+# 56;ALL;1289394515:1:0:0:0
+#
+# Almacena en las tablas de tipo __raw__
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+#-------------------------------------------------------------------------------------------
+
+my $USER='root';
+my $GROUP='root';
+my $NPROC=2;
+my $FILE_XML='1';
+my $RANGE=undef;
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $store_path=$rcfgbase->{'data_path'}->[0];
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+
+#-------------------------------------------------------------------------------------------
+# Informacion
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+$VERSION="1.0";
+my $USAGE = <<USAGE;
+Inyecta (pumper) en BBDD. $VERSION
+(c) fml
+
+$fpth[$#fpth] -f  ruta del directorio con el/los fichero (para depuracion)
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hf:c:d:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { die $USAGE;}
+
+my $CID='default';
+if ($opts{c}) { $CID=$opts{c}; }
+
+
+#-------------------------------------------------------------------------------------------
+my $crawler=Crawler->new(cfg=>$rcfgbase, log_level=>$log_level);
+
+
+#-------------------------------------------------------------------------------------------
+# Activo bloqueo, para no acumular tareas de tipo register concurrentemente
+# Notar que lo habitual es lanzarlas en crond
+my $file_lock='/opt/crawler/bin/raw.lock';
+my $blocked = $crawler->init_lock($file_lock,300,1);
+if ($blocked) {
+   $crawler->log('warning',"$0:: [compact] Bloqueo activo ($file_lock). Terminamos ....");
+   exit;
+}
+
+my $store1=$crawler->create_store();
+my $dbh1=$store1->open_db();
+
+my ($store,$dbh)=$crawler->create_store_graph();
+
+my $t1=time;
+my $nf=0;
+
+#-------------------------------------------------------------------------------------------
+my $metric_data_dir=$Crawler::MDATA_PATH.'/output/'.$CID.'/m';
+if ($opts{f}) { $metric_data_dir = $opts{f}; }
+
+opendir (DIR,$metric_data_dir);
+my @mdata_files = readdir(DIR);
+closedir(DIR);
+
+
+
+#my $SUBTABLE_MAP=$store1->get_graph_subtables_vector($dbh1);
+
+foreach my $file (sort @mdata_files) {
+
+	#Porceso un fichero de mdata
+   if ($file =~ /^\./) {next; }
+						#1295283390-latency-60-GAUGE-disp_icmp-2000
+						#ts-type-lapse-mode-subtype_subtable_range
+   if ($file !~ /^(\d+)-(\w+)-(\d+)-(\w+)-(.+)$/) { next; }
+   my $ts=$1;
+   my $type=$2;
+   my $lapse=$3;
+   my $mode=$4;
+   my $subtype_subtable_range=$5;
+   my ($subtype,$subtable,$range);
+   if ($subtype_subtable_range=~/^(.*?)-(\d+)-(\d+)$/) { $subtype=$1; $subtable=$2; $range=$3; }
+   else {
+      $store->log('warning',"[compact] **ERROR** al parsear $file");
+      next;
+   }
+
+   my $rc=open (F,"<$metric_data_dir/$file");
+   if (!$rc) {
+      $store->log('warning',"[compact] **ERROR** al abrir $metric_data_dir/$file ($!)");
+      next;
+   }
+	
+	if (-s "$metric_data_dir/$file" == 0) {
+      $rc=unlink "$metric_data_dir/$file";
+      $store->log('warning',"[compact] **ERROR SIZE=0** Borrado $metric_data_dir/$file ($rc)");
+      next;
+	}
+	
+	my %subtable_data=();
+   my @data=();
+   while (<F>) {
+      chomp;
+		#20;ALL;1295283642:548
+		#id_dev;iid;ts;v1;v2....
+      my @d=split(';',$_);
+
+		#my $subtable='000';
+		#my $key="$d[0]-$subtype-$d[1]";
+		#if (exists $SUBTABLE_MAP->{$key}) { $subtable=sprintf("%03d", $SUBTABLE_MAP->{$key}); }
+
+		
+#1296871572:1:@:"init":@:76:@:640:2:@:"migration/0":@:0:@:0:3:@:"ksoftirqd/0":@:0:@:0:4:@:"events/0":@:0:@:0:5:@:"khelper":@:0:@:0:U:U:U
+
+		# Valido la integridad de los datos
+		if ($d[2] =~ /[^0123456789U|^\:|\.]/) {
+			$store->log('info',"[compact] **ERROR EN DATOS** $metric_data_dir/$file (subtable=$subtable) (DATA=$d[2])...");			
+			next;
+		}
+
+		if (! exists $subtable_data{$subtable}) { $subtable_data{$subtable} = [ {'iddev' =>$d[0], 'iid'=>$d[1], 'data'=>$d[2]} ];}
+		else { push @{$subtable_data{$subtable}}, {'iddev' =>$d[0], 'iid'=>$d[1], 'data'=>$d[2]}; }
+      #push @data, {'iddev' =>$d[0], 'iid'=>$d[1], 'data'=>$d[2]};
+   }
+   close F;
+
+	# Cada fichero contiene los datos de un tipo de metrica y de una subtabla
+	# por lo tanto cada clave del hash (subtabla) equivale a un fichero
+
+   # El guion '-' no es valido para nombre de tabla !!
+   $subtype=~s/-/_/g;
+
+	#foreach my $subtable (sort keys %subtable_data) {
+
+   if (scalar(keys %subtable_data)==0) {
+      $rc=unlink "$metric_data_dir/$file";
+      $store->log('warning',"[compact] **ERROR DATA IN FILE** Borrado $metric_data_dir/$file ($rc)");
+   }
+	else {
+
+	  	$store->log('info',"[compact] Pumping $metric_data_dir/$file (subtable=$subtable) ...");
+
+   	$store->load_raw_graph_data($dbh,$mode,$lapse,$type,$subtype,$subtable,$subtable_data{$subtable});
+	  	my $e=$store->error();
+  		my $errstr=$store->errorstr();
+	   if ($e) { 
+  		   $store->log('warning',"[compact] **ERROR** con $metric_data_dir/$file RC=$e ($errstr)");
+  		}
+		else {
+	  		$store->log('debug',"[compact] Done $metric_data_dir/$file (OK)");
+		}
+   
+		$rc=unlink "$metric_data_dir/$file";
+  		if (! $rc) {
+     		$store->log('warning',"[compact] **ERROR** al borrar $metric_data_dir/$file ($!)");
+  		}
+	   else {
+   	   $store->log('debug',"[compact] Borrado $metric_data_dir/$file ($rc) (OK)");
+   	}
+	}
+
+#	}
+
+  	$nf+=1;
+}
+
+my $tdiff=time-$t1;
+$store->log('info',"[compact] Procesados $nf ficheros (T=$tdiff) ");
+#-------------------------------------------------------------------------------------------
+$store->close_db($dbh);
+
+
+# Desactivo el bloqueo
+$store->close_lock($file_lock);
+

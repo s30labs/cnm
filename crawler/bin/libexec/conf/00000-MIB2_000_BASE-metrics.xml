@@ -1,0 +1,63 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>DATAGRAMAS DE ENTRADA DESCARTADOS</col_name>
+         <oid>RFC1213-MIB::ipInAddrErrors.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>DESCARTES POR ROUTING</col_name>
+         <oid>RFC1213-MIB::ipRoutingDiscards.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>DATAGRAMAS SIN RUTA</col_name>
+         <oid>RFC1213-MIB::ipOutNoRoutes.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

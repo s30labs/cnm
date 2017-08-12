@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Getopt::Std;
+use Monitor;
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -i ip -u user -c password -s share -f file: Chequea fichero por SMB
+$fpth[$#fpth] -i 1.1.1.1 -u user1 -c 123 -s //mypc/datos -f datos.txt  : Chequea fichero por SMB
+
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("hi:u:c:s:f:",\%opts);
+
+if ($opts{h}) { die $USAGE; }
+if ( (!$opts{f}) || (!$opts{s}) ) { die $USAGE; }
+$DESC{host_ip}=$opts{i};
+$DESC{share}=$opts{s};
+$DESC{user}=$opts{u};
+$DESC{pwd}=$opts{c};
+$DESC{f}=$opts{f};
+
+
+#--------------------------------------------------------------------
+my $r=mon_smb(\%DESC);
+foreach (@$r) {print "$_\n";}
+

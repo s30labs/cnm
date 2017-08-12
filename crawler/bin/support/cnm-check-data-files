@@ -1,0 +1,122 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-check-data-files
+# Revisa el estado de los ficheros de datos de las metricas para detectar posibles fallos
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Store;
+use ONMConfig;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hlwr",\%opts);
+
+if ((!$opts{l}) && (!$opts{w})) { my $USAGE = usage(); die $USAGE;}
+
+my $LIST = (defined $opts{l}) ? 1 : 0;
+my $WORKSET = (defined $opts{w}) ? 1 : 0;
+my $REMOVE= (defined $opts{r}) ? 1 : 0;
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-----------------------------------------------------------------------
+my $LOG_LEVEL='info';
+my $LOG_MODE=2;
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{'db_server'}->[0];
+my $db_name=$rcfgbase->{'db_name'}->[0];
+my $db_user=$rcfgbase->{'db_user'}->[0];
+my $db_pwd=$rcfgbase->{'db_pwd'}->[0];
+my $HOST=$rcfgbase->{'host_name'}->[0];
+
+my $STORE_PATH=$rcfgbase->{'store_path'}->[0];
+my $txml_path=$rcfgbase->{'txml_path'}->[0];
+
+
+
+#-----------------------------------------------------------------------
+my $STORE=Crawler::Store->new( store_path=>$STORE_PATH,
+                               db_server=>$db_server,
+                               db_name=>$db_name,
+                               db_user=>$db_user,
+                               db_pwd=>$db_pwd,
+                               log_level=>$LOG_LEVEL, log_mode=>$LOG_MODE );
+my $dbh=$STORE->open_db();
+
+
+#-----------------------------------------------------------------------
+my $PATH_RRD_BASE='/opt/data/rrd/elements';
+my %FILES_IN_DB_ACTIVE=();
+my %DEVICES=();
+
+if ($LIST) {
+	my $r=$STORE->get_from_db($dbh,'d.id_dev,d.name,d.ip,m.name,m.label,m.file,d.status,m.status','devices d, metrics m','d.id_dev=m.id_dev');
+
+	if (scalar (@$r) == 0) {
+		die "NO HAY dispositivos con metricas en BBDD\n";
+	} 
+	foreach my $d (@$r) {   $FILES_IN_DB_ACTIVE{$d->[5]} = {'id_dev'=>$d->[0], 'dname'=>$d->[1], 'ip'=>$d->[2], 'mname'=>$d->[3], 'label'=>$d->[4], 'dstatus'=>$d->[6], 'mstatus'=>$d->[7]}; }
+
+
+
+	my @FILES_OLD = `find $PATH_RRD_BASE -mmin +180 -type f`;
+	#find /opt/data/rrd/elements/ -mmin +180 -type f -ls
+	foreach my $f (@FILES_OLD) {
+   	chomp $f;
+#/opt/data/rrd/elements/0000000032/disk_mibhostp-40-STD.rrd
+   	if ($f=~/$PATH_RRD_BASE\/(.+\.rrd)/) {
+      	my $x=$1;
+#print "--$x--\n";
+      	if (exists $FILES_IN_DB_ACTIVE{$x}) {
+				if (($FILES_IN_DB_ACTIVE{$x}->{'dstatus'}==0) && ($FILES_IN_DB_ACTIVE{$x}->{'mstatus'}==0)) {
+	         	print "METRICA: $x >> $FILES_IN_DB_ACTIVE{$x}->{'ip'}\t$FILES_IN_DB_ACTIVE{$x}->{'label'}\n";
+   	      	if ($x=~/(\d+)\//) { $DEVICES{$1}=$FILES_IN_DB_ACTIVE{$x}->{'ip'}.'-'.$FILES_IN_DB_ACTIVE{$x}->{'dname'}; }
+				}
+      	}
+			else { 
+				if ($REMOVE) { 
+					my $rr=`/bin/rm $f`;
+					print "SE BORRA: /bin/rm $f ($rr)\n";
+				}
+				else { print "SE DEBE BORRAR: /bin/rm $f\n"; }
+			}
+   	}
+	}
+}
+
+print '-'x80 . "\n";
+print "DISPOSITIVOS PARA REGENERAR METRICAS\n";
+print '-'x80 . "\n";
+
+
+foreach my $n (sort keys %DEVICES) {
+	print "DISPOSITIVO $n: $DEVICES{$n}\n";
+	if ($WORKSET) {    print "/opt/crawler/bin/workset -i $n -c default\n"; }
+}
+
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Revisa el estado de los ficheros de datos
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -l  : Lista ficheros a revisar
+$fpth[$#fpth] -w  : Regenera datos para polling
+$fpth[$#fpth] -r  : Elimina los ficheros antiguos
+
+USAGE
+
+   return $USAGE;
+
+}
+

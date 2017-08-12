@@ -1,0 +1,265 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin", "/opt/crawler/bin/support";
+use strict;
+use Getopt::Std;
+use IO::Socket;
+use Cwd;
+use System;
+use MCNM;
+use Data::Dumper;
+use Term::Clui;
+use NetAddr::IP;
+
+# Informacion ------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Genera el fichero de sistema especificado con los parametros adecuados
+(c) s30labs
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -v  : Valida que la configuracion es correcta.
+$fpth[$#fpth] -p  : Parametro a modificar (si fuera necesario). Ej -p 'NTPHOST=pool.ntp.org'
+$fpth[$#fpth] -f  : Nombre de fichero (ej. /etc/cron.hourly/ntpdate.base)
+Necesita que exista el fichero /cfg/chk-host.conf
+
+IPADDR=
+NETMASK=
+GATEWAY=
+HOSTNAME=
+NOTIF_MX=
+NTPHOST=
+DNS=
+DOMAIN=
+KEY=
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+$ENV{'PATH'} = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+#-------------------------------------------------------------------------------------------
+my %GLOBALS=();
+my @FILES_BASE=();
+my %HOST_CFG=();
+my ($RC,$ROK,$RNOK);
+
+my ($net_restart,$ntp_restart,$validate_cfg,$cnm_restart,$cnm_poweroff)=(0,0,0,0,0);
+my %opts=();
+my $REV='';
+my $FCONF='/cfg/chk-host.conf';
+getopts("f:p:hv",\%opts);
+if ($opts{h}) { die $USAGE; }
+
+my $os=check_os();
+my $www_user = ($os eq 'fc') ? 'apache' : 'www-data';
+create_dir('-p','/cfg/','770',"root:$www_user");
+
+
+#my $base_dir='/opt/cnm-os/'.$os;
+#print "base_dir=$base_dir\n";
+
+#-------------------------------------------------------------------------------------------
+# Se valida la configuracion actual
+if ($opts{v}) {
+
+	print '-'x60,"\n";
+
+	read_file_conf();
+   while (my ($k,$v) = each %GLOBALS) {
+      if ($k =~ /^__(\S+)__$/) {
+         print "$1=$v\n";
+      }
+   }
+
+	print '-'x60,"\n";
+	system("find /os/$os/ -type f | grep base");
+	print '-'x60,"\n";
+	exit;
+}
+
+#read_host_conf();
+
+#-------------------------------------------------------------------------------------------
+# Si se especifica un fichero concreo, solo se modificara ese fichero.
+# En caso contrario, se modifican todos los que esten en la ruta /os/debx/ y que tengan el tag.
+if ($opts{f}) {
+	my $fbase='/os/'.$os.'/'.$opts{f};
+	if (! -f $fbase) {
+		print "**ERROR** NO EXISTE EL FICHERO $fbase\n";
+		die $USAGE;
+	}
+	push @FILES_BASE, $fbase;
+}
+
+#-------------------------------------------------------------------------------------------
+read_file_conf();
+
+# $opts{p} >> NTPHOST=pool.ntp.org;...
+if (defined $opts{p}) {
+	foreach my $kv (split(';',$opts{p})) {
+		my ($k,$v)=split('=',$kv);
+		my $kg='__'.$k.'__';
+		$GLOBALS{$kg}=$v;
+
+		if (! $opts{f}) {
+
+   		my $base_dir='/os/'.$os;
+   		#print "base_dir=$base_dir\n";
+   		my $cmd="/bin/grep -rl $kg $base_dir/*";
+   		#print "$cmd---\n";
+  	 		my @files_grep=`$cmd`;
+			if (! $opts{f}) { 
+				foreach my $f (@files_grep) {
+					chomp $f;
+					push @FILES_BASE,$f; 
+				}
+			}
+		}
+	}
+}
+
+#print Dumper(\%GLOBALS);
+#print Dumper(\@FILES_BASE);
+
+# La direccion de broadcast y de red siempre se calculan a partir de la ip + mascara
+my $oip = new NetAddr::IP($GLOBALS{'__IPADDR__'},$GLOBALS{'__NETMASK__'});
+$GLOBALS{'__BROADCAST__'} = $oip->broadcast();
+$GLOBALS{'__BROADCAST__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+$GLOBALS{'__NETWORK__'} = $oip->network();
+$GLOBALS{'__NETWORK__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+
+#-------------------------------------------------------------------------------------------
+foreach my $fb (@FILES_BASE) {
+	print "SE VA A MODIFICAR EL FICHERO: $fb ... ";
+	osbase2system(\%GLOBALS,$fb);
+}
+
+write_file_conf();
+
+#-------------------------------------------------------------------------------------------
+# read_file_conf
+#-------------------------------------------------------------------------------------------
+sub read_file_conf {
+
+   if (! -f $FCONF) { die "No existe el fichero $FCONF\n(Es necesario con la opcion -f)\n";  }
+   open (F,"<$FCONF");
+   while (<F>) {
+
+      chomp;
+      if (/^#/) {next;}
+      if (/\bIPADDR\s*\=\s*(.*)$/) {$GLOBALS{'__IPADDR__'}=$1;}
+      elsif (/\bNETMASK\s*\=\s*(.*)$/) {$GLOBALS{'__NETMASK__'}=$1;}
+      elsif (/\bGATEWAY\s*\=\s*(.*)$/) {$GLOBALS{'__GATEWAY__'}=$1;}
+      elsif (/\bNETWORK\s*\=\s*(.*)$/) {$GLOBALS{'__NETWORK__'}=$1;}
+      elsif (/\bBROADCAST\s*\=\s*(.*)$/) {$GLOBALS{'__BROADCAST__'}=$1;}
+      elsif (/\bHOSTNAME\s*\=\s*(.*)$/) {$GLOBALS{'__HOSTNAME__'}=$1;}
+      elsif (/\bNOTIF_MX\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX__'}=$1;}
+      elsif (/\bNTPHOST\s*\=\s*(.*)$/) {$GLOBALS{'__NTPHOST__'}=$1;}
+      elsif (/\bDNS\s*\=\s*(.*)$/) {$GLOBALS{'__DNS__'}=$1;}
+      elsif (/\bDOMAIN\s*\=\s*(.*)$/) {$GLOBALS{'__DOMAIN__'}=$1;}
+      elsif (/\bKEY\s*\=\s*(.*)$/) {$GLOBALS{'__KEY__'}=$1;}
+   }
+   close F;
+
+	#El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
+	$GLOBALS{'__KEY__'} = get_stored_key();
+}
+
+#-------------------------------------------------------------------------------------------
+# write_file_conf
+#-------------------------------------------------------------------------------------------
+sub write_file_conf {
+
+   open (F,">$FCONF");
+   while (my ($k,$v) = each %GLOBALS) {
+      if ($k =~ /^__(\S+)__$/) {
+         print F "$1=$v\n";
+      }
+   }
+   close F;
+}
+
+#-------------------------------------------------------------------------------------------
+# read_host_conf
+#-------------------------------------------------------------------------------------------
+sub read_host_conf {
+
+	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
+	chomp $HOST_CFG{'IPADDR'};
+
+	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig | /bin/grep -Eo ' (Mask:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '255.0.0.0'`;
+	chomp $HOST_CFG{'NETMASK'};
+
+	$HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;
+	chomp $HOST_CFG{'GATEWAY'};
+
+	$HOST_CFG{'HOSTNAME'} = `/bin/hostname`;
+   chomp $HOST_CFG{'HOSTNAME'};
+
+	$HOST_CFG{'DNS'} = `/bin/grep nameserver /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DNS'};
+
+   $HOST_CFG{'DOMAIN'} = `/bin/grep domain /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DOMAIN'};
+
+   $HOST_CFG{'NOTIF_MX'} = `/bin/grep domain /cfg/onm.conf | awk '{ print \$3 }'`;
+   chomp $HOST_CFG{'NOTIF_MX'};
+
+   $HOST_CFG{'NTPHOST'} = `/bin/grep ntpdate /etc/cron.hourly/ntpdate | awk '{ print \$2 }'`; 
+   chomp $HOST_CFG{'NTPHOST'};
+
+   $HOST_CFG{'KEY'} = get_stored_key();;
+
+}
+
+#-------------------------------------------------------------------------------------------
+# get_stored_key
+#-------------------------------------------------------------------------------------------
+sub get_stored_key {
+
+	my $key='';
+   #El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
+   my $file_key='/cfg/key';
+   if (-f $file_key) {
+      open (F,"<$file_key");
+      $key=<F>;
+      close F;
+      chomp $key;
+      $GLOBALS{'__KEY__'} = $key;
+   }
+	return $key;
+}
+
+#-------------------------------------------------------------------------------------------
+# validate_config
+#-------------------------------------------------------------------------------------------
+sub validate_config {
+
+   print '-'x60,"\n";
+   my ($rc,$socket)=(0,undef);
+   print "Validando acceso internet (80/tcp) ...  ";
+   $socket = IO::Socket::INET->new(PeerAddr=>'software.s30labs.com', PeerPort=>80, Timeout=>2);
+   if (!defined $socket) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando acceso internet (443/tcp) ... ";
+   $socket = IO::Socket::INET->new(PeerAddr=>'software.s30labs.com', PeerPort=>443, Timeout=>2);
+   if (!defined $socket) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando servicio NTP ...              ";
+   $rc=check_ntp_config();
+   if ($rc != 0) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando servicio DNS ...              ";
+   $rc=check_dns_config();
+   if ($rc != 0) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+}
+

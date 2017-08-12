@@ -1,0 +1,165 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>TASA DE ESCANEO</col_name>
+         <oid>FINJAN-MIB::vsScannerReqs-per-second.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>TASA DE TRANSFERENCIA</col_name>
+         <oid>FINJAN-MIB::vsScannerThroughput-in-total.0|FINJAN-MIB::vsScannerThroughput-out-total.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>PETICIONES BLOQUEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsSummaryBlocked-total.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>PETICIONES BLOQUEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsScannerBlocked-AV-total.0|FINJAN-MIB::vsScannerBlocked-BA-total.0|FINJAN-MIB::vsScannerBlocked-blackList-total.0|FINJAN-MIB::vsScannerBlocked-URLCat-total.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>PETICIONES REGISTRADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsSummaryLogged-total.0</oid>
+      </item>
+
+      <item>
+         <id>5</id>
+         <col_name>PETICIONES REGISTRADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsScannerLogged-logsDb-total.0|FINJAN-MIB::vsScannerLogged-archive-total.0|FINJAN-MIB::vsScannerLogged-reportsDb-total.0|FINJAN-MIB::vsScannerLogged-syslog-total.0</oid>
+      </item>
+
+      <item>
+         <id>6</id>
+         <col_name>PETICIONES ESCANEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsScannerReqs-total.0</oid>
+      </item>
+
+      <item>
+         <id>7</id>
+         <col_name>PETICIONES ESCANEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsHTTPReqs-total.0|FINJAN-MIB::vsHTTPSReqs-total.0|FINJAN-MIB::vsFTPReqs-total.0|FINJAN-MIB::vsICAPReqs-total.0</oid>
+      </item>
+
+      <item>
+         <id>8</id>
+         <col_name>TASA DE TRANSFERENCIA HTTP</col_name>
+         <oid>FINJAN-MIB::vsHTTPThroughput-in-total.0|FINJAN-MIB::vsHTTPThroughput-out-total.0</oid>
+      </item>
+
+      <item>
+         <id>9</id>
+         <col_name>PETICIONES HTTP BLOQUEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsHTTPBlocked-total.0</oid>
+      </item>
+
+      <item>
+         <id>10</id>
+         <col_name>PETICIONES HTTP BLOQUEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsHTTPBlocked-AV-total.0|FINJAN-MIB::vsHTTPBlocked-BA-total.0|FINJAN-MIB::vsHTTPBlocked-blackList-total.0|FINJAN-MIB::vsHTTPBlocked-URLCat-total.0</oid>
+      </item>
+
+      <item>
+         <id>11</id>
+         <col_name>TASA DE TRANSFERENCIA HTTPS</col_name>
+         <oid>FINJAN-MIB::vsHTTPSThroughput-in-total.0|FINJAN-MIB::vsHTTPSThroughput-out-total.0</oid>
+      </item>
+
+      <item>
+         <id>12</id>
+         <col_name>PETICIONES HTTPS BLOQUEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsHTTPSBlocked-total.0</oid>
+      </item>
+
+      <item>
+         <id>13</id>
+         <col_name>PETICIONES HTTPS BLOQUEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsHTTPSBlocked-AV-total.0|FINJAN-MIB::vsHTTPSBlocked-BA-total.0|FINJAN-MIB::vsHTTPSBlocked-blackList-total.0|FINJAN-MIB::vsHTTPSBlocked-URLCat-total.0</oid>
+      </item>
+
+      <item>
+         <id>14</id>
+         <col_name>TASA DE TRANSFERENCIA FTP</col_name>
+         <oid>FINJAN-MIB::vsFTPThroughput-in-total.0|FINJAN-MIB::vsFTPThroughput-out-total.0</oid>
+      </item>
+
+      <item>
+         <id>15</id>
+         <col_name>PETICIONES FTP BLOQUEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsFTPBlocked-total.0</oid>
+      </item>
+
+      <item>
+         <id>16</id>
+         <col_name>PETICIONES FTP BLOQUEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsFTPBlocked-AV-total.0|FINJAN-MIB::vsFTPBlocked-BA-total.0|FINJAN-MIB::vsFTPBlocked-blackList-total.0|FINJAN-MIB::vsFTPBlocked-URLCat-total.0</oid>
+      </item>
+
+      <item>
+         <id>17</id>
+         <col_name>TASA DE TRANSFERENCIA ICAP</col_name>
+         <oid>FINJAN-MIB::vsICAPThroughput-in-total.0|FINJAN-MIB::vsICAPThroughput-out-total.0</oid>
+      </item>
+
+      <item>
+         <id>18</id>
+         <col_name>PETICIONES ICAP BLOQUEADAS (TOTALES)</col_name>
+         <oid>FINJAN-MIB::vsICAPBlocked-total.0</oid>
+      </item>
+
+      <item>
+         <id>19</id>
+         <col_name>PETICIONES ICAP BLOQUEADAS (DETALLE)</col_name>
+         <oid>FINJAN-MIB::vsICAPBlocked-AV-total.0|FINJAN-MIB::vsICAPBlocked-BA-total.0|FINJAN-MIB::vsICAPBlocked-blackList-total.0|FINJAN-MIB::vsICAPBlocked-URLCat-total.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

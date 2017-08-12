@@ -1,0 +1,14 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-install-prepare
+#-------------------------------------------------------------------------------------------
+use strict;
+my $REPO="software.s30labs.com";
+my $APT_GET="/usr/bin/apt-get";
+
+system ("echo \"deb http://$REPO/repositorio6/ stable main contrib\" > /etc/apt/sources.list");
+system ("$APT_GET update");
+system ("$APT_GET install build-essential -y --force-yes");
+system ("$APT_GET install libssl0.9.8=0.9.8o-4 -y --force-yes");
+system ("$APT_GET install git -y --force-yes");
+

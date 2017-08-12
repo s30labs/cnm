@@ -1,0 +1,185 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-daily
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use warnings;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::SNMP;
+use Crawler::Actions;
+use CNMOS;
+#use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+$FILE_CONF='/cfg/onm.conf';
+my $cmd;
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $host_name=$rCFG->{host_name}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hid:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $do_install = (defined $opts{i}) ? 1 : 0;
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my ($tlast,$tdate,$rows,$rc,$rcstr)=(0,0,0,0,'');
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,host=>$host_name,cfg=>$rCFG, log_level=>$log_level, log_mode=>1 );
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+#-------------------------------------------------------------------------------------------
+my $vtables = $store->show_tables($dbh,'%');
+foreach my $x (@$vtables) {
+   my $table=$x->[0];
+   my $res = $store->check_table($dbh,$table);
+	my ($Msg_type,$Msg_text)=($res->[2],$res->[3]);
+	$store->log('info',"$0: CHECK TABLE: $table [$Msg_text]");
+   if (($Msg_text ne 'OK') && ($Msg_type ne 'note')) {
+      $res = $store->repair_table($dbh,$table);
+		my $result=$res->[3];
+		$store->log('info',"$0: REPAIR TABLE: $table Msg_type=$Msg_type Msg_text=$Msg_text RESULT=$result");
+   }
+   #print 'ERR='.$store->error()."\n";
+   #print 'ERRSTR='.$store->errorstr()."\n";
+   #print 'CMD='.$store->lastcmd()."\n";
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+#| max_days_event              | 30        | Profundidad en d▒as del hist▒rico de eventos                                |
+#| max_number_event            | 10000     | N▒mero de eventos m▒ximo                                                    |
+#| max_days_alerts_store       | 30        | Profundidad en d▒as del hist▒rico de alertas                                |
+#| max_number_alerts_store     | 10000     | N▒mero m▒ximo de alertas en el hist▒rico                                    |
+#| max_days_audit              | 30        | Profundidad en d▒as de la auditoria                                         |
+#| max_number_audit            | 10000     | N▒mero m▒ximo de entradas en auditoria                                      |
+#
+#-------------------------------------------------------------------------------------------
+my $CNM_CONFIG=$store->get_cnm_config($dbh);
+
+#-------------------------------------------------------------------------------------------
+if ($CNM_CONFIG->{'max_days_event'}=~/\d+/) {  
+	$store->log('info',"$0: max_days_event=$CNM_CONFIG->{'max_days_event'}");
+	$store->limit_table_in_days($dbh, 'events', 'date', $CNM_CONFIG->{'max_days_event'}, 'EVENTOS');  
+}
+
+if ($CNM_CONFIG->{'max_number_event'}=~/\d+/) {  
+	$store->log('info',"$0: max_number_event=$CNM_CONFIG->{'max_number_event'}");
+	$store->limit_table_in_lines($dbh, 'events', 'id_event', $CNM_CONFIG->{'max_number_event'}, 'EVENTOS');  
+}
+
+#-------------------------------------------------------------------------------------------
+if ($CNM_CONFIG->{'max_days_alerts_store'}=~/\d+/) { 
+	$store->log('info',"$0: max_days_alerts_store=$CNM_CONFIG->{'max_days_alerts_store'}");
+	$store->limit_table_in_days($dbh, 'alerts_store', 'date', $CNM_CONFIG->{'max_days_alerts_store'}, 'HISTORICO DE ALERTAS');  
+}
+
+if ($CNM_CONFIG->{'max_number_alerts_store'}=~/\d+/) {  
+	$store->log('info',"$0: max_number_alerts_store=$CNM_CONFIG->{'max_number_alerts_store'}");
+	$store->limit_table_in_lines($dbh, 'alerts_store', 'id_alert', $CNM_CONFIG->{'max_number_alerts_store'}, 'HISTORICO DE ALERTAS');  
+}
+
+#-------------------------------------------------------------------------------------------
+if ($CNM_CONFIG->{'max_days_audit'}=~/\d+/) {
+	$store->log('info',"$0: max_days_audit=$CNM_CONFIG->{'max_days_audit'}");
+   $store->limit_table_in_days($dbh, 'qactions', 'date_start', $CNM_CONFIG->{'max_days_audit'}, 'AUDITORIA');
+}
+
+if ($CNM_CONFIG->{'max_number_audit'}=~/\d+/) {
+	$store->log('info',"$0: max_number_audit=$CNM_CONFIG->{'max_number_audit'}");
+   $store->limit_table_in_lines($dbh, 'qactions', 'id_qactions', $CNM_CONFIG->{'max_number_audit'}, 'AUDITORIA');
+}
+
+#-------------------------------------------------------------------------------------------
+# Se limita el espacio ocupado por ficheros almacenados por metricas
+$store->limit_metric_files(1000000000); #1 GB
+
+#-------------------------------------------------------------------------------------------
+# Se limita el espacio ocupado por logs externos
+$store->limit_log_data($dbh, 500000);
+
+#-------------------------------------------------------------------------------------------
+# Registra la ocupacion de tablas
+$store->get_size_of_tables($dbh);
+
+#-------------------------------------------------------------------------------------------
+# MANTENIMIENTO DE TABLAS
+#-------------------------------------------------------------------------------------------
+$store->db_cmd($dbh,'DELETE FROM cnm_status WHERE concat(cid,cid_ip) NOT IN (SELECT concat(cid,host_ip) FROM cnm.cfg_cnms)');
+
+#-------------------------------------------------------------------------------------------
+system("/usr/bin/touch $Crawler::Actions::ROTATE_FILE");
+
+#-------------------------------------------------------------------------------------------
+# Other admin tasks
+#-------------------------------------------------------------------------------------------
+system("/etc/init.d/snmpd restart");
+
+#-------------------------------------------------------------------------------------------
+# Se eliminan los mensajes frozen en exim
+# Chequear:  	exim -bp | grep frozen | wc -l
+# Eliminar:		exim -bpru | grep frozen | awk '{print $3}' |xargs exim -Mrm
+# Num. en cola:	exim -bpc
+#-------------------------------------------------------------------------------------------
+my $n0=`/usr/sbin/exim -bpc`;
+chomp $n0;
+if ($n0>0) {
+	$cmd="/usr/sbin/exim -bpru | /bin/grep frozen | /usr/bin/awk '{print \$3}' | /usr/bin/xargs /usr/sbin/exim -Mrm";
+	`$cmd`;
+	my $n1=`/usr/sbin/exim -bpc`;
+	chomp $n1;
+	if ($n0>$n1) { 
+		my $dif=$n0-$n1;
+		print "ELIMINADOS CORREOS FROZEN ($dif)\n";
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+my $cnmos=CNMOS->new();
+$cnmos->validate_dir();
+$cnmos->validate_dir_files();
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Tareas de mantenimiento diario del sistema
+
+$fpth[$#fpth] [-i] [-d debug|info]
+$fpth[$#fpth] -h  : Ayuda
+
+-i: Se instalan plugins
+-d: Fija el nivel de depuracion
+USAGE
+
+   return $USAGE;
+
+}
+

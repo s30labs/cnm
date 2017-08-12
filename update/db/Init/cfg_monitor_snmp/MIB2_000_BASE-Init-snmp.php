@@ -1,0 +1,142 @@
+<?php
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_ipInAddrErrors',
+            'class' => 'MIB2',
+            'lapse' => '300',
+            'descr' => 'DATAGRAMAS DE ENTRADA DESCARTADOS',
+            'items' => 'ipInAddrErrors.0',
+            'oid' => '.1.3.6.1.2.1.4.5.0',
+            'get_iid' => '',
+            'oidn' => 'RFC1213-MIB::ipInAddrErrors.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'RFC1213-MIB::ipInAddrErrors.0',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.MIB2',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_ipRoutingDiscards',
+            'class' => 'MIB2',
+            'lapse' => '300',
+            'descr' => 'DESCARTES POR ROUTING',
+            'items' => 'ipRoutingDiscards.0',
+            'oid' => '.1.3.6.1.2.1.4.23.0',
+            'get_iid' => '',
+            'oidn' => 'RFC1213-MIB::ipRoutingDiscards.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'RFC1213-MIB::ipRoutingDiscards.0',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.MIB2',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_ipOutNoRoutes',
+            'class' => 'MIB2',
+            'lapse' => '300',
+            'descr' => 'DATAGRAMAS SIN RUTA',
+            'items' => 'ipOutNoRoutes.0',
+            'oid' => '.1.3.6.1.2.1.4.12.0',
+            'get_iid' => '',
+            'oidn' => 'RFC1213-MIB::ipOutNoRoutes.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '0',
+            'myrange' => 'RFC1213-MIB::ipOutNoRoutes.0',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.MIB2',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_uptime',
+            'class' => 'MIB2',
+            'lapse' => '300',
+            'descr' => 'TIEMPO EN FUNCIONAMIENTO',
+            'items' => 'sysUpTime.0',
+            'oid' => '.1.3.6.1.2.1.1.3.0',
+            'get_iid' => '',
+            'oidn' => 'SNMPv2-MIB::sysUpTime.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'SNMPv2-MIB::sysUpTime.0',
+            'enterprise' => '0',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.MIB2',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'mib2_glob_ifstat',
+            'class' => 'MIB2',
+            'lapse' => '300',
+            'descr' => 'RESUMEN ESTADO DE INTERFACES',
+            'items' => 'up|admin down|down|unk',
+            'oid' => '.1.3.6.1.2.1.2.2.1.7.IID|.1.3.6.1.2.1.2.2.1.8.IID',
+            'get_iid' => 'ifDescr',
+            'oidn' => 'ifAdminStatus.IID|ifOperStatus.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'RFC1213-MIB::ifTable',
+            'enterprise' => '0',
+            'esp' => 'TABLE(MATCH)(up,up)|TABLE(MATCH)(down,*)|TABLE(MATCH)(up,down)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.MIB2',
+      );
+
+
+?>

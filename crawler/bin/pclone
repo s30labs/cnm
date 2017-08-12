@@ -1,0 +1,68 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: plite
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use ProvisionLite;
+use Data::Dumper;
+
+# ----------------------------------------------------------------------------------
+my %opts=();
+getopts("hi:o:d:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $log_mode=3;
+
+if (! $opts{i}) { my $USAGE = usage(); die $USAGE;}
+if (! $opts{o}) { my $USAGE = usage(); die $USAGE;}
+
+my $id_dev_src=$opts{i};
+my @id_dev_dst = split(',', $opts{o});
+
+# ----------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $provision=ProvisionLite->new(log_level=>$log_level, log_mode=>$log_mode, cfg=>$rcfgbase);
+$provision->init();
+
+# ----------------------------------------------------------------------------------
+# OBTENGO EL RANGO DE ID_DEVS
+my $STORE=$provision->store();
+my $dbh=$provision->dbh();
+
+
+$provision->log('info',"$0 [$$]::START ID_DEV_SRC=$id_dev_src ID_DEV_DST=@id_dev_dst");
+$provision->clone_template_metrics({'id_dev_src'=>$id_dev_src, 'id_dev_dst'=>\@id_dev_dst});
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Clona plantillas
+
+$fpth[$#fpth] -i id_dev  -o id_dev1,id_dev2,id_dev3
+-i : Dispositivo de entrada (source)
+-o : Dispositivo/s de salida (destino)
+
+$fpth[$#fpth] -i 3 -o 55
+
+$fpth[$#fpth] -d [debug|info] : Fija el nivel de depuracion
+
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

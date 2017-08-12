@@ -1,0 +1,49 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Test::More tests => 1;
+use strict;
+use ProvisionLite;
+
+#------------------------------------------------------------------------------
+my $log_level='debug';
+my $PROVISION=ProvisionLite->new(log_level=>$log_level);
+
+
+#------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+ok( prov_test_001(),			'get_dns_name: name -> ip' );
+
+
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# FUNCIONES DE TEST
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# prov_test_001 
+#------------------------------------------------------------------------------
+sub prov_test_001 {
+
+	# Es necesario el subtype para evitar warnings	
+	my @values=('178.33.211.249');
+	my @new_values_ok=('www.s30labs.com');
+	my @new_values=();
+
+	foreach my $ip (@values) {
+		my $name=$PROVISION->get_dns_name($ip);
+		push @new_values,$name;
+	}
+print "@values\t===>\t@new_values\n\n";
+
+	my $rc=1;
+	my $n=scalar(@new_values);
+	if ($n==0) { $rc=0; }
+	for my $i (0..$n-1) {
+		if ($new_values[$i] ne $new_values_ok[$i]) { $rc=0; } 
+	}
+
+	return $rc;
+}

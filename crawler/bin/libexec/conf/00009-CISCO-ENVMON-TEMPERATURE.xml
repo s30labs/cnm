@@ -1,0 +1,61 @@
+<mibtable>
+
+   <oid_cols>ciscoEnvMonTemperatureStatusDescr_ciscoEnvMonTemperatureStatusValue_ciscoEnvMonTemperatureThreshold_ciscoEnvMonTemperatureLastShutdown_ciscoEnvMonTemperatureState</oid_cols>
+	<oid_last>CISCO-ENVMON-MIB::ciscoEnvMonTemperatureStatusTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>35%</width>
+         <bold>2</bold>
+         <name_col>ciscoEnvMonTemperatureStatusDescr</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter,#select_filter,#numeric_filter,#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>35%</width>
+         <bold>2</bold>
+         <name_col>ciscoEnvMonTemperatureStatusValue</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>35%</width>
+         <bold>2</bold>
+         <name_col>ciscoEnvMonTemperatureThreshold</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>35%</width>
+         <bold>2</bold>
+         <name_col>ciscoEnvMonTemperatureLastShutdown</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>ciscoEnvMonTemperatureState</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

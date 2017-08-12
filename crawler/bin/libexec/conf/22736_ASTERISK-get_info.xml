@@ -1,0 +1,65 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>VERSION DE SOFTWARE</col_name>
+         <oid>ASTERISK-MIB::astVersionString.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>PID</col_name>
+         <oid>ASTERISK-MIB::astConfigPid.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>SOCKET</col_name>
+         <oid>ASTERISK-MIB::astConfigSocket.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>NUMERO DE MODULOS</col_name>
+         <oid>ASTERISK-MIB::astNumModules.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>CONFIG UP TIME</col_name>
+         <oid>ASTERISK-MIB::astConfigUpTime.0</oid>
+      </item>
+
+      <item>
+         <id>5</id>
+         <col_name>CONFIG RELOAD TIME</col_name>
+         <oid>ASTERISK-MIB::astConfigReloadTime.0</oid>
+      </item>
+
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>45%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+</mibtable>

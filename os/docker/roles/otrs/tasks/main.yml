@@ -1,0 +1,135 @@
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Check /opt/otrs/Kernel/Config.pm
+  stat: path=/opt/otrs/Kernel/Config.pm
+  register: otrs_config_pm
+
+- name: Extract from source
+  command: tar -C /opt -xzvf /opt/cnm-os/otrs/otrs-3.3.5.tar.gz
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+- name: otrs link [/opt/otrs -> /opt/otrs-3.3.5]
+  file: path=/opt/otrs src=/opt/otrs-3.3.5 state=link owner=root group=root mode=0755
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+- name: Create otrs group
+  group: name=otrs state=present
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+- name: Create otrs user
+  user: name=otrs comment="OTRS user" home="/opt/otrs/" groups="otrs,www-data"
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+# En Config.pm incluir:
+#$Self->{'SessionCheckRemoteIP'} = '0';
+#$Self->{'SessionDeleteIfNotRemoteID'} = '0';
+#$Self->{'SessionUseCookie'} = '0';
+#$Self->{'SessionCSRFProtection'} = '0';
+# Habilitar el modo seguro:
+# En Config.pm añadir:
+#$Self->{'SecureMode'} = '1';
+
+- name: Modify Config.pm
+  template: src=Config.pm.j2 dest=/opt/otrs/Kernel/Config.pm owner=otrs group=www-data mode=0664
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+
+
+- name: GenericAgent.pm.dist -> GenericAgent.pm
+  copy: src=/opt/otrs/Kernel/Config/GenericAgent.pm.dist dest=/opt/otrs/Kernel/Config/GenericAgent.pm owner=root group=root mode=0644
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+# Permitir crear sesiones para poderlas utilizar después desde CNM y abrir ventanas
+- name: Modified InterfaceAgent.pm
+  copy: src=InterfaceAgent.pm dest=/opt/otrs/Kernel/System/Web/InterfaceAgent.pm owner=root group=root mode=0644
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+
+- name: Create otrs database
+  mysql_db: name=otrs state=present
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+- name: Create otrs user and set privileges
+  mysql_user: name=otrs password={{ db_pwd }} host=localhost priv=otrs.*:ALL,GRANT state=present
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: mysql
+
+
+- name: Execute mysql scripts (1)
+  shell: /usr/bin/mysql -u otrs -p{{ db_pwd }} otrs < /opt/otrs/scripts/database/{{ item }}
+  with_items:
+    - otrs-schema.mysql.sql
+    - otrs-initial_insert.mysql.sql
+    - otrs-schema-post.mysql.sql
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+#- name: Execute mysql scripts (2)
+#  shell: /usr/bin/mysql -u otrs -p{{ db_pwd }} otrs < /opt/cnm/os/debian8/roles/otrs/files/{{ item }}
+#  with_items:
+#    - otrs-dynamic-field.mysql.sql
+#    - otrs-dynamic-field-value.mysql.sql
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+
+- name: Create in otrs CNM group
+  command: /opt/otrs/bin/otrs.AddGroup.pl -c 'CNM Users' -n 'CNM'
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+- name: Create in otrs admin user
+  command: /opt/otrs/bin/otrs.AddUser.pl -f admin -l cnm -p cnm123 -g CNM -e admin\@cnm.es admin`;
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+#agente que se utiliza para abrir los tickets en OTRS
+- name: Create in otrs cnm user
+  command: /opt/otrs/bin/otrs.AddUser.pl -f cnm -l agent -p cnm1234 -g CNM -e cnm_agent\@cnm.es cnm
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+#- name: Create in otrs customer client_cnm
+#  command: /opt/otrs/bin/otrs.AddCustomerUser.pl -f "Client" -l "CNM" -p cnm1234 -e client_cnm\@cnm.es -c 1 client_cnm
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+#
+#- name: Create in otrs CNM queue with CNM group
+#  command: /opt/otrs/bin/otrs.AddQueue.pl -n CNM -g CNM
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+#
+#- name: Assign permissions to client_cnm
+#  command: /opt/otrs/bin/otrs.AddCustomer2Group.pl -g CNM -u client_cnm -p rw
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+#
+#
+## Permitir que los customers estén en grupos, en Config.pm añadir:
+## $Self->{CustomerGroupSupport} = 1;
+## Por interfaz es Sysconfig > Framework > FrontEnd::Customer CustomerGroupSupport-> Yes
+#
+#- name: Assign permissions to client_cnm
+#  command: /opt/otrs/bin/otrs.SetPermissions.pl --otrs-user=otrs --web-user=www-data --otrs-group=www-data --web-group=www-data /opt/otrs
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+
+- name: Set directory permissions
+  file: path=/opt/otrs/Kernel/Config/Files owner=root group=root mode=0777
+  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+  tags: otrs
+
+#- name: Set directory permissions
+#  file: path=/opt/otrs/var/httpd/htdocs/js/js-cache owner=root group=root mode=0777
+#  when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
+#  tags: otrs
+
+

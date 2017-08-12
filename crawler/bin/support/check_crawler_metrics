@@ -1,0 +1,3 @@
+#!/bin/bash
+
+mysql -p onm -e 'select distinct crawler_idx,type,count(*) from metrics group by crawler_idx,type order by crawler_idx;select count(*) as total_metricas from metrics m, devices d where d.id_dev=m.id_dev and d.status=0 and m.status=0;'

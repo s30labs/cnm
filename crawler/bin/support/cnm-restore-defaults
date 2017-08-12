@@ -1,0 +1,50 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-set-network
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Long;
+use Cwd;
+use Term::Clui;
+use Data::Dumper;
+
+BEGIN {
+  $ENV{'MIBS'}='ALL';
+  $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+}
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+CNM Installer $VERSION (c) s30labs
+
+$fpth[$#fpth]
+$fpth[$#fpth] -f
+$fpth[$#fpth] -h
+
+-f : Force
+-h : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my %OPTS = ();
+GetOptions (\%OPTS,'help','h','f');
+
+if ($OPTS{'h'} || $OPTS{'help'}) { die $USAGE;}
+if (!$OPTS{'f'}) {
+
+	if (confirm("Quiere inicializar el CNM ? ***SE PERDERAN TODOS LOS DATOS***")) {
+		ask('Pulse INTRO');
+	}
+}
+
+my $cwd = cwd();
+chdir('/opt/cnm/os/debian8');
+my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts cnm-init.yml";
+print "Ejecutando $cmd ...\n";
+system($cmd);
+chdir($cwd);
+ 

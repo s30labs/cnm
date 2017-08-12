@@ -1,0 +1,17 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+use strict;
+
+my $file=$ARGV[0] or die "Uso: $0 file_walk\n";
+my %MIBS=();
+open (F,"<$file") or die "No existe $file\n";
+while (<F>) {
+	chomp;
+	if (/^(\S+)\:\:/) { $MIBS{$1}=1; }
+}
+close F;
+foreach my $m ( sort keys %MIBS) {
+	print "$m\n";
+}
+

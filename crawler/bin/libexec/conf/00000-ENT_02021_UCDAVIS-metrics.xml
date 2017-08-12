@@ -1,0 +1,93 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>USO DE MEMORIA (SWAP)</col_name>
+         <oid>UCD-SNMP-MIB::memAvailSwap.0|UCD-SNMP-MIB::memTotalSwap.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>USO DE MEMORIA (REAL)</col_name>
+         <oid>UCD-SNMP-MIB::memAvailReal.0|UCD-SNMP-MIB::memTotalReal.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>USO DE MEMORIA (BUFFER)</col_name>
+         <oid>UCD-SNMP-MIB::memShared.0|UCD-SNMP-MIB::memBuffer.0|UCD-SNMP-MIB::memCached.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>USO DE SWAP</col_name>
+         <oid>UCD-SNMP-MIB::ssRawSwapIn.0|UCD-SNMP-MIB::ssRawSwapOut.0</oid>
+      </item>
+
+      <item>
+         <id>4</id>
+         <col_name>USO DE IO</col_name>
+         <oid>UCD-SNMP-MIB::ssIORawSent.0|UCD-SNMP-MIB::ssIORawReceived.0</oid>
+      </item>
+
+      <item>
+         <id>5</id>
+         <col_name>USO DE INTERRUPCIONES</col_name>
+         <oid>UCD-SNMP-MIB::ssRawInterrupts.0</oid>
+      </item>
+
+      <item>
+         <id>6</id>
+         <col_name>CAMBIOS DE CONTEXTO</col_name>
+         <oid>UCD-SNMP-MIB::ssRawContexts.0</oid>
+      </item>
+
+      <item>
+         <id>7</id>
+         <col_name>TIEMPO DE CPU DE IRQ SW (Linux 2.6)</col_name>
+         <oid>UCD-SNMP-MIB::ssCpuRawSoftIRQ.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

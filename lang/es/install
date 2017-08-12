@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: install
+# Instalacion idioma es
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+
+#-------------------------------------------------------------------------------------------
+my $LANG='es';
+my $BASE_DIR="/opt/cnm-lang/$LANG";
+#-------------------------------------------------------------------------------------------
+my $LOGGER='/usr/bin/logger -p local0.info';
+
+#-------------------------------------------------------------------------------------------
+print "***> INSTALANDO IDIOMA [$LANG] EN CORE ....\n";
+my $cmd = "/update/db/db-manage.php -p $BASE_DIR";
+my $rc = system ("$cmd");
+my $extra='';
+if ($rc != 0) { $extra='**ERROR**'; }
+system ("$LOGGER -- INSTALANDO IDIOMA [$LANG] EN CORE $0 [$cmd] rc=$rc $extra");
+
+#-------------------------------------------------------------------------------------------
+print "***> INSTALANDO IDIOMA [$LANG] EN support-packs ....\n";
+$cmd = "/opt/cnm-sp/sp-lang -l $LANG";
+$rc = system ("$cmd");
+$extra='';
+if ($rc != 0) { $extra='**ERROR**'; }
+system ("$LOGGER -- INSTALANDO IDIOMA [$LANG] EN support-packs $0 [$cmd] rc=$rc $extra");

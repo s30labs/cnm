@@ -1,0 +1,178 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# test_store1
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Store;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+$VERSION="1.0";
+my $USAGE = <<USAGE;
+Reporta dispositivos con metricas que no pintan. $VERSION
+(c) s30labs
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -s "pattern"  : Especifica patron de busqueda en subtype
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hs:d:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+
+#-------------------------------------------------------------------------------------------
+my %DEVICES_IN_DB=();
+my %DEVICES_DELETED=();
+my %DEVICES_WITH_OLD_RRDS=();
+my $res=$store->get_from_db($dbh,'id_dev,name,status', 'devices','','');
+foreach my $a (@$res) {
+
+  	$DEVICES_IN_DB{$a->[0]}={ 'name'=>$a->[1], 'status'=>$a->[2], 'alert'=>0 };
+}
+
+$res=$store->get_from_db($dbh,'id_device,subtype', 'alerts',"counter>0 AND severity<4 and cause='SIN RESPUESTA SNMP'",'');
+foreach my $a (@$res) {
+	$DEVICES_IN_DB{$a->[0]}->{'alert'}=1;
+}
+
+#-------------------------------------------------------------------------------------------
+#$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+#my @old_files=`cd /opt/data/rrd/elements ; /usr/bin/find . -ctime +1`;
+my @old_files=`/usr/bin/find /opt/data/rrd/elements -ctime +1`;
+my ($cnt_metric,$cnt_dev)=(0,0);
+foreach my $f (@old_files) {
+   #./0000000054/mon_http-STD.rrd
+	chomp $f;
+   if ($f =~ /elements\/(\d+)\//) {
+      my $id=int $1;
+		if ($DEVICES_IN_DB{$id}->{'status'} == 0) {
+      	push @{$DEVICES_WITH_OLD_RRDS{$id}},$f;
+			$cnt_metric+=1;
+		}
+   }
+}
+
+my @TEMP=();
+# -----------------------------------------------------------------------------------
+# GRUPO1 - RRDS SIN ACTUALIZAR
+# -----------------------------------------------------------------------------------
+#Un rrd puede no actualizarse por:
+#1. Se ha eliminado la métrica de métricas en curso -> Queda (o no) en la plantilla desactivada. En este caso ya no está en la tabla métrics.
+#2. El dispositivo está  en alerta -> No responde a snmp-> No pinta las métricas snmp
+my @SIN_SNMP=();
+print "GRUPO1 : DISPOSITIVOS ACTIVOS EN BBDD (status=0) CON METRICAS SIN ACTUALIZAR\n".'-' x70 . "\n";
+foreach my $id (sort {$a <=> $b} keys %DEVICES_WITH_OLD_RRDS) {
+	if (! exists $DEVICES_IN_DB{$id}->{'status'}) { 
+		my $subdir=sprintf("%010d",$id);
+		$DEVICES_DELETED{$id} = "rm -rf /opt/data/rrd/elements/$subdir/*";
+		push @TEMP,$id;
+	}
+	else { 
+		if ($DEVICES_IN_DB{$id}->{'status'} == 0) {  
+			my $n = $DEVICES_IN_DB{$id}->{'name'};
+			if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { push @SIN_SNMP, "$id [$n]"; }
+			else {
+				print "$id [$n],"; 
+			}
+		}
+	}
+}
+
+print "\n\n";
+
+print "---->SIN SNMP:\n";
+print join(',',@SIN_SNMP), "\n";
+
+print "\n\n";
+
+print "GRUPO2 : DISPOSITIVOS ELIMINADOS CON RRDs SIN ELIMINAR\n".'-' x70 . "\n";
+foreach my $id (sort {$a <=> $b} keys %DEVICES_DELETED) {
+	print $DEVICES_DELETED{$id}."\n";
+}
+print "\n";
+
+print join(',',@TEMP),"\n\n";
+
+$cnt_dev=scalar (keys %DEVICES_WITH_OLD_RRDS);
+my  $cnt_dev_sin_snmp=scalar@SIN_SNMP;
+print "GRUPO1 : TOTAL DISPOSITIVOS ACTIVOS CON METRICAS SIN ACTUALIZAR = $cnt_dev [sin snmp=$cnt_dev_sin_snmp]\n";
+print "GRUPO1 : TOTAL METRICAS SIN ACTUALIZAR = $cnt_metric\n\n";
+
+print "GRUPO1 : DISPOSITIVOS ACTIVOS EN BBDD CON METRICAS SIN ACTUALIZAR **DETALLADO**\n".'-' x70 . "\n";
+foreach my $id (sort {$a <=> $b} keys %DEVICES_WITH_OLD_RRDS) {
+	if ($DEVICES_IN_DB{$id}->{'status'} != 0) { next; } 
+	print "#_old $id :".scalar(@{$DEVICES_WITH_OLD_RRDS{$id}})."\n";
+	foreach my $f (@{$DEVICES_WITH_OLD_RRDS{$id}}) { print "\trm $f\n"; }
+}
+
+
+
+#~my %RRDS_IN_DB=();
+#$res=$store->get_from_db($dbh,'m.file', 'devices d, metrics m','m.id_dev=d.id_dev and d.status=0 and m.status=0','');
+#foreach my $a (@$res) {
+#
+#   $RRDS_IN_DB{$a->[0]}=1;
+#}
+
+my %RRDS_IN_DIR_FILES=();
+my @all_files=`/usr/bin/find /opt/data/rrd/elements -type f`;
+foreach my $f (@all_files) {
+	if ($f =~ /elements\/(\d+\/.*)$/) { 
+		$RRDS_IN_DIR_FILES{$1}=1; 
+	}
+}
+
+$res=$store->get_from_db($dbh,'m.file,d.name', 'devices d, metrics m','m.id_dev=d.id_dev and d.status=0 and m.status=0','order by file');
+my $xx=scalar(@$res);
+print "***METRICAS ACTIVAS TOTALES = $xx\n";
+print "GRUPO3 : METRICAS ACTIVAS EN BBD SIN RRDs EN DIRECTORIO\n".'-' x70 . "\n";
+my  $i=1;
+foreach my $a (@$res) {
+	if (! exists $RRDS_IN_DIR_FILES{$a->[0]}) { 
+		print "[$i]\t**NO EXISTE** $a->[0]\t[$a->[1]]"; 
+		if ($a->[0]=~/(\d+)\/\S+/) {
+			my $id = int $1;
+			if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { print "\t**sin snmp**";}
+		}
+		print "\n";
+		$i+=1;
+	}
+}
+$store->close_db($dbh);
+

@@ -1,0 +1,63 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+use File::Basename;
+use File::Copy;
+use RRDs;
+
+my $FILE_RRD_IN = undef;
+my ($dirname,$basename);
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Programa para reparar archivos rrd
+(c) fml
+
+$fpth[$#fpth] -h
+$fpth[$#fpth] -q
+$fpth[$#fpth] -f /opt/data/rrd/file.rrd
+
+USAGE
+
+#--------------------------------------------------------------------
+my %opts=();
+getopts("hf:r:v:",\%opts);
+if ($opts{h}) { die $USAGE;}
+if ($opts{f}) {$FILE_RRD_IN = $opts{f}; }
+else {die $USAGE; }
+
+#--------------------------------------------------------------------
+#$dirname=dirname($FILE_RRD_IN);
+#$basename=basename($FILE_RRD_IN,qr{\.rrd});
+#my $ftmp='/tmp/'.$basename;
+#$FILE_XML_IN=$dirname.'/'.$basename.'.xml';
+#$FILE_XML_OUT=$dirname.'/'.$basename.'.out.xml';
+
+
+#--------------------------------------------------------------------
+my $tnow=time-300;
+my ($start,$step,$names,$array) = RRDs::fetch $FILE_RRD_IN, "AVERAGE", "-s $tnow";
+my $ERROR = RRDs::error;
+print "ERROR: $ERROR\n" if $ERROR ;
+print "start=$start, step=$step\n";
+print "                    ";
+map {printf("%12s",$_)} @$names ;
+print "\n";
+#--------------------------------------------
+foreach my $line (@$array){
+	if ($start>$tnow) {last;}
+	print "".localtime($start),"   ";
+   foreach my $val (@$line) { #print "************>$start : $val\t";
+		if (! $val) { next; }
+    	else { printf "%12.1f", $val; }
+  }
+  print "\n";
+  $start += $step;
+
+}
+
+
+

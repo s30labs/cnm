@@ -1,0 +1,110 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+# Fichero: $Id: mibhost_disk,v 1.1 2004/02/18 13:23:09 fml Exp $
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+use lib '/opt/crawler/bin/';
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use Crawler::Analysis;
+use Stdout;
+use JSON;
+
+BEGIN { $ENV{'MIBS'}='HOST-RESOURCES-MIB'; }
+#---------------------------------------------------------------------------
+my @RES=();
+my %SNMPCFGCMD=();
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $log_level='debug';
+
+#-------------------------------------------------------------------------------------------
+my $snmp=Crawler::SNMP->new(cfg=>$rcfgbase,log_level=>$log_level);
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+$snmp->get_command_options(\%SNMPCFGCMD);
+
+my $credentials=$snmp->get_snmp_credentials({'ip'=>$SNMPCFGCMD{'host_ip'}});
+my %SNMPCFG=(%SNMPCFGCMD, %$credentials);
+
+my $FORMAT = $SNMPCFG{'format'};
+
+#----------------------------------------------------------------------------
+$SNMPCFG{oid}='hrStorageDescr_hrStorageAllocationUnits_hrStorageSize_hrStorageUsed';
+$SNMPCFG{last}='hrStorageAllocationFailures';
+#----------------------------------------------------------------------------
+my $res=$snmp->core_snmp_table(\%SNMPCFG);
+
+#----------------------------------------------------------------------------
+if (!defined $res) {
+   print "NO SE HA OBTENIDO RESPUESTA A LA PETICION SOLICITADA\n";
+   my $error=$snmp->err_str();
+   print "**>$error\n";
+	exit(1);
+}
+
+#----------------------------------------------------------------------------
+my @host_data=();
+for my $l ( @$res ) {
+
+   my ($id,$descr,$units,$size,$used,$perc)=split(':@:',$l);
+   $units=~s/(\d+) bytes/$1/i;
+
+   if ($size=~/\d+/) {
+      $size *= $units; $size /= 1048576; $size = int $size;
+   }
+   if ($used=~/\d+/) {
+      $used *= $units; $used /= 1048576; $used = int $used;
+   }
+   if ( ($size=~/\d+/) && ($used=~/\d+/)) {
+      $perc = ($size) ? int (100*$used/$size) : '-';
+   }
+   else { $perc = '-'; }
+
+   push @host_data, {'iid'=>$id, 'descr'=>$descr, 'size'=>$size, 'used'=>$used, 'perc'=>$perc };
+}
+
+
+#----------------------------------------------------------------------------
+if ($FORMAT eq 'json') {
+#----------------------------------------------------------------------------
+
+   my $data=encode_json(\@host_data);
+   print "$data\n";
+
+   my @COL_MAP = (
+      { 'label'=>'Idx', 'width'=>'10' , 'name_col'=>'iid',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Description', 'width'=>'10' , 'name_col'=>'descr',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Size(MB)', 'width'=>'5' , 'name_col'=>'size',  'sort'=>'str', 'align'=>'left', 'filter'=>'#select_filter' },
+      { 'label'=>'Used(MB)', 'width'=>'10' , 'name_col'=>'used',  'sort'=>'str', 'align'=>'left', 'filter'=>'#text_filter' },
+      { 'label'=>'Used(%)', 'width'=>'10' , 'name_col'=>'perc',  'sort'=>'str', 'align'=>'left', 'filter'=>'#select_filter' },
+   );
+
+   my $col_map=encode_json(\@COL_MAP);
+   print "$col_map\n";
+}
+
+#----------------------------------------------------------------------------
+elsif ($FORMAT eq 'txt') {
+#----------------------------------------------------------------------------
+   print '-' x85,"\n";
+  	print "Host=$SNMPCFG{host_ip}\tCOMUNITY=$SNMPCFG{community}\n";
+  	print '-' x85,"\n";
+
+	my ($id,$descr,$size,$used,$perc)=('Idx','Description','Size(MB)','Used(MB)','Used(%)');
+format FORMAT_DATA =
+@>>>>>>> @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<@<<<<<<<<<<<<<<@<<<<<<<<<@<<<<<<<<
+$id,$descr,              $size,                     $used,              $perc
+.
+   $~ = 'FORMAT_DATA';
+   write();
+   for my $h (@host_data) {
+      ($id,$descr,$size,$used,$perc)=($h->{'iid'},$h->{'descr'},$h->{'size'},$h->{'used'},$h->{'perc'});
+      write();
+   }
+}
+#----------------------------------------------------------------------------
+elsif ($FORMAT eq 'raw') { print Dumper(\@host_data); }
+#----------------------------------------------------------------------------
+
+

@@ -1,0 +1,53 @@
+#!/usr/bin/perl -w
+#--------------------------------------------------------------------
+# Fichero: cnm-sslcerts
+#--------------------------------------------------------------------
+use Getopt::Std;
+
+#--------------------------------------------------------------------
+my $CMD_BASE = ' /bin/echo | /usr/bin/openssl s_client -connect ';
+my $DEFAULT_OPTIONS = '';
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -n host -p port [-w format]
+
+-n: Host remoto
+-p: Puerto SSL
+-w: Formato de salida 
+    html => Pone <br> en ugar de '\\n'. (default)
+    txt  => Solo texto
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+getopts("hn:p:w:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+if (! $opts{n}) { die $USAGE;}
+my $HOST=$opts{n};
+my $PORT='443';
+if ($opts{p}) { $PORT=$opts{p};}
+my $FORMAT='txt';
+if ($opts{w}) { $FORMAT=$opts{w};}
+
+#--------------------------------------------------------------------
+my $CMD = "$CMD_BASE $HOST:$PORT";
+my $r=`$CMD`;
+
+if ($FORMAT eq 'html') {
+	$r =~ s/\n/<br>/g;
+	print "CMD=$CMD<br>";
+}
+else {
+	 print "CMD=$CMD\n";
+}
+
+print "$r\n";
+

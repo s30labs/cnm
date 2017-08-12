@@ -1,0 +1,42 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use XMLConfig;
+use Crawler;
+
+my $file = $ARGV[0] || './file1.xml';
+
+
+my $rCFG=parse_device_txml ($file);
+
+#use XML::Simple;
+#my $xs1 = XML::Simple->new();
+#my $rCFG = $xs1->XMLin($file , forcearray=>1);
+
+
+dump_conf ($rCFG,0);
+
+my $crawler=Crawler->new();
+my $rMETRIC=$crawler->get_metrics_from_txml($rCFG);
+
+foreach my $v (@$rMETRIC) {
+
+	foreach my $k ( sort keys %$v) { print "$k->$v->{$k}  ";}
+	print "\n\n";
+
+#	my $label=$v->{label}; 
+#	my $type=$v->{type}; 
+#	my $lapse=$v->{lapse};
+#	print "V=$v  L=$label T=$type L=$lapse\n";
+}
+
+
+my $rAPP=$crawler->get_apps_from_txml($rCFG);
+
+foreach my $v (@$rAPP) {
+
+   foreach my $k ( sort keys %$v) { print "$k->$v->{$k}  ";}
+   print "\n\n";
+}
+
+

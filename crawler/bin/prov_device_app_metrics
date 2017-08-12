@@ -1,0 +1,133 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: prov_apps
+# Provisiona las aplicaciones de un dispositivo, una lista de dispositivos o de todos
+# los dispositivos dados de alta.
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Data::Dumper;
+use ProvisionLite;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %opts=();
+getopts("hli:d:x:c:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+if ( (! $opts{i}) && (! $opts{l})) { my $USAGE = usage(); die $USAGE;}
+
+
+
+my $provision=ProvisionLite->new(log_level=>$log_level, log_mode=>$log_mode, cfg=>$rcfgbase);
+$provision->init();
+my $STORE=$provision->istore();
+my $dbh=$provision->dbh();
+
+
+
+#-------------------------------------------------------------------------------------------
+# Se obtienen los datos de conexion a la BBDD onm a partir de las credenciales de
+# $CID en cnm.cfg_cnms
+my $host_ip=my_ip();
+my ($CID,$HIDX,$params)=('','',{});
+# Si se especifica el CID obtengo los datos de conexion de ese CID
+if ($opts{c}) {
+   $CID=$opts{c};
+   $params=$STORE->get_mcnm_credentials($dbh,{'cid'=>$CID, 'host_ip'=>$host_ip});
+}
+# Si se especifica el HIDX obtengo los datos de conexion de ese HIDX
+elsif ($opts{x}) {
+   $HIDX=$opts{x};
+   $params=$STORE->get_mcnm_credentials($dbh,{'hidx'=>$HIDX, 'host_ip'=>$host_ip});
+}
+# Si no se especifica otra cosa, obtengo todos los CIDs del host
+else {
+   $params=$STORE->get_mcnm_credentials($dbh,{'host_ip'=>$host_ip});
+}
+
+$STORE->close_db($dbh);
+
+
+#-------------------------------------------------------------------------------------------
+foreach my $cid (keys %$params) {
+
+	my $hidx=$params->{$cid}->{'hidx'};
+
+   eval {
+
+		$provision->init(	{	db_server=>$params->{$cid}->{'db_server'},
+                           db_name=>$params->{$cid}->{'db_name'},
+                           db_user=>$params->{$cid}->{'db_user'},
+                           db_pwd=>$params->{$cid}->{'db_pwd'}	}	);
+
+		$STORE=$provision->istore();
+		$dbh=$provision->dbh();
+
+		#-------------------------------------------------------------------------------------------
+		my @IDS=();	# Vector de dispositivos a provisionar
+		if (lc $opts{i} eq 'all') {
+
+   		my $rres=$STORE->get_from_db( $dbh, 'id_dev', 'devices', 'status=0', 'order by id_dev');
+  			foreach my $l (@$rres) { push @IDS,$l->[0]; }
+		}
+		else {	@IDS=split(',', $opts{i});  }
+
+
+		$STORE->log('info',"Procesando host_ip=$host_ip cid=$cid hidx=$hidx dbh=$dbh");
+		$provision->get_check_vectors();
+
+		#-------------------------------------------------------------------------------------------
+		if ($opts{l}) {  
+			#$provision->list_supported();
+			$provision->list_supported_simple();
+			exit;
+		}
+
+		#-------------------------------------------------------------------------------------------
+		# ITERAMOS SOBRE LOS DISPOSITIVOS A PROVISIONAR (VECTOR @IDS)
+		foreach my $id_dev (@IDS) {
+
+			my ($dbh,$ok)=$provision->chk_conex($dbh,$STORE,'cfg_monitor_snmp');
+			$STORE->dbh($dbh);
+			$provision->reset_check_vectors();
+			$provision->prov_device_app_metrics($id_dev);
+		}
+
+      $STORE->close_db($dbh);
+   };
+
+   if ($@) {$STORE->log('info',"ERROR host_ip=$host_ip cid=$cid ($@)"); }
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Provisionado de metricas y aplicaciones a dispositivos.
+
+$fpth[$#fpth] [-d debug|info] -i id_dev [-c cid] [-x hidx]
+$fpth[$#fpth] [-d debug|info] -i id_dev1,id_dev2,id_devN [-c cid] [-x hidx]
+$fpth[$#fpth] [-d debug|info] -i all [-c cid] [-x hidx]
+$fpth[$#fpth] [-d debug|info] -l [-c cid] [-x hidx] : Lista las metricas y aplicaciones definidas
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

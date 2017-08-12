@@ -1,0 +1,107 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Pod::Usage;
+use ONMConfig;
+use Crawler::Store;
+use Metrics::Base;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+my $FILE_CONF='/cfg/onm.conf';
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %OPTS = ();
+GetOptions (\%OPTS, 'set','unset','dev=s','help','man','alert=s','notif=s','to=s','descr=s','stat=s') or pod2usage(-exitval => 2, -input => \*DATA);
+if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+if ($OPTS{'help'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+
+if ( (! defined $OPTS{'dev'}) || (! defined $OPTS{'alert'}) || (! defined $OPTS{'notif'}) || (! defined $OPTS{'to'}) ) {
+	pod2usage(-exitval => 2, -input => \*DATA); 
+}
+else { 
+
+	if (defined $OPTS{'set'}) { do_set($OPTS{'dev'},$OPTS{'alert'},$OPTS{'notif'},$OPTS{'to'}); }
+	elsif (defined $OPTS{'unset'}) { do_unset(); }
+	else { print "Nada que hacer\n"; }
+}
+
+#--------------------------------------------------------------------------
+sub do_set {
+my ($name,$alert,$notif,$to)=@_;
+	
+   # Store ------------------------------------
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+
+   my $dbh=$store->open_db();
+
+
+   my %M=();
+	$M{name}=$name;
+   $M{cause}=$alert;
+   $M{notif}=$notif;
+   $M{destino}=$to;
+   $M{descr}=(defined $OPTS{'descr'}) ? $OPTS{'descr'} : '-';
+   $M{status}=(defined $OPTS{'stat'}) ? $OPTS{'status'} : 0;
+
+	my $rv=$store->store_cfg_notification($dbh,\%M);
+	if (! defined $rv) {print "[ERROR] en set de $M{name}\n";}
+
+}
+
+__DATA__
+#-----------------------------------------------------------------------
+=head1 NAME
+
+cfg_notification - Configuracion de avisos
+
+=head1 SYNOPSIS
+
+cfg_notification [set|unset]
+
+=head2 I<set>
+
+Permite actualizar o insertar los valores de configuracion de un determinado aviso.
+cfg_notification -set -name -cause -notif -destino [-descr] [-stat]
+
+	dev: Nombre del dispositivo
+	alert: Tipo de alerta (id_alert_type) (2:incomunicado)
+	notif: Tipo de aviso (id_notification_type). (1:e-mail|2:sms|3:trap)
+	to: tfno en sms | e-mail | ip en trap
+	descr: Descripcion extra (por defecto '-')
+	stat: Estado del aviso (por defecto 0)
+
+=head2 I<unset>
+
+Permite eliminar un determinado aviso configurado en el sistema.
+cfg_notification -unset 
+
+
+=head2 I<help>
+
+Muestra la ayuda
+cfg_notification -help
+
+=head1 EJEMPLOS
+
+=cut
+
+

@@ -1,0 +1,95 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Store;
+use Crawler::WSClient;
+use ONMConfig;
+
+
+#---------------------------------------------------------
+my $SERVER=$ARGV[0] || '10.64.100.42';
+my $SERVER0='10.64.100.41';
+#---------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+#my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $mserver=$rcfgbase->{'mserver'};
+my $pserver=$rcfgbase->{'pserver'};
+my $db_server=$rcfgbase->{'db_server'}->[0];
+my $db_name=$rcfgbase->{'db_name'}->[0];
+my $db_user=$rcfgbase->{'db_user'}->[0];
+my $db_pwd=$rcfgbase->{'db_pwd'}->[0];
+
+
+#while (my ($k,$v)=each %$rcfgbase) {print "$k ";foreach (@$v) {print "$_ ";} print "\n";}
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hd:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+my $log_mode=3;
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+
+
+my %device=( 'name'=>'R17O2301', 'domain'=>'of.cm.es', 'ip'=>'10.200.165.254', 'type'=>'routers.oficinas.cisco-17xx.adsl-rdsi', 'host'=>'sliromrtg0', 'host_idx'=>1 );
+
+# Caso M-M
+#my $wsclient=Crawler::WSClient->new( 'mserver'=>[$SERVER1, $SERVER2], 'pserver'=>[$SERVER1, $SERVER2] );
+#my $r=$wsclient->store_device(\%device);
+#my %action=();
+#my $r=$wsclient->store_qactions(\%action);
+#print "R=$r\n";
+
+# Caso M-S
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,
+                                 host=>$host, log_level=>$log_level);
+my $dbh=$store->open_db();
+my $wsclient=Crawler::WSClient->new( 'mserver'=>$mserver, 'pserver'=>$pserver, 'log_level'=>$log_level, 'log_mode'=>$log_mode, 'host'=>$host, 'store'=>$store, 'dbh'=>$dbh );
+
+my $r=$wsclient->store_device(\%device);
+
+my $host_idx=$device{'host_idx'};
+my $target;
+foreach my $s (@$pserver) {
+   my ($idx,$name)=split(/\:/,$s);
+   if ($host_idx eq $idx) { $target=$name; }
+}
+	
+foreach my $id_dev (@$r) {
+	print "SYNC DATA devices >> ID_DEV=$id_dev TARGET=$target\n";
+	my $res=$wsclient->sync_data( {'target'=> [$target], 'type'=>'devices', 'where'=>"id_dev=$id_dev"  } );
+	print "+++++R=@$res\n";
+}
+
+
+#my %action=(); # la accion es generar metricas y volcar al master
+#my $r=$wsclient->store_qactions(\%action, {'target'=> [$SERVER0]} );
+#print "R=@$r\n";
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Almacena datos. 
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

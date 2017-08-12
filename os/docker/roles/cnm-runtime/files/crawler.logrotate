@@ -1,0 +1,127 @@
+/var/log/crawler_debug.log {
+	copytruncate
+   notifempty
+   daily
+   rotate 1
+	postrotate
+		/opt/cnm/crawler/bin/support/log2rotate.sh crawler_debug.log
+	endscript
+}
+
+/var/log/notificationsd.log  {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh notificationsd.log
+   endscript
+}
+
+/var/log/actionsd.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh actionsd.log
+   endscript
+}
+
+/var/log/scripts.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh scripts.log
+   endscript
+}
+
+/var/log/cron /var/log/secure {
+        copytruncate
+        notifempty
+        daily
+        rotate 5
+}
+
+/var/log/trap_manager.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh trap_manager.log
+   endscript
+}
+
+/var/log/traps.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh traps.log
+   endscript
+}
+
+/var/log/mail_manager.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh mail_manager.log
+   endscript
+}
+
+/var/log/log_manager.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh log_manager.log
+   endscript
+}
+
+/var/log/remote_channel2.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh remote_channel2.log
+   endscript
+}
+
+/var/log/remote_channel3.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh remote_channel3.log
+   endscript
+}
+
+/var/log/remote_channel4.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh remote_channel4.log
+   endscript
+}
+
+/var/log/remote_channel5.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh remote_channel5.log
+   endscript
+}
+

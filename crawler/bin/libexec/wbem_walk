@@ -1,0 +1,85 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Wbem;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my @RESULTS=();
+my $WALK='/usr/local/bin/snmpwalk';
+my $INFO='images/ico_metrinf_on.gif';
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -d ip -n namespace -c class [-l debug|info] : Hace el walk de las propiedades
+$fpth[$#fpth] -d ip -n namespace -m c [-l debug|info] : Hace el walk de las clases
+$fpth[$#fpth] -d ip -n namespace -m n [-l debug|info] : Hace el walk de los namespaces
+
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+my %DATA=();
+getopts("hd:n:c:l:m:",\%opts);
+if ($opts{h}) { die $USAGE;}
+my $log_level= (defined $opts{l}) ? $opts{l} : 'debug';
+$DATA{'host_ip'} = $opts{d};
+$DATA{'namespace'} = $opts{n};
+$DATA{'class'} = $opts{c};
+
+my $rcfgbase=conf_base($FILE_CONF);
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+my $modo='';
+if ( ($DATA{'host_ip'}) && ($DATA{'namespace'}) && ($DATA{'class'}) ) {
+	$modo='instances';
+}elsif ( ($DATA{'host_ip'}) && ($DATA{'namespace'}) && (!$DATA{'class'}) ){
+	if ($opts{m} eq 'namespaces'){
+		$modo='properties';
+	}else{
+		$modo='classes';
+	}
+	
+#}elsif ( ($DATA{'host_ip'}) && (!$DATA{'namespace'}) && (!$DATA{'class'}) ){
+#	$modo='properties';
+}else{
+	die "ERROR en el paso de parametros\n";
+}
+#if ( (!$DATA{'host_ip'}) || (!$DATA{'namespace'}) || (!$DATA{'class'}) ) { 
+#	die "ERROR en el paso de parametros\n"; 
+#}
+my $WBEM=Crawler::Wbem->new(  name=>"wbem_walk", store_path=>$STORE_PATH, lapse=>300,
+                              cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+
+$WBEM->create_store();
+my $STORE=$WBEM->store();
+my $dbh=$STORE->open_db();
+
+my $rres=$STORE->get_from_db( $dbh, 'wbem_user,wbem_pwd', 'devices', "ip='$DATA{host_ip}'");
+$DATA{'wbem_user'}=$rres->[0][0];
+$DATA{'wbem_pwd'}=$rres->[0][1];
+
+#my $result=$WBEM->get_wbem_iids(\%DATA);
+
+my $cmd=$WBEM->_wbem_cmd(\%DATA,$modo);
+my @res=`$cmd`;
+foreach my $l (@res) { 
+	chomp $l;
+	print "$l\n"; 
+}
+

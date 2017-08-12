@@ -1,0 +1,65 @@
+
+<universe1>
+  <device name="pcs23141.cm.es">
+    <ip>10.2.84.161</ip>
+    <task type="latency">
+      <name>latency300</name>
+      <lapse>300</lapse>
+      <once>0</once>
+      <metric name="mon_icmp">
+         <mtype>STD_BASEIP1</mtype>
+         <subtype>mon_icmp</subtype>
+         <vlabel>segs</vlabel>
+         <label>Latencia ICMP (pcs23141.cm.es)</label>
+         <module>mod_monitor</module>
+         <values>Tiempo respuesta ICMP</values>
+         <monitor>mon_icmp</monitor>
+         <params></params>
+         <mode>GAUGE</mode>
+         <top_value>1</top_value>
+         <status>0</status>
+         <watch>0</watch>
+         <graph>1</graph>
+      </metric>
+
+      <metric name="w_mon_smb_2016">
+         <mtype>STD_BASEIP1</mtype>
+         <subtype>mon_smb</subtype>
+         <vlabel>segs</vlabel>
+         <label>Acceso a fichero por SMB/CIFS (pcs23141.cm.es)</label>
+         <module>mod_monitor</module>
+         <values>Tiempo de acceso</values>
+         <monitor>mon_smb</monitor>
+         <params>user=adm|pwd=adm|share=//pcs23141/data|file=snisat.c</params>
+         <mode>GAUGE</mode>
+         <top_value>1</top_value>
+         <status>0</status>
+         <watch>0</watch>
+         <graph>2</graph>
+      </metric>
+    </task>
+
+    <task type="latency">
+      <name>latency60</name>
+      <lapse>60</lapse>
+      <once>0</once>
+      <metric name="disp_icmp">
+         <mtype>H0_SOLID</mtype>
+         <subtype>disp_icmp</subtype>
+         <vlabel>estado</vlabel>
+         <label>Disponibilidad basada en ICMP (pcs23141.cm.es)</label>
+         <module>mod_monitor_ext:ext_dispo_base</module>
+         <values>Disponible|No computable|No Disponible|Desconocido</values>
+         <monitor>mon_icmp</monitor>
+         <params></params>
+         <mode>GAUGE</mode>
+         <top_value>1</top_value>
+         <status>0</status>
+         <watch>0</watch>
+         <graph>3</graph>
+      </metric>
+    </task>
+
+  </device>
+</universe1>
+

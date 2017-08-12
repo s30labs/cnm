@@ -1,0 +1,43 @@
+<mibtable>
+
+   <oid_cols>ipNetToMediaPhysAddress_ipNetToMediaNetAddress_ipNetToMediaType</oid_cols>
+	<oid_last>IP-MIB::ipNetToMediaTable</oid_last>
+	<UseEnums>0</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<map>ipNetToMediaType::other(1),invalid(2),dynamic(3),static(4),local(5)</map>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>22%</width>
+         <bold>2</bold>
+         <name_col>ipNetToMediaPhysAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>16%</width>
+         <bold>2</bold>
+         <name_col>ipNetToMediaNetAddress</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>16%</width>
+         <bold>2</bold>
+         <name_col>ipNetToMediaType</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#select_filter</filter>
+      </col>
+</mibtable>

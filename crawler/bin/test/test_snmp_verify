@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+
+	
+   #---------------------------------------------------------------
+   # Busco version SNMP
+	my %SNMPCFG = ();
+
+#	$SNMPCFG{'host_ip'} ='10.147.17.100';
+#	$SNMPCFG{'version'} = 3;
+#	
+#	$SNMPCFG{'auth_proto'} = 'SHA';
+#	$SNMPCFG{'auth_pass'} = '12AB34cd';
+#	$SNMPCFG{'priv_proto'} = '';
+#	$SNMPCFG{'priv_pass'} = '';
+#	$SNMPCFG{'sec_name'} = 'Pr_aumar';
+#	$SNMPCFG{'sec_level'} = 'AuthnoPriv';
+## snmpwalk -v 3 -u Pr_aumar -l AuthnoPriv -a SHA -A 12AB34cd 10.147.17.100 .1.3.6.1.2.1.1.1.0
+
+   #my $timeout=$self->timeout();
+
+
+   my $snmp=Crawler::SNMP->new();
+# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+	$snmp->get_command_options(\%SNMPCFG);
+
+
+
+	
+   #my $SNMP_VERSION=$snmp->snmp_get_version($ip,$community);
+	#sysDescr_sysObjectID_sysName_sysLocation
+
+   my ($rc, $rcstr, $res)=$snmp->verify_snmp_data_lite(\%SNMPCFG);
+
+	print "VERSION=$SNMPCFG{'version'} RC=$rc RCSTR=$rcstr\n";
+	foreach my $l (@$res) {
+   	print "$l\n";
+	}
+
+
+
+
+
+

@@ -1,0 +1,61 @@
+<mibtable>
+
+   <oid_cols>ipRouteMetric1_ipRouteNextHop_ipRouteType_ipRouteProto_ipRouteMask</oid_cols>
+	<oid_last>RFC1213-MIB::ipRouteTable</oid_last>
+	<UseEnums>1</UseEnums>
+   <mode>table</mode>
+   <tune>none</tune>
+
+	<title></title>
+
+
+      <col>
+         <id>0</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>ipRouteMetric1</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#numeric_filter,#text_filter,#select_filter,#select_filter,#text_filter</filter>
+      </col>
+
+      <col>
+         <id>1</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ipRouteNextHop</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>2</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>ipRouteType</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>3</id>
+         <width>15%</width>
+         <bold>2</bold>
+         <name_col>ipRouteProto</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+
+      <col>
+         <id>4</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>ipRouteMask</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+</mibtable>

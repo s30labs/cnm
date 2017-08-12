@@ -1,0 +1,33 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes update_cache=yes
+  with_items:
+   - python-mysqldb
+  tags: cnm-schema
+
+- name: Verify directoriy [/store/tmp]
+  file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+  with_items:
+    - { path: '/store/tmp', owner: 'root', group: 'root', mode: '0777' }
+  tags: cnm-schema
+ 
+- name: onm backup
+  mysql_db: login_user={{db_user}} login_password={{db_pwd}} state=dump name=onm target=/store/tmp/backup_bbdd_onm
+  tags: cnm-schema
+
+- name: cnm backup
+  mysql_db: login_user={{db_user}} login_password={{db_pwd}} state=dump name=cnm target=/store/tmp/backup_bbdd_cnm
+  tags: cnm-schema
+ 
+- name: db-manage
+  shell: php /update/db/db-manage.php 2>&1 > /tmp/update_db.log
+  tags: cnm-schema
+
+- name: db-manage
+  shell: cat /tmp/update_db.log 
+  tags: cnm-schema
+
+...

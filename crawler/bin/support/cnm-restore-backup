@@ -1,0 +1,27 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin", "/opt/crawler/bin/support";
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+
+# Informacion ------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Restaura desde el backup almacenado en /home/backup.
+(c) s30labs
+
+$fpth[$#fpth] -h	: Ayuda
+$fpth[$#fpth] -r	: Restaura desde el backup almacenado en /home/backup.
+
+USAGE
+
+my %opts=();
+getopts("hr",\%opts);
+if ($opts{h}) { die $USAGE; }
+if (! $opts{r}) { die $USAGE; }
+print "Restaurando backup ......\n";
+`/usr/bin/php /var/www/html/onm/inc/Backup.php action=restore`;

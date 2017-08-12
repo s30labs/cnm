@@ -1,0 +1,37 @@
+#!/usr/bin/perl -w
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+
+#-------------------------------------------------------------------
+use Metrics::Base::traffic_mibii_if;
+my $subtype='traffic_mibii_if';
+
+
+#-------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+my $rcfgbase=conf_base($FILE_CONF);
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("n:c:v:wh",\%opts);
+my %device=();
+$device{name}='';
+$device{ip}=$opts{n} || die "Uso: $0 -n host [-c comunity] [-v 1,2] [-w]\n";;
+$device{community} = (defined $opts{c}) ? $opts{c} : 'public';
+
+if (defined $opts{v}) { $device{version} = $opts{v}; }
+else {
+	#my $snmp=Crawler::SNMP->new( store => $store, dbh => $dbh, store_path=>$spath, mode_flag=>{rrd=>0, alert=>0} );	
+	my $snmp=Crawler::SNMP->new();	
+	$device{version} = $snmp->snmp_get_version($device{ip},$device{community});
+}
+
+
+#-------------------------------------------------------------------
+my $M=&{$Metrics::Base::Functions{$subtype}}(\%device,$rcfgbase,$subtype);
+
+print "========================\n$M\n";
+
+

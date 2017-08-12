@@ -1,0 +1,300 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: plite
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Actions;
+use ONMConfig;
+use ProvisionLite;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hr:t:m:f:d:c:x:o:",\%opts);
+if ($opts{h}) { my $USAGE = usage(); die $USAGE; }
+my $log_level= (defined $opts{d}) ? $opts{d} : 'debug';
+my $log_mode=3;
+
+my $ID_DEVS=0;
+# Si no hay rango de dispositivos se termina
+if (! $opts{r}) { my $USAGE = usage(); die $USAGE;}
+
+
+
+my $MODE=0;
+if ($opts{t}) { $MODE=$opts{t}; }
+if (exists $opts{o}) {  $MODE=5; }
+
+if ($MODE>5) { print "MODE=$MODE ???. Revise el parametro -t\n";  my $USAGE = usage(); die $USAGE;}
+
+print "MODE=$MODE\n";
+
+
+# ----------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $provision=ProvisionLite->new(log_level=>$log_level, log_mode=>$log_mode, cfg=>$rcfgbase);
+$provision->init();
+my $STORE=$provision->istore();
+my $dbh=$provision->dbh();
+
+
+#-------------------------------------------------------------------------------------------
+# Se obtienen los datos de conexion a la BBDD onm a partir de las credenciales de
+# $CID en cnm.cfg_cnms
+
+my ($CID,$HIDX,$host_ip,$params)=('','','',{});
+# Si se especifica el CID obtengo los datos de conexion de ese CID
+if ($opts{c}) {
+   $CID=$opts{c};
+   $host_ip=my_ip();
+   $params=$STORE->get_mcnm_credentials($dbh,{'cid'=>$CID, 'host_ip'=>$host_ip});
+}
+# Si se especifica el HIDX obtengo los datos de conexion de ese HIDX
+elsif ($opts{x}) {
+   $HIDX=$opts{x};
+   $params=$STORE->get_mcnm_credentials($dbh,{'hidx'=>$HIDX});
+}
+# Si no se especifica otra cosa, obtengo todos los CIDs del host
+else {
+   $host_ip=my_ip();
+   $params=$STORE->get_mcnm_credentials($dbh,{'host_ip'=>$host_ip});
+}
+
+$STORE->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+foreach my $cid (keys %$params) {
+
+   my $hidx=$params->{$cid}->{'hidx'};
+
+   eval {
+
+      $provision->init( {  db_server=>$params->{$cid}->{'db_server'},
+                           db_name=>$params->{$cid}->{'db_name'},
+                           db_user=>$params->{$cid}->{'db_user'},
+                           db_pwd=>$params->{$cid}->{'db_pwd'} }  );
+
+      $STORE=$provision->istore();
+      $dbh=$provision->dbh();
+
+
+
+		# ----------------------------------------------------------------------------------
+		# OBTENGO EL RANGO DE ID_DEVS
+		my @DEVICES=();
+		my @METRICS=();
+		my @METRICS_NOT_INCLUDE=();
+
+		my %data=();
+		if ( ($opts{r} =~ /\d+/) && ($opts{r} !~ /\./) ) { 
+			$ID_DEVS=$opts{r}; 
+			@DEVICES = split (',', $ID_DEVS);
+		}
+		else {
+			if ($opts{r} eq 'all') { $data{'ip'}='*'; }
+			elsif ($opts{r} =~ /\d+\.\d+\.\d+\.\d+/) { $data{'ip'}=$opts{r}; }
+			else { $data{'type'}=$opts{r}; }
+
+			my $res=$STORE->get_device($dbh,\%data,'id_dev');
+			foreach my $id (@$res) { push @DEVICES, $id->[0]; }
+			$ID_DEVS = join(',', @DEVICES);
+			print Dumper($res);
+		}
+
+		$provision->log('info',"$0 [$$]::START ID_DEV=$ID_DEVS");
+
+		# ----------------------------------------------------------------------------------
+		# descr >> GENERAR METRICAS DESDE PLANTILLA
+		# action >> setmetric 
+		# params >> id_dev=242
+		# atype >> 0
+		# cmd >> 
+		if ($MODE==0) {
+			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>0, 'cid'=>$cid});
+		}
+				# ----------------------------------------------------------------------------------
+		# descr >> GENERAR METRICAS DESDE ASISTENTE
+		# action >> setmetric 
+		# params >> id_dev=242;init=1;default=1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if,1.300.snmp.errors_mibii_if,1.300.snmp.proc_cnt_mibhost,1.300.snmp.users_cnt_mibhost,1.300.snmp.ip_pkts_discard,1.300.snmp.tcp_estab,1.300.snmp.tcp_ap,1.300.snmp.udp_pkts
+		# atype >> 0
+		# cmd >> 
+		elsif ($MODE==1) {
+
+		   foreach my $id_dev (@DEVICES) {
+
+     		 	if (! $opts{m}) {
+        		 	@ProvisionLite::default_metrics=();
+		         $STORE->get_default_metrics2device($dbh,$id_dev);
+					@METRICS=();
+					@METRICS_NOT_INCLUDE=();
+         		foreach my $m (@ProvisionLite::default_metrics) {
+            		if ($m->{'include'}) {
+               		push @METRICS, $m->{'include'}.'.'.$m->{'lapse'}.'.'.$m->{'type'}.'.'.$m->{'subtype'};
+            		}
+						else {
+               		push @METRICS_NOT_INCLUDE, $m->{'include'}.'.'.$m->{'lapse'}.'.'.$m->{'type'}.'.'.$m->{'subtype'};
+						}	
+         		}
+         		$opts{m} = join (',', @METRICS);
+      		}
+
+				print "-------------------METRICAS DEL ASISTENTE ACTIVAS)--------------------------\n";
+      		print Dumper(\@METRICS);
+				print "-------------------METRICAS DEL ASISTENTE NO ACTIVAS)-----------------------\n";
+     	 		print Dumper(\@METRICS_NOT_INCLUDE);
+
+				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
+
+      		$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>1, 'cid'=>$cid, 'default'=>$opts{m} });
+
+				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
+				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.300.snmp.disk_mibhost' });
+			}
+		}
+
+
+		# ----------------------------------------------------------------------------------
+		# init=2 ==>  Generar solo plantilla desde asistente. (==>next)
+		# descr >> GENERAR PLANTILLA DESDE ASISTENTE
+		# action >> setmetric
+		# params >> id_dev=242;init=2;default=1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if,1.300.snmp.errors_mibii_if,1.300.snmp.proc_cnt_mibhost,1.300.snmp.users_cnt_mibhost,1.300.snmp.ip_pkts_discard,1.300.snmp.tcp_estab,1.300.snmp.tcp_ap,1.300.snmp.udp_pkts
+		# atype >> 0
+		# cmd >>
+		elsif ($MODE==2) {
+
+
+   		foreach my $id_dev (@DEVICES) {
+
+				if (! $opts{m}) {
+	      		@ProvisionLite::default_metrics=();
+  	   			$STORE->get_default_metrics2device($dbh,$id_dev);
+         		@METRICS=();
+         		@METRICS_NOT_INCLUDE=();
+      			foreach my $m (@ProvisionLite::default_metrics) {
+         			if ($m->{'include'}) {
+            			push @METRICS, $m->{'include'}.'.'.$m->{'lapse'}.'.'.$m->{'type'}.'.'.$m->{'subtype'};
+         			}
+            		else {
+               		push @METRICS_NOT_INCLUDE, $m->{'include'}.'.'.$m->{'lapse'}.'.'.$m->{'type'}.'.'.$m->{'subtype'};
+            		}
+      			}
+					$opts{m} = join (',', @METRICS);
+				}
+
+		      print "-------------------METRICAS DEL ASISTENTE ACTIVAS)--------------------------\n";
+      		print Dumper(\@METRICS);
+      		print "-------------------METRICAS DEL ASISTENTE NO ACTIVAS)-----------------------\n";
+      		print Dumper(\@METRICS_NOT_INCLUDE);
+
+
+				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
+	
+				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'cid'=>$cid, 'default'=>$opts{m} });
+
+
+				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>2, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
+				#$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'default'=>'1.300.snmp.disk_mibhost' });
+
+   		}
+		}
+
+		# ----------------------------------------------------------------------------------
+		# Reseteo metricas (se borra plantilla y metricas en curso y se generan desde asistente)
+		elsif ($MODE==3) {
+			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>3, 'cid'=>$cid});
+		}
+
+		# ----------------------------------------------------------------------------------
+		# Generar dispositivo + metricas desde CSV (interfaz web) (los ficheros estan en /var/www/html/onm/tmp)
+		# init=10 ==> Solo se da de alta el dispositivo. No se generan metricas (==>next)
+		# init=1 ==>  Generar metricas desde plantilla (Es el valor que se asume por defecto)
+		# init=4 ==>  Reseteo metricas desde el asistente pero sin borrar ni plantilla ni metricas.
+		#             Es para cuando se provisiona en bloque y se quiere aprovechar lo que haya nuevo
+		#             en el asistente. En este caso hay que simular los valores del parametro default
+		#             sacandolos directamente del propio asistente
+		elsif ($MODE==4) {
+
+			if (! exists $opts{r}) { my $USAGE = usage(); die $USAGE;}
+			#$provision->prov_do_set_device_metric({'file'=>'inventario-186799294.csv', 'init'=>4});
+			my %params=('file'=>$opts{r}, 'init'=>4, 'cid'=>$cid);
+			if (exists $opts{m}) { $params{'default'} = $opts{m}; }
+			$provision->prov_do_set_device_metric(\%params);
+		}
+      # ----------------------------------------------------------------------------------
+      # descr >> GENERAR ASISTENTE, PLANTILLA y METRICAS DESDE UN DISPOSITIVO QUE SE TOMA COMO REFERENCIA
+      # action >> setmetric
+      # params >> id_dev=242;id_dev_src=123
+      # atype >> 0
+      # cmd >>
+      elsif ( ($MODE==5) && (exists $opts{o}) ) {
+
+         foreach my $id_dev (@DEVICES) {
+
+		   	# Clona asistente y plantilla
+				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'id_dev_src'=>$opts{o}, 'init'=>5, 'cid'=>$cid });
+			}
+
+      }
+
+		else { my $USAGE = usage(); die $USAGE;}
+
+
+      $STORE->close_db($dbh);
+   };
+
+   if ($@) {$STORE->log('info',"ERROR host_ip=$host_ip cid=$cid ($@)"); }
+
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+
+Provision de metricas y aplicaciones
+
+$fpth[$#fpth] -r [id_dev|ip|type|all] : Rango de elementoa a provisionar
+
+$fpth[$#fpth] -t [0|1|2|3]: Tipo  (por defecto es 0)
+
+0: Desde plantilla -> Genera Metricas
+1: Desde asistente -> Genera Metricas
+2: Desde asistente -> Genera Plantilla
+3: Desde asistente -> Genera Metricas (Se resetean las metricas)
+4: Desde inventario .csv
+5: Desde otro dispositivo que sirve como referencia -> Genera asistente, plantilla y metricas.
+ 
+$fpth[$#fpth] -o id_dev origen (solo para el caso 5)
+
+$fpth[$#fpth] -m [1.300.snmp.disk_mibhost]: Metricas (opcional y solo para caso 1 y 2)
+
+1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if,1.300.snmp.errors_mibii_if,1.300.snmp.proc_cnt_mibhost,1.300.snmp.users_cnt_mibhost,1.300.snmp.ip_pkts_discard,1.300.snmp.tcp_estab,1.300.snmp.tcp_ap,1.300.snmp.udp_pkts
+(bloques separados por ,)
+
+$fpth[$#fpth] -r file.csv : Nombre del fichero csv (solo para el caso 4)
+Debe estar en la ruta: /var/www/html/onm/tmp/
+
+$fpth[$#fpth] -d [debug|info] : Fija el nivel de depuracion
+
+-c cid
+-x hidx
+
+$fpth[$#fpth] -h  : Ayuda
+
+USAGE
+
+   return $USAGE;
+
+}
+

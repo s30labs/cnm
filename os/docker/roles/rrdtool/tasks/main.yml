@@ -1,0 +1,32 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes update_cache=yes
+  with_items:
+   - librrd4
+   - librrds-perl
+   - rrdtool
+  tags: rrdtool
+
+- name: Create /opt/rrdtool/bin
+  file: path={{ item }} state=directory owner=root group=root mode=0775
+  with_items:
+    - /opt/rrdtool
+    - /opt/rrdtool/bin
+  tags: rrdtool
+
+- name: Create link to /opt/rrdtool/bin
+  file: path=/opt/rrdtool/bin/rrdtool src=/usr/bin/rrdtool state=link owner=root group=root mode=0775
+  tags: rrdtool
+
+- name: Create rrd data directories
+  file: path={{ item }} state=directory owner=root group=www-data mode=0775
+  with_items:
+    - /opt/data/rrd
+    - /opt/data/rrd/elements
+    - /opt/data/rrd/trap_counter
+  tags: rrdtool
+
+...

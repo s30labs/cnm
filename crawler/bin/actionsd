@@ -1,0 +1,106 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: actionsd 
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Crawler::Actions;
+use ONMConfig;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+$0='[actionsd.000.actionsd.60]';
+
+#-------------------------------------------------------------------------------------------
+my $rcfgbase=conf_base($FILE_CONF);
+my $LAPSE=$rcfgbase->{notif_lapse}->[0];
+my $MX=$rcfgbase->{notif_mx}->[0];
+my $FROM=$rcfgbase->{notif_from}->[0];
+my $FROM_NAME=$rcfgbase->{notif_from_name}->[0];
+my $SUBJECT=$rcfgbase->{notif_subject}->[0];
+my $SERIAL_PORT=$rcfgbase->{notif_serial_port}->[0];
+my $PIN=$rcfgbase->{notif_pin}->[0];
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+#while (my ($k,$v)=each %$rcfgbase) {print "$k ";foreach (@$v) {print "$_ ";} print "\n";}
+#exit;
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+
+my %opts=();
+getopts("hd:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, 'cfg'=>$rcfgbase, log_level=>$log_level);
+$store->store_path($STORE_PATH);
+my $dbh=$store->open_db();
+my $params=$store->get_mcnm_credentials($dbh,{'host_ip'=>$ip});
+$store->close_db($dbh);
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# Cada cid tiene su proceso de notificationsd
+foreach my $cid (keys %$params) {
+
+   my $hidx=$params->{$cid}->{'hidx'};
+   eval {
+
+      $rcfgbase->{db_server}->[0]=$params->{$cid}->{'db_server'};
+      $rcfgbase->{db_name}->[0]=$params->{$cid}->{'db_name'};
+      $rcfgbase->{db_user}->[0]=$params->{$cid}->{'db_user'};
+      $rcfgbase->{db_pwd}->[0]=$params->{$cid}->{'db_pwd'};
+
+      #-------------------------------------------------------------------------------------------
+
+      $store->log('info',"Starting ip=$ip cid=$cid hidx=$hidx");
+
+		# Crea el objeto Crawler::Actions y lo arranca ---------------------------------------
+		my $actions=Crawler::Actions->new(
+							'user'=>$USER, 'group'=>$GROUP, 'name'=>'actionsd', 'store_path'=>$STORE_PATH, 
+							'lapse'=>$LAPSE,	'cfg'=>$rcfgbase, 'range'=>0, 'log_level'=>$log_level, 
+							'mx'=>$MX, 'from'=>$FROM, 'from_name'=>$FROM_NAME, 'subject'=>$SUBJECT,
+							'serial_port'=>$SERIAL_PORT, 'pin'=>$PIN, 'cid'=>$cid, 'cid_ip'=>$ip );
+
+		#$actions->range(0);
+		$actions->run();
+
+   };
+
+   if ($@) {$store->log('info',"ERROR host_ip=$ip cid=$cid hidx=$hidx ($@)"); }
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Demonio para ejecutar aplicaciones en segundo plano
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -i id_task -d [debug|info]
+
+USAGE
+
+   return $USAGE;
+
+}
+

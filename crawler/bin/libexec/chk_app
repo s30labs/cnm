@@ -1,0 +1,463 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------
+# Fichero: $Id$
+#------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Metrics::Base;
+use Crawler::SNMP;
+use Crawler::Latency;
+
+#------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $GET_IID='/opt/crawler/bin/libexec/get_iid';
+
+#------------------------------------------------------------------------------
+#<TR class="VentDat">
+#<TD align="left" width="100%"><b>&nbsp;__TITULO1__</b></TD>
+#</TR>
+
+my $HTML_TITLE='
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO1__</b></TD>
+</TR>
+<TR class="VentDat">
+<TD align="left" width="100%"><b>&nbsp;__TITULO2__</b></TD>
+</TR>
+<tr ><td class="VentPar"><img src="../images/magic.gif" width="1" height="5"></td></tr>';
+
+
+my $HTML_DATA='
+<TR class="VentDat">
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+
+   <TD align="left" width="__WIID__%">__BS__ __IID__ __BE__ </TD>
+   <TD align="left" width="__WDESC__%">__BS__ __DESC__ __BE__ </TD>
+   <TD align="left" width="__WRES__%">__BS__ __RES__ __BE__ </TD>
+   <TD align="left" width="__WICO__%">__BS__ __ICO__ __BE__ </TD>
+
+ <TD><img src="../images/magic.gif" width="5" height="1"></TD>
+</TR>
+<tr ><td colspan="__NCOLS__" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -z : Verbose
+$fpth[$#fpth] [-w] -d ip|nombre -s subtype : Chequea la metrica subtype contra el dispositivo especificado
+$fpth[$#fpth] [-w] -d ip|nombre -s xagt -m monitor [-p params] : Chequea el tipo de metrica monitor contra el dispositivo especificado
+[-c] community
+[-v] version
+[-l] log_level
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $LATENCY;
+my $SNMP;
+my $SAGENT;
+my %device=();
+my %desc=();
+my %opts=();
+getopts("hzwd:s:c:v:l:m:n:p:",\%opts);
+
+my $FORMAT = (defined $opts{w}) ? 'html' : 'txt';
+my $rcfgbase=conf_base($FILE_CONF);
+my $log_level= (defined $opts{l}) ? $opts{l} : 'info';
+my $STORE_PATH='/opt/data/rrd/';
+
+#-------------------------------------------------------------------------------------------
+if ($opts{h}) { die $USAGE; }
+elsif ( (! $opts{d}) || (!$opts{s})  ) { die $USAGE; }
+
+my $subtype=$opts{s};
+my $monitor=$opts{m} || undef ;
+my $cmd=$opts{n} || undef ;
+my $params=$opts{p} || undef;
+$device{ip}=$opts{d};
+$device{community}= (defined $opts{c}) ? $opts{c} : 'public';
+$device{version}= (defined $opts{v}) ? $opts{v} : 1;
+
+my @RESULTS=();
+my $DESCR;
+#-------------------------------------------------------------------------------------------
+#print '-' x25, "\n";
+if ($FORMAT eq 'txt') { push @RESULTS, ['IP',$device{ip},'']; }
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# TIPO		CASO					CRITERIO
+# snmp		No hay iids 	=> mname = subtype
+# snmp		Si hay iids 	=> mname = subtype-iid
+# snmp		Especiales 		=>	mname = subtype = custom_xx (xx = hash)
+# latency	Todas 			=> mname = w_subtype-xx (xx = hash, subtype = mon_abc)
+# xagent 	Sin atributos	=> mname = subtype_id	 (id = identificador predefinido, xx = hash)
+# xagent 	Con atributos	=> mname = subtype_id_xx (id = identificador predefinido, xx = hash)
+#-------------------------------------------------------------------------------------------
+# TIPO		Tabla						CASO		SIGNIFICADO DE MONITOR
+# latency	cfg_monitor 			Todas		cfg_monitor.monitor = mname = w_subtype-xx (xx = hash, subtype = mon_abc)
+# xagent		cfg_monitor_xagent	sin		cfg_monitor_xagent.name=mname
+#-------------------------------------------------------------------------------------------
+if  ($subtype =~ /xagt/)  {
+	#En este caso subtype debe ser realmente el nombre de la metrica metrics.name
+   $SAGENT=Crawler::SAgent->new( name=>"chk_metric", store_path=>$STORE_PATH, lapse=>300,
+                                 cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+
+	$SAGENT->chk_app( { ip => $device{ip}, mname => $subtype, cmd=>$cmd, monitor=>$monitor, params=>$params }, \@RESULTS );
+
+}
+
+#-------------------------------------------------------------------------------------------
+if ($FORMAT ne 'txt') {
+   #my $ni=scalar @Metrics::Base::IIDs;
+   my $titulo="$DESCR&nbsp;&nbsp;($subtype)";
+   $HTML_TITLE =~s/__TITULO1__/$titulo/;
+   $titulo="Host=$device{ip}&nbsp;&nbsp;";
+   $HTML_TITLE =~s/__TITULO2__/$titulo/;
+   $HTML_TITLE =~s/\n//g;
+   print "$HTML_TITLE\n";
+}
+foreach my $l (@RESULTS) {
+      do_write($l->[0], $l->[1], $l->[2]);
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------
+sub chk_latency_metric {
+my ($ip,$subtype)=@_;
+my %desc=();
+
+
+   $LATENCY=Crawler::Latency->new(  name=>"chk_metric", store_path=>$STORE_PATH, lapse=>300,
+                                    cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+
+
+   my $store=$LATENCY->create_store();
+   my $dbh=$store->open_db();
+   $LATENCY->dbh($dbh);
+
+	my $rres=$store->get_from_db( $dbh, 'params,description', 'cfg_monitor', "monitor=\'$subtype\'");
+   my $params=$rres->[0][0];
+	$DESCR=$rres->[0][1];
+	$subtype =~ s/w_(mon_\w+)-\w+/$1/;
+
+   $desc{host_ip}=$ip;
+   $desc{type}='latency';
+   #$desc{monitor}=$1;
+   $desc{monitor}=$subtype;
+   $desc{module}='mod_monitor';
+   my @p=split(/\|/,$params);
+   foreach my $l (@p) {
+      my ($k,$v)=split(/=/,$l);
+      $desc{$k}=$v;
+   }
+
+
+#print "VALIDANDO $desc{host_ip} $subtype ==> $params\n";
+
+   my ($rv,$ev)=$LATENCY->modules_supported(\%desc);
+  	#my  $event_data=$ev->[0];
+	push @RESULTS, ["@$ev",'latency'];
+#print "RV=$rv\n$event_data\n";
+
+}
+
+
+
+#-------------------------------------------------------------------------------------------
+sub chk_snmp_metric_from_mname {
+my ($ip,$mname)=@_;
+my %desc=();
+
+
+	$SNMP=Crawler::SNMP->new(  name=>"chk_metric", store_path=>$STORE_PATH, lapse=>300,
+                              cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+
+   my $store=$SNMP->create_store();
+   my $dbh=$store->open_db();
+   $SNMP->dbh($dbh);
+
+   $desc{type}='snmp';
+   $desc{monitor}= $mname; # mon_snmp (U) o s_subtype_xxx (watch)
+
+   my ($subtype,$iid)= split ('-', $mname);
+
+   my $rres=$store->get_from_db( $dbh,
+                                 'o.oid,o.community,o.version,m.module,m.label,m.mode,m.file,c.get_iid',
+                                 'devices d, metrics m, metric2snmp o, cfg_monitor_snmp c',
+                                 "d.id_dev=m.id_dev and m.id_metric=o.id_metric and c.subtype=\'$mname\' and d.ip=\'$ip\' and m.name=\'$mname\'");
+
+   $desc{oid}=$rres->[0][0];
+   $desc{community}=$rres->[0][1];
+   $desc{version}=$rres->[0][2];
+   $desc{module}= ($rres->[0][3]) ? $rres->[0][3] : 'mod_snmp_get';
+   $desc{get_iid}= ($rres->[0][7]) ? $rres->[0][7] : 0;
+
+#print " ==> OID=$desc{oid} C=$desc{community} V=$desc{version} MOD=$desc{module} GET_IID=$desc{get_iid}\n";
+
+push @RESULTS, ['OID:',$desc{oid},''];
+
+   my ($rv,$ev)=$SNMP->modules_supported(\%desc);
+
+   #Hay que contemplar el caso de las metricas diferenciales (counter)
+   if ($rres->[0][5] eq 'COUNTER') {
+      $rv=$store->fetch_rrd_last($rres->[0][6]);
+#DBG--
+#      $self->log('debug',"alert_manager::[DEBUG] **$desc{host_ip}:$mname MODE=COUNTER [@$rv] F=$rres->[0][6]**");
+#/DBG--
+   }
+   else {
+#DBG--
+#      $self->log('debug',"alert_manager::[DEBUG] **$desc{host_ip}:$mname MODE=GAUGE [@$rv] F=$rres->[0][6]**");
+#/DBG--
+   }
+#   if ($m eq 'mon_snmp') { $event_data=$ev->[0].' ('.$mname.')'; }
+#   else { $event_data=$rres->[0][4]; }
+
+	my  $event_data=$ev->[0];
+
+print "RV=$rv\n$event_data\n";
+
+}
+
+
+#-------------------------------------------------------------------------------------------
+#mysql> select watch,name,subtype from metrics where watch !='0';
+#+---------------------+----------------+--------------+
+#| watch               | name           | subtype      |
+#+---------------------+----------------+--------------+
+#| s_disk_mibhost_2010 | disk_mibhost-2 | disk_mibhost |
+#+---------------------+----------------+--------------+
+
+#------------------------------------------------------------------------------------------------------------
+#| descr                          | subtype          | module        							| get_iid         |
+#+--------------------------------+------------------+------------------------------------+-----------------+
+#| (1) TRAFICO EN INTERFAZ        | traffic_mibii_if | mod_snmp_get     						| ifDescr         |
+#| (2) PAQUETES UDP               | udp_pkts         | mod_snmp_get     						|                 |
+#| (3) UTILIZACION CPU NETSCREEN  | custom_35f09f73  | mod_snmp_get     						|                 |
+#| (4) PRUEBA TABLA UCAST PKTS    | custom_208d1733  | mod_snmp_get     						| ifDescr         |
+#| (5) PROCESO APHOST.EXE         | custom_5bca8181  | mod_snmp_walk:match(aphost\.exe)   | 1               |
+
+#-------------------------------------------------------------------------------------------
+sub chk_snmp_metric_from_subtype {
+my ($ip,$subtype)=@_;
+my %desc=();
+my $rres;
+my ($rv,$ev);
+
+   $SNMP=Crawler::SNMP->new(  name=>"chk_metric", store_path=>$STORE_PATH, lapse=>300,
+                              cfg=>$rcfgbase, range=>0, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
+
+   my $store=$SNMP->create_store();
+   my $dbh=$store->open_db();
+   $SNMP->dbh($dbh);
+
+	$desc{host_ip}=$ip;
+   $desc{type}='snmp';
+   $desc{monitor}= $subtype; # mon_snmp (U) o s_subtype_xxx (watch)
+   $desc{name}= $subtype; # Para que no cante el task_id 
+
+   $rres=$store->get_from_db( $dbh, 'community,version', 'devices', "ip=\'$ip\'");
+   $desc{community}=$rres->[0][0];
+   $desc{version}=$rres->[0][1];
+
+   $rres=$store->get_from_db( $dbh, 'oidn,module,get_iid,descr', 'cfg_monitor_snmp', "subtype=\'$subtype\'");
+   $desc{oid}=$rres->[0][0];
+   $desc{module}= ($rres->[0][1]) ? $rres->[0][1] : 'mod_snmp_get';
+   $desc{get_iid}= ($rres->[0][2]) ? $rres->[0][2] : 0;
+   $desc{mdescr}= ($rres->[0][3]) ? $rres->[0][3] : '';
+
+#print "VALIDANDO $desc{host_ip} OID=$desc{oid} C=$desc{community} V=$desc{version}\n$subtype ==> MOD=$desc{module} GET_IID=$desc{get_iid}\n";
+	$DESCR=$desc{mdescr};
+
+#push @RESULTS, ['DESCR:',$desc{mdescr},"($subtype)\n"];
+#push @RESULTS, ['IID','OID/DESCR','RESULTADO'];
+#push @RESULTS, ['OID:',$desc{oid},''];
+
+
+	# Metricas predefinidas tipo tabla (1) 
+	# Metricas de usuario tipo tabla (4)
+	# -----------------------------------------------------------------------------
+	if ( ($desc{oid}=~s/\.IID//g) || (($subtype =~ /^custom/) && ($desc{get_iid}) && ($desc{module}=~/^mod_snmp_get/)) ) {
+
+#parche
+#$desc{get_iid}='hrStorageDescr';
+
+		my $cmd="$GET_IID -i $ip -o $desc{get_iid} -c $desc{community}";
+		my @ii=`$cmd`;
+		if ($opts{z}) { print "chk_metric::[DEBUG] CMD=$cmd \n"; }
+		foreach	my $i (@ii) {
+			chomp $i;
+			$i=~/^(\d+)\s*\:\s*(.+)$/;
+			my ($iid,$descr)=($1,$2);
+			$desc{name}= $subtype.'-'.$iid;
+			if ($opts{z}) { print "chk_metric::[DEBUG] IID=$iid NAME=$desc{name}\n";  }
+
+  		 	($rv,$ev)=$SNMP->modules_supported(\%desc);
+			if ($SNMP->err_num()) { $rv->[0]=$SNMP->err_str(); } 	
+
+			if ((!defined $rv) || ($rv->[0] eq 'U') ) {$rv=['SIN RESPUESTA']; }
+
+			push @RESULTS, [$iid,$descr,"@$rv"];
+		}
+	}
+
+
+	# Metricas de usuario especiales (5) match(aphost\.exe)
+	# -----------------------------------------------------------------------------
+	elsif (($subtype =~ /^custom/) && ($desc{module}=~/^mod_snmp_walk\:(\S+)/)) {
+
+#print "**NAME=$desc{name}\n";
+			my $descr="$desc{oid}::$1";
+         ($rv,$ev)=$SNMP->modules_supported(\%desc);
+			if ($SNMP->err_num()) { 
+				my $txt=$SNMP->err_str(); 
+				$rv->[0]=$SNMP->errstr2es($txt);
+			}
+
+         push @RESULTS, ['Todos',$descr,"@$rv"];
+#print "EV===>$event_data\n";
+
+	}
+
+	# Metricas predefinidas tipo escalar (2)
+	# Metricas de usuario tipo escalar (3)
+	# -----------------------------------------------------------------------------
+	#elsif ($desc{oid}=~/\.(\d+)$/) {
+   else {
+         #my $iid=$1;
+#print "** IID=$iid \n";
+         my @o=split(/\|/,$desc{oid});
+         my $n = scalar @o;
+
+         ($rv,$ev)=$SNMP->modules_supported(\%desc);
+         if ($SNMP->err_num()) {
+            my $txt=$SNMP->err_str();
+            foreach my $i (0..$n-1) { $rv->[$i]=$SNMP->errstr2es($txt); }
+         }
+
+         foreach my $i (0..$n-1) {
+            $o[$i]=~/\.(\d+)$/;
+            my $iid=$1;
+         #push @RESULTS, [$iid,$desc{oid},"@$rv"];
+            push @RESULTS, [$iid,$o[$i],$rv->[$i]];
+#print "RV=@$rv\n";
+#print "EV===>$event_data\n";
+         }
+   }
+
+}
+
+
+#------------------------------------------------------------------------------
+sub do_write {
+my ($iid,$desc,$res)=@_;
+
+   if ($FORMAT eq 'txt') { print "$iid\t$desc\t$res\n"; }
+   else {
+
+      my $html_out=$HTML_DATA;
+
+      if ($iid eq 'IID') {
+         $html_out =~ s/__BS__/<b>/g;
+         $html_out =~ s/__BE__/<\/b>/g;
+      }
+      else {
+         $html_out =~ s/__BS__//g;
+         $html_out =~ s/__BE__//g;
+      }
+
+		if ($desc eq 'latency') {
+
+	      $html_out =~s/__NCOLS__/6/;
+
+   	   $html_out =~s/__WIID__/90/;
+      	$html_out =~s/__IID__/$iid/;
+
+	      $html_out =~s/__WDESC__/3/;
+   	   $html_out =~s/__DESC__//;
+      	$html_out =~s/__WRES__/2/;
+      	$html_out =~s/__RES__//;
+
+      	$html_out =~s/__WICO__/5/;
+      	$html_out =~s/__ICO__//;
+		}
+	
+		else {
+
+         $html_out =~s/__NCOLS__/6/;
+
+         $html_out =~s/__WIID__/30/;
+         $html_out =~s/__IID__/$iid/;
+
+         $html_out =~s/__WDESC__/35/;
+         $html_out =~s/__DESC__/$desc/;
+
+         $html_out =~s/__WRES__/30/;
+         $html_out =~s/__RES__/$res/;
+
+         $html_out =~s/__WICO__/5/;
+         $html_out =~s/__ICO__//;
+      }
+
+
+      $html_out =~s/\n//g;
+      print "$html_out\n";
+   }
+}
+
+#------------------------------------------------------------------------------
+sub do_write1 {
+my ($info)=@_;
+
+my $HTML_DATA1='
+<TR class="VentDat"><TD><img src="../images/magic.gif" width="5" height="1"></TD><TD align="left" width="100%">__DATA__</TD><TD><img src="../images/magic.gif" width="5" height="1"></TD></TR>
+<tr ><td colspan="3" class="VentPar"><img src="../images/magic.gif" width="1" height="1"></td></tr>';
+
+
+   if ($FORMAT eq 'txt') { print "$info\n\n"; }
+   else {
+
+      my $html_out=$HTML_DATA1;
+
+      $html_out =~s/__DATA__/$info/;
+
+      $html_out =~s/\n/<br>/g;
+      print "$html_out\n";
+   }
+}
+
+#------------------------------------------------------------------------------
+sub get_oid_by_subtype  {
+my ($rcfgbase,$subtype)=@_;
+
+	my $db_server=$rcfgbase->{db_server}->[0];
+   my $db_name=$rcfgbase->{db_name}->[0];
+   my $db_user=$rcfgbase->{db_user}->[0];
+   my $db_pwd=$rcfgbase->{db_pwd}->[0];
+   my $STORE_PATH=$rcfgbase->{store_path}->[0];
+
+   my $store=Crawler::Store->new(store_path=>$STORE_PATH,
+                              db_server=>$db_server,
+                              db_name=>$db_name,
+                              db_user=>$db_user,
+                              db_pwd=>$db_pwd,
+                              db_debug=>1);
+   my $dbh=$store->open_db();
+   my $oid=$store->get_from_db($dbh,'oid','cfg_monitor_snmp',"subtype=\'$subtype\'");
+   $store->close_db($dbh);
+	return $oid->[0][0];
+}

@@ -1,0 +1,23 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Crawler::WSClient;
+
+#---------------------------------------------------------
+my $TEST_DATA="PRUEBA DE WS";
+my @TARGET= qw( 10.64.100.42 10.64.100.41 10.64.100.46);
+#my @TARGET= qw( 10.64.100.42 );
+
+
+#---------------------------------------------------------
+my $log_level='debug';
+my $log_mode=3;
+
+my $wsclient=Crawler::WSClient->new( 'log_level'=>$log_level, 'log_mode'=>$log_mode);
+my $r=$wsclient->ws_check( $TEST_DATA, { 'target'=> \@TARGET } );
+
+print "*******************************\n";
+foreach my $s (@$r) {
+	print "SERVER RESPONSE >> $s\n";
+}

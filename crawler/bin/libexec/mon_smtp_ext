@@ -1,0 +1,57 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------
+# Fichero: $Id: mon_smtp,v 1.2 2004/02/18 13:22:30 fml Exp $
+#-------------------------------------------------------
+use lib "/opt/crawler/bin";
+use Getopt::Std;
+use Time::HiRes qw(gettimeofday tv_interval);
+use IO::Socket::INET;
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+(c) fml
+
+$fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -n host [-p port] : Chequea smtp
+
+USAGE
+
+# Parametros de entrada ---------------------------------------------
+my %DESC=();
+my %opts=();
+my ($ip,$port)=('','25');
+getopts("hn:p:",\%opts);
+
+if ($opts{h}) { die $USAGE;}
+elsif ($opts{n}) { $ip=$opts{n}; }
+else { die $USAGE;}
+
+$port = (exists $opts{p}) ? $opts{p} : '25';
+
+#--------------------------------------------------------------------
+my $t0 = [gettimeofday];
+my $elapsed=0;
+my $TIMEOUT=3;
+
+my $smtp = IO::Socket::INET->new(PeerAddr=>$ip, PeerPort=>$port, Timeout=>$TIMEOUT);
+
+if (! defined $smtp) { 
+	print "ERROR en conexion a $ip:$port\n";
+	exit;
+}
+
+$smtp->autoflush(1);
+
+my $msg = <$smtp>;
+chomp $msg;
+
+$elapsed = tv_interval ( $t0, [gettimeofday]);
+my $elapsed3 = sprintf("%.6f", $elapsed);
+
+print "La respuesta del servidor es:\n$msg\n";
+print "El tiempo de respuesta es: $elapsed3 segs.\n";
+
+$smtp->close();
+

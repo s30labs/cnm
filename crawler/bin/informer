@@ -1,0 +1,158 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Transport;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("i:hvs:p:t:m:f:",\%opts);
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+my $MODE='';
+if (! exists $opts{i}) { my $USAGE = usage(); die $USAGE;}
+if (lc $opts{i} eq 'sms') { $MODE='sms'; }
+elsif (lc $opts{i} eq 'email') { $MODE='email'; }
+elsif (lc $opts{i} eq 'tg') { $MODE='telegram'; }
+else { my $USAGE = usage(); die $USAGE; }
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+my $rcfgbase=conf_base($FILE_CONF);
+my $baudrate = (defined $rcfgbase->{'serial_port_baudrate'}) ? $rcfgbase->{'serial_port_baudrate'}->[0] : '9600';
+my $parity = (defined $rcfgbase->{'serial_port_parity'}) ? $rcfgbase->{'serial_port_parity'}->[0] : 'none';
+my $databits = (defined $rcfgbase->{'serial_port_databits'}) ? $rcfgbase->{'serial_port_databits'}->[0] : '8';
+my $stopbits = (defined $rcfgbase->{'serial_port_stopbits'}) ? $rcfgbase->{'serial_port_stopbits'}->[0] : '1';
+my $handshake = (defined $rcfgbase->{'serial_port_handshake'}) ? $rcfgbase->{'serial_port_handshake'}->[0] : 'xoff';
+my $SERIAL_PORT=$rcfgbase->{notif_serial_port}->[0];
+my $PIN=$rcfgbase->{notif_pin}->[0];
+
+my $MX=$rcfgbase->{'notif_mx'}->[0];
+my $FROM=$rcfgbase->{'notif_from'}->[0];
+my $FROM_NAME=$rcfgbase->{'notif_from_name'}->[0];
+my $SUBJECT=$rcfgbase->{'notif_subject'}->[0];
+
+my $TOKEN=$rcfgbase->{'notif_tg_bot_token'}->[0];
+
+if (! exists $opts{t}) { my $USAGE = usage(); die $USAGE; }
+my $to = $opts{t};
+my @DEST_VECTOR=split(/\;/,$to);
+$SUBJECT = $opts{s} || 'AVISO-CNM';
+
+my $text = 'CNM :: TEST';
+if ($opts{m}) { $text = $opts{m}; }
+elsif ($to=~/\@/) { $text = 'CNM :: TEST DE ENVIO DE EMAIL.'; }
+else { $text = 'CNM :: TEST DE ENVIO DE SMS.'; }
+
+my $cid='default'; #parametro ¿?
+my $log_level='debug';
+
+my $log_mode=1;
+if ($opts{v}) { $log_mode=3; }
+
+#use Data::Dumper;
+#print Dumper $rcfgbase;
+
+#-------------------------------------------------------------------------------------------
+my $transport=Crawler::Transport->new('cfg'=>$rcfgbase, log_level=>$log_level, log_mode=>$log_mode);
+$transport->init();
+
+if (exists $opts{f}) {
+	$text=$transport->slurp_file($opts{f});
+}
+
+foreach my $to (@DEST_VECTOR) { 
+	#--------------------------------------------------------------
+	if ($MODE eq 'email') {
+      $transport->log('debug',"TX-EMAIL:: to=$to subject=$SUBJECT");
+		my $rc = $transport->notify_by_transport(
+			$Crawler::Transport::NOTIF_EMAIL, 
+			{'dest'=>$to, 'subject'=>$SUBJECT, 'txt'=>$text}
+		);
+		if (defined $rc) { 
+			if ($rc==0) { print "[OK] RC=$rc\n"; }
+			else { 
+				print "[ERROR] RC=$rc ".$transport->err_str()."\n"; 
+				exit 1;
+			}
+		}
+		else { 
+			print "[ERROR] ".$transport->err_str()."\n"; 
+			exit 1;
+		}
+	}
+	#--------------------------------------------------------------
+	elsif ($MODE eq 'sms') {
+      $transport->log('debug',"TX-SMS:: to=$to txt=$text");
+		my $rc = $transport->notify_by_transport(
+			$Crawler::Transport::NOTIF_SMS, 
+			{'dest'=>$to, 'subject'=>$SUBJECT, 'txt'=>$text}
+		);
+		if (defined $rc) { 
+			if ($rc==0) { print "[OK] RC=$rc\n"; }
+         else { 
+				print "[ERROR] RC=$rc ".$transport->err_str()."\n"; 
+				exit 1;
+			}
+      }
+		else { 
+			print "[ERROR] ".$transport->err_str()."\n"; 
+			exit 1;
+		}
+   }
+	#--------------------------------------------------------------
+   elsif ($MODE eq 'telegram') {
+      $transport->log('info',"TX-TELEGRAM:: to=$to subject=>$SUBJECT txt=$text");
+print "TX-TELEGRAM:: to=$to subject=>$SUBJECT txt=$text\n";
+
+      my $rc = $transport->notify_by_transport(
+         $Crawler::Transport::NOTIF_TELEGRAM,
+         {'dest'=>$to, 'subject'=>$SUBJECT, 'txt'=>$text}
+      );
+      if (defined $rc) {
+         if ($rc==0) { print "[OK] RC=$rc\n"; }
+         else {
+            print "[ERROR] RC=$rc ".$transport->err_str()."\n";
+            exit 1;
+         }
+      }
+      else {
+         print "[ERROR] ".$transport->err_str()."\n";
+         exit 1;
+      }
+   }
+
+
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Envio de notificaciones
+
+fpth[$#fpth] -h : Ayuda
+$fpth[$#fpth] -i [sms|email|tg] -t [tfno|email|chat_id destino] [-s subject]  -m texto  [-v verbose]
+$fpth[$#fpth] -i [sms|email|tg] -t [tfno|email|chat_id destino] [-s subject]  -f ruta_fichero_con_el_texto  [-v verbose]
+$fpth[$#fpth] -i email -t pepe\@gmail.com -s 'test de envio' -m "abc ..."
+$fpth[$#fpth] -i sms -t 61666166 -m "abc ..."
+$fpth[$#fpth] -i tg -t 123456789  -m "abc ..."
+
+Se puede enviar el mensaje a varios destinatarios se separan por ';'
+
+USAGE
+
+   return $USAGE;
+
+}
+

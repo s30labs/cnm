@@ -1,0 +1,26 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# 	Fichero: test/test_snmp_table_hash
+#	Obtiene la respuesta de un determinado dispositivo a la consulta de una tabla SNMP
+#	mediante el metodo core_snmp_table_hash (get_table)
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::SNMP;
+use Data::Dumper;
+	
+	my %SNMPCFG = ();
+   my $snmp=Crawler::SNMP->new(log_level=>'debug');
+
+	#---------------------------------------------------------------
+	# -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
+	#---------------------------------------------------------------
+	# test/test_snmp_table_hash -n 10.223.209.254 -o IF-MIB::ifTable
+	#---------------------------------------------------------------
+	$snmp->get_command_options(\%SNMPCFG);
+
+   my $r=$snmp->core_snmp_table_hash(\%SNMPCFG);
+
+	print Dumper($r);

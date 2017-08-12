@@ -1,0 +1,69 @@
+<mibtable>
+
+   <mode>get</mode>
+   <tune>none</tune>
+   <oid_items>
+
+
+      <item>
+         <id>0</id>
+         <col_name>MEMORIA DISPONIBLE</col_name>
+         <oid>WINDOWS-NT-PERFORMANCE::memoryAvailableBytes.0</oid>
+      </item>
+
+      <item>
+         <id>1</id>
+         <col_name>MEMORIA ASIGNADA</col_name>
+         <oid>WINDOWS-NT-PERFORMANCE::memoryCommittedBytes.0|WINDOWS-NT-PERFORMANCE::memoryCommitLimit.0</oid>
+      </item>
+
+      <item>
+         <id>2</id>
+         <col_name>MEMORIA - ERRORES</col_name>
+         <oid>WINDOWS-NT-PERFORMANCE::memoryPageFaultsPerSec.0|WINDOWS-NT-PERFORMANCE::memoryTransitionFaultsPerSec.0|WINDOWS-NT-PERFORMANCE::memoryDemandZeroFaultsPerSec.0</oid>
+      </item>
+
+      <item>
+         <id>3</id>
+         <col_name>MEMORIA - PAGINACION</col_name>
+         <oid>WINDOWS-NT-PERFORMANCE::memoryPageReadsPerSec.0|WINDOWS-NT-PERFORMANCE::memoryPageWritesPerSec.0</oid>
+      </item>
+   </oid_items>
+
+      <col>
+         <id>0</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Elemento Monitorizado</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>2</id>
+         <width>30%</width>
+         <bold>2</bold>
+         <name_col>Atributo</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>1</id>
+         <width>10%</width>
+         <bold>2</bold>
+         <name_col>Valor</name_col>
+         <sort>int</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
+      </col>
+      <col>
+         <id>3</id>
+         <width>40%</width>
+         <bold>2</bold>
+         <name_col></name_col>
+         <sort>str</sort>
+         <align>left</align>
+      </col>
+
+</mibtable>

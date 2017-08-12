@@ -1,0 +1,28 @@
+INCDIR = /home/fml/onm/bin
+PP = /opt/perl/bin/pp
+DIR_BASE = /home/fml/onm
+DIR_SRC = /home/fml/onm/bin
+DIR_WEB = /home/fml/onm/web
+EXEC_PATH = /var/www/cgi-bin/test
+ 
+all : dmap.o notificationsd.o crawler.o audit.o cnm-watch.o dgraphw.o
+ 
+dmap.o : ${DIR_SRC}/dmap
+			${PP} -f Bleach -M PerlIO -M XML::SAX::PurePerl -I ${INCDIR} -o ${DIR_BASE}/o/dmap ${DIR_SRC}/dmap
+
+notificationsd.o : ${DIR_SRC}/notificationsd
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/notificationsd ${DIR_SRC}/notificationsd
+
+crawler.o : ${DIR_SRC}/crawler
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/crawler ${DIR_SRC}/crawler
+
+audit.o : ${DIR_SRC}/audit
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/audit ${DIR_SRC}/audit
+
+cnm-watch.o : ${DIR_SRC}/cnm-watch
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/cnm-watch ${DIR_SRC}/cnm-watch
+
+dgraphw.o : ${DIR_WEB}/dgraphw
+			${PP} -f Bleach -I ${INCDIR} -o ${DIR_BASE}/o/web/dgraphw ${DIR_WEB}/dgraphw
+
+

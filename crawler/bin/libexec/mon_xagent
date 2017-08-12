@@ -1,0 +1,243 @@
+#!/usr/bin/perl -w
+#-----------------------------------------------------------------------------
+use lib '/opt/crawler/bin';
+use strict;
+use Getopt::Std;
+use MIME::Base64;
+use ONMConfig;
+use Crawler::Xagent;
+
+
+#-----------------------------------------------------------------------------
+BEGIN {
+	$ENV{'HTTPS_CERT_FILE'}='/etc/client.crt';
+	$ENV{'HTTPS_KEY_FILE'}='/etc/client.key';
+	$ENV{'HTTPS_CERT_PASS'}='';
+	$ENV{'HTTPS_DEBUG'}='';
+
+};
+
+#-----------------------------------------------------------------------------
+my %SCRIPTS = (
+#-----------------------------------------------------------------------------
+	'win32_random' => '
+RANDOMIZE
+
+WScript.StdOut.Writeline Int(RND()*1000)
+',
+
+#-----------------------------------------------------------------------------
+	'unix_ls' => '#!/bin/bash
+
+DIR="./"
+if [ -d $1 ]; then
+   DIR=$1
+fi
+
+/bin/ls $DIR
+',
+#-----------------------------------------------------------------------------
+
+	'win32_read_file' => '
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objFile = objFSO.GetFile("c:\WINDOWS\system32\drivers\etc\hosts")
+If objFile.Size > 0 Then
+    Set objReadFile = objFSO.OpenTextFile("c:\WINDOWS\system32\drivers\etc\hosts", 1)
+    strContents = objReadFile.ReadAll
+    Wscript.Echo strContents
+    objReadFile.Close
+Else
+    Wscript.Echo "The file is empty."
+End If
+',
+
+);
+
+
+
+$Crawler::Xagent::XAGENT_METRICS_BASE_PATH='/opt/data/xagent/base/metrics';
+$Crawler::Xagent::XAGENT_METRICS_CUSTOM_PATH='/opt/data/xagent/custom/metrics';
+$Crawler::Xagent::XAGENT_APPS_BASE_PATH='/opt/data/xagent/base/apps';
+$Crawler::Xagent::XAGENT_APPS_CUSTOM_PATH='/opt/data/xagent/custom/apps';
+
+
+#-----------------------------------------------------------------------------
+# Informacion ----------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Test de agente remoto. $VERSION
+(c) fml
+
+$fpth[$#fpth] -s script (clave de hash o fichero externo) [-p params] -i ip
+$fpth[$#fpth] -v -i ip
+$fpth[$#fpth] -a mod_hosts|mod_aar -i ip
+$fpth[$#fpth] -l  : Lista los scripts soportados
+$fpth[$#fpth] -h  : Ayuda
+
+-a accion: Ejecuta acciones especiales:
+   mod_hosts: Modifica el fichero /etc/hosts (solo win32) (obsoleto se hace con script vbs)
+   mod_functions:   Modifica fichero aar ==> CNMFunctions
+   mod_service:   Modifica fichero aar ==> CNMService
+-s script: Ejecuta el script especificado
+-p params: Parametros de la funcion (si los hubiera y separados por ,)
+-i ip: IP del equipo donde se ejecuta el agente (por defecto localhost)
+-v: Obttiene la version del agente
+
+$fpth[$#fpth] -s unix_ls -i 1.1.1.1
+$fpth[$#fpth] -s /opt/data/xagent/base/metrics/win32_metric_wmi_core.vbs -i 10.2.254.220 -p "Win32_PerfFormattedData_PerfOS_System  Threads"
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hlve:s:p:i:a:",\%opts);
+my ($out_cmd,$script);
+if ($opts{h}) { die $USAGE; }
+if ( (!$opts{s}) && (!$opts{v}) && (!$opts{a})) { die $USAGE; }
+if ($opts{s}) { 
+	$script=file2var($opts{s}); 
+	if (! defined $script) { die "SCRIPT NO VALIDO\n"; }
+}
+
+my $XAGENT_HOST=$opts{i} || 'localhost';
+my $params1=$opts{p} || '';
+my $params = $XAGENT_HOST . ' '. $params1;
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my $STORE_PATH='/opt/data/rrd/';
+my $USER='root';
+my $GROUP='root';
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $log_level= 'debug';
+
+my $XAGENT=Crawler::Xagent->new( user=>$USER, group=>$GROUP, name=>"mon_xagent", store_path=>$STORE_PATH, ost=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+
+$XAGENT->current({'host_ip'=>$XAGENT_HOST, 'proxy_ip'=>$XAGENT_HOST, 'xagent_port'=>$Crawler::Xagent::DEFAULT_XAGENT_PORT, 'code'=>$script, 'params'=>$params });
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+if ($opts{v}) {
+$XAGENT->timeout(3);
+
+
+	$XAGENT->current({'host_ip'=>$XAGENT_HOST, 'xagent_port'=>$Crawler::Xagent::DEFAULT_XAGENT_PORT, 'code'=>undef, 'params'=>undef });
+	my $v=$XAGENT->core_xagent_get_version();
+	if ($v->{'core'}) {
+		print "CNMAgent-Service: $v->{'core'}\tCNMAgent-Functions: $v->{'functions'}\n";
+	}
+	else { print "Sin respuesta remota\n"; }
+}
+
+#-----------------------------------------------------------------------------
+elsif ($opts{s}) {
+
+	my $v=$XAGENT->remote_functions_getVersionFunctions();
+	if ($XAGENT->err_num() != 0) {
+		print "**ERROR DE CONEXION**\n";
+		exit 0;
+	}
+
+print "P=$params\n";
+
+	if ($v=~/linux/) { $out_cmd=$XAGENT->remote_functions_execUnixScript(); }
+	elsif ($v=~/win32/) { $out_cmd=$XAGENT->remote_functions_execWinScript(); }
+	else { $out_cmd=$XAGENT->remote_functions_execWinScript(); }
+
+	#print "******RESULTADO ($v)*****\n";
+	foreach my $l (@$out_cmd) { print "$l\n"; }
+}
+
+#-----------------------------------------------------------------------------
+elsif ($opts{a} eq 'mod_hosts') {
+
+	$XAGENT->timeout(25);
+	# Solo para win32
+	my %DATA=('script'=>'win32_app_os_mod_hosts_file.vbs');
+	$XAGENT->script_dir($Crawler::Xagent::XAGENT_APPS_BASE_PATH);
+   my $script_data = $XAGENT->core_xagent_script_data(\%DATA);
+   if (! $script_data) {
+		print "ERROR Revisar $DATA{'script'}\n"; 
+		exit;
+   }
+
+
+	my $ip=my_ip();
+   my $current=$XAGENT->current();
+   $current->{'code'}=$script_data;
+   $current->{'params'}="$ip    cnm-manager";
+   $XAGENT->current($current);
+	my $out_cmd=$XAGENT->remote_functions_execWinScript(); 
+
+}
+
+#-----------------------------------------------------------------------------
+elsif ($opts{a} eq 'mod_functions') {
+
+	my $last_file_version='/opt/CNMAgent_devel/repository/services/CNMAgentFunctions.aar';
+	$XAGENT->remote_service_updateFunctions($last_file_version);
+
+}
+#-----------------------------------------------------------------------------
+elsif ($opts{a} eq 'mod_service') {
+
+   my $last_file_version='/opt/CNMAgent_devel/repository/services/CNMAgentService.aar';
+   $XAGENT->remote_service_updateService($last_file_version);
+
+}
+#-----------------------------------------------------------------------------
+elsif ($opts{a} eq 'mod_file') {
+
+	# path, file, file_to_upload
+	$XAGENT->remote_service_uploadFile('/tmp','kkkkk','/etc/hosts');
+}
+
+
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+
+
+#-----------------------------------------------------------------------------
+# file2var
+# Comprueba que existe el fichero especificado
+# Si no existe lo busca dentro de los posibles directorios de scripts
+# Vuelca el contenido del fichero en una variable.
+# IN: 	file
+# OUT: 	Contenido del fichero
+# 			(Si no existe el fichero devuelve undef
+#-----------------------------------------------------------------------------
+sub file2var {
+my $file=shift;
+
+my @script_paths=($Crawler::Xagent::XAGENT_METRICS_BASE_PATH, $Crawler::Xagent::XAGENT_METRICS_CUSTOM_PATH, $Crawler::Xagent::XAGENT_APPS_BASE_PATH, $Crawler::Xagent::XAGENT_APPS_CUSTOM_PATH);
+
+	my $ok=0;
+	if (-f $file) { $ok=1; }
+	foreach my $path (@script_paths) {
+		my $f="$path/$file";
+		if (-f $f) {
+			$ok=1;
+			$file=$f;
+			last;
+		}
+	}
+	if (! $ok) { return undef; }
+
+	#print "FILE=$file\n";
+
+   open INPUT, "<$file";
+   local undef $/;
+   my $content = <INPUT>;
+   close INPUT;
+   return $content;
+}
+

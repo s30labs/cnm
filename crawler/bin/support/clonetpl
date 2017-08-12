@@ -1,0 +1,115 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# test_store1
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Store;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf'; 
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+$VERSION="1.0";
+my $USAGE = <<USAGE;
+Duplica plantillas de metricas. $VERSION
+(c) fml
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -i id_dev -o id_dev1,id_dev2
+
+-i: ID del dispositivo origen
+-o: IDs de los dispositivos destino (separados por ,)
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hi:o:d:",\%opts);
+if ($opts{h}) { die $USAGE;}
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $ID_DEV = $opts{i} ||  die $USAGE;
+my $ID_DEV_DEST_LIST = $opts{o} ||  die $USAGE;
+
+	my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level);
+	$store->store_path($store_path);
+	my $dbh=$store->open_db();
+
+	# Se obtienen las metricas de la plantilla seleccionadas
+	my $condition="c.id_template_metric=i.id_template_metric and c.id_dev=$ID_DEV";
+	my @tpl=();
+	my $rres=$store->get_from_db( $dbh, 'c.type,c.subtype,i.watch,i.iid,i.hiid,i.mname,i.label,i.status,c.lapse', 'prov_template_metrics c, prov_template_metrics2iid i', $condition);
+
+   foreach my $w (@$rres) {
+
+      my $type=$w->[0];
+      my $subtype=$w->[1];
+      my $watch=$w->[2];
+      my $iid=$w->[3];
+      my $hiid=$w->[4];
+      my $mname=$w->[5];
+      my $label=$w->[6];
+      my $status=$w->[7];
+      my $lapse=$w->[8];
+		push @tpl, { 'type'=>$type, 'subtype'=>$subtype, 'watch'=>$watch, 'iid'=>$iid, 'hiid'=>$hiid, 'mname'=>$mname, 'label'=>$label, 'status'=>$status, 'lapse'=>$lapse};
+
+print "$subtype $iid\n";
+
+	}
+
+	my $num_metrics=scalar(@tpl);
+	if ($num_metrics==0) {
+		print "TERMINO, id_dev=$ID_DEV no tiene metricas en platilla\n";
+		exit;
+	}
+
+#print Dumper(\@tpl);
+
+   $rres=$store->get_from_db( $dbh, 'concat(name,".",domain)', 'devices', "id_dev=$ID_DEV");
+   my $name_orig = $rres->[0][0];
+
+
+# $STORE->insert_to_db($dbh,'prov_default_apps2device',\%prov_data);
+	my @id_dev_list = split (',', $ID_DEV_DEST_LIST);
+	foreach my $id_dev (@id_dev_list) {
+
+		# Valido que existe id_dev y modifico el nombre en el label
+   	my $rres=$store->get_from_db( $dbh, 'concat(name,".",domain)', 'devices', "id_dev=$id_dev");
+		my $name = $rres->[0][0];
+		if (! $name) {
+			print "ERROR No existe dispositivo con id_dev=$id_dev\n";
+			next;
+		}
+
+		for my $i (0..$num_metrics-1) {
+			$tpl[$i]->{'label'} =~ s/$name_orig/$name/;
+		}
+#print Dumper(\@tpl);
+		$store->store_template_metrics($dbh,$id_dev,\@tpl);
+	}
+
+
+#-------------------------------------------------------------------------------------------
+$store->close_db($dbh);
+
