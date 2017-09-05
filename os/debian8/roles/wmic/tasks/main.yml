@@ -4,6 +4,7 @@
 - name: Check /usr/bin/wmic
   stat: path=/usr/bin/wmic
   register: wmic_binary
+  tags: wmic
 
 - name: Remove /tmp/src/wmic
   file: path=/tmp/src/wmic state=absent

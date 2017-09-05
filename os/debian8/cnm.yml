@@ -12,8 +12,8 @@
     - apache-php
     - mysql
 
-    - syslog-ng
     - net-snmp 
+    - syslog-ng
     - rrdtool
     - cnm-cfg
 

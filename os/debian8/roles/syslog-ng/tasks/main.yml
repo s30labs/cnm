@@ -20,11 +20,13 @@
 - name: Check /etc/logrotate.d/syslog
   stat: path=/etc/logrotate.d/syslog
   register: old_file
+  tags: syslog-ng
 
 - name: Remove old logrotate file
   register: old_file
   file: path=/etc/logrotate.d/syslog state=absent
   when: old_file.stat.exists is defined and old_file.stat.exists
+  tags: syslog-ng
 
 
 - name: Config File

@@ -10,6 +10,7 @@
 - name: probando2
   debug:
     var: is_lxc.stdout
+  tags: ntp
 
 # Add specified repository into sources list.
 - name: Configure repository 

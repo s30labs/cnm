@@ -4,6 +4,7 @@
 - name: Check /opt/otrs/Kernel/Config.pm
   stat: path=/opt/otrs/Kernel/Config.pm
   register: otrs_config_pm
+  tags: otrs
 
 - name: Extract from source
   command: tar -C /opt -xzvf /opt/cnm-extras/src/otrs/otrs-3.3.5.tar.gz
@@ -61,7 +62,7 @@
 - name: Create otrs user and set privileges
   mysql_user: name=otrs password={{ db_pwd }} host=localhost priv=otrs.*:ALL,GRANT state=present
   when: otrs_config_pm.stat.exists is defined and otrs_config_pm.stat.exists==0
-  tags: mysql
+  tags: otrs
 
 
 - name: Execute mysql scripts (1)

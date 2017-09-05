@@ -24,8 +24,10 @@
 
 - name: restart nmbd
   command: service nmbd restart
+  tags: smb
 
 - name: restart smbd
   command: service smbd restart
+  tags: smb
 
 ...
