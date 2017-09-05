@@ -20,7 +20,7 @@
   tags: snmpsim
 
 - name: Extract from source
-  command: tar -C /tmp/src/snmpsim -xzvf "/os/deb8/updates/0005_snmpsim/{{ item }}"
+  command: tar -C /tmp/src/snmpsim -xzvf "/opt/cnm-extras/src/snmpsim/{{ item }}"
   with_items:
     - pyasn1-0.1.7.tar.gz
     - pycrypto-2.6.tar.gz
