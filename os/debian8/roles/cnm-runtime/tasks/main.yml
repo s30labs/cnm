@@ -5,13 +5,13 @@
 # Add specified repository into sources list.
 - name: Verify repository
   apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: cnm_runtime
+  tags: cnm-runtime
  
 - name: Verify directories
   file: path={{ item }} state=directory owner=root group=root mode=0755
   with_items:
     - /var/log/tmark
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Verify www-user directories
   file: path={{ item }} state=directory owner=www-data group=www-data mode=0777
@@ -23,7 +23,7 @@
     - /store/www-user/tmp
     - /store/www-user/files
     - /store/www-user/remote_cfgs
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 #- name: Verify www-user links
 #  file: path=/var/www/html/onm/user/{{ item }} src=/store/www-user/{{ item }} state=link owner=www-data group=www-data mode=0755
@@ -39,72 +39,72 @@
 #
 #- name: favicon.ico
 #  copy: src=/var/www/html/onm/favicon.ico dest=/var/www/html  owner=root group=root mode=0644
-#  tags: cnm_runtime
+#  tags: cnm-runtime
 #
 #- name: magic.gif
 #  copy: src=/var/www/html/onm/images/magic.gif dest=/store/www-user/background  owner=root group=root mode=0644
-#  tags: cnm_runtime
+#  tags: cnm-runtime
  
 - name: crontab
   copy: src=crontab dest=/etc/crontab  owner=root group=root mode=0640
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Verify directories 
   file: path={{ item }} state=directory owner=root group=root mode=0755
   with_items:
     - /etc/cron.fast
     - /etc/cron.daily12
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: cnm-daily -> cron.daily
   copy: src=cnm-daily dest=/etc/cron.daily/cnm-daily  owner=root group=root mode=0755
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: logrotate -> cron.daily12
   copy: src=logrotate dest=/etc/cron.daily12/logrotate owner=root group=root mode=0755
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Clean logrotate in cron.daily
   file: path=/etc/cron.daily/logrotate state=absent
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: cnm-watch -> cron.fast
   copy: src=cnm-watch dest=/etc/cron.fast/cnm-watch  owner=root group=root mode=0755
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Check if drbd is mounted
   shell: cat /proc/mounts |grep drbd1|wc -l
   register: drbd_mounted
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Remove mysql from startup
   command: update-rc.d -f mysql remove
   when: drbd_mounted.stdout=="1"
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: crawler -> logrotate
   copy: src=crawler.logrotate dest=/etc/logrotate.d/crawler  owner=root group=root mode=0640
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: Init script
   copy: src=cnmd.init dest=/etc/init.d/cnmd  owner=root group=root mode=0755
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: CNM User profile
   copy: src=.profile.cnm dest=/home/cnm/.profile  owner=cnm group=cnm mode=0640
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: CNM root profile
   copy: src=.profile.root dest=/root/.profile  owner=root group=root mode=0640
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: CNM home directory 
   file: path=/home/cnm state=directory owner=cnm group=www-data mode=0710
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: CNM Backup directory
   file: path=/home/cnm/backup state=directory owner=cnm group=www-data mode=0777
-  tags: cnm_runtime
+  tags: cnm-runtime
 
 - name: /etc/client.crt
   copy: src=client.crt dest=/etc/client.crt  owner=root group=root mode=0644
