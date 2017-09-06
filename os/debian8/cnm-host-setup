@@ -1,0 +1,528 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: $Id$
+#-------------------------------------------------------------------------------------------
+use lib "/opt/cnm/crawler/bin", "/opt/cnm/crawler/bin/support";
+use strict;
+use Getopt::Std;
+use IO::Socket;
+use Cwd;
+use System;
+use MCNM;
+use Data::Dumper;
+use Term::Clui;
+use NetAddr::IP;
+
+# Informacion ------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+Chequea la configuracion basica de la maquina.
+(c) s30labs
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -c  : Solo genera el fichero de configuracion /cfg/chk-host.conf
+$fpth[$#fpth] -v  : Valida que la configuracion es correcta.
+$fpth[$#fpth] -m  : Configura los parametros de maquina del sistema preguntando al usuario (opcion menus)
+$fpth[$#fpth]     : Configura los parametros de maquina del sistema preguntando al usuario
+$fpth[$#fpth] -f  : Configura los parametros de maquina del sistema sin preguntar al usuario
+Necesita que exista el fichero /cfg/chk-host.conf
+
+IPADDR=
+NETMASK=
+GATEWAY=
+HOSTNAME=
+NTPHOST=
+DNS=
+DOMAIN=
+KEY=
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+$ENV{'PATH'} = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+#-------------------------------------------------------------------------------------------
+my %GLOBALS=();
+my %HOST_CFG=();
+my ($RC,$ROK,$RNOK);
+
+my ($net_restart,$ntp_restart,$validate_cfg,$cnm_restart,$cnm_poweroff)=(0,0,0,0,0);
+my %opts=();
+my $REV='';
+my $FCONF_HOST='/cfg/chk-host.conf';
+my $FCONF_BASE='/cfg/onm.conf';
+getopts("fhcmv",\%opts);
+if ($opts{h}) { die $USAGE; }
+
+my $os=check_os();
+my $www_user = ($os eq 'fc') ? 'apache' : 'www-data';
+create_dir('-p','/cfg/','770',"root:$www_user");
+
+#-------------------------------------------------------------------------------------------
+# Se valida la configuracion actual
+if ($opts{v}) {
+
+	print '-'x60,"\n";
+
+	read_file_conf();
+   while (my ($k,$v) = each %GLOBALS) {
+      if ($k =~ /^__(\S+)__$/) {
+         print "$1=$v\n";
+      }
+   }
+
+	print '-'x60,"\n";
+
+}
+
+read_host_conf();
+
+#-------------------------------------------------------------------------------------------
+if ($opts{f}) {
+
+	read_file_conf();
+
+	# La direccion de broadcast y de red siempre se calculan a partir de la ip + mascara
+   my $oip = new NetAddr::IP($GLOBALS{'__IPADDR__'},$GLOBALS{'__NETMASK__'});
+   $GLOBALS{'__BROADCAST__'} = $oip->broadcast();
+   $GLOBALS{'__BROADCAST__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+   $GLOBALS{'__NETWORK__'} = $oip->network();
+   $GLOBALS{'__NETWORK__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+
+}
+else	{
+	
+	# Permite configurar la conectividad basica sin necesidad de configurar el resto
+	if ($opts{m}) {
+	
+		read_file_conf();
+
+		my $inloop=1;
+		while ($inloop) {
+	      my @tasks = qw( APAGAR-EQUIPO REINICIAR-EQUIPO DIRECCION-IP MASCARA-DE-RED ROUTER-POR-DEFECTO SERVIDOR-DNS DOMINIO-DNS HOSTNAME SERVIDOR-NTP SERVIDOR-SMTP KEY VALIDAR-CONFIG GUARDAR SALIR-A-SHELL);
+   	   my $task = &choose("CNM Configurator >>>>> ", @tasks);
+	   	if (! $task) { die "Se ha producido un error\n"; }
+
+   		elsif ($task eq "APAGAR-EQUIPO") { 
+				if (confirm("Se dispone a apagar el equipo. Esta seguro?")) { 
+					ask('Pulse INTRO para apagar el equipo');
+
+					$inloop=0;
+					$cnm_poweroff=1
+				}
+			}
+
+         elsif ($task eq "REINICIAR-EQUIPO") {
+            if (confirm("Se dispone a reiniciar el equipo. Esta seguro?")) {
+					ask('Pulse INTRO para reiniciar el equipo');
+
+               $inloop=0;
+               $cnm_restart=1
+            }
+         }
+
+   		elsif ($task eq "DIRECCION-IP") { 
+				my $ip = ask('Introduzca la IP:'); 
+				if (confirm("Es correcta $ip ?")) { $GLOBALS{'__IPADDR__'} = $ip; $net_restart=1; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+			}
+   		elsif ($task eq "MASCARA-DE-RED") { 
+				my $netmask = ask('Introduzca la mascara de red:'); 
+				if (confirm("Es correcta $netmask ?")) { $GLOBALS{'__NETMASK__'} = $netmask; $net_restart=1; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+			}
+   		elsif ($task eq "ROUTER-POR-DEFECTO") { 
+				my $gw = ask('Introduzca el router por defecto:'); 
+				if (confirm("Es correcto $gw ?")) { $GLOBALS{'__GATEWAY__'} = $gw; $net_restart=1; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+			}
+         elsif ($task eq "SERVIDOR-DNS") {
+            my $dns = ask('Introduzca el servidor de DNS:');
+            if (confirm("Es correcto $dns ?")) { $GLOBALS{'__DNS__'} = $dns; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+         }
+         elsif ($task eq "DOMINIO-DNS") {
+            my $domain = ask('Introduzca el dominio por defecto de su equipo:');
+            if (confirm("Es correcto $domain ?")) { $GLOBALS{'__DOMAIN__'} = $domain; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+         }
+         elsif ($task eq "HOSTNAME") {
+            my $hname = ask('Introduzca el nombre del host:');
+            if (confirm("Es correcto $hname ?")) { $GLOBALS{'__HOSTNAME__'} = $hname; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+         }
+         elsif ($task eq "SERVIDOR-NTP") {
+            my $ntp = ask('Introduzca el servidor NTP:');
+            if (confirm("Es correcto $ntp ?")) { $GLOBALS{'__NTPHOST__'} = $ntp; $ntp_restart=1 ;}
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+         }
+#         elsif ($task eq "SERVIDOR-SMTP") {
+#            my $mx = ask('Introduzca el servidor de correo SMTP:');
+#            if (confirm("Es correcto $mx ?")) { $GLOBALS{'__NOTIF_MX__'} = $mx; }
+#				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+#         }
+         elsif ($task eq "KEY") {
+            my $key = ask('Introduzca la clave proporcionada:');
+            if (confirm("Es correcto $key ?")) { $GLOBALS{'__KEY__'} = $key; }
+				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
+         }
+
+			elsif ($task eq "VALIDAR-CONFIG") { $validate_cfg=1; $inloop=0; }
+
+			elsif ($task eq "GUARDAR") {  $inloop=0; }
+
+			elsif ($task eq "SALIR-A-SHELL") {  die "Shell de sistema\n"; }
+   	}
+	}
+
+	else {
+		print "########## CONFIGURACION DEL EQUIPO ##########\n";
+
+		# ---------------------------------------
+		if ($HOST_CFG{'IPADDR'}=~/\d+\.\d+\.\d+\.\d+/) {
+			$GLOBALS{'__IPADDR__'}=get_input("Introduzca la IP [Pulse INTRO para mantener $HOST_CFG{'IPADDR'}]: ",'ip',1);
+			if ($GLOBALS{'__IPADDR__'} eq 'intro') { $GLOBALS{'__IPADDR__'} = $HOST_CFG{'IPADDR'}; }
+		}
+		else {
+			$GLOBALS{'__IPADDR__'}=get_input("Introduzca la IP [Pulse $HOST_CFG{'IPADDR'}]: ",'ip');
+		}
+	
+      # ---------------------------------------
+      if ($HOST_CFG{'NETMASK'}=~/\d+\.\d+\.\d+\.\d+/) {
+         $GLOBALS{'__NETMASK__'}=get_input("Introduzca la mascara de red [Pulse INTRO para mantener $HOST_CFG{'NETMASK'}]: ",'ip',1);
+         if ($GLOBALS{'__NETMASK__'} eq 'intro') { $GLOBALS{'__NETMASK__'} = $HOST_CFG{'NETMASK'}; }
+      }
+      else {
+         $GLOBALS{'__NETMASK__'}=get_input("Introduzca la mascara de red [Pulse $HOST_CFG{'NETMASK'}]: ",'ip');
+      }
+
+      # ---------------------------------------
+      if ($HOST_CFG{'GATEWAY'}=~/\d+\.\d+\.\d+\.\d+/) {
+         $GLOBALS{'__GATEWAY__'}=get_input("Introduzca el router por defecto [Pulse INTRO para mantener $HOST_CFG{'GATEWAY'}]: ",'ip',1);
+         if ($GLOBALS{'__GATEWAY__'} eq 'intro') { $GLOBALS{'__GATEWAY__'} = $HOST_CFG{'GATEWAY'}; }
+      }
+      else {
+         $GLOBALS{'__GATEWAY__'}=get_input("Introduzca el router por defecto [Pulse $HOST_CFG{'GATEWAY'}]: ",'ip');
+      }
+
+
+		#$GLOBALS{'__NETWORK__'}=get_input("Introduzca la direccion de red: ",'ip');
+		#$GLOBALS{'__BROADCAST__'}=get_input("Introduzca la direccion de broadcast: ",'ip');
+		$GLOBALS{'__HOSTNAME__'}=get_input("Introduzca el  nombre del host [Pulse INTRO para mantener $HOST_CFG{'HOSTNAME'}]: ", '', 1);
+		if ($GLOBALS{'__HOSTNAME__'} eq 'intro') { $GLOBALS{'__HOSTNAME__'} = $HOST_CFG{'HOSTNAME'}; }
+
+#		$GLOBALS{'__NOTIF_MX__'}=get_input("Introduzca el servidor de correo SMTP [Pulse INTRO para mantener $HOST_CFG{'NOTIF_MX'}]: ", '', 1);
+#		if ($GLOBALS{'__NOTIF_MX__'} eq 'intro') { $GLOBALS{'__NOTIF_MX__'} = $HOST_CFG{'NOTIF_MX'}; }
+
+		$GLOBALS{'__NTPHOST__'}=get_input("Introduzca el servidor NTP [Pulse INTRO para mantener $HOST_CFG{'NTPHOST'}]: ", '', 1);
+		if ($GLOBALS{'__NTPHOST__'} eq 'intro') { 
+			if ($GLOBALS{'__NTPHOST__'} ne $HOST_CFG{'NTPHOST'}) {
+				$ntp_restart=1 ;
+				$GLOBALS{'__NTPHOST__'} = $HOST_CFG{'NTPHOST'}; 
+			}
+		}
+
+		$GLOBALS{'__DNS__'}=get_input("Introduzca el servidor de DNS [Pulse INTRO para mantener $HOST_CFG{'DNS'}]: ", '', 1);
+		if ($GLOBALS{'__DNS__'} eq 'intro') { $GLOBALS{'__DNS__'} = $HOST_CFG{'DNS'}; }
+
+		$GLOBALS{'__DOMAIN__'}=get_input("Introduzca el dominio por defecto de su equipo [Pulse INTRO para mantener $HOST_CFG{'DOMAIN'}]: ", '', 1);
+		if ($GLOBALS{'__DOMAIN__'} eq 'intro') { $GLOBALS{'__DOMAIN__'} = $HOST_CFG{'DOMAIN'}; }
+
+		$GLOBALS{'__KEY__'}=get_input("Introduzca la clave proporcionada [Pulse INTRO para mantener $HOST_CFG{'KEY'}]: ", '', 1);
+		if ($GLOBALS{'__KEY__'} eq 'intro') { $GLOBALS{'__KEY__'} = $HOST_CFG{'KEY'}; }
+
+	}
+
+
+   my $oip = new NetAddr::IP($GLOBALS{'__IPADDR__'},$GLOBALS{'__NETMASK__'});
+   $GLOBALS{'__BROADCAST__'} = $oip->broadcast();
+   $GLOBALS{'__BROADCAST__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+   $GLOBALS{'__NETWORK__'} = $oip->network();
+   $GLOBALS{'__NETWORK__'} =~ s/(\d+\.\d+\.\d+\.\d+)\/\d+/$1/g;
+
+	# Regenera el fichero /cfg/chk_host.conf
+	print "Se regenera el fichero $FCONF_HOST ....\n";
+	write_file_conf($FCONF_HOST);
+	
+}
+
+
+#-------------------------------------------------------------------------------------------
+if ($cnm_poweroff) { print "**** APAGANDO EQUIPO ****\n"; exit; }
+if ($cnm_restart) { print "**** REINICIANDO EQUIPO ****\n"; exit; }
+if ($validate_cfg) { validate_config(); exit; }
+
+#-------------------------------------------------------------------------------------------
+set_key($GLOBALS{'__KEY__'});
+# Si solo se genera el fichero de configuracion, terminamos
+if ($opts{c}) { exit; }
+
+#-------------------------------------------------------------------------------------------
+print "Configurando el sistema con los siguientes datos:\n";
+print Dumper(\%GLOBALS);
+
+
+
+#osbase2system(\%GLOBALS);
+#set_cfg_cnms($GLOBALS{'__IPADDR__'});
+#store_key();
+
+#-------------------------------------------------------------------------------------------
+# Debian 8 usa systemd
+if (-f '/bin/systemctl') { system ("/bin/systemctl daemon-reload"); }
+
+
+
+#-------------------------------------------------------------------------------------------
+#do_init_store();
+
+
+
+
+#-------------------------------------------------------------------------------------------
+# Networking restart
+my $if=my_if();
+if ($net_restart) {  system("/sbin/ifdown $if && /sbin/ifup $if"); }
+
+# NTP update
+if ($ntp_restart) {  
+	system("/usr/sbin/ntpdate pool.ntp.org"); 
+
+	update_ansible_vars('ntpserver', $GLOBALS{'__NTPHOST__'});
+	my $cwd = cwd();
+	chdir('/opt/cnm/os/debian8');
+	my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags ntp cnm.yml | tee /tmp/cnm-install-role-ntp.log";
+	print "$cmd\n";
+	`$cmd`;
+	chdir($cwd);
+
+}
+
+
+
+
+#-------------------------------------------------------------------------------------------
+# init_defaut_globals
+# Se inicializan ciertos valores por defecto de variables__XXX__ en caso de no tener valor
+#-------------------------------------------------------------------------------------------
+sub init_defaut_globals {
+my ($globals)=@_;
+
+
+	if ($globals->{'__NOTIF_LAPSE__'} eq '__NOTIF_LAPSE__') { $globals->{'__NOTIF_LAPSE__'}=60; }
+	if ($globals->{'__NOTIF_MX_PORT__'} eq '__NOTIF_MX_PORT__') { $globals->{'__NOTIF_MX_PORT__'}=25; }
+	if ($globals->{'__NOTIF_MX_TLS__'} eq '__NOTIF_MX_TLS__') { $globals->{'__NOTIF_MX_TLS__'}=0; }
+	if ($globals->{'__NOTIF_MX_AUTH__'} eq '__NOTIF_MX_AUTH__') { $globals->{'__NOTIF_MX_AUTH__'}=0; }
+	if ($globals->{'__NOTIF_MX_AUTH_USER__'} eq '__NOTIF_MX_AUTH_USER__') { $globals->{'__NOTIF_MX_AUTH_USER__'}=''; }
+	if ($globals->{'__NOTIF_MX_AUTH_PWD__'} eq '__NOTIF_MX_AUTH_PWD__') { $globals->{'__NOTIF_MX_AUTH_PWD__'}=''; }
+	if ($globals->{'__NOTIF_FROM__'} eq '__NOTIF_FROM__') { $globals->{'__NOTIF_FROM__'}=''; }
+	if ($globals->{'__NOTIF_FROM_NAME__'} eq '__NOTIF_FROM_NAME__') { $globals->{'__NOTIF_FROM_NAME__'}=''; }
+	if ($globals->{'__NOTIF_SUBJECT__'} eq '__NOTIF_SUBJECT__') { $globals->{'__NOTIF_SUBJECT__'}='ALERTA-CNM'; }
+	if ($globals->{'__NOTIF_SERIAL_PORT__'} eq '__NOTIF_SERIAL_PORT__') { $globals->{'__NOTIF_SERIAL_PORT__'}='/dev/ttyS0'; }
+	if ($globals->{'__NOTIF_PIN__'} eq '__NOTIF_PIN__') { $globals->{'__NOTIF_PIN__'}=''; }
+}
+
+#-------------------------------------------------------------------------------------------
+# read_file_conf
+#-------------------------------------------------------------------------------------------
+sub read_file_conf {
+
+   if (! -f $FCONF_HOST) { die "No existe el fichero $FCONF_HOST\n(Es necesario con la opcion -f)\n";  }
+   open (F,"<$FCONF_HOST");
+   while (<F>) {
+
+      chomp;
+      if (/^#/) {next;}
+      if (/\bIPADDR\s*\=\s*(.*)$/) {$GLOBALS{'__IPADDR__'}=$1;}
+      elsif (/\bNETMASK\s*\=\s*(.*)$/) {$GLOBALS{'__NETMASK__'}=$1;}
+      elsif (/\bGATEWAY\s*\=\s*(.*)$/) {$GLOBALS{'__GATEWAY__'}=$1;}
+      elsif (/\bNETWORK\s*\=\s*(.*)$/) {$GLOBALS{'__NETWORK__'}=$1;}
+      elsif (/\bBROADCAST\s*\=\s*(.*)$/) {$GLOBALS{'__BROADCAST__'}=$1;}
+      elsif (/\bHOSTNAME\s*\=\s*(.*)$/) {$GLOBALS{'__HOSTNAME__'}=$1;}
+      elsif (/\bNOTIF_LAPSE\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_LAPSE__'}=$1;}
+      elsif (/\bNOTIF_MX_PORT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_PORT__'}=$1;}
+      elsif (/\bNOTIF_MX_TLS\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_TLS__'}=$1;}
+      elsif (/\bNOTIF_MX_AUTH\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH__'}=$1;}
+      elsif (/\bNOTIF_MX_AUTH_USER\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH_USER__'}=$1;}
+      elsif (/\bNOTIF_MX_AUTH_PWD\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH_PWD__'}=$1;}
+      elsif (/\bNOTIF_MX\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX__'}=$1;}
+      elsif (/\bNOTIF_FROM_NAME\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_FROM_NAME__'}=$1;}
+      elsif (/\bNOTIF_FROM\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_FROM__'}=$1;}
+      elsif (/\bNOTIF_SUBJECT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_SUBJECT__'}=$1;}
+      elsif (/\bNOTIF_SERIAL_PORT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_SERIAL_PORT__'}=$1;}
+      elsif (/\bNOTIF_PIN\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_PIN__'}=$1;}
+      elsif (/\bNTPHOST\s*\=\s*(.*)$/) {$GLOBALS{'__NTPHOST__'}=$1;}
+      elsif (/\bDNS\s*\=\s*(.*)$/) {$GLOBALS{'__DNS__'}=$1;}
+      elsif (/\bDOMAIN\s*\=\s*(.*)$/) {$GLOBALS{'__DOMAIN__'}=$1;}
+      elsif (/\bKEY\s*\=\s*(.*)$/) {$GLOBALS{'__KEY__'}=$1;}
+   }
+   close F;
+
+
+   if (-f $FCONF_BASE) { 
+	   open (F,"<$FCONF_BASE");
+   	while (<F>) {
+
+      	chomp;
+      	if (/^#/) {next;}
+	      if (/\bIPADDR\s*\=\s*(.*)$/) {$GLOBALS{'__IPADDR__'}=$1;}
+			elsif (/\bNETMASK\s*\=\s*(.*)$/) {$GLOBALS{'__NETMASK__'}=$1;}
+	      elsif (/\bGATEWAY\s*\=\s*(.*)$/) {$GLOBALS{'__GATEWAY__'}=$1;}
+      	elsif (/\bNETWORK\s*\=\s*(.*)$/) {$GLOBALS{'__NETWORK__'}=$1;}
+      	elsif (/\bBROADCAST\s*\=\s*(.*)$/) {$GLOBALS{'__BROADCAST__'}=$1;}
+      	elsif (/\bHOSTNAME\s*\=\s*(.*)$/) {$GLOBALS{'__HOSTNAME__'}=$1;}
+      	elsif (/\bNOTIF_LAPSE\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_LAPSE__'}=$1;}
+      	elsif (/\bNOTIF_MX_PORT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_PORT__'}=$1;}
+      	elsif (/\bNOTIF_MX_TLS\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_TLS__'}=$1;}
+      	elsif (/\bNOTIF_MX_AUTH\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH__'}=$1;}
+      	elsif (/\bNOTIF_MX_AUTH_USER\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH_USER__'}=$1;}
+      	elsif (/\bNOTIF_MX_AUTH_PWD\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX_AUTH_PWD__'}=$1;}
+      	elsif (/\bNOTIF_MX\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_MX__'}=$1;}
+      	elsif (/\bNOTIF_FROM_NAME\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_FROM_NAME__'}=$1;}
+      	elsif (/\bNOTIF_FROM\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_FROM__'}=$1;}
+      	elsif (/\bNOTIF_SUBJECT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_SUBJECT__'}=$1;}
+      	elsif (/\bNOTIF_SERIAL_PORT\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_SERIAL_PORT__'}=$1;}
+      	elsif (/\bNOTIF_PIN\s*\=\s*(.*)$/) {$GLOBALS{'__NOTIF_PIN__'}=$1;}
+      	elsif (/\bNTPHOST\s*\=\s*(.*)$/) {$GLOBALS{'__NTPHOST__'}=$1;}
+      	elsif (/\bDNS\s*\=\s*(.*)$/) {$GLOBALS{'__DNS__'}=$1;}
+      	elsif (/\bDOMAIN\s*\=\s*(.*)$/) {$GLOBALS{'__DOMAIN__'}=$1;}
+      	elsif (/\bKEY\s*\=\s*(.*)$/) {$GLOBALS{'__KEY__'}=$1;}
+   	}
+   	close F;
+	}
+
+	#El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
+	$GLOBALS{'__KEY__'} = get_stored_key();
+}
+
+#-------------------------------------------------------------------------------------------
+# write_file_conf
+#-------------------------------------------------------------------------------------------
+sub write_file_conf {
+my ($fconf)=@_;
+
+   open (F,">$fconf");
+   while (my ($k,$v) = each %GLOBALS) {
+      if ($k =~ /^__(\S+)__$/) {
+         print F "$1=$v\n";
+      }
+   }
+   close F;
+}
+
+
+#-------------------------------------------------------------------------------------------
+# update_ansible_vars 
+#-------------------------------------------------------------------------------------------
+sub update_ansible_vars {
+my ($key, $value)=@_;
+
+	my $fvars='/cfg/cnm_vars.yml';
+	
+   if (! -f $fvars) { return; }
+
+	my $new_lines='';
+   open (F,"<$fvars");
+   while (<F>) {
+      chomp;
+      if (/^#/) {
+			$new_lines.="$_\n";
+			next;
+		}
+
+		my ($k,$v)=split(/\s*\:\s*/, $_);
+		if ((defined $v) && ($k eq $key)) {
+			$new_lines.="$key: $value\n";
+		}
+		else { $new_lines.="$_\n"; }
+	}
+	close F;
+	open (F,">$fvars");
+	print F $new_lines;
+	close F;
+
+}
+
+
+#-------------------------------------------------------------------------------------------
+# read_host_conf
+#-------------------------------------------------------------------------------------------
+sub read_host_conf {
+
+	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
+	chomp $HOST_CFG{'IPADDR'};
+
+	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig | /bin/grep -Eo ' (Mask:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '255.0.0.0'`;
+	chomp $HOST_CFG{'NETMASK'};
+
+	$HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;
+	chomp $HOST_CFG{'GATEWAY'};
+
+	$HOST_CFG{'HOSTNAME'} = `/bin/hostname`;
+   chomp $HOST_CFG{'HOSTNAME'};
+
+	$HOST_CFG{'DNS'} = `/bin/grep nameserver /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DNS'};
+
+   $HOST_CFG{'DOMAIN'} = `/bin/grep domain /etc/resolv.conf | awk '{ print \$2 }'`;
+   chomp $HOST_CFG{'DOMAIN'};
+
+#   $HOST_CFG{'NOTIF_MX'} = `/bin/grep domain /cfg/onm.conf | awk '{ print \$3 }'`;
+#   chomp $HOST_CFG{'NOTIF_MX'};
+
+   $HOST_CFG{'NTPHOST'} = `/bin/grep -m1 ntpdate /etc/cron.hourly/ntpdate | awk '{ print \$2 }'`; 
+   chomp $HOST_CFG{'NTPHOST'};
+
+   $HOST_CFG{'KEY'} = get_stored_key();
+
+}
+
+#-------------------------------------------------------------------------------------------
+# get_stored_key
+#-------------------------------------------------------------------------------------------
+sub get_stored_key {
+
+	my $key='';
+   #El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
+   my $file_key='/cfg/key';
+   if (-f $file_key) {
+      open (F,"<$file_key");
+      $key=<F>;
+      close F;
+      chomp $key;
+		if (! defined $key) { $key='gpl'; }
+      $GLOBALS{'__KEY__'} = $key;
+   }
+	return $key;
+}
+
+#-------------------------------------------------------------------------------------------
+# validate_config
+#-------------------------------------------------------------------------------------------
+sub validate_config {
+
+   print '-'x60,"\n";
+   my ($rc,$socket)=(0,undef);
+   print "Validando acceso internet (80/tcp) ...  ";
+   $socket = IO::Socket::INET->new(PeerAddr=>'software.s30labs.com', PeerPort=>80, Timeout=>2);
+   if (!defined $socket) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando acceso internet (443/tcp) ... ";
+   $socket = IO::Socket::INET->new(PeerAddr=>'software.s30labs.com', PeerPort=>443, Timeout=>2);
+   if (!defined $socket) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando servicio NTP ...              ";
+   $rc=check_ntp_config();
+   if ($rc != 0) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+   print "Validando servicio DNS ...              ";
+   $rc=check_dns_config();
+   if ($rc != 0) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
+   else { print ">> Config OK\n"; }
+
+}
+
