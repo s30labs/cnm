@@ -498,7 +498,7 @@ my $self=shift;
    $self->_get_oid_mapping(\%OID2TXT);
 	my $ro=open (F, ">$FILE_CACHE_MAPPING");
 	if (! $ro) {
-		$self->log('warning',"reset_mapping:: [ERROR] Al abrir $FILE_CACHE_MAPPING en escritura");
+		$self->log('warning',"reset_mapping:: [WARN] Can't update $FILE_CACHE_MAPPING ($!) - workload configured ?");
 		return;
 	}
 
