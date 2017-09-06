@@ -1,0 +1,376 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-setup
+# Los pasos a seguir para instalar CNM son:
+# a. Ejcutar cnm-install -i -a root_pwd -b onm_pwd -n user [-m pro] [-r rev_number]
+# b. Ejecutar /opt/crawler/bin/support/chk-host
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+use Cwd;
+
+BEGIN {
+  $ENV{'MIBS'}='ALL';
+  $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+}
+
+use Data::Dumper;
+#-------------------------------------------------------------------------------------------
+my $REPO="software.s30labs.com";
+
+#-------------------------------------------------------------------------------------------
+my $APT_GET="/usr/bin/apt-get";
+my $GIT="/usr/bin/git";
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+CNM Installer $VERSION (c) s30labs
+
+$fpth[$#fpth] 
+$fpth[$#fpth] [-z /dev/sda6]
+$fpth[$#fpth] [-m master] [-r rev_number]
+$fpth[$#fpth] -s
+$fpth[$#fpth] -h
+
+-s : Sin drbd
+-z : Especifica dispositivo para drbd [default /dev/sda6]
+-m : Modo (branch)
+-r : Revision
+-h : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hsm:z:r:",\%opts);
+if ($opts{h}) { die $USAGE;}
+my $DRBD_PARTITION='/dev/sda6';
+if ($opts{z}) { $DRBD_PARTITION=$opts{z}; }
+my $BRANCH = 'master';
+if ($opts{m}) { $BRANCH=$opts{m}; }
+my $REV='';
+if ($opts{r}) { $REV=$opts{r}; }
+
+#-------------------------------------------------------------------------------------------
+# Valida que es Debian8. En caso contrario termina.
+#-------------------------------------------------------------------------------------------
+my %os_info=();
+my @out=`lsb_release -ir`;
+foreach my $l (@out) {
+	chomp $l;
+	my ($k,$v)=split(/\:\s+/,$l);
+	$os_info{$k}=$v;
+}
+
+if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /8\.\d+/) ) {
+	print Dumper(\%os_info);
+	die "Not a Debian distro ...\n";
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
+#-------------------------------------------------------------------------------------------
+`apt-get install -y --force-yes openssh-server`;
+`apt-get install -y --force-yes ansible`;
+`apt-get install -y --force-yes git`;
+`apt-get install -y --force-yes vim`;
+`apt-get install -y --force-yes drbd8-utils`;
+
+#-------------------------------------------------------------------------------------------
+# 01. Si existe cnm-extras.tar.gz lo descomrime en /opt/
+#-------------------------------------------------------------------------------------------
+my $file_extras='cnm-extras.tar.gz';
+if (-f  $file_extras) {
+	print "Preparing /opt/cnm-extras ...\n";
+	`tar -C /opt -xzvf $file_extras`;
+}
+
+#-------------------------------------------------------------------------------------------
+# 02. Git config
+#-------------------------------------------------------------------------------------------
+print "-" x70 ."\n";
+print "cnm-core ($$)\n";
+print "-" x70 ."\n";
+
+system ("$GIT config --global http.sslVerify false");
+system ("$GIT config --global commit.template /opt/cnm/.gitmessage");
+system ("$GIT config --global core.editor vim");
+system ("$GIT config --global push.default simple"); #No sube los branches (si no hay que poner matching).
+
+#-----------------------------------------------------
+# 03. Clone/checkout repos: cnm, cnm-os, cnm-mibs, cnm-lang, cnm-sp
+#-----------------------------------------------------
+#-----------------------------------------------------
+my @features = (
+	{ 'name' => 'cnm', 'url' => 'https://github.com/s30labs/cnm.git' },
+	{ 'name' => 'cnm-sp', 'url'  =>'https://github.com/s30labs/cnm-sp.git' },
+	{ 'name' => 'cnm-mibs', 'url'  => 'https://github.com/s30labs/cnm-mibs.git' },
+	{ 'name' => 'cnm-extras', 'url'  => 'https://github.com/s30labs/cnm-extras.git' }
+);
+foreach my $feat (@features) {
+	print "-" x70, "\n";
+	print "GET $feat->{'name'}...\n";
+	print "-" x70, "\n";
+	get_feature($feat->{'name'},$feat->{'url'});
+}
+
+#-------------------------------------------------------------------------------------------
+# 04. Se crea /cfg/cnm_vars.yml si  no existe
+#-------------------------------------------------------------------------------------------
+my $CNM_CFG_DIR='/cfg';
+my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
+my $CNM_VARS = <<"CNMVARS";
+---
+# Variables de CNM
+
+cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+ntpserver: pool.ntp.org
+drbd_partition: $DRBD_PARTITION
+key: gpl
+
+CNMVARS
+
+
+if (! -d $CNM_CFG_DIR) { system ("/bin/mkdir -p $CNM_CFG_DIR"); }
+if (! -f $CNM_VARS_FILE) {
+  open (F,">$CNM_VARS_FILE");
+  print F $CNM_VARS;
+  close F;
+}
+
+#-------------------------------------------------------------------------------------------
+# 05. Se crea /cfg/ansible.hosts
+#-------------------------------------------------------------------------------------------
+my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
+
+if (! -f $ANSIBLE_HOSTS_FILE) {
+  open (F,">$ANSIBLE_HOSTS_FILE");
+  print F 'localhost';
+  close F;
+}
+
+
+#-------------------------------------------------------------------------------------------
+# 06. Se configura DRBD (salvo que se especifique -s
+#-------------------------------------------------------------------------------------------
+if ($opts{s}) {
+	print "Sin drbd ...\n" 
+}
+else {
+	print "Se instala DRBD sobre $DRBD_PARTITION\n";	
+	install_default_drbd();
+}
+
+#-------------------------------------------------------------------------------------------
+# 07. Se instalan paquetes de Debian y modulos de PERL
+#-------------------------------------------------------------------------------------------
+my $cwd = cwd();
+chdir('/opt/cnm/os/debian8');
+my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
+print "Ejecutando $cmd ...\n";
+`$cmd`;
+chdir($cwd);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub get_feature {
+my ($feature,$url) = @_;
+
+  	my $BRANCH = 'master';
+  	my $GIT = "/usr/bin/git";
+  	my $user = 'git';
+  	my ($rc,$cmd) = (0,'');
+
+  	my $dir_local = '/opt/'.$feature;
+
+  	if ((-d $dir_local) && (-d "$dir_local/.git")) {
+		
+  		chdir($dir_local);
+  		print "pull from $url ...\n";
+  		$cmd = "$GIT pull";
+  		$rc = system ($cmd);
+  		if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+  		$cmd = "$GIT checkout";
+  		$rc = system ($cmd);
+  		if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+
+  	}
+  	else {
+
+  		print "clone from $url ...\n";
+		if (-d $dir_local) { 
+			$cmd = "/bin/rm -rf $dir_local"; 
+  			$rc = system ($cmd);
+  			if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+		}
+  		#$cmd = "$GIT clone -b $BRANCH https://$user:\@$REPO/$feature.git $dir_local";
+  		$cmd = "$GIT clone -b $BRANCH $url $dir_local";
+  		$rc = system ($cmd);
+  		if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+
+  		chdir $dir_local;
+  		#$cmd = "$GIT remote set-url --push origin git\@$REPO:$dir_local.git";
+  		#$rc = system ($cmd);
+  		#if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+
+  	}
+
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+# install_default_drbd
+# Crea el fichero /etc/drbd.d/store.res
+# Crea el fichero /etc/drbd.d/global_common.conf
+# dd if=/dev/zero of=$DRBD_PARTITION bs=1M count=128
+# drbdadm create-md store
+# drbdadm up store
+# drbdadm -- --overwrite-data-of-peer primary store
+# mkfs.ext4 /dev/drbd1
+# mkdir /store
+# mount /dev/drbd1 /store
+#-------------------------------------------------------------------------------------------
+sub install_default_drbd {
+#-------------------------------------------------------------------------------------------
+#cat /proc/partitions
+#major minor  #blocks  name
+#
+#   8        0   83886080 sda
+#   8        1     123904 sda1
+#   8        2    3906560 sda2
+#   8        3   14648320 sda3
+#   8        4   65205248 sda4
+	
+   if (is_lxc()) {
+   	print "***LXC*** SE OMITE DRBD...\n";
+      if (! -d '/log') { system ('/bin/mkdir -p /log'); }
+      return;
+	}
+
+	my $hostname = `uname -n`;
+   chomp($hostname);
+
+   system ("$APT_GET install drbd8-utils -y --force-yes");
+   # Lo siguiente no hace falta, lo crea el propio paquete
+   #system ('/bin/mkdir -p /etc/drbd.d');
+
+# NOTA: donde pone cnm-drbd-master hay que poner el hostname del equipo!!!!!
+ 	my $file_store_res='/etc/drbd.d/store.res';
+ 	 my $store_res="resource store {
+  device    /dev/drbd1;
+  disk      $DRBD_PARTITION;
+  meta-disk internal;
+
+  on $hostname {
+    address   127.0.0.1:7789;
+  }
+#  on cnm-drbd-slave {
+#    address   1.2.3.4:7789;
+#  }
+}";
+
+
+	open (F,">$file_store_res");
+   print F $store_res;
+   close F;
+
+
+	my $file_global_conf='/etc/drbd.d/global_common.conf';
+   my $global_conf='global {
+  usage-count no;
+}
+
+common {
+   handlers {
+      # These are EXAMPLE handlers only.
+      # They may have severe implications,
+      # like hard resetting the node under certain circumstances.
+      # Be careful when chosing your poison.
+
+      # pri-on-incon-degr "/usr/lib/drbd/notify-pri-on-incon-degr.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+      # pri-lost-after-sb "/usr/lib/drbd/notify-pri-lost-after-sb.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+      # local-io-error "/usr/lib/drbd/notify-io-error.sh; /usr/lib/drbd/notify-emergency-shutdown.sh; echo o > /proc/sysrq-trigger ; halt -f";
+      # fence-peer "/usr/lib/drbd/crm-fence-peer.sh";
+      # split-brain "/usr/lib/drbd/notify-split-brain.sh root";
+      # out-of-sync "/usr/lib/drbd/notify-out-of-sync.sh root";
+      # before-resync-target "/usr/lib/drbd/snapshot-resync-target-lvm.sh -p 15 -- -c 16k";
+      # after-resync-target /usr/lib/drbd/unsnapshot-resync-target-lvm.sh;
+   }
+
+   startup {
+                # become-primary-on cnm-drbd-master;
+      # wfc-timeout degr-wfc-timeout outdated-wfc-timeout wait-after-sb
+   }
+
+   options {
+      # cpu-mask on-no-data-accessible
+   }
+
+   disk {
+      # size on-io-error fencing disk-barrier disk-flushes
+      # disk-drain md-flushes resync-rate resync-after al-extents
+      # c-plan-ahead c-delay-target c-fill-target c-max-rate
+      # c-min-rate disk-timeout
+      resync-rate 100M;
+   }
+
+   net {
+      # protocol timeout max-epoch-size max-buffers unplug-watermark
+      # connect-int ping-int sndbuf-size rcvbuf-size ko-count
+      # allow-two-primaries cram-hmac-alg shared-secret after-sb-0pri
+      # after-sb-1pri after-sb-2pri always-asbp rr-conflict
+      # ping-timeout data-integrity-alg tcp-cork on-congestion
+      # congestion-fill congestion-extents csums-alg verify-alg
+      # use-rle
+      protocol C;
+   }
+}';
+
+	open (F,">$file_global_conf");
+   print F $global_conf;
+   close F;
+
+   system("dd if=/dev/zero of=$DRBD_PARTITION bs=1M count=128");
+   #system("/etc/init.d/drbd restart");
+   system("drbdadm create-md store");
+   system("drbdadm up store");
+   system("drbdadm -- --overwrite-data-of-peer primary store");
+
+# ############################################################################### #
+# root@cnm-drbd-slave:/home/cnm# cat /proc/drbd                                   #
+# version: 8.4.3 (api:1/proto:86-101)                                             #
+# srcversion: 1A9F77B1CA5FF92235C2213                                             #
+#                                                                                 #
+#  1: cs:StandAlone ro:Primary/Unknown ds:UpToDate/DUnknown   r----s              #
+#     ns:0 nr:0 dw:0 dr:912 al:0 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:31456284  #
+# ############################################################################### #
+
+	system("mkfs.ext4 /dev/drbd1");
+   system("mkdir /store");
+
+   system("mount /dev/drbd1 /store");
+
+   # En sucesivos arranques, hay que ejecutar:
+   # drbdsetup /dev/drbd1 primary
+   # mount /dev/drbd1 /store
+}
+
+
+#----------------------------------------------------------------------------
+sub is_lxc {
+#----------------------------------------------------------------------------
+
+   my $rc=0;
+   my $x=`grep 'lxc' /proc/1/cgroup|wc -l`;
+   chomp $x;
+   if ($x>0) { $rc=1; }
+   return $rc;
+}
+
