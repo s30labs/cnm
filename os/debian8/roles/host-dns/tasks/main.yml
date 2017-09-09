@@ -1,0 +1,13 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Set resolv.conf file
+  template: src=resolv.conf.j2 dest=/etc/resolv.conf
+  when: domain is defined and dns is defined
+  tags: host-dns
+
+#domain {{ domain }}
+#nameserver {{ dns }}
+
+...

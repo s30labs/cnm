@@ -5,5 +5,5 @@
   remote_user: root
 
   roles:
-    - cnm-network
+    - host-network
 

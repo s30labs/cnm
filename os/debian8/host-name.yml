@@ -1,0 +1,9 @@
+---
+# This playbook configure the local resolver
+- name: CNM Core System (hostname and etc/hosts)
+  hosts: all
+  remote_user: root
+
+  roles:
+    - host-name
+

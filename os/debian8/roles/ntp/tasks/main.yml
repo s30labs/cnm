@@ -1,6 +1,7 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
-- include_vars: /cfg/cnm_vars.yml
+- name: Particular vars
+  include_vars: /cfg/cnm_vars.yml
 
 - name: probando1
   shell: grep lxc /proc/1/cgroup|wc -l
@@ -10,6 +11,7 @@
 - name: probando2
   debug:
     var: is_lxc.stdout
+    var: ntpserver
   tags: ntp
 
 # Add specified repository into sources list.
