@@ -311,7 +311,6 @@ if ($opts{c}) { exit; }
 print "Configurando el sistema con los siguientes datos:\n";
 print Dumper(\%GLOBALS);
 
-
 #-------------------------------------------------------------------------------------------
 # Debian 8 usa systemd
 if (-f '/bin/systemctl') { system ("/bin/systemctl daemon-reload"); }
