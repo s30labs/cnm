@@ -16,7 +16,7 @@
   tags: cnm-sp
 
 - name: Install plugins
-  shell: /opt/cnm-sp/{{ item }}/install
+  shell: /opt/cnm-sp/{{ item }}/install > /tmp/sp-{{ item }}.log 2>&1
   with_items:
     - apache-mod_status
     - api-device
