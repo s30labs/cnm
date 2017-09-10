@@ -68,6 +68,7 @@
     - headers
     - expires
     - rewrite
+    - cgi
   tags: apache-php
 
 - name: cnm_default.pem

@@ -6,11 +6,21 @@
 - name: Verify repository
   apt_repository: repo="{{ cnm_apt_repo }}" state=present
   tags: cnm-runtime
- 
+
 - name: Verify directories
   file: path={{ item }} state=directory owner=root group=root mode=0755
   with_items:
     - /var/log/tmark
+  tags: cnm-runtime
+ 
+- name: Verify directories
+  file: path=/var/www/logs state=directory owner=root group=www-data mode=0755
+  with_items:
+    - /var/www/log
+  tags: cnm-runtime
+
+- name: Verify /var/log/apache2/cnm_gui.log
+  file: path=/var/www/logs/error_cgi.log state=touch owner=www-data group=www-data mode=0755
   tags: cnm-runtime
 
 - name: Verify www-user directories
@@ -152,6 +162,17 @@
 
 - name: Update OIDs
   shell: php /update/db/update/oids_update.php 2>&1 | tee /tmp/oids_update.log
+  tags: cnm-runtime
+
+
+# Stand alone API
+
+- name: Check API base directory
+  file: path=/var/www/html/onm state=directory owner=www-data group=www-data mode=0755
+  tags: cnm-runtime
+
+- name: Check API link 
+  file: src=/opt/cnm/api/src dest=/var/www/html/onm/api state=link owner=www-data group=www-data
   tags: cnm-runtime
 
 ...
