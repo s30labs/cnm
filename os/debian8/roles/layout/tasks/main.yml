@@ -8,16 +8,14 @@
   tags: layout
   
 
-- name: Verify base directories [/store, /store/data]
+- name: Verify base directories [/store, /store/data, /cfg, /opt/cnm-mibs]
   file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
   with_items:
     - { path: '/store', owner: 'root', group: 'root', mode: '0777' }
     - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
     - { path: '/store/data/app-data/remote_cfgs', owner: 'www-data', group: 'www-data', mode: '0775' }
-  tags: layout
-
-- name: Verify base directories [/cfg]
-  file: path=/cfg state=directory owner=root group=www-data mode=0770
+    - { path: '/cfg', owner: 'root', group: 'www-data', mode: '0770' }
+    - { path: '/opt/cnm-mibs', owner: 'root', group: 'root', mode: '0755' }
   tags: layout
 
 - name: Verify base symlinks
