@@ -96,7 +96,7 @@
   tags: net-snmp
 
 - name: Config MIB dir /opt/snmp/share/snmp/mibs
-  file: path=/opt/snmp/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0640
+  file: path=/opt/snmp/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0755
   tags: net-snmp
 
 - name: Check /usr/share/snmp/mibs
@@ -110,35 +110,42 @@
   tags: net-snmp
 
 - name: Config MIB dirs /usr/share/snmp/mibs
-  file: path=/usr/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0640
+  file: path=/usr/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0755
   tags: net-snmp
 
 
 - name: Verify links (client utulities)
-  file: path="{{ item }}" src="/opt/snmp/bin/{{ item }}" state=link owner=root group=root mode=0755
+  file: path="/usr/bin/{{ item }}" src="/opt/snmp/bin/{{ item }}" state=link owner=root group=root mode=0755
   with_items:
-    - /usr/bin/snmpnetstat
-    - /usr/bin/snmpconf
-    - /usr/bin/snmpvacm
-    - /usr/bin/snmpusm
-    - /usr/bin/snmpgetnext
-    - /usr/bin/snmpbulkwalk
-    - /usr/bin/snmpwalk
-    - /usr/bin/snmptranslate
-    - /usr/bin/snmptest
-    - /usr/bin/snmptable
-    - /usr/bin/snmpstatus
-    - /usr/bin/snmpset
-    - /usr/bin/snmpget
-    - /usr/bin/snmpdf
-    - /usr/bin/snmpdelta
-    - /usr/bin/snmpbulkget
-    - /usr/bin/snmpinform
-    - /usr/bin/snmptrap
-    - /usr/local/bin/snmpwalk
-    - /usr/local/bin/snmptranslate
-    - /usr/local/bin/snmpget
+    - snmpnetstat
+    - snmpconf
+    - snmpvacm
+    - snmpusm
+    - snmpgetnext
+    - snmpbulkwalk
+    - snmpwalk
+    - snmptranslate
+    - snmptest
+    - snmptable
+    - snmpstatus
+    - snmpset
+    - snmpget
+    - snmpdf
+    - snmpdelta
+    - snmpbulkget
+    - snmpinform
+    - snmptrap
   tags: net-snmp
+
+- name: Verify links (client utulities)
+  file: path="/usr/local/bin/{{ item }}" src="/opt/snmp/bin/{{ item }}" state=link owner=root group=root mode=0755
+  with_items:
+    - snmpwalk
+    - snmptranslate
+    - snmpget
+  tags: net-snmp
+
+
 
 - name: Verify links (daemons)
   file: path="/usr/sbin/{{ item }}" src="/opt/snmp/sbin/{{ item }}" state=link owner=root group=root mode=0755

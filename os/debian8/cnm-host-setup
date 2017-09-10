@@ -309,7 +309,18 @@ if ($opts{c}) { exit; }
 
 #-------------------------------------------------------------------------------------------
 print "Configurando el sistema con los siguientes datos:\n";
-print Dumper(\%GLOBALS);
+my ($param,$value);
+format GLOBAL_PARAMS =
+@<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$param,     $value
+.
+$~='GLOBAL_PARAMS';
+foreach my $k (sort keys %GLOBALS) {
+	$k =~ /__(\w+)__/;
+	($param,$value)=($1,$GLOBALS{$k});
+	write();
+}
+
 
 #-------------------------------------------------------------------------------------------
 # Debian 8 usa systemd
@@ -525,7 +536,10 @@ sub read_host_conf {
 #   $HOST_CFG{'NOTIF_MX'} = `/bin/grep domain /cfg/onm.conf | awk '{ print \$3 }'`;
 #   chomp $HOST_CFG{'NOTIF_MX'};
 
-   $HOST_CFG{'NTPHOST'} = `/bin/grep -m1 ntpdate /etc/cron.hourly/ntpdate | awk '{ print \$2 }'`; 
+	if (-f '/etc/cron.hourly/ntpdate') {
+	   $HOST_CFG{'NTPHOST'} = `/bin/grep -m1 ntpdate /etc/cron.hourly/ntpdate | awk '{ print \$2 }'`; 
+	}
+	else { $HOST_CFG{'NTPHOST'} = ''; }
    chomp $HOST_CFG{'NTPHOST'};
 
    $HOST_CFG{'KEY'} = get_stored_key();

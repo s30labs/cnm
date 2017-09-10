@@ -5,7 +5,7 @@
 # ansible-playbook --connection=local  cnm.yml --extra-vars="db_root_password=xxxxxx"
 
 cnm_apt_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
-cnm_git_repo: "https://git@software.s30labs.com"
+cnm_git_repo: "https://github.com/s30labs"
 drbd_partition:
 key: gpl
 
