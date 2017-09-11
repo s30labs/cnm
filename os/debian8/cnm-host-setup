@@ -36,7 +36,6 @@ HOSTNAME=
 NTPHOST=
 DNS=
 DOMAIN=
-KEY=
 
 USAGE
 
@@ -102,7 +101,7 @@ else	{
 
 		my $inloop=1;
 		while ($inloop) {
-	      my @tasks = qw( APAGAR-EQUIPO REINICIAR-EQUIPO DIRECCION-IP MASCARA-DE-RED ROUTER-POR-DEFECTO SERVIDOR-DNS DOMINIO-DNS HOSTNAME SERVIDOR-NTP SERVIDOR-SMTP KEY VALIDAR-CONFIG GUARDAR SALIR-A-SHELL);
+	      my @tasks = qw( APAGAR-EQUIPO REINICIAR-EQUIPO DIRECCION-IP MASCARA-DE-RED ROUTER-POR-DEFECTO SERVIDOR-DNS DOMINIO-DNS HOSTNAME SERVIDOR-NTP SERVIDOR-SMTP VALIDAR-CONFIG GUARDAR SALIR-A-SHELL);
    	   my $task = &choose("CNM Configurator >>>>> ", @tasks);
 	   	if (! $task) { die "Se ha producido un error\n"; }
 
@@ -164,11 +163,6 @@ else	{
 #            if (confirm("Es correcto $mx ?")) { $GLOBALS{'__NOTIF_MX__'} = $mx; }
 #				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
 #         }
-         elsif ($task eq "KEY") {
-            my $key = ask('Introduzca la clave proporcionada:');
-            if (confirm("Es correcto $key ?")) { $GLOBALS{'__KEY__'} = $key; }
-				ask('[OK] Al terminar debe seleccionar GUARDAR ...');
-         }
 
 			elsif ($task eq "VALIDAR-CONFIG") { $validate_cfg=1; $inloop=0; }
 
@@ -274,13 +268,6 @@ $net_restart = 1;
 		if ($GLOBALS{'__DOMAIN__'} eq '') { $GLOBALS{'__DOMAIN__'} = $HOST_CFG{'DOMAIN'}; }
 		if ($GLOBALS{'__DOMAIN__'} eq '') { $GLOBALS{'__DOMAIN__'} = 'local'; }
 
-
-		# ---------------------------------------
-		#$GLOBALS{'__KEY__'}=get_input("Introduzca la clave proporcionada [Pulse INTRO para mantener >> $HOST_CFG{'KEY'}]: ", '', 1);
-		#if ($GLOBALS{'__KEY__'} eq 'intro') { $GLOBALS{'__KEY__'} = $HOST_CFG{'KEY'}; }
-
-		$GLOBALS{'__KEY__'} = $HOST_CFG{'KEY'};
-
 	}
 
 
@@ -303,12 +290,12 @@ if ($cnm_restart) { print "**** REINICIANDO EQUIPO ****\n"; exit; }
 if ($validate_cfg) { validate_config(); exit; }
 
 #-------------------------------------------------------------------------------------------
-set_key($GLOBALS{'__KEY__'});
 # Si solo se genera el fichero de configuracion, terminamos
 if ($opts{c}) { exit; }
 
 #-------------------------------------------------------------------------------------------
-print "Configurando el sistema con los siguientes datos:\n";
+print "\n";
+print '-' x40,"\n";
 my ($param,$value);
 format GLOBAL_PARAMS =
 @<<<<<<<<<<<@<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -417,7 +404,6 @@ sub read_file_conf {
       elsif (/\bNTPHOST\s*\=\s*(.*)$/) {$GLOBALS{'__NTPHOST__'}=$1;}
       elsif (/\bDNS\s*\=\s*(.*)$/) {$GLOBALS{'__DNS__'}=$1;}
       elsif (/\bDOMAIN\s*\=\s*(.*)$/) {$GLOBALS{'__DOMAIN__'}=$1;}
-      elsif (/\bKEY\s*\=\s*(.*)$/) {$GLOBALS{'__KEY__'}=$1;}
    }
    close F;
 
@@ -449,13 +435,10 @@ sub read_file_conf {
       	elsif (/\bNTPHOST\s*\=\s*(.*)$/) {$GLOBALS{'__NTPHOST__'}=$1;}
       	elsif (/\bDNS\s*\=\s*(.*)$/) {$GLOBALS{'__DNS__'}=$1;}
       	elsif (/\bDOMAIN\s*\=\s*(.*)$/) {$GLOBALS{'__DOMAIN__'}=$1;}
-      	elsif (/\bKEY\s*\=\s*(.*)$/) {$GLOBALS{'__KEY__'}=$1;}
    	}
    	close F;
 	}
 
-	#El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
-	$GLOBALS{'__KEY__'} = get_stored_key();
 }
 
 #-------------------------------------------------------------------------------------------
@@ -542,27 +525,6 @@ sub read_host_conf {
 	else { $HOST_CFG{'NTPHOST'} = ''; }
    chomp $HOST_CFG{'NTPHOST'};
 
-   $HOST_CFG{'KEY'} = get_stored_key();
-
-}
-
-#-------------------------------------------------------------------------------------------
-# get_stored_key
-#-------------------------------------------------------------------------------------------
-sub get_stored_key {
-
-	my $key='';
-   #El valor de la clave en /cfg/key prevalece sobre el de chk_host.conf
-   my $file_key='/cfg/key';
-   if (-f $file_key) {
-      open (F,"<$file_key");
-      $key=<F>;
-      close F;
-      chomp $key;
-		if (! defined $key) { $key='gpl'; }
-      $GLOBALS{'__KEY__'} = $key;
-   }
-	return $key;
 }
 
 #-------------------------------------------------------------------------------------------
