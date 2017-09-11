@@ -12,12 +12,12 @@
   tags: cnm-provision
 
 - name: Get Device (localhost)
-  shell: /opt/crawler/bin/ws/api-get-device -a 127.0.0.1 -p id
+  shell: /opt/crawler/bin/ws/api-get-device -a 127.0.0.1 -p id > /tmp/api-get-device.log 2>&1
   register: localhost_id_dev
   tags: cnm-provision
 
 - name: Set Device (localhost)
-  shell: /opt/crawler/bin/ws/api-set-device -m -a 127.0.0.1 -p name={{ ansible_hostname }},domain={{ ansible_domain }},ip={{ ansible_default_ipv4.address }},type=Appliance,snmpversion=2,snmpcommunity=public
+  shell: /opt/crawler/bin/ws/api-set-device -m -a 127.0.0.1 -p name={{ ansible_hostname }},domain={{ ansible_domain }},ip={{ ansible_default_ipv4.address }},type=Appliance,snmpversion=2,snmpcommunity=public > /tmp/api-set-device.log 2>&1
   when: localhost_id_dev.stdout=="0"
   tags: cnm-provision
 
