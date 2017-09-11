@@ -410,7 +410,8 @@ global $enlace;
 	
 	if ($plugin == '') { return; }
 	$dirBase="$plugin/xagent/base";
-	
+
+	$all_scripts = array();	
    $cmd="find $dirBase/* -type f";
   	$script_path = Array();
    $fp = popen($cmd, "r");
@@ -421,17 +422,15 @@ global $enlace;
 		if (!file_exists($filepath)){ continue; }
      	$parts = pathinfo($filepath);
      	$script_path[$parts['basename']] = $filepath;
+		array_push($all_scripts,$parts['basename']);
 
 		_debug("Script incluido: $filepath",__LINE__,'DBG','cfg_monitor_agent_script_update');
   	}
 	//-----
 
 	
-	$queryApps = "SELECT script FROM cfg_monitor_agent_script WHERE custom=0";
-	$result=$enlace->query($queryApps);
-
-   while($result->fetchInto($r)){
-		$file = $r['script'];	
+	// Los scripts a provisionar estan en $plugin/xagent/base 
+	foreach ($all_scripts as $file) {
 
 		// Solo se procesan los scripts del plugin en curso
 		if (!array_key_exists($file,$script_path)) { continue; }
