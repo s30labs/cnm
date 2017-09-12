@@ -155,6 +155,12 @@
   notify:
    - restart apache2
 
+- name: ssl.conf -> /etc/apache2/mods-available/
+  copy: src=ssl.conf dest=/etc/apache2/mods-available/ssl.conf  owner=root group=root mode=0644
+  tags: apache-php
+  notify:
+   - restart apache2
+
 - meta: flush_handlers
 
 ...
