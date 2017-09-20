@@ -57,6 +57,10 @@ my @features = (
    { 'name' => 'cnm-extras', 'url'  => 'https://github.com/s30labs/cnm-extras.git' }
 );
 foreach my $feat (@features) {
+
+	# just in case ....
+	update_repo($feat->{'name'});
+
    print "-" x70, "\n";
    print "INSTALANDO $feat->{'name'}...\n";
    print "-" x70, "\n";
@@ -168,5 +172,29 @@ my ($feature,$url) = @_;
       #if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
 
    }
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub update_repo {
+my ($feature) = @_;
+
+   if (! -d "/opt/$feature") { return; }
+   if (! -f "/opt/$feature/.git/config") { return; }
+
+   open (F,"</opt/$feature/.git/config");
+   #url = https://software.s30labs.com/cnm.git
+   while (<F>) {
+      chomp;
+      if ($_ =~ /software\.s30labs\.com/) {
+         if (! -d '/store/old_repo') { `/bin/mkdir /store/old_repo`; }
+         `/bin/mv /opt/$feature /store/old_repo/`;
+         print "**** $feature -> /store/old_repo/ ****\n";
+         last;
+      }
+   }
+   close F;
+
 }
 
