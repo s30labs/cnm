@@ -11,8 +11,10 @@ if (!class_exists('CNMAPI')) {
 	define('_hidx',CNMUtils::get_param('hidx'));
 	define('SESIONPHP',session_id());
 }
-// En caso de venir de la parte del API no se hace nada
+// En caso de venir de la parte del API solo se garantiza que _hidx="" para que cid(_hidx) sea "default"
 else{
+
+	define('_hidx','');
 
 //	/*
 //	 * Function: cond2query()
