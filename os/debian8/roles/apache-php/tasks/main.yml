@@ -58,6 +58,16 @@
   file: path=/var/log/apache2/cnm_gui.log state=touch owner=www-data group=www-data mode=0755
   tags: apache-php
 
+- name: Check legacy install error with cgi module
+  stat: path=/etc/apache2/mods-enabled/cgi.load
+  register: cgi_file
+  tags: apache-php
+
+- name: Repair legacy install error with cgi module
+  file: path=/etc/apache2/mods-enabled/cgi.load state=absent
+  when: cgi_file.stat.islnk is defined and cgi_file.stat.islnk == False
+  tags: apache-php
+
 - name: Enable modules
   apache2_module: state=present name={{ item }}
   with_items:
