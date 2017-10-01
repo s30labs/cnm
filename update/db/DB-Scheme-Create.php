@@ -1837,6 +1837,22 @@ $DBScheme = array(
    ),
 */
 
+
+   //-----------------------------------------------------------
+   //-----------------------------------------------------------
+	// Datos para los informes de capacidad
+   'capacity_data'=>array( //Tabla capacity_data
+      'date'=>"date NOT NULL", // Fecha del dato
+      'metricname'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''", // Nombre de la metrica 
+      'deviceip'=>"varchar(22) character set utf8 collate utf8_spanish_ci NOT NULL default ''", // IP del dispositivo
+      'full_name'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''", // Nombre completo del dispositivo
+      'subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''", // subtype de la metrica
+      'label'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''", // Label de la metrica
+      'v'=>"double(12,2) default NULL", // valor de capacidad
+      'idm'=>"int(11) NOT NULL default '0'", // id de la metrica
+      'PRIMARY KEY  (`date`,`metricname`,`deviceip`)'=>'',
+   ),
+
    //-----------------------------------------------------------
    //-----------------------------------------------------------
    //support_pack

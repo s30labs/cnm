@@ -1,0 +1,314 @@
+#!/usr/bin/perl -w
+#--------------------------------------------------------------------------------------
+# get-capacity-report
+#--------------------------------------------------------------------------------------
+# Almacena en BBDD los datos de aternity procesados en Tablas Pivot
+#--------------------------------------------------------------------------------------
+# PARAMETROS:
+# get-capacity-report -activity -start '2017-05-1 00:00' -end '2017-05-5 23:59'
+# get-capacity-report -activity -start '2017-05-1 00:00' -end '2017-05-5 23:59' -hour
+# get-capacity-report -activity -period m -hour -v -store
+#--------------------------------------------------------------------------------------
+use lib '/opt/crawler/bin';
+use warnings;
+use strict;
+use Getopt::Long;
+use Pod::Usage;
+use locale;
+use POSIX qw(locale_h);
+use Data::Dumper;
+use Date::Calc qw ( Day_of_Week );
+use CNMScripts::CNMAPI;
+use ExportExcel::Report;
+use DataBox::Metric;
+use DataBox::DB;
+
+#--------------------------------------------------------------------------------------
+# MAIN
+#--------------------------------------------------------------------------------------
+my %OPTS = ();
+GetOptions (\%OPTS, 	'help','man', 'view=s', 'units=s','threshold=s','image_header=s','title=s','v','verbose',
+							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'store',
+							'q','query', 'db=s', 'h2l', 'hostname=s', 'location=s', 'file=s') or pod2usage(-exitval => 2, -input => \*DATA);
+
+if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+if ($OPTS{'help'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+
+binmode(STDOUT, ":utf8");
+#--------------------------------------------------------------------------------------
+my $DEBUG = 0;
+if (($OPTS{'v'}) || ($OPTS{'verbose'})) { $DEBUG = 1; }
+
+if ($DEBUG) {
+	#Mon Nov 16 14:16:30 CET 2015
+	print '-' x60,"\n".`date`.'-' x60,"\n";
+}
+
+#--------------------------------------------------------------------------------------
+my $NOW=time_now();
+my $CHART_TITLE='Informe de Capacidad - ';
+if (exists $OPTS{'title'}) { $CHART_TITLE = $OPTS{'title'}; }
+$CHART_TITLE .= ' '.$NOW->{'year'};
+
+#--------------------------------------------------------------------------------------
+my $IMAGE_HEADER = '/opt/cnm/crawler/bin/ExportExcel/cnm_logo_report.png';
+if (exists $OPTS{'image_header'}) { $CHART_TITLE = $OPTS{'image_header'}; }
+
+#--------------------------------------------------------------------------------------
+my $THRESHOLD = undef;
+if (exists $OPTS{'threshold'}) { $THRESHOLD = $OPTS{'threshold'}; }
+
+#--------------------------------------------------------------------------------------
+my $PERIOD = 'day';
+if (exists $OPTS{'hour'}) { $PERIOD = 'hour'; }
+
+#--------------------------------------------------------------------------------------
+my $START_DATE = '2017-03-1 00:00';
+my $END_DATE = '2017-03-29 23:59';
+if ((exists $OPTS{'start'}) && (exists $OPTS{'end'})) { 
+	$START_DATE = $OPTS{'start'}; 
+	$END_DATE = $OPTS{'end'}; 
+}
+elsif (exists $OPTS{'period'}) {
+	($START_DATE,$END_DATE) = get_time_lapse($OPTS{'period'});
+}
+#else {
+#	pod2usage(-exitval => 2, -input => \*DATA);
+#}
+
+if ($DEBUG) { print "START_DATE=$START_DATE\nEND_DATE=$END_DATE\n"; }
+
+my $store_local = ($OPTS{'store'}) ? 1 : 0;
+
+#--------------------------------------------------------------------------------------
+# Se obtienen las metricas de la vista
+# Se valida que es de capacidad
+#--------------------------------------------------------------------------------------
+my $CONDITION='';
+my $api=CNMScripts::CNMAPI->new( 'host'=>'localhost', 'timeout'=>10, 'log_level'=>'info' );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+
+if ((exists $OPTS{'view'}) && ($OPTS{'view'}=~/\d+/)) {
+	#https://192.168.57.10/onm/api/1.0/views.json?itil=3
+	my $class='views';
+	my $endpoint=$OPTS{'view'}.'.json';
+	my $response = $api->ws_get($class,$endpoint,{});
+print Dumper($response);
+
+	if (scalar(@$response)==0) {
+		print "**NO EXISTE LA VISTA CON id=$OPTS{'view'}**\n";
+		exit;
+	}
+	else {
+		my $vname = $response->[0]->{'name'};	
+		if ($response->[0]->{'itil'} != 3) {
+			print "**NO ES UNA VISTA DE CAPACIDAD ($vname) id=$OPTS{'view'}**\n";
+	      exit;
+   	}
+
+	   #https://192.168.57.10/onm/api/1.0/views/1/metrics.json
+   	$class='views/'.$OPTS{'view'};
+	   $endpoint='metrics.json';
+   	my $response_metrics = $api->ws_get($class,$endpoint);
+
+   	#print Dumper($response);
+
+		my @ids=();
+   	foreach my $m (@$response_metrics) { push @ids,$m->{'metricid'}; }
+		$CONDITION = 'WHERE idm IN ('. join(',',@ids) .')';
+
+ 	}
+}
+
+print "CONDITION=$CONDITION\n";
+
+#--------------------------------------------------------------------------------------
+my $FACTOR=1;
+if (exists $OPTS{'units'}) {
+	if ($OPTS{'units'} =~ /gb/i) { $FACTOR=1024*1024*1024; }
+	elsif ($OPTS{'units'} =~ /mb/i) { $FACTOR=1024*1024; }
+	elsif ($OPTS{'units'} =~ /kb/i) { $FACTOR=1024; }
+} 
+
+
+my $dbox = DataBox::DB->new();
+my $data = $dbox->get_metric_report("SELECT distinct (CONCAT(year(date),'-',lpad(month(date),2,'0'))) as M, monthname(date), label,avg(v)/$FACTOR AS 'v' FROM capacity_data $CONDITION GROUP BY label,M");
+
+#print Dumper($data);
+#$VAR1 = [
+#          [
+#            '2017-09',
+#            'September',
+#            'USO DE DISCO / (cnm-deb8.localdomain)',
+#            '4560675656.210000'
+#          ],
+#          [
+#            '2017-09',
+#            'September',
+#            'USO DE DISCO Swap space (cnm-deb8.localdomain)',
+#            '143959276.310000'
+#          ]
+#        ];
+
+
+	my $i = 0;
+   my %cols = ();
+   my %data = ();
+
+   $i++;
+   my $col_idx = sprintf "%03d", $i;
+   $cols{$col_idx} = {'title' => 'Elemento monitorizado', 'field'=>'Metrica'};
+
+   #a. Un año (12 meses) a contar desde el mes actual
+   #b. Sólo año actual, los meses que sean
+   #c. custom
+   # Por ahora hago opcion b.
+
+   my %MONTH_LABELS=('1'=>'Ene', '2'=>'Feb', '3'=>'Mar', '4'=>'Abr', '5'=>'May', '6'=>'Jun', '7'=>'Jul', '8'=>'Ago', '9'=>'Sep', '10'=>'Oct', '11'=>'Nov', '12'=>'Dic');
+        my %MONTH_IN_DDBB=();
+        foreach my $m (keys %MONTH_LABELS) {
+                $MONTH_IN_DDBB{$m} = join('-', $NOW->{'year'},sprintf("%02d", $m));
+        }
+
+   my @CHART_DATA=();
+   foreach my $m (sort {$b<=>$a} keys %MONTH_LABELS) {
+      if ($m > $NOW->{'month'}) { next; }
+      #if ($m != $NOW->{'month'}) { next; }
+      $i++;
+      my $col_idx = sprintf "%03d", $i;
+      #$cols{$col_idx} = {'title' => $MONTH_LABELS{$m}, 'field'=>$m};
+      $cols{$col_idx} = {'title' => $MONTH_LABELS{$m}, 'field'=>$MONTH_IN_DDBB{$m}};
+                push @CHART_DATA, $MONTH_IN_DDBB{$m};
+   }
+
+#| M       | monthname(date) | label                                          | USADO             |
+#| 2017-09 | September       | USO DE DISCO / (cnm-deb8.localdomain)          | 4558938931.200000 |
+
+   foreach my $x (@$data) {
+
+       my $metric = $x->[2];
+       my $k=$x->[0];
+       $data{$metric}->{'Metrica'} = $metric;
+       $data{$metric}->{$k} = $x->[3];
+   }
+
+   print Dumper({'cols'=>\%cols, 'data'=>\%data});
+
+#          'data' => {
+#                      'USO DE DISCO / (cnm-deb8.localdomain)' => {
+#                                                                   '2017-09' => '4560675656.210000',
+#                                                                   'Metrica' => 'USO DE DISCO / (cnm-deb8.localdomain)'
+#                                                                 },
+#                      'USO DE DISCO Swap space (cnm-deb8.localdomain)' => {
+#                                                                            '2017-09' => '143959276.310000',
+#                                                                            'Metrica' => 'USO DE DISCO Swap space (cnm-deb8.localdomain)'
+#                                                                          }
+#                    }
+#
+#
+
+  	my $report = ExportExcel::Report->new('filename'=>'/tmp/metricDisco.xlsx');
+  	$report->report010({	'table'=>{'cols'=>\%cols, 'data'=>\%data},
+                        'image_header'=>$IMAGE_HEADER,
+								'alert_threshold'=>$THRESHOLD,
+	                     'chart_title'=>$CHART_TITLE,
+                        'chart_data'=>[@CHART_DATA]
+                      });
+
+
+
+#----------------------------------------------------------------------------
+sub get_time_lapse {
+my ($period)=@_;
+
+	my $lapse = 7*24*3600; # 7 dias
+	if ($period eq 'd') { $lapse = 24*3600; }
+	elsif ($period eq '2d') { $lapse = 2*24*3600; }
+	elsif ($period eq 'w') { $lapse = 7*24*3600; }
+	elsif ($period eq '2w') { $lapse = 14*24*3600; }
+	elsif ($period eq 'm') { $lapse = 31*24*3600; }
+
+	my $end_ts = time();
+	my $start_ts = $end_ts - $lapse;
+
+#my $START_DATE = '2017-03-1 00:00';
+#my $END_DATE = '2017-03-29 23:59';
+
+	my ($sec1,$min1,$hour1,$mday1,$mon1,$year1,$wday1,$yday1,$isdst1) = localtime($start_ts);
+   $year1 += 1900;
+   $mon1 += 1;
+
+	# Ajusto a lunes start_ts
+   my $dow = Day_of_Week($year1,$mon1,$mday1);
+	if ($dow>1) {
+		my $t0 = ($dow-1)*24*3600;
+		$start_ts -= $t0;
+		($sec1,$min1,$hour1,$mday1,$mon1,$year1,$wday1,$yday1,$isdst1) = localtime($start_ts);
+	   $year1 += 1900;
+	   $mon1 += 1;
+	}
+
+   my ($sec2,$min2,$hour2,$mday2,$mon2,$year2,$wday2,$yday2,$isdst2) = localtime($end_ts);
+   $year2 += 1900;
+   $mon2 += 1;
+
+	my $start_date = sprintf("%04d-%02d-%02d 00:00",$year1,$mon1,$mday1);
+	my $end_date = sprintf("%04d-%02d-%02d 00:00",$year2,$mon2,$mday2);
+
+
+   return  ($start_date,$end_date);
+}
+
+
+#----------------------------------------------------------------------------
+sub time_now {
+
+	my $ts = time();
+   my ($sec1,$min1,$hour1,$mday1,$mon1,$year1,$wday1,$yday1,$isdst1) = localtime($ts);
+   $year1 += 1900;
+   $mon1 += 1;
+	return {'year'=>$year1, 'month'=>$mon1, 'day'=>$mday1};
+
+}
+
+__DATA__
+#--------------------------------------------------------------------------------------
+=head1 NAME
+
+metric-report - Conector de datos de Aternity
+
+=head1 SYNOPSIS
+
+metric-report [options]
+
+Options:
+
+-activity   Indica que se trata de datos de una actividad.
+-monitor    Indica que se trata de datos de un monitor.
+
+-name       Nombre de la actividad/monitor
+
+-help   Mensaje de ayuda
+-man    Documentacion completa
+
+Uso: $0 \nUso: $0 -q ---> Consulta a BBDD\nUso: $0 -s ---> Almacena en BBDD
+=head1 OPTIONS
+
+help   Mensaje de ayuda
+set    Inserta/Actualiza dispositivos
+
+
+=over 8
+
+
+=back
+
+=head1 DESCRIPTION
+
+  B<This program> will read the given input file(s) and do someting
+  useful with the contents thereof.
+
+=cut
+
+

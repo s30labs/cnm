@@ -1,0 +1,160 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - Add Device (POST)
+(c) s30labs
+
+$fpth[$#fpth] [-d debug|info] [-c cid] [-m] [-view id] -i 'metricname=WEB PAGE LOAD TIME%'  [-o metricid,metricname ...]
+$fpth[$#fpth] -h  : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','m','d=s','c=s','a=s','i=s','o=s', 'view=s')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+if (! $OPTS{'i'}) { die $USAGE;}
+
+my $CONDITION=$OPTS{'i'};
+
+my $host_ip='localhost';
+my $log_level= (defined $OPTS{d}) ? $OPTS{d} : 'info';
+my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
+my $prov_metrics = (defined $OPTS{m}) ? 1 : 0;
+
+my @fields=();
+if (defined $OPTS{o}) { @fields=split(',',$OPTS{o}); }
+
+#// Para obtener todos las metricas:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/info.json"
+#// Para obtener una metrica concreta:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/2332.json"
+
+
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+my $class='metrics';
+my $endpoint='info.json?'.$CONDITION;
+my $response = $api->ws_get($class,$endpoint);
+
+#            'devicetype' => 'Servidor',
+#            'deviceid' => '6',
+#            'metricid' => '744',
+#            'metricmname' => 'xagt_004600-0299cc0e',
+#            'metrictype' => 'xagent',
+#            'metricsubtype' => 'xagt_004600',
+#            'metricitems' => 'onLoad Time|onContentLoad Time',
+#            'devicedomain' => 'cohaerentis.com',
+#            'monitorid' => '79',
+#            'devicename' => 'www',
+#            'deviceip' => '144.76.85.230',
+#            'metricstatus' => '0',
+#            'devicestatus' => '0',
+#            'monitorsevyellow' => '',
+#            'metricname' => 'WEB PAGE LOAD TIME http://www.cohaerentis.com/servicios/',
+#            'monitorname' => 'TIEMPO DE CARGA EXCESIVO',
+#            'monitorsevred' => '',
+#            'monitorsevorange' => 'v1>5'
+
+
+my %IDs=();
+if (scalar(@fields)==0) { print Dumper($response); }
+elsif (scalar(@$response)==0) { print "0\n"; }
+else {
+	foreach my $desc (@$response) {
+		my $id = $desc->{'metricid'};
+		my @fx=();
+		foreach my $f (@fields) {
+			print $desc->{$f}."\t";
+			$IDs{$id}->{$f} = $desc->{$f};	
+			push @fx,$desc->{$f};
+		}
+		$IDs{$id}->{'fields'} = join (',',@fx);
+		print "\n";
+	}
+}
+
+my @CSV=();
+$class='metrics';
+my $items = [];
+foreach my $id (sort keys %IDs) {
+	$endpoint='data/'.$id.'.json?lapse=week_0';
+
+	$response = $api->ws_get($class,$endpoint);
+	#print Dumper($response);
+
+	$items=$response->{$id}->{'label'};
+	my $nitems=scalar(@$items);
+	foreach my $hv (@{$response->{$id}->{'data'}}) {
+		my %line=();
+		$line{'metricid'} = $id;
+		$line{'t'} = $hv->{'t'};
+		$line{'fields'} = $IDs{$id}->{'fields'};
+		$line{'vx'} = join (',', @{$hv->{'v'}});
+		for my $i (0..$nitems-1) {
+			$line{$items->[$i]}=$hv->{'v'}->[$i];
+		}	
+		push @CSV, \%line;
+	}
+}
+
+#print Dumper(\@CSV);
+my $ofields = join(',',@fields);
+print 'Time,'.$ofields.','.join(',',@$items)."\n";
+foreach my $h (@CSV) {
+	print $h->{'t'}.','.$h->{'fields'}.','.$h->{'metricid'}.','.$h->{'vx'}."\n";
+}
+
+
+
+
+#$VAR1 = {
+#          '467' => {
+#                     'label' => [
+#                                  'onLoad Time',
+#                                  'onContentLoad Time'
+#                                ],
+#                     'data' => [
+#                                 {
+#                                   't' => '1476828000',
+#                                   'v' => [
+#                                            '2.8521666667e+00',
+#                                            '0.0000000000e+00'
+#                                          ]
+#                                 },
+#                                 {
+#                                   't' => '1476829800',
+#                                   'v' => [
+#                                            '3.1118333333e+00',
+#                                            '0.0000000000e+00'
+#                                          ]
+#                                 },
+
+##'rc' => 0,
+##'id' => '2',
+##'rcstr' => ''
+#if ($response->{'rc'}!=0) {
+#	print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
+#	exit $response->{'rc'};
+#}
+#
+#if ($prov_metrics) {
+#	my $id_dev=$response->{'id'};
+##	`/opt/crawler/bin/prov_device_app_metrics  -c $cid  -i $id_dev`;
+#	`/opt/crawler/bin/plite -c $cid -r $id_dev -t 1`;
+##}
