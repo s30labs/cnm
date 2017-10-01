@@ -75,7 +75,7 @@ my ($self,$data)=@_;
 
 		sqlInsertUpdate4x($DBH,$table,$x,$x,1);
 
-print "SQL >> $libSQL::cmd\n";
+#print "SQL >> $libSQL::cmd\n";
    }
 
    $DBH->disconnect();

@@ -59,8 +59,8 @@ my ($self,$params) = @_;
 			{ 'sheet'=>$sheet, 'image_header'=>$image_header, 'col0_width'=>50, 'col1n_width'=>6, 'hide_gridlines'=>'2', 'landscape'=>'1', 'alert_threshold'=>$alert_threshold }
 	);
 
-print "****SERIES*****\n";
-print Dumper($series);
+#print "****SERIES*****\n";
+#print Dumper($series);
 
    $xlsx->dashboard_create ({
       'sheet' => 'Report',

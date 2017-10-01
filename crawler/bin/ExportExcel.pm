@@ -106,9 +106,9 @@ my ($self,$data,$params)=@_;
 	my ($row, $col) = ($row0, $col0);
    my @fields=();
 
-print "***DEBUG**\n";
-print Dumper($data);
-print "***DEBUG**\n";
+#print "***DEBUG**\n";
+#print Dumper($data);
+#print "***DEBUG**\n";
 
 	my %font_std = (
     	font  => 'Calibri',

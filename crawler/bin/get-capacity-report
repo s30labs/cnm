@@ -27,22 +27,22 @@ use DataBox::DB;
 # MAIN
 #--------------------------------------------------------------------------------------
 my %OPTS = ();
-GetOptions (\%OPTS, 	'help','man', 'view=s', 'units=s','threshold=s','image_header=s','title=s','v','verbose',
+GetOptions (\%OPTS, 	'help','h','man', 'view=s', 'units=s','threshold=s','image_header=s','title=s','v','verbose',
 							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'store',
 							'q','query', 'db=s', 'h2l', 'hostname=s', 'location=s', 'file=s') or pod2usage(-exitval => 2, -input => \*DATA);
 
 if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }
-if ($OPTS{'help'}) { pod2usage(-exitval => 2, -input => \*DATA); }
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) )  { pod2usage(-exitval => 2, -input => \*DATA); }
 
 binmode(STDOUT, ":utf8");
 #--------------------------------------------------------------------------------------
-my $DEBUG = 0;
-if (($OPTS{'v'}) || ($OPTS{'verbose'})) { $DEBUG = 1; }
+my $VERBOSE = 0;
+if (($OPTS{'v'}) || ($OPTS{'verbose'})) { $VERBOSE = 1; }
 
-if ($DEBUG) {
-	#Mon Nov 16 14:16:30 CET 2015
-	print '-' x60,"\n".`date`.'-' x60,"\n";
-}
+#if ($VERBOSE) {
+#	#Mon Nov 16 14:16:30 CET 2015
+#	print '-' x60,"\n".`date`.'-' x60,"\n";
+#}
 
 #--------------------------------------------------------------------------------------
 my $NOW=time_now();
@@ -76,8 +76,6 @@ elsif (exists $OPTS{'period'}) {
 #	pod2usage(-exitval => 2, -input => \*DATA);
 #}
 
-if ($DEBUG) { print "START_DATE=$START_DATE\nEND_DATE=$END_DATE\n"; }
-
 my $store_local = ($OPTS{'store'}) ? 1 : 0;
 
 #--------------------------------------------------------------------------------------
@@ -94,7 +92,7 @@ if ((exists $OPTS{'view'}) && ($OPTS{'view'}=~/\d+/)) {
 	my $class='views';
 	my $endpoint=$OPTS{'view'}.'.json';
 	my $response = $api->ws_get($class,$endpoint,{});
-print Dumper($response);
+#print Dumper($response);
 
 	if (scalar(@$response)==0) {
 		print "**NO EXISTE LA VISTA CON id=$OPTS{'view'}**\n";
@@ -107,6 +105,7 @@ print Dumper($response);
 	      exit;
    	}
 
+		if ($VERBOSE) { print "VISTA [$OPTS{'view'}] $vname\n"; }
 	   #https://192.168.57.10/onm/api/1.0/views/1/metrics.json
    	$class='views/'.$OPTS{'view'};
 	   $endpoint='metrics.json';
@@ -120,8 +119,6 @@ print Dumper($response);
 
  	}
 }
-
-print "CONDITION=$CONDITION\n";
 
 #--------------------------------------------------------------------------------------
 my $FACTOR=1;
@@ -193,7 +190,7 @@ my $data = $dbox->get_metric_report("SELECT distinct (CONCAT(year(date),'-',lpad
        $data{$metric}->{$k} = $x->[3];
    }
 
-   print Dumper({'cols'=>\%cols, 'data'=>\%data});
+   #print Dumper({'cols'=>\%cols, 'data'=>\%data});
 
 #          'data' => {
 #                      'USO DE DISCO / (cnm-deb8.localdomain)' => {
@@ -276,27 +273,21 @@ __DATA__
 #--------------------------------------------------------------------------------------
 =head1 NAME
 
-metric-report - Conector de datos de Aternity
+get-capacity-report - Creates excel file with a capacity report based on the metrics contained in the specified view
 
 =head1 SYNOPSIS
 
-metric-report [options]
+get-capacity-report -view id [options]
 
-Options:
+Examples:
 
--activity   Indica que se trata de datos de una actividad.
--monitor    Indica que se trata de datos de un monitor.
+/opt/cnm/crawler/bin/get-capacity-report -view 34 -v
 
--name       Nombre de la actividad/monitor
-
--help   Mensaje de ayuda
--man    Documentacion completa
-
-Uso: $0 \nUso: $0 -q ---> Consulta a BBDD\nUso: $0 -s ---> Almacena en BBDD
 =head1 OPTIONS
 
-help   Mensaje de ayuda
-set    Inserta/Actualiza dispositivos
+-view       Contains the view ID. It is a mandatory option.
+-v|-verbose Verbose option
+-h|-help    Displays help info
 
 
 =over 8
