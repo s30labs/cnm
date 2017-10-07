@@ -7,17 +7,14 @@
 // ------------------------------------------------------------------------------
 // api_get_reports
 // ------------------------------------------------------------------------------
-// IN: 	id (Id del report. Opcional)
-//       view -> Id de la vista
-//			from y to
+// IN: 	type -> tipo del report
+//       view -> id de la vista
 // OUT:	Fichero excel
 // ------------------------------------------------------------------------------
-// Para obtener todas las alertas:
-// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/reports.json"
-// Para obtener una alerta concreta:
-// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api.0/reports/17645.json"
+// Para obtener el report de capidad de la vista con id 1
+// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/reports/capacity/1.json"
 // ------------------------------------------------------------------------------
-function api_get_reports($id) {
+function api_get_reports($type,$id) {
 //   include_once('inc/class.cnmlist.php');
 
    // /// //
@@ -41,22 +38,26 @@ function api_get_reports($id) {
    $return = $list->show('array');
 */
 
-//$fichero = '/tmp/metricDisco.xlsx';
-$fichero = '/tmp/texto';
+	if($type=='capacity'){
+		// $fichero = '/tmp/texto';
+		$fichero = '/tmp/metricDisco.xlsx';
+		$cmd     = "/opt/cnm/crawler/bin/get-capacity-report -view $id";
+		exec($cmd);
+	
+		if (file_exists($fichero)) {
+		    header('Content-Description: File Transfer');
+		    header('Content-Type: application/octet-stream');
+		    header('Content-Disposition: attachment; filename="'.basename($fichero).'"');
+		    header('Expires: 0');
+		    header('Cache-Control: must-revalidate');
+		    header('Pragma: public');
+		    header('Content-Length: ' . filesize($fichero));
+		    readfile($fichero);
+			 unlink($fichero);
+		    return;
+		}
 
-if (file_exists($fichero)) {
-    header('Content-Description: File Transfer');
-    header('Content-Type: application/octet-stream');
-    header('Content-Disposition: attachment; filename="'.basename($fichero).'"');
-    header('Expires: 0');
-    header('Cache-Control: must-revalidate');
-    header('Pragma: public');
-    header('Content-Length: ' . filesize($fichero));
-    readfile($fichero);
-    return;
-}
-
-
+	}
 }
 
 
