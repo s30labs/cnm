@@ -101,10 +101,25 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
   close F;
 }
 
+#-------------------------------------------------------------------------------------------
+# 04. Se crea /root/.my.cnf si  no existe
+#-------------------------------------------------------------------------------------------
+my $CNM_INSTALL_MY_FILE='/root/.my.cnf';
+my $CNM_MY_DATA = <<"CNMMYDATA";
+[client]
+user=root
+password=cnmManag3r
+CNMMYDATA
+
+if (! -f $CNM_INSTALL_MY_FILE) {
+  open (F,">$CNM_INSTALL_MY_FILE");
+  print F $CNM_MY_DATA;
+  close F;
+}
 
 
 #-------------------------------------------------------------------------------------------
-# 04. Se instala/actualiza cnm-core
+# 05. Se instala/actualiza cnm-core
 #-------------------------------------------------------------------------------------------
 
 my %cfg_vars=();
