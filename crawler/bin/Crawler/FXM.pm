@@ -652,7 +652,7 @@ my ($self,$esp,$values,$desc)=@_;
    	   $P[$vindex] =~ s/^"(.+)"$/$1/g;
       	$P[$vindex] =~ s/^'(.+)'$/$1/g;
 			
-			$self->log('info',"parse_fx:: [fx_tab_MATCH] subtype=$subtype chequeo $P[$vindex]");
+			$self->log('debug',"parse_fx:: [fx_tab_MATCH] subtype=$subtype chequeo $P[$vindex]");
 
 			# Se pueden especificar patrones para los diferentes OIDs separados por |
 			foreach my $pattern (keys %patterns) {

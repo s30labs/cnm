@@ -932,7 +932,7 @@ $self->log('info',"mod_xagent_get::  TAREA=$task_id [$desc->{'name'}] COUNTER **
       my $items = scalar @$values;
       $data=join(':',$t,@$values);
 
-		$self->log('info',"mod_xagent_get:: ++++++++++ TAREA=$task_id [$desc->{'name'}] RESULTADO = $data [cfg=$desc->{'cfg'}|custom=$desc->{'custom'}|EV=@$ev]");
+		$self->log('info',"mod_xagent_get:: RESULTADO = $data TAREA=$task_id [$desc->{'name'}] [cfg=$desc->{'cfg'}|custom=$desc->{'custom'}|EV=@$ev]");
 
       if ( $mode_flag->{rrd} ) {
 
@@ -1220,7 +1220,7 @@ my ($self,$desc)=@_;
       	if (! exists $XAGENT_CACHE_DATA{$task_id_searched}) { $INCACHE=0; }
    	}
 
-$self->log('info',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
+$self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 
 		# no lo vuelvo a ejecutar hasta el proximo ciclo de poolling.
 		if ( exists $XAGENT_CACHE_ERRORS{$task_id_base}) {
@@ -1258,7 +1258,7 @@ $self->log('info',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 
             my @parsed_out_cmd=split(':', $parsed_line);
             my $key = $task_id_base .'-'.$prefix;
-				$self->log('info',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
+				$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
 
 				my $ip = $desc->{host_ip};
 				$XAGENT_CACHE_ERRORS{$ip} = [$rc, $rcstr, \@parsed_out_cmd];
@@ -1269,7 +1269,7 @@ $self->log('info',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 		else {
 			$ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
 			$self->event_data(\@ev);
-			$self->log('info',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEGET");
+			$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEGET");
 		}
 
      	#$self->log('info',"core_xagent_get::[INFO ID=$task_id] PARAMS=$exec_vector->{'params'} RES=@$out_cmd tag=$tag EV=$ev");
@@ -1296,7 +1296,7 @@ $self->log('info',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 		# En cache la clave es $task_id_base-tag.iid
       foreach my $tagx (@all_metric_tags) {
          my $task_id_searched = $task_id_base .'-'.$tagx.'.'.$desc->{'iid'};
-$self->log('info',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searched");
+$self->log('debug',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searched");
 
          # Para el cache de la provision
          if ($desc->{'iid'} eq 'ALL') {
@@ -1305,7 +1305,7 @@ $self->log('info',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searc
             #Con buscar el primer valor me vale
             if (scalar(@iids)>0) {
                $task_id_searched = $task_id_base .'-'.$tagx.'.'.$iids[0];
-$self->log('info',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searched");
+$self->log('debug',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searched");
             }
          }
 
@@ -1318,7 +1318,7 @@ $self->log('info',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_searc
 			}
       }
 
-$self->log('info',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
+$self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 
       # Si script+params ha dado error al ejecutarlo contra un dispositivo concreto
       # no lo vuelvo a ejecutar hasta el proximo ciclo de poolling.
@@ -1351,7 +1351,7 @@ $self->log('info',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
          #Necesario para evitar volver a ejecutar el script si cambian las instancias.
          $XAGENT_CACHE_DATA{$task_id_base}=1;
 
-         $self->log('info',"core_xagent_get::************tag=$tag iid=$iidx out_cmd=@$out_cmd*** rc=$rc rcstr=$rcstr******");
+         $self->log('debug',"core_xagent_get::************tag=$tag iid=$iidx out_cmd=@$out_cmd*** rc=$rc rcstr=$rcstr******");
          # out_cmd=C::6599 D::61521 E::79744 _Total:147864
          # out_cmd=U
 			# <001.acpid> Num. procesos [acpid] = 1 
@@ -1379,7 +1379,7 @@ $self->log('info',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 		else {
          $ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
          $self->event_data(\@ev);
-			$self->log('info',"core_xagent_get:: [task_id=$task_id] cfg=2 CACHEGET");
+			$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=2 CACHEGET");
 		}
 
 my $cdump1=Dumper(\%XAGENT_CACHE_DATA);
@@ -1455,11 +1455,11 @@ my ($self,$dbparams,$host_ip,$credentials)=@_;
 
 	$host_ip=$self->untag_ip($host_ip);
 	my @params2cmd=();
-	$self->log('info',"_compose_params exec:: host_ip=$host_ip dbparams=$dbparams");
+	$self->log('debug',"_compose_params exec:: host_ip=$host_ip dbparams=$dbparams");
 
 my $dump1=Dumper($credentials);
 $dump1 =~ s/\n/ /g;
-$self->log('info',"_compose_params exec ::[DUMPER] credentials=$dump1");
+$self->log('debug',"_compose_params exec ::[DUMPER] credentials=$dump1");
 
 
 	while ($dbparams =~/\[(.*?);(.*?);(.*?);(.*?)\]/g) {
