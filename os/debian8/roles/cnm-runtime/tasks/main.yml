@@ -35,26 +35,6 @@
     - /store/www-user/remote_cfgs
   tags: cnm-runtime
 
-#- name: Verify www-user links
-#  file: path=/var/www/html/onm/user/{{ item }} src=/store/www-user/{{ item }} state=link owner=www-data group=www-data mode=0755
-#  with_items:
-#    - background
-#    - images
-#    - gui_templates
-#    - resources
-#    - tmp
-#    - files
-#    - remote_cfgs
-#  tags: cnm-runtime
-#
-#- name: favicon.ico
-#  copy: src=/var/www/html/onm/favicon.ico dest=/var/www/html  owner=root group=root mode=0644
-#  tags: cnm-runtime
-#
-#- name: magic.gif
-#  copy: src=/var/www/html/onm/images/magic.gif dest=/store/www-user/background  owner=root group=root mode=0644
-#  tags: cnm-runtime
- 
 - name: crontab
   copy: src=crontab dest=/etc/crontab  owner=root group=root mode=0640
   tags: cnm-runtime
