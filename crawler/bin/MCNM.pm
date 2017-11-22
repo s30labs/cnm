@@ -104,7 +104,12 @@ sub get_db_credentials {
 
    my $file='/cfg/onm.conf';
    my $pwd='';
-   open (F,"<$file");
+   my $rc=open (F,"<$file");
+	if (! $rc) {
+		print "Sin acceso a $file ($!)\n";
+		return $pwd;
+	}
+
    while (<F>) {
 
       chomp;
