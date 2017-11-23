@@ -13,7 +13,7 @@ use JSON;
 my @fpth = split ('/',$0,10);
 my @fname = split ('\.',$fpth[$#fpth],10);
 my $USAGE = <<USAGE;
-API Scripts - Add Device (POST)
+API Scripts - Get Capacity Data
 (c) s30labs
 
 $fpth[$#fpth] [-d debug|info] [-c cid] [-m] -view id -i 'metricname=WEB PAGE LOAD TIME%'  [-o metricid,metricname ...]
@@ -58,12 +58,23 @@ my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
 #print "sid=$sid\n";
 
+my ($class,$endpoint,$response);
+
 # Se obtienen las vistas de capacidad
 #-------------------------------------------------------------------------------------------
 #https://192.168.57.10/onm/api/1.0/views.json?itil=3
-my $class='views.json';
-my $endpoint='';
-my $response = $api->ws_get($class,$endpoint,{'itil'=>3});
+if (exists $OPTS{view}) {
+	if ($OPTS{view} !~ /\d+/) {
+		die "**ERROR** ID de vista no valido ....\n";
+	}
+	$class='views';
+   $endpoint=$OPTS{view}.'.json';
+}
+else {
+	$class='views.json';
+	$endpoint='';
+}
+$response = $api->ws_get($class,$endpoint,{'itil'=>3});
 
 #            'devicetype' => 'Servidor',
 #            'deviceid' => '6',
@@ -85,22 +96,41 @@ my $response = $api->ws_get($class,$endpoint,{'itil'=>3});
 #            'monitorsevorange' => 'v1>5'
 
 
-my %IDs=();
-#if (scalar(@fields)==0) { print Dumper($response); }
-if (scalar(@$response)==0) { print "0\n"; }
-else {
-	foreach my $desc (@$response) {
-		my $id = $desc->{'metricid'};
-		my @fx=();
-		foreach my $f (@fields) {
-			print $desc->{$f}."\t";
-			$IDs{$id}->{$f} = $desc->{$f};	
-			push @fx,$desc->{$f};
-		}
-		$IDs{$id}->{'fields'} = join (',',@fx);
-		print "\n";
-	}
-}
+#$VAR1 = [
+#          {
+#            'orangealerts' => '0',
+#            'bluealerts' => '0',
+#            'liveremote' => '0',
+#            'nmetrics' => '1',
+#            'yellowalerts' => '0',
+#            'itil' => '3',
+#            'type' => 'Infraestructura',
+#            'redalerts' => '0',
+#            'livemetric' => '0',
+#            'nremote' => '0',
+#            'sev' => '6',
+#            'name' => 'Uso de puertos',
+#            'id' => '35'
+#          }
+#        ];
+
+
+#my %IDs=();
+##if (scalar(@fields)==0) { print Dumper($response); }
+#if (scalar(@$response)==0) { print "0\n"; }
+#else {
+#	foreach my $desc (@$response) {
+#		my $id = $desc->{'metricid'};
+#		my @fx=();
+#		foreach my $f (@fields) {
+#			print $desc->{$f}."\t";
+#			$IDs{$id}->{$f} = $desc->{$f};	
+#			push @fx,$desc->{$f};
+#		}
+#		$IDs{$id}->{'fields'} = join (',',@fx);
+#		print "\n";
+#	}
+#}
 
 
 my @RESULT_DATA=();
@@ -133,7 +163,7 @@ foreach my $view (@$response) {
 #print "***endpoint=$endpoint---\n";
 
 		my $response_data = $api->ws_get($class,$endpoint,{});
-		#print Dumper($response_data);
+#print Dumper($response_data);
 
 		#$items=$response_data->{$id}->{'label'};
 		$items=$response_data->{'flot'}->{'label'};
@@ -184,6 +214,10 @@ if (defined $OPTS{'db'}) {
 # Procesa los datos de una metrica
 # Consolida por tiempo --> Resultado por dia
 # Consolida por valor --> 	Usando fx normalizadora
+# IN:
+# $m 		-> Metadatos de la metrica
+# $data  -> Datos de la metrica (data serie)
+# $result-> Resultados
 #--------------------------------------------------------------------
 sub data_processor {
 my ($m,$data,$result) = @_;
@@ -193,8 +227,8 @@ my ($m,$data,$result) = @_;
 	foreach my $x (@{$data}) {
 
       #BUG cnm-api
-      my $tok = ($x->{'t'}) * 10;
-      my $dt = $api->time2date($tok);
+      #my $tok = ($x->{'t'}) * 10;
+      my $dt = $api->time2date($x->{'t'});
 
 		if ($x->{'v'}->[0] =~ /nan/) {  next; }
 		if ($x->{'v'}->[0] !~ /\d+/) {  next; }
@@ -204,7 +238,7 @@ my ($m,$data,$result) = @_;
 		if (! exists $CapacityMetrics::Functions{$subtype}) { 
 			$subtype = 'default'; 
 		}
-		my $v = &{$CapacityMetrics::Functions{$subtype}}($x->{'v'});
+		my $v = &{$CapacityMetrics::Functions{$subtype}}($x->{'v'},$m);
 
       # $m->{'metricsubtype'}
       # Para disk_mibhost

@@ -65,7 +65,7 @@ my ($self,$params) = @_;
    $xlsx->dashboard_create ({
       'sheet' => 'Report',
       'series' => $series,
-      'tpl' =>  [ {'position'=>'B1', 'chart_type'=>'bar', 'chart_width'=>'800', 'chart_height'=>'800',  'chart_title'=>$params->{'chart_title'}, 'chart_data'=>$params->{'chart_data'}} ]
+      'tpl' =>  [ {'position'=>'B1', 'chart_type'=>'bar', 'chart_width'=>'800', 'chart_height'=>'800',  'landscape'=>'1', 'chart_title'=>$params->{'chart_title'},  'xname'=>$params->{'xname'}, 'yname'=>$params->{'yname'}, 'chart_data'=>$params->{'chart_data'}} ]
    });
 
    $xlsx->close_workbook();

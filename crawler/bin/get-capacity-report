@@ -28,7 +28,7 @@ use DataBox::DB;
 #--------------------------------------------------------------------------------------
 my %OPTS = ();
 GetOptions (\%OPTS, 	'help','h','man', 'view=s', 'units=s','threshold=s','image_header=s','title=s','v','verbose',
-							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'store',
+							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'file=s', 'store',
 							'q','query', 'db=s', 'h2l', 'hostname=s', 'location=s', 'file=s') or pod2usage(-exitval => 2, -input => \*DATA);
 
 if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }
@@ -77,6 +77,9 @@ elsif (exists $OPTS{'period'}) {
 #}
 
 my $store_local = ($OPTS{'store'}) ? 1 : 0;
+
+#--------------------------------------------------------------------------------------
+my $FILE_XLSX = (exists $OPTS{'file'}) ? $OPTS{'file'} : '/tmp/CNM-CapacityReport.xlsx' ;
 
 #--------------------------------------------------------------------------------------
 # Se obtienen las metricas de la vista
@@ -205,11 +208,13 @@ my $data = $dbox->get_metric_report("SELECT distinct (CONCAT(year(date),'-',lpad
 #
 #
 
-  	my $report = ExportExcel::Report->new('filename'=>'/tmp/metricDisco.xlsx');
+  	my $report = ExportExcel::Report->new('filename'=>$FILE_XLSX);
   	$report->report010({	'table'=>{'cols'=>\%cols, 'data'=>\%data},
                         'image_header'=>$IMAGE_HEADER,
 								'alert_threshold'=>$THRESHOLD,
 	                     'chart_title'=>$CHART_TITLE,
+	                     'xname'=>'Capacidad (%)',
+	                     'yname'=>'',
                         'chart_data'=>[@CHART_DATA]
                       });
 

@@ -5,16 +5,17 @@
 // ------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------
-// api_get_reports
+// api_get_report
 // ------------------------------------------------------------------------------
-// IN: 	type -> tipo del report
-//       view -> id de la vista
+// IN: 	type ->  tipo del report
+//       view ->  id de la vista
+//       label -> nombre de la vista
 // OUT:	Fichero excel
 // ------------------------------------------------------------------------------
 // Para obtener el report de capidad de la vista con id 1
 // curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/reports/capacity/1.json"
 // ------------------------------------------------------------------------------
-function api_get_reports($type,$id) {
+function api_get_report($type,$id,$label) {
 //   include_once('inc/class.cnmlist.php');
 
    // /// //
@@ -39,9 +40,10 @@ function api_get_reports($type,$id) {
 */
 
 	if($type=='capacity'){
-		// $fichero = '/tmp/texto';
-		$fichero = '/tmp/metricDisco.xlsx';
-		$cmd     = "/opt/cnm/crawler/bin/get-capacity-report -view $id";
+
+  	 	$fichero = 'CNM-CapacityReport-'.$label.'-'.date("Y-m-d").'.xlsx';
+  	 	$cmd     = "/opt/cnm/crawler/bin/get-capacity-report -view $id -file \"$fichero\"";
+		CNMUtils::info_log(__FILE__, __LINE__, "cmd=$cmd");
 		exec($cmd);
 	
 		if (file_exists($fichero)) {

@@ -161,7 +161,7 @@ my ($self,$data,$params)=@_;
 	my %series=();
 	foreach my $i (1..scalar(@fields)-1) {
 		my %x=();
-		$x{'categories'} = "='".$params->{'sheet'}."'!".xl_rowcol_to_cell($row0+1, $col0+1, 1, 1).':'.xl_rowcol_to_cell($last_row, $col0+1, 1, 1);		
+		$x{'categories'} = "='".$params->{'sheet'}."'!".xl_rowcol_to_cell($row0+1, $col0, 1, 1).':'.xl_rowcol_to_cell($last_row, $col0, 1, 1);		
 		$x{'values'} = "='".$params->{'sheet'}."'!".xl_rowcol_to_cell($row0+1, $col0+$i, 1, 1).':'.xl_rowcol_to_cell($last_row, $col0+$i, 1, 1);		
 
 		$x{'name'} = $fields[$i];
@@ -213,7 +213,6 @@ my ($self,$data,$params)=@_;
 #					 ... 'Element Name 0N' => {} ]
 #		tpl	: [ {'position'=>'B1', 'chart_type'=>'column', 'chart_title'=>'Titulo del grafico', 'chart_data'=>[] }
 #-----------------------------------------------------------------------
-
 sub dashboard_create {
 my ($self,$params)=@_;
 
@@ -228,15 +227,26 @@ my ($self,$params)=@_;
 	}
    $worksheet_dashboard->hide_gridlines(2);
 
+   if (exists $params->{'landscape'}) {
+      $worksheet_dashboard->set_landscape();
+      $worksheet_dashboard->center_horizontally();
+   }
+
 	#---------------------
 	foreach my $x (@{$params->{'tpl'}}) {
 
 		my $position = $x->{'position'};
 		my $chart_data = $x->{'chart_data'};
+		# area | bar | column | line | pie | doughnut | scatter | stock | radar
 		my $chart_type = (exists $x->{'chart_type'}) ? $x->{'chart_type'} : 'column';
 		my $chart_title = (exists $x->{'chart_title'}) ? $x->{'chart_title'} : 'Titulo del grafico';
 		my $chart_width = (exists $x->{'chart_width'}) ? $x->{'chart_width'} : '480';
 		my $chart_height = (exists $x->{'chart_height'}) ? $x->{'chart_height'} : '288';
+		my $xname = (exists $x->{'xname'}) ? $x->{'xname'} : 'Valores';
+		my $yname = (exists $x->{'yname'}) ? $x->{'yname'} : 'Elementos';
+
+$chart_type = 'column';
+
 
 		my $chart = $self->create_chart({ 
 
@@ -244,6 +254,8 @@ my ($self,$params)=@_;
 				'chart_title'=>$chart_title, 
 				'chart_width'=>$chart_width, 
 				'chart_height'=>$chart_height, 
+				'xname'=>$xname, 
+				'yname'=>$yname, 
 				'series'=>$params->{'series'}, 
 				'chart_data'=>$chart_data 
 
@@ -274,7 +286,12 @@ my ($self,$params)=@_;
    if (!exists $params->{'chart_title'}) { $params->{'chart_title'} = 'Title'; }
    if (!exists $params->{'chart_width'}) { $params->{'chart_width'} = '480'; }
    if (!exists $params->{'chart_height'}) { $params->{'chart_height'} = '288'; }
+	my $xname = (exists $params->{'xname'}) ? $params->{'xname'} : 'Valores'; 
+	my $yname = (exists $params->{'yname'}) ? $params->{'yname'} : 'Elementos'; 
+
 	my $workbook = $self->workbook();
+
+#print Dumper($params);
 
    my $chart = $workbook->add_chart( type => $params->{'chart_type'}, embedded => 1 );
 	$chart->set_size( width=>$params->{'chart_width'}, height=>$params->{'chart_height'} );
@@ -288,8 +305,8 @@ my ($self,$params)=@_;
       },
    );
 
-   $chart->set_x_axis( num_font => { name => 'Calibri', size => 9, color => 'grey' } );
-   $chart->set_y_axis( num_font => { name => 'Calibri', size => 9, color => 'grey' } );
+   $chart->set_x_axis( name => $xname ,num_font => { name => 'Calibri', size => 9, color => 'grey' } );
+   $chart->set_y_axis( name => $yname , num_font => { name => 'Calibri', size => 9, color => 'grey' } );
    $chart->set_legend( position => 'bottom' );
 	my @colors = ('#FFCC66', '#93CDDD', '#FFCC66', '#93CDDD');
 
@@ -298,7 +315,11 @@ my ($self,$params)=@_;
 	
 		my $categories = $params->{'series'}->{$name}->{'categories'};	
 		my $values = $params->{'series'}->{$name}->{'values'};	
-		my $category = $params->{'series'}->{$name}->{'categories'};
+
+
+#print "categories=$categories\n";
+#print "values=$values\n";
+#print "name=$name\n";
  	
 	   $chart->add_series(
    	   categories => $categories,

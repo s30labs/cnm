@@ -1243,8 +1243,8 @@ CNMUtils::info_log(__FILE__, __LINE__, "[API10] $endpoint_parts[1] -- $endpoint_
 
       case "reports":
 			// GET reports/capacity/1.json
-         if ($nparts==3 AND is_numeric($endpoint_parts[2])) {
-            $output = api_get_reports($endpoint_parts[1],$endpoint_parts[2]);
+         if ($nparts==4 AND is_numeric($endpoint_parts[2])) {
+            $output = api_get_report($endpoint_parts[1],$endpoint_parts[2],$endpoint_parts[3]);
          }
          break;
 
