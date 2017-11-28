@@ -854,6 +854,8 @@ my %PERL_MODULE_NAMES=(
 sub perl_module_install {
 my ($module_name)=@_;
 
+   my $dir_modules='/opt/cnm-os/perl_modules';
+   if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
 
 	my $inst=ExtUtils::Installed->new();
 	# ej: Time-HiRes-1.42.tar.gz
@@ -888,32 +890,32 @@ my ($module_name)=@_;
 	chomp $perl_version;
 	$perl_version =~ s/version='([\w+|\.+]+)';*/$1/;	
 
-	#PARCHES GUARROS ------------------------------------------
-	if ($module_name eq 'Net-Ping-2.36.tar.gz') { 
-		system ("$RM -f /usr/lib/perl/$perl_version/Net/Ping.pm"); 
-	}
-	#---------------
-	#OJO: /usr/local/share/perl/5.8.8/Net/Telnet/Cisco.pm esta modificado en /os/perl_modules/extras ...
-	#		Si se cambiara la version de Telnet::Cisco.pm Habria que tocar este fichero en /os
-	# cp /os/perl_modules/extras/Cisco.pm /usr/local/share/perl/5.10.1/Net/Telnet/
-	#---------------
-	elsif ( $module_name eq 'Net-Telnet-Cisco-1.10.tar.gz') {
-		system ("$CP -fr /os/perl_modules/extras/Cisco.pm /usr/local/share/perl/$perl_version/Net/Telnet/Cisco.pm > /dev/null 2>&1");
-	}
-	#---------------
-	#OJO: /usr/local/share/perl/5.8.8/Mail/POP3Client.pm esta modificado en /os/perl_modules/extras ...
-	#Evita el warning:
-	#Version string '2.18 ' contains invalid data; ignoring: ' ' at /usr/local/share/perl/5.20.2/ExtUtils/MM_Unix.pm line 2784.
-	#---------------
-        elsif ( $module_name eq 'Mail-POP3Client-2.18.tar.gz') {
-                system ("$CP -fr /os/perl_modules/extras/POP3Client.pm /usr/local/share/perl/$perl_version/Mail/POP3Client.pm > /dev/null 2>&1");
-        }
-	#---------------
-	elsif ($module_name eq 'CPAN-Meta-2.120921.tar.gz') {
-		my $l = `/bin/grep 'our $VERSION' /usr/local/share/perl/$perl_version/CPAN/Meta.pm`;
-		chomp $l;
-		if ($l =~ /\$VERSION \= '([\d+|\.+]+)'/) { $version=$1; $found=1; }
-	}
+#	#PARCHES GUARROS ------------------------------------------
+#	if ($module_name eq 'Net-Ping-2.36.tar.gz') { 
+#		system ("$RM -f /usr/lib/perl/$perl_version/Net/Ping.pm"); 
+#	}
+#	#---------------
+#	#OJO: /usr/local/share/perl/5.8.8/Net/Telnet/Cisco.pm esta modificado en /os/perl_modules/extras ...
+#	#		Si se cambiara la version de Telnet::Cisco.pm Habria que tocar este fichero en /os
+#	# cp /os/perl_modules/extras/Cisco.pm /usr/local/share/perl/5.10.1/Net/Telnet/
+#	#---------------
+#	elsif ( $module_name eq 'Net-Telnet-Cisco-1.10.tar.gz') {
+#		system ("$CP -fr $dir_modules/extras/Cisco.pm /usr/local/share/perl/$perl_version/Net/Telnet/Cisco.pm > /dev/null 2>&1");
+#	}
+#	#---------------
+#	#OJO: /usr/local/share/perl/5.8.8/Mail/POP3Client.pm esta modificado en /os/perl_modules/extras ...
+#	#Evita el warning:
+#	#Version string '2.18 ' contains invalid data; ignoring: ' ' at /usr/local/share/perl/5.20.2/ExtUtils/MM_Unix.pm line 2784.
+#	#---------------
+#        elsif ( $module_name eq 'Mail-POP3Client-2.18.tar.gz') {
+#                system ("$CP -fr $dir_modules/extras/POP3Client.pm /usr/local/share/perl/$perl_version/Mail/POP3Client.pm > /dev/null 2>&1");
+#        }
+#	#---------------
+#	elsif ($module_name eq 'CPAN-Meta-2.120921.tar.gz') {
+#		my $l = `/bin/grep 'our $VERSION' /usr/local/share/perl/$perl_version/CPAN/Meta.pm`;
+#		chomp $l;
+#		if ($l =~ /\$VERSION \= '([\d+|\.+]+)'/) { $version=$1; $found=1; }
+#	}
 
 	#----------------------------------------------------------
 	
@@ -1200,6 +1202,8 @@ sub do_init_store  {
 #-------------------------------------------------------------------------------------------
 sub do_perl_module_check_all  {
 
+   my $dir_modules='/opt/cnm-os/perl_modules';
+   if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
 
 	# Se eliminan posibles modulos obsoletos que estaban en una ruta distinta
 	my %old_modules=(
@@ -1254,10 +1258,7 @@ print "packfile=$packfile---\n";
 	}
 
 	# ------------------------------------------------------------------
-	my $file_modules='/opt/cnm-os/perl_modules/perl_modules.txt';
-   if (-f '/opt/cnm-extras/perl_modules/perl_modules.txt') { 
-		$file_modules='/opt/cnm-extras/perl_modules/perl_modules.txt'; 
-	}
+	my $file_modules = $dir_modules.'/perl_modules.txt';
 	open (F,"<$file_modules");
 	print "MODULO: [INSTALLED|UNINST] INSTALADA | ACTUAL\tNOMBRE DEL MODULO\n";
 	while (<F>) {
@@ -1270,10 +1271,7 @@ print "packfile=$packfile---\n";
 	}		
 
    # ------------------------------------------------------------------
-   my $file_modules_forced='/opt/cnm-os/perl_modules/perl_modules_forced.txt';
-   if (-f '/opt/cnm-extras/perl_modules/perl_modules_forced.txt') { 
-		$file_modules_forced='/opt/cnm-extras/perl_modules/perl_modules_forced.txt'; 
-	}
+   my $file_modules_forced = $dir_modules.'/perl_modules_forced.txt';
 	if (-f $file_modules_forced) {
 	   open (F,"<$file_modules_forced");
    	print "***FORCED***\n";
