@@ -28,7 +28,7 @@ use DataBox::DB;
 #--------------------------------------------------------------------------------------
 my %OPTS = ();
 GetOptions (\%OPTS, 	'help','h','man', 'view=s', 'units=s','threshold=s','image_header=s','title=s','v','verbose',
-							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'file=s', 'store',
+							'appcrash', 'day', 'hour', 'start=s', 'period=s', 'end=s', 'store',
 							'q','query', 'db=s', 'h2l', 'hostname=s', 'location=s', 'file=s') or pod2usage(-exitval => 2, -input => \*DATA);
 
 if ($OPTS{'man'}) { pod2usage(-exitval => 2, -input => \*DATA); }

@@ -1,7 +1,8 @@
-# TIPO = MANT|BUG|FEAT (Es obligatorio)
-# ID es el de BUGZILLA. Solo se pone si existe
-# SINTAXIS: [TIPO] Descripcion (ID=xxxx)
-# EJEMPLOS: [BUG]  Se soluciona problema con ....
-#           [MANT] Se incluye modulo xxx ....
-#           [FEAT] Se ncluyen nuevas funcionalidades ....
-[MANT]
+# TYPE = CODE|IMP|FEAT|BUG|DOC
+# CODE: 	Source code improvement. Refactoring
+# IMP:  	System mprovement. Usually internal, not noticeable for the user
+# FEAT:	System feature. Noticeable for the user
+# BUG:	Bug, failure.
+# DOC:	Documentattion commit.
+# SINTAX: [TYPE] Commit Description [Issue ID]
+[IMP]

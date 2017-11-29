@@ -39,9 +39,12 @@ function api_get_report($type,$id,$label) {
    $return = $list->show('array');
 */
 
+
+		CNMUtils::info_log(__FILE__, __LINE__, "type=$type,id=$id,label=$label");
+
 	if($type=='capacity'){
 
-  	 	$fichero = 'CNM-CapacityReport-'.$label.'-'.date("Y-m-d").'.xlsx';
+  	 	$fichero = '/tmp/CNM-CapacityReport-'.$label.'-'.date("Y-m-d").'.xlsx';
   	 	$cmd     = "/opt/cnm/crawler/bin/get-capacity-report -view $id -file \"$fichero\"";
 		CNMUtils::info_log(__FILE__, __LINE__, "cmd=$cmd");
 		exec($cmd);

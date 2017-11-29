@@ -3,5 +3,8 @@
 echo "PASO 1: cnm-daily ..."
 /opt/crawler/bin/cnm-daily > /dev/null 2>&1
 
-echo "PASO 2: backup ..."
+echo "PASO 2: capacity data..."
+/opt/cnm/crawler/bin/ws/api-get-capacity-data -v -lapse year -db > /tmp/api-get-capacity-data.out 2>&1
+
+echo "PASO 3: backup ..."
 /usr/bin/php /var/www/html/onm/inc/Backup.php action=backup database=all 2>&1

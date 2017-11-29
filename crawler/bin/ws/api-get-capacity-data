@@ -146,7 +146,7 @@ foreach my $view (@$response) {
 	my $response_metrics = $api->ws_get($class,$endpoint);
 
 #print Dumper($response_metrics);
-	if ($VERBOSE) { print "VISTA ($view->{'id'}) $view->{'name'}\n"; }
+	if ($VERBOSE) { print "\nVISTA ($view->{'id'}) $view->{'name'}\n"; print '-'x60,"\n"; }
 
 	foreach my $m (@$response_metrics) {
 		my $id = $m->{'metricid'};
