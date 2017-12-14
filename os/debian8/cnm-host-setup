@@ -272,7 +272,9 @@ $net_restart = 1;
 	}
 
 	#Update CNM scheme IP
-	set_cfg_cnms($GLOBALS{'__IPADDR__'});
+	if ( -d '/var/lib/mysql/cnm') {
+		set_cfg_cnms($GLOBALS{'__IPADDR__'});
+	}
 
    my $oip = new NetAddr::IP($GLOBALS{'__IPADDR__'},$GLOBALS{'__NETMASK__'});
    $GLOBALS{'__BROADCAST__'} = $oip->broadcast();
