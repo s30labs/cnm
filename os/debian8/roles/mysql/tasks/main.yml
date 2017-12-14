@@ -21,7 +21,7 @@
   tags: mysql
 
 
-- name: Verify base directories
+- name: Verify base directories for persistance data (/store/mysql)
   file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
   with_items:
     - { path: '/store/mysql', owner: 'mysql', group: 'mysql',  mode: '0775' }
@@ -29,9 +29,28 @@
     - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
   tags: mysql
 
+- name: Check if directory /var/lib/mysql exists
+  stat: path=/var/lib/mysql
+  register: var_lib_mysql
+  tags: mysql
 
-#   if (-d '/var/lib/mysql') { system ("mv /var/lib/mysql $dir"); }
-#   if (! -l '/var/lib/mysql') { system ("ln -s $dir /var/lib/mysql"); }
+- name: Check if directory /var/lib/mysql is empty
+  shell: "ls -A /var/lib/mysql/ | wc -l"
+  register: num_files
+  tags: mysql
+
+#- name: Debugging ...
+#  debug: msg="{{ num_files.stdout }}"
+#  tags: mysql
+
+- name: Move if dir and not empty /var/lib/mysql -> /store/mysql
+  shell: mv /var/lib/mysql/* /store/mysql 2>/dev/null
+  when: var_lib_mysql.stat.exists and var_lib_mysql.stat.isdir and num_files.stdout != "0"
+  tags: mysql
+
+- name: Create symlink /var/lib/mysql -> /store/mysql
+  file: path='/var/lib/mysql' src='/store/mysql' state=link owner=root group=root mode='0777' force=true
+  tags: mysql
 
 
 - name: Verify base symlinks
