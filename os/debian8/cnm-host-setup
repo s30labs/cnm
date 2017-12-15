@@ -59,6 +59,7 @@ my $DEBUG = ($opts{d}) ? 1 : 0;
 my $os=check_os();
 my $www_user = ($os eq 'fc') ? 'apache' : 'www-data';
 create_dir('-p','/cfg/','770',"root:$www_user");
+prepare_ansible();
 
 #-------------------------------------------------------------------------------------------
 # Se valida la configuracion actual
@@ -270,6 +271,10 @@ $net_restart = 1;
 
 	}
 
+	#Update CNM scheme IP
+	if ( -d '/var/lib/mysql/cnm') {
+		set_cfg_cnms($GLOBALS{'__IPADDR__'});
+	}
 
    my $oip = new NetAddr::IP($GLOBALS{'__IPADDR__'},$GLOBALS{'__NETMASK__'});
    $GLOBALS{'__BROADCAST__'} = $oip->broadcast();
@@ -554,5 +559,39 @@ sub validate_config {
    if ($rc != 0) { print ">> **MAL CONFIGURADO** ($rc)\n"; }
    else { print ">> Config OK\n"; }
 
+}
+
+#-------------------------------------------------------------------------------------------
+# prepare_ansible 
+#-------------------------------------------------------------------------------------------
+sub prepare_ansible {
+
+	my $DRBD_PARTITION='/dev/sda6';
+	my $CNM_CFG_DIR='/cfg';
+	my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
+	my $CNM_VARS = <<"CNMVARS";
+---
+# Variables de CNM
+
+cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+ntpserver: pool.ntp.org
+drbd_partition: $DRBD_PARTITION
+key: gpl
+
+CNMVARS
+
+
+	if (! -f $CNM_VARS_FILE) {
+  		open (F,">$CNM_VARS_FILE");
+  		print F $CNM_VARS;
+  		close F;
+	}
+
+	my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
+	if (! -f $ANSIBLE_HOSTS_FILE) {
+  		open (F,">$ANSIBLE_HOSTS_FILE");
+  		print F 'localhost';
+  		close F;
+	}
 }
 

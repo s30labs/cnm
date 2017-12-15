@@ -6,7 +6,6 @@
 
   roles:
     - base
-#    - cnm-git
     - layout
     - cnm-cfg
     - apache-php
@@ -15,7 +14,6 @@
     - net-snmp 
     - syslog-ng
     - rrdtool
-    - cnm-cfg
 
     - exim4
     - ntp

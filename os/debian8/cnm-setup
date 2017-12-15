@@ -24,6 +24,7 @@ $fpth[$#fpth] -a root_pwd
 $fpth[$#fpth] [-m master] [-r rev_number]
 $fpth[$#fpth] -h
 
+-u : Update system installed with cnm-install
 -a : clave de root
 -b : clave del usuario onm de BBDD
 -m : Modo (branch)
@@ -33,14 +34,14 @@ USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hm:a:b:r:",\%opts);
+getopts("hum:a:b:r:",\%opts);
 if ($opts{h}) { die $USAGE;}
 my $BRANCH = 'master';
 if ($opts{m}) { $BRANCH=$opts{m}; }
 my $REV='';
 if ($opts{r}) { $REV=$opts{r}; }
 
-
+my $DB_ROOT_PWD = ($opts{a}) ? $opts{a} : 'cnmManag3r';
 #-------------------------------------------------------------------------------------------
 my $REPO="software.s30labs.com";
 #-------------------------------------------------------------------------------------------
@@ -91,7 +92,8 @@ if (! -f $CNM_VARS_FILE) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 03. Se crea /cfg/ansible.hosts si no existe
+# 03. Al actualizar un sistema previo (cnm-install), sSe crea /cfg/ansible.hosts si no existe 
+#     En una nueva instalacion no se crea.
 #-------------------------------------------------------------------------------------------
 my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
 
@@ -101,14 +103,30 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
   close F;
 }
 
+#-------------------------------------------------------------------------------------------
+# 04. Se crea /root/.my.cnf si  no existe
+#-------------------------------------------------------------------------------------------
+if ($opts{u}) {
+	my $CNM_INSTALL_MY_FILE='/root/.my.cnf';
+	my $CNM_MY_DATA = <<"CNMMYDATA";
+[client]
+user=root
+password=$DB_ROOT_PWD
+CNMMYDATA
 
+	if (! -f $CNM_INSTALL_MY_FILE) {
+  	open (F,">$CNM_INSTALL_MY_FILE");
+ 	print F $CNM_MY_DATA;
+  	close F;
+	}
+}
 
 #-------------------------------------------------------------------------------------------
-# 04. Se instala/actualiza cnm-core
+# 05. Se instala/actualiza cnm-core
 #-------------------------------------------------------------------------------------------
 
 my %cfg_vars=();
-if ($opts{a}) { $cfg_vars{'db_root_password'} = $opts{a}; }
+$cfg_vars{'db_root_password'} = $DB_ROOT_PWD;
 
 my $extra_vars='';
 if (scalar(keys %cfg_vars)>0) { 
@@ -120,13 +138,14 @@ if (scalar(keys %cfg_vars)>0) {
 
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian8');
-my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts $extra_vars cnm.yml | tee /tmp/cnm-install-core.log";
-print "Ejecutando $cmd ...\n";
+my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts $extra_vars cnm.yml > /tmp/cnm-install-core.log";
+print "CMD >> $cmd ...\n";
+print "Check progress with tail -f /tmp/cnm-install-core.log\n";
 `$cmd`;
 chdir($cwd);
  
 #print "Ejecutar:\ncd /opt/cnm/os/debian8\n";
-#print 'ansible-playbook -c local -i /cfg/ansible.hosts --extra-vars "db_root_password=cnmManag3r" cnm.yml | tee /tmp/cnm-install-core.log'."\n";
+#print 'ansible-playbook -c local -i /cfg/ansible.hosts --extra-vars "db_root_password=$DB_ROOT_PWD" cnm.yml | tee /tmp/cnm-install-core.log'."\n";
 
 
 #-------------------------------------------------------------------------------------------

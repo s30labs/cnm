@@ -5701,7 +5701,7 @@ my ($self,$dbh,$desc)=@_;
    }
 
    $rres=sqlSelectAll($dbh,'d.id_dev,d.ip,c.type,c.user,c.pwd,c.port','credentials c, device2credential b, devices d',"d.id_dev=b.id_dev AND c.id_credential=b.id_credential $condition",'');
-	$self->log('warning',"get_device_credentials:: SQL=$libSQL::cmd");
+	$self->log('debug',"get_device_credentials:: SQL=$libSQL::cmd");
 
    $self->error($libSQL::err);
    $self->errorstr($libSQL::errstr);

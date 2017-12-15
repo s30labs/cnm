@@ -182,11 +182,13 @@
 #   - restart snmptrapd
 
 - name: restart snmpd
-  command: service snmpd restart
+  command: /etc/init.d/snmpd restart
+  #command: systemctl restart snmpd
   tags: net-snmp
 
 - name: restart snmptrapd
-  command: service snmptrapd restart
+  command: /etc/init.d/snmptrapd restart
+  #command: service snmptrapd restart
   tags: net-snmp
 
 ...

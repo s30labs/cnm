@@ -3129,6 +3129,47 @@ my ($self,$id_dev)=@_;
    #----------------------------------------------------------------------------------------
    $self->prov_device_remote_alerts_snmp(\@ENT, {'id_dev'=>$id_dev, 'ip'=>$host_ip, 'name'=>$host_name, 'version'=>$version, 'community'=>$community, 'entity'=>$entity});
 
+   #----------------------------------------------------------------------------------------
+   # LOCAL SCRIPTS FOR METRICS, APPS or REMOTE PROVISIONING
+   #----------------------------------------------------------------------------------------
+   my $CNM_LOCAL_DIR='/opt/cnm.local';
+
+   local %ENV=();
+   $ENV{'CNM_DEVICE_IP'} = $host_ip;
+   $ENV{'CNM_DEVICE_ID_DEV'} = $id_dev;
+   $ENV{'CNM_HOST_NAME'} = $host_name;
+
+   my $post_cfg_device_metrics_script=$CNM_LOCAL_DIR.'/post_cfg_device_metrics';
+   if (-f $post_cfg_device_metrics_script) {
+      my $rc=system($post_cfg_device_metrics_script);
+      if (($rc==0) || (($rc==-1) && ($SIG{CHLD} eq 'IGNORE')) ) {
+         $self->log('info',"prov_device_app_metrics:: EXEC LOCAL $post_cfg_device_metrics_script $host_ip|$id_dev|$host_name [rc=$rc]");
+      }
+      else {
+         $self->log('warning',"prov_device_app_metrics:: **ERROR** EXEC LOCAL $post_cfg_device_metrics_script $host_ip|$id_dev|$host_name [rc=$rc] ($!)");
+      }
+   }
+   my $post_cfg_device_apps_script=$CNM_LOCAL_DIR.'/post_cfg_device_apps';
+   if (-f $post_cfg_device_apps_script) {
+      my $rc=system($post_cfg_device_apps_script);
+      if (($rc==0) || (($rc==-1) && ($SIG{CHLD} eq 'IGNORE')) ) {
+         $self->log('info',"prov_device_app_metrics:: EXEC LOCAL $post_cfg_device_apps_script $host_ip|$id_dev|$host_name [rc=$rc]");
+      }
+      else {
+         $self->log('warning',"prov_device_app_metrics:: **ERROR** EXEC LOCAL $post_cfg_device_apps_script $host_ip|$id_dev|$host_name [rc=$rc] ($!)");
+      }
+   }
+   my $post_cfg_device_remote_alerts_script=$CNM_LOCAL_DIR.'/post_cfg_device_remote_alerts';
+   if (-f $post_cfg_device_remote_alerts_script) {
+      my $rc=system($post_cfg_device_remote_alerts_script);
+      if (($rc==0) || (($rc==-1) && ($SIG{CHLD} eq 'IGNORE')) ) {
+         $self->log('info',"prov_device_app_metrics:: EXEC LOCAL $post_cfg_device_remote_alerts_script $host_ip|$id_dev|$host_name [rc=$rc]");
+      }
+      else {
+         $self->log('warning',"prov_device_app_metrics:: **ERROR** EXEC LOCAL ($SIG{CHLD}) $post_cfg_device_remote_alerts_script $host_ip|$id_dev|$host_name [rc=$rc] ($!)");
+      }
+   }
+
 }
 
 

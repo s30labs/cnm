@@ -43,10 +43,18 @@ print "$sqlUpdate\n";
    $resultUpdate = $enlace->query($sqlUpdate);
 print "$sqlUpdate\n";
 
-
    $sqlUpdate="UPDATE cnm.cfg_cnms  SET host_ip='$ip' WHERE hidx=1";
    $resultUpdate = $enlace->query($sqlUpdate);
 print "$sqlUpdate\n";
+
+   $sqlUpdate="UPDATE alerts_read SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
+   $resultUpdate = $enlace->query($sqlUpdate);
+print "$sqlUpdate\n";
+
+   $sqlUpdate="UPDATE alert2user SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
+   $resultUpdate = $enlace->query($sqlUpdate);
+print "$sqlUpdate\n";
+
 }
 
 // PROGRAMA PRINCIPAL

@@ -1,0 +1,131 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-check-provision
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use warnings;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+$FILE_CONF='/cfg/onm.conf';
+my $cmd;
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $host_name=$rCFG->{host_name}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hrd:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my ($tlast,$tdate,$rows,$rc,$rcstr)=(0,0,0,0,'');
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,host=>$host_name,cfg=>$rCFG, log_level=>$log_level, log_mode=>1 );
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+#-------------------------------------------------------------------------------------------
+#
+#-------------------------------------------------------------------------------------------
+#my $list1 = $store->db_cmd($dbh,"SELECT DISTINCT d.id_dev FROM devices d, metrics m WHERE d.id_dev=m.id_dev AND m.type='snmp' AND d.status=0 AND m.status=0 ORDER BY id_dev");
+
+my %FIX=();
+my ($rres1,$rres2);
+
+$rres1 = $store->get_from_db_cmd($dbh,"SELECT DISTINCT d.id_dev FROM devices d, metrics m WHERE d.id_dev=m.id_dev AND m.type='snmp' AND d.status=0 AND m.status=0 ORDER BY id_dev");
+$rres2 = $store->get_from_db_cmd($dbh,'SELECT DISTINCT id_dev FROM cnm.work_snmp WHERE status=0 ORDER BY id_dev');
+get_diff($rres1,$rres2);
+
+
+$rres1 = $store->get_from_db_cmd($dbh,"SELECT DISTINCT d.id_dev FROM devices d, metrics m WHERE d.id_dev=m.id_dev AND m.type='latency' AND d.status=0 AND m.status=0 ORDER BY id_dev");
+$rres2 = $store->get_from_db_cmd($dbh,'SELECT DISTINCT id_dev FROM cnm.work_latency WHERE status=0 ORDER BY id_dev');
+get_diff($rres1,$rres2);
+
+
+$rres1 = $store->get_from_db_cmd($dbh,"SELECT DISTINCT d.id_dev FROM devices d, metrics m WHERE d.id_dev=m.id_dev AND m.type='xagent' AND d.status=0 AND m.status=0 ORDER BY id_dev");
+$rres2 = $store->get_from_db_cmd($dbh,'SELECT DISTINCT id_dev FROM cnm.work_xagent WHERE status=0 ORDER BY id_dev');
+get_diff($rres1,$rres2);
+
+my @ids = sort keys %FIX;
+if (scalar(@ids)>0) {
+   my $list_ids = join(',', @ids);
+   print "$list_ids\n";
+   if ($opts{r}) {
+      my $cmd="/opt/cnm/crawler/bin/plite -r $list_ids -c default";
+      print "Reparing ....\n";
+      print "$cmd ....\n";
+      `$cmd`;
+   }
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub get_diff {
+my ($rres1,$rres2)=@_;
+
+   my @list1;
+   foreach my $l (@$rres1) { push @list1, $l->[0]; }
+   my @list2;
+   foreach my $l (@$rres2) { push @list2, $l->[0]; }
+
+   my %diffA=();
+   my %diffB=();
+
+   @diffA{@list2}=();
+   my @x= grep !exists($diffA{$_}), @list1;
+   foreach my $id (@x) { $FIX{$id} = 1; }
+   #print join(',',@x),"---[1]\n";
+
+   @diffB{@list1}=();
+   my @y= grep !exists($diffB{$_}), @list2;
+   foreach my $id (@y) { $FIX{$id} = 1; }
+   #print join(',',@y),"---[2]\n";
+
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Tareas de mantenimiento diario del sistema
+
+$fpth[$#fpth]
+$fpth[$#fpth] -r
+$fpth[$#fpth] [-d debug|info]
+$fpth[$#fpth] -h  : Ayuda
+
+-r: Repara
+-d: Fija el nivel de depuracion
+USAGE
+
+   return $USAGE;
+
+}
+
