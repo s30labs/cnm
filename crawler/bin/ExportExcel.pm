@@ -245,8 +245,6 @@ my ($self,$params)=@_;
 		my $xname = (exists $x->{'xname'}) ? $x->{'xname'} : 'Valores';
 		my $yname = (exists $x->{'yname'}) ? $x->{'yname'} : 'Elementos';
 
-$chart_type = 'column';
-
 
 		my $chart = $self->create_chart({ 
 

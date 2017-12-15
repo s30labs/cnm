@@ -2073,16 +2073,16 @@ Condición de búsqueda');
       $result = doQuery('get_view_metrics_create_lista',$data);
 
       foreach ($result['obj'] as $r){
-         $row_user = array();
-         $row_meta = array('id'=>$r['metricid']);
+  	      $row_user = array();
+     	   $row_meta = array('id'=>$r['metricid']);
 
-         // API
+        	// API
          if($mode==3){
-            $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow'],$r['viewname'],$r['viewid'],$r['viewtype']);
-            foreach ($array_user_fields as $field) $row_data[]=$r[$field];
-            $tabla->addRow($row_meta,$row_data,$row_user);
-         }
-      }
+  	         $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow'],$r['viewname'],$r['viewid'],$r['viewtype']);
+     	      //foreach ($array_user_fields as $field) $row_data[]=$r[$field];
+        	   $tabla->addRow($row_meta,$row_data,$row_user);
+        	}
+     	}
 
 		$data  = array('__CONDITION__'=>$cond);		
       $result = doQuery('get_view_metrics_create_count',$data);
@@ -2179,7 +2179,7 @@ Condición de búsqueda');
          // API
          if($mode==3){
             $row_data = array($r['id'],$r['name'],$r['type'],$r['deviceid'],$r['deviceip']);
-            foreach ($array_user_fields as $field) $row_data[]=$r[$field];
+            //foreach ($array_user_fields as $field) $row_data[]=$r[$field];
             $tabla->addRow($row_meta,$row_data,$row_user);
          }
       }

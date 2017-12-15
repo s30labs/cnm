@@ -21,28 +21,13 @@ function api_get_report($type,$id,$label) {
    // /// //
    // GET //
    // /// //
-/*   $params  = array();
-   foreach($_GET as $key => $value){
-      if($key=='endpoint' or $key=='content_type') continue;
-      // En caso de tener espacios el nombre se maneja
-      if($key=='form' and is_array($value)){
-         foreach($value as $k=>$v) $list->set_field($k,$v);
-      }
-      else{
-         $list->set_field($key,$value);
-         $params[$key]=$value;
-      }
-   }
-
-   if ($id>0) $list->set_field('id',$id);
-
-   $return = $list->show('array');
-*/
-
-
-		CNMUtils::info_log(__FILE__, __LINE__, "type=$type,id=$id,label=$label");
+	CNMUtils::info_log(__FILE__, __LINE__, ">> type=$type,id=$id,label=$label");
 
 	if($type=='capacity'){
+
+      $cmd     = "/opt/cnm/crawler/bin/ws/api-get-capacity-data -view $id -lapse week -db > /dev/null 2>&1";
+      CNMUtils::info_log(__FILE__, __LINE__, "cmd=$cmd");
+      exec($cmd);
 
   	 	$fichero = '/tmp/CNM-CapacityReport-'.$label.'-'.date("Y-m-d").'.xlsx';
   	 	$cmd     = "/opt/cnm/crawler/bin/get-capacity-report -view $id -file \"$fichero\"";

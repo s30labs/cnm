@@ -44,7 +44,7 @@ my ($self,$params) = @_;
    my $xlsx = ExportExcel->new('filename'=>$file);
 
 
-   my $sheet = $params->{'sheet'} || 'Datos';
+   my $sheet = $params->{'sheet'} || 'Data';
    my $chart_title = $params->{'chart_title'};
    my $chart_data = $params->{'chart_data'};
 	my $alert_threshold = (exists $params->{'alert_threshold'}) ? $params->{'alert_threshold'} : undef;
@@ -62,6 +62,7 @@ my ($self,$params) = @_;
 #print "****SERIES*****\n";
 #print Dumper($series);
 
+	# area, bar, column, line, pie, doughnut, scatter, stock, radar
    $xlsx->dashboard_create ({
       'sheet' => 'Report',
       'series' => $series,

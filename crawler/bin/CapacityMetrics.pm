@@ -28,6 +28,10 @@ require Exporter;
 
    'mib2_glob_ifstat' => \&CapacityMetrics::mib2_glob_ifstat,
 
+	'esp_cpu_mibhost' => \&CapacityMetrics::esp_cpu_mibhost,				# Uso (%) por cada CPU
+	'esp_cpu_avg_mibhost' => \&CapacityMetrics::esp_cpu_avg_mibhost,	# Uso (%) media de todas las CPUs
+	'ucd_cpu_usage' => \&CapacityMetrics::ucd_cpu_usage,					# Idle|User|System global (%)
+
    'default' => \&CapacityMetrics::default,
    #'' => \&CapacityMetrics::,
 
@@ -64,18 +68,49 @@ my ($values,$m)=@_;
 }
 
 # ----------------------------------------------------------------------------------------------
-# xagent | xagt_004403 | USO DE DISCO (%)
+# snmp | traffic_mibii_if | TRAFICO EN INTERFAZ
 # ----------------------------------------------------------------------------------------------
 sub CapacityMetrics::traffic_mibii_if {
 my ($values,$m)=@_;
 
    my $v=0;
    if (($values->[0] =~ /\d+/) && ($values->[1] =~ /\d+/)) {
-      $v = $values->[0] + $values->[1];
+      $v = ($values->[0] >= $values->[1]) ? $values->[0] : $values->[1];
 		if ($m->{'metriclevel1'} =~ /\d+/) { $v = ($v / $m->{'metriclevel1'})*100; }
 print "-----v=$v >> $values->[0] | $values->[1]\n";
    }
    return $v;
+}
+
+
+# ----------------------------------------------------------------------------------------------
+# snmp | ucd_cpu_usage | USO DE CPU (%)
+# ----------------------------------------------------------------------------------------------
+sub CapacityMetrics::ucd_cpu_usage {
+my ($values,$m)=@_;
+	if ($values->[0] =~ /\d+/) { return 100 - $values->[0]; }
+	else { return 0; }
+}
+
+
+# ----------------------------------------------------------------------------------------------
+# snmp | esp_cpu_avg_mibhost | PROMEDIO DE CPU
+# ----------------------------------------------------------------------------------------------
+sub CapacityMetrics::esp_cpu_avg_mibhost {
+my ($values,$m)=@_;
+	return $values->[0];
+}
+
+# ----------------------------------------------------------------------------------------------
+# snmp | esp_cpu_mibhost | USO DE CPU
+# ----------------------------------------------------------------------------------------------
+sub CapacityMetrics::esp_cpu_mibhost {
+my ($values,$m)=@_;
+
+	my $v=0;
+	foreach my $vx (@{$values}) { $v += $vx; }
+	return $v;
+
 }
 
 # ----------------------------------------------------------------------------------------------
