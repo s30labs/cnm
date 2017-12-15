@@ -5120,10 +5120,12 @@ function flot($input){
 				
 	      }
 			// Parche para que, en caso de que solo haya un valor en el fichero rrd aparezca algo en la gráfica porque hacen falta dos valores para que pinte flot
-			if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-10)/10,'v'=>$a_value);
+			// if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-10)/10,'v'=>$a_value);
+			if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-1),'v'=>$a_value);
 			$flag = 1;
 
-	      $data['flot']['data'][]=array('t'=>$timestamp_js/10,'v'=>$a_value);
+	      // $data['flot']['data'][]=array('t'=>$timestamp_js/10,'v'=>$a_value);
+	      $data['flot']['data'][]=array('t'=>$timestamp_js,'v'=>$a_value);
 		}
    }else{
      $data['flot']['data'][]=array('t'=>'','v'=>'');

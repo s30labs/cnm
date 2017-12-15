@@ -951,25 +951,9 @@
 // curl -ki -g -H "Authorization: c555e76fd03d91b5480e6d739c6cbb2e" -X GET => BASE
 //
 // token=$(curl -k "https://localhost/onm/api/1.0/auth/token.json?u=admin&p=cnm123"|cut -d'"' -f6)
-// curl -ki -g -H "Authorization: $token" -X GET => BASE
+// curl -k -g -H "Authorization: $token" -X GET => BASE
 //
-// "https://localhost/onm/api/1.0/reports.json"                       => Información de todos los reports
-// "https://localhost/onm/api/1.0/reports/1.json"              => Información del asset 6c3cf49f
-// "https://localhost/onm/api/1.0/reportss.json?id=1"           => Información del asset 6c3cf49f (utilizando criterios de búsqueda)
-//
-// "`echo "https://cnm002.s30labs.com/onm/api/1.0/assets.json?form[Usa gafas]=Si" | sed "s/[[:space:]]/%20/g"`"  => Información de los assets cuyo campo de usuario Usa gafas tenga el valor Si (utilizando criterios de búsqueda)
-//
-// token=$(curl -k "https://cnm002.s30labs.com/onm/api/1.0/auth/token.json?u=admin&p=cnm123"|cut -d'"' -f6);curl -ki -g -H "Authorization: $token" -X GET "`echo "https://cnm002.s30labs.com/onm/api/1.0/assets.json" | sed "s/[[:space:]]/%20/g"`"
-// token=$(curl -k "https://cnm002.s30labs.com/onm/api/1.0/auth/token.json?u=admin&p=cnm123"|cut -d'"' -f6);curl -ki -g -H "Authorization: $token" -X GET "`echo "https://cnm002.s30labs.com/onm/api/1.0/assets.json?cnm_fields=id,type,subtype,descr&cnm_sort=-id" | sed "s/[[:space:]]/%20/g"`"
-//
-// NOTA: Cuando tenemos espacios debemos sustituirlos por %20 (url_encode)
-// NOTA: Cuando tenemos variables con espacios debemos utilizar form[] además de la sustitución previa
-//
-// Campos de busqueda:
-// - id              => id del report
-// - view            => id de la vista
-// - from            => Fecha inical
-// - to              => Fecha final
+// "https://localhost/onm/api/1.0/reports/capacity/34.json"    => Descargar el informe de capacidad de la vista 1
 //
 
 
@@ -1258,13 +1242,9 @@ CNMUtils::info_log(__FILE__, __LINE__, "[API10] $endpoint_parts[1] -- $endpoint_
          break;
 
       case "reports":
-         //(1) GET /reports.json
-         if ($nparts==1) {
-            $output = api_get_reports(0);
-         }
-         //(2) GET /reports/12.json
-         elseif ($nparts==2 AND is_numeric($endpoint_parts[1])) {
-            $output = api_get_reports($endpoint_parts[1]);
+			// GET reports/capacity/1.json
+         if ($nparts==4 AND is_numeric($endpoint_parts[2])) {
+            $output = api_get_report($endpoint_parts[1],$endpoint_parts[2],$endpoint_parts[3]);
          }
          break;
 

@@ -19,7 +19,7 @@
     - /var/www/log
   tags: cnm-runtime
 
-- name: Verify /var/log/apache2/cnm_gui.log
+- name: Verify /var/www/logs/error_cgi.log
   file: path=/var/www/logs/error_cgi.log state=touch owner=www-data group=www-data mode=0755
   tags: cnm-runtime
 

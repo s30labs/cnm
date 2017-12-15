@@ -1,0 +1,344 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use DataBox::DB;
+use CapacityMetrics;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - Get Capacity Data
+(c) s30labs
+
+$fpth[$#fpth] [-d debug|info] [-c cid] [-m] -view id -i 'metricname=WEB PAGE LOAD TIME%'  [-o metricid,metricname ...]
+$fpth[$#fpth] -h  : Ayuda
+
+/opt/cnm/crawler/bin/ws/api-get-capacity-data -v -lapse year
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','m','d=s','c=s','a=s','i=s','o=s', 'view=s', 'lapse=s', 'csv', 'db')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+#if (! $OPTS{'i'}) { die $USAGE;}
+my $VERBOSE=0;
+if ((defined $OPTS{v}) || (defined $OPTS{verbose})) {
+	$VERBOSE=1;
+}
+my $CONDITION=$OPTS{'i'};
+
+my $host_ip='localhost';
+my $log_level= (defined $OPTS{d}) ? $OPTS{d} : 'info';
+my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
+my $prov_metrics = (defined $OPTS{m}) ? 1 : 0;
+
+# Por defecto se obtienen los datos de ayer
+my $LAPSE = (defined $OPTS{'lapse'}) ? $OPTS{'lapse'} : 'day_1';
+my @fields=();
+if (defined $OPTS{o}) { @fields=split(',',$OPTS{o}); }
+
+#// Para obtener todos las metricas:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/info.json"
+#// Para obtener una metrica concreta:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/2332.json"
+
+
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+my ($class,$endpoint,$response);
+
+# Se obtienen las vistas de capacidad
+#-------------------------------------------------------------------------------------------
+#https://192.168.57.10/onm/api/1.0/views.json?itil=3
+if (exists $OPTS{view}) {
+	if ($OPTS{view} !~ /\d+/) {
+		die "**ERROR** ID de vista no valido ....\n";
+	}
+	$class='views';
+   $endpoint=$OPTS{view}.'.json';
+}
+else {
+	$class='views.json';
+	$endpoint='';
+}
+$response = $api->ws_get($class,$endpoint,{'itil'=>3});
+
+#            'devicetype' => 'Servidor',
+#            'deviceid' => '6',
+#            'metricid' => '744',
+#            'metricmname' => 'xagt_004600-0299cc0e',
+#            'metrictype' => 'xagent',
+#            'metricsubtype' => 'xagt_004600',
+#            'metricitems' => 'onLoad Time|onContentLoad Time',
+#            'devicedomain' => 'cohaerentis.com',
+#            'monitorid' => '79',
+#            'devicename' => 'www',
+#            'deviceip' => '144.76.85.230',
+#            'metricstatus' => '0',
+#            'devicestatus' => '0',
+#            'monitorsevyellow' => '',
+#            'metricname' => 'WEB PAGE LOAD TIME http://www.cohaerentis.com/servicios/',
+#            'monitorname' => 'TIEMPO DE CARGA EXCESIVO',
+#            'monitorsevred' => '',
+#            'monitorsevorange' => 'v1>5'
+
+
+#$VAR1 = [
+#          {
+#            'orangealerts' => '0',
+#            'bluealerts' => '0',
+#            'liveremote' => '0',
+#            'nmetrics' => '1',
+#            'yellowalerts' => '0',
+#            'itil' => '3',
+#            'type' => 'Infraestructura',
+#            'redalerts' => '0',
+#            'livemetric' => '0',
+#            'nremote' => '0',
+#            'sev' => '6',
+#            'name' => 'Uso de puertos',
+#            'id' => '35'
+#          }
+#        ];
+
+
+#my %IDs=();
+##if (scalar(@fields)==0) { print Dumper($response); }
+#if (scalar(@$response)==0) { print "0\n"; }
+#else {
+#	foreach my $desc (@$response) {
+#		my $id = $desc->{'metricid'};
+#		my @fx=();
+#		foreach my $f (@fields) {
+#			print $desc->{$f}."\t";
+#			$IDs{$id}->{$f} = $desc->{$f};	
+#			push @fx,$desc->{$f};
+#		}
+#		$IDs{$id}->{'fields'} = join (',',@fx);
+#		print "\n";
+#	}
+#}
+
+
+my @RESULT_DATA=();
+foreach my $view (@$response) {
+
+#print Dumper($response);
+
+	# Se obtienen las metricas de cada vista
+	#----------------------------------------------------------------------------------------
+	#https://192.168.57.10/onm/api/1.0/views/1/metrics.json
+	$class='views/'.$view->{'id'};
+	$endpoint='metrics.json';
+	my $response_metrics = $api->ws_get($class,$endpoint);
+
+#print Dumper($response_metrics);
+	if ($VERBOSE) { print "\nVISTA ($view->{'id'}) $view->{'name'}\n"; print '-'x60,"\n"; }
+
+	foreach my $m (@$response_metrics) {
+		my $id = $m->{'metricid'};
+
+#print Dumper($m);
+		if ($VERBOSE) { print "  METRICA $m->{'metricname'} ($LAPSE)\n"; }
+
+		$class='metrics';
+		my $items = [];
+
+		# Se obtienen los datos de cada  metrica
+		#-------------------------------------------------------------------------------------
+		$endpoint='data/'.$id.'.json?lapse='.$LAPSE;
+#print "***endpoint=$endpoint---\n";
+
+		my $response_data = $api->ws_get($class,$endpoint,{});
+#print Dumper($response_data);
+
+		#$items=$response_data->{$id}->{'label'};
+		$items=$response_data->{'flot'}->{'label'};
+		my $nitems=scalar(@$items);
+		#foreach my $hv (@{$response_data->{$id}->{'data'}}) {
+		data_processor($m,$response_data->{'flot'}->{'data'},\@RESULT_DATA);
+
+#		my $ofields = join(',',@fields);
+#		print 'Time,'.$ofields.','.join(',',@$items)."\n";
+#		foreach my $h (@RESULT_DATA) {
+#			print $h->{'t'}.','.$h->{'fields'}.','.$h->{'metricid'}.','.$h->{'vx'}."\n";
+#		}
+
+	}
+}
+
+#print Dumper(\@RESULT_DATA);
+
+my $file_csv = '/tmp/capacity-data.csv';
+
+if (defined $OPTS{'csv'}) {
+	print "Creating file $file_csv ...\n";
+
+	open (F,">$file_csv");
+	print F "Date,Name,IP,MetricName,Value\n";
+	foreach my $h (@RESULT_DATA) {
+	
+   	#push @{$result}, {'date'=>$day, 'full_name'=>$full_name, 'deviceip'=>$m->{'deviceip'}, 'metricname'=>$m->{'metricname'}, 'v'=>$vday };
+   	#print "$day, $full_name, $m->{'deviceip'}, $m->{'metricname'}, $vday\n";
+
+		print F join(',', $h->{'date'}, $h->{'full_name'}, $h->{'deviceip'}, $h->{'metricname'}, $h->{'v'})."\n";
+	}
+	close F;
+}
+
+if (defined $OPTS{'db'}) {
+	my $n = scalar (@RESULT_DATA); 
+   print "Storing capacity data in DDBB ($n items) ...\n";
+
+	my $dbox = DataBox::DB->new();
+	$dbox->store_capacity_data(\@RESULT_DATA);
+}
+
+
+#--------------------------------------------------------------------
+# data_processor
+#--------------------------------------------------------------------
+# Procesa los datos de una metrica
+# Consolida por tiempo --> Resultado por dia
+# Consolida por valor --> 	Usando fx normalizadora
+# IN:
+# $m 		-> Metadatos de la metrica
+# $data  -> Datos de la metrica (data serie)
+# $result-> Resultados
+#--------------------------------------------------------------------
+sub data_processor {
+my ($m,$data,$result) = @_;
+
+	my %RES=();
+
+	foreach my $x (@{$data}) {
+
+      #BUG cnm-api
+      #my $tok = ($x->{'t'}) * 10;
+      my $dt = $api->time2date($x->{'t'});
+
+		if ($x->{'v'}->[0] =~ /nan/) {  next; }
+		if ($x->{'v'}->[0] !~ /\d+/) {  next; }
+
+
+		my $subtype = $m->{'metricsubtype'};
+		if (! exists $CapacityMetrics::Functions{$subtype}) { 
+			$subtype = 'default'; 
+		}
+		my $v = &{$CapacityMetrics::Functions{$subtype}}($x->{'v'},$m);
+
+      # $m->{'metricsubtype'}
+      # Para disk_mibhost
+      # Disco Total (1)|Disco Usado (1)
+      # En % seria
+      #my $v = ($x->{'v'}->[1]/$x->{'v'}->[0])*100;
+      # En valor absoluto seria
+      #my $v = $x->{'v'}->[1];
+
+
+
+
+
+		#2017/09/25 23:05:00
+		my ($day,$hour)=split(/\s+/,$dt);
+		if (!exists $RES{$day}->{'v'}) { 
+			$RES{$day}->{'v'}=$v;
+			$RES{$day}->{'cnt'}=1;
+		}
+		else {
+			$RES{$day}->{'v'}+=$v;
+			$RES{$day}->{'cnt'}+=1;
+		}
+
+		#print "$dt----@{$x->{'v'}}---\n";
+	}
+
+	foreach my $day (sort keys (%RES)) {
+#print "cnt=$RES{$day}->{'cnt'}\n";
+
+		my $vday=$RES{$day}->{'v'}/$RES{$day}->{'cnt'};
+		if ($VERBOSE) { print "    day=$day [ $RES{$day}->{'cnt'} ] VAL=$vday\n"; }		
+		my $full_name = $m->{'devicename'};
+		if ($m->{'devicedomain'} =~ /\w+/) { $full_name .= '.'.$m->{'devicedomain'}; }
+
+		push @{$result}, {'date'=>$day, 'full_name'=>$full_name, 'deviceip'=>$m->{'deviceip'}, 'metricname'=>$m->{'metricmname'}, 'label'=>$m->{'metricname'}, 'idm'=>$m->{'metricid'}, 'subtype'=>$m->{'metricsubtype'}, 'v'=>$vday };
+	}
+}	
+
+
+#$VAR1 = {
+#          'devicedomain' => 'localdomain',
+#          'metricmname' => 'disk_mibhost-31',
+#          'metricitems' => 'Disco Total (31)|Disco Usado (31)',
+#          'monitorsevyellow' => '',
+#          'viewid' => '1',
+#          'deviceip' => '192.168.57.10',
+#          'deviceid' => '1',
+#          'metricsubtype' => 'disk_mibhost',
+#          'monitorsevred' => '',
+#          'devicetype' => 'Appliance',
+#          'metricname' => 'USO DE DISCO / (cnm-deb8.localdomain)',
+#          'viewtype' => 'Infraestructura',
+#          'metrictype' => 'snmp',
+#          'metricstatus' => '0',
+#          'monitorid' => '',
+#          'monitorname' => '',
+#          'metricid' => '20',
+#          'monitorsevorange' => '',
+#          'viewname' => 'Almacenamiento Servidores Criticos',
+#          'devicestatus' => '0',
+#          'devicename' => 'cnm-deb8'
+#        };
+#
+#
+
+#$VAR1 = {
+#          '467' => {
+#                     'label' => [
+#                                  'onLoad Time',
+#                                  'onContentLoad Time'
+#                                ],
+#                     'data' => [
+#                                 {
+#                                   't' => '1476828000',
+#                                   'v' => [
+#                                            '2.8521666667e+00',
+#                                            '0.0000000000e+00'
+#                                          ]
+#                                 },
+#                                 {
+#                                   't' => '1476829800',
+#                                   'v' => [
+#                                            '3.1118333333e+00',
+#                                            '0.0000000000e+00'
+#                                          ]
+#                                 },
+
+##'rc' => 0,
+##'id' => '2',
+##'rcstr' => ''
+#if ($response->{'rc'}!=0) {
+#	print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
+#	exit $response->{'rc'};
+#}
+#
+#if ($prov_metrics) {
+#	my $id_dev=$response->{'id'};
+##	`/opt/crawler/bin/prov_device_app_metrics  -c $cid  -i $id_dev`;
+#	`/opt/crawler/bin/plite -c $cid -r $id_dev -t 1`;
+##}
+
+
