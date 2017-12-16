@@ -62,7 +62,7 @@
 
 - name: Start MySQL service
   sudo: yes
-  service: name=mysql state=started enabled=true
+  service: name=mysql state=restarted enabled=true
   tags: mysql
 
 - name: Se actualiza la clave de root para todas las cuentas
