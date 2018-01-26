@@ -16,7 +16,7 @@
 // Para obtener un dispositivo:
 // curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api.0/tickets/2.json"
 // ------------------------------------------------------------------------------
-function api_get_tickets($id) {
+function api_get_tickets($id=0) {
 
 
    $extra_params = array();
