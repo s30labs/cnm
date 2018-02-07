@@ -30,11 +30,13 @@ my $USAGE = <<USAGE;
 CNM Installer $VERSION (c) s30labs
 
 $fpth[$#fpth] 
+$fpth[$#fpth] -i [-z /dev/sda6]
 $fpth[$#fpth] [-z /dev/sda6]
 $fpth[$#fpth] [-m master] [-r rev_number]
 $fpth[$#fpth] -s
 $fpth[$#fpth] -h
 
+-i : Solo drbd
 -s : Sin drbd
 -z : Especifica dispositivo para drbd [default /dev/sda6]
 -m : Modo (branch)
@@ -44,7 +46,7 @@ USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hsm:z:r:",\%opts);
+getopts("hism:z:r:",\%opts);
 if ($opts{h}) { die $USAGE;}
 my $DRBD_PARTITION='/dev/sda6';
 if ($opts{z}) { $DRBD_PARTITION=$opts{z}; }
@@ -70,6 +72,15 @@ if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /8\.\d
 }
 
 #-------------------------------------------------------------------------------------------
+# Caso especial en que solo se instala drbd
+#-------------------------------------------------------------------------------------------
+if ($opts{i}) {
+   print "Se instala DRBD sobre $DRBD_PARTITION\n";
+   install_default_drbd();
+	exit;
+}
+
+#-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
 #-------------------------------------------------------------------------------------------
@@ -80,16 +91,7 @@ if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /8\.\d
 `apt-get install -y --force-yes drbd8-utils`;
 
 #-------------------------------------------------------------------------------------------
-# 01. Si existe cnm-extras.tar.gz lo descomrime en /opt/
-#-------------------------------------------------------------------------------------------
-my $file_extras='cnm-extras.tar.gz';
-if (-f  $file_extras) {
-	print "Preparing /opt/cnm-extras ...\n";
-	`tar -C /opt -xzvf $file_extras`;
-}
-
-#-------------------------------------------------------------------------------------------
-# 02. Git config
+# 01. Git config
 #-------------------------------------------------------------------------------------------
 print "-" x70 ."\n";
 print "cnm-core ($$)\n";
@@ -101,7 +103,7 @@ system ("$GIT config --global core.editor vim");
 system ("$GIT config --global push.default simple"); #No sube los branches (si no hay que poner matching).
 
 #-----------------------------------------------------
-# 03. Clone/checkout repos: cnm, cnm-os, cnm-mibs, cnm-lang, cnm-sp
+# 02. Clone/checkout repos: cnm, cnm-os, cnm-mibs, cnm-lang, cnm-sp
 #-----------------------------------------------------
 #-----------------------------------------------------
 my @features = (
@@ -118,7 +120,7 @@ foreach my $feat (@features) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 04. Se crea /cfg/cnm_vars.yml si  no existe
+# 03. Se crea /cfg/cnm_vars.yml si no existe
 #-------------------------------------------------------------------------------------------
 my $CNM_CFG_DIR='/cfg';
 my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
@@ -142,7 +144,7 @@ if (! -f $CNM_VARS_FILE) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 05. Se crea /cfg/ansible.hosts
+# 04. Se crea /cfg/ansible.hosts si no existe
 #-------------------------------------------------------------------------------------------
 my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
 
@@ -157,7 +159,15 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 # 06. Se configura DRBD (salvo que se especifique -s
 #-------------------------------------------------------------------------------------------
 if ($opts{s}) {
-	print "Sin drbd ...\n" 
+	print "Se va a instalar sin drbd ...\n"; 
+}
+elsif (-f '/etc/drbd.d/store.res') {
+	print "\n***EXISTE /etc/drbd.d/store.res***\n\n";
+	print "Para instalar solo drbd -> $fpth[$#fpth] -i [-z /dev/sda6]\n\n";
+	print "Para instalar lo que falta (paquetes Debian y modulos perl), ejecutar:\n";
+	print "cd /opt/cnm/os/debian8\n";
+	print "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log\n";
+	exit;
 }
 else {
 	print "Se instala DRBD sobre $DRBD_PARTITION\n";	

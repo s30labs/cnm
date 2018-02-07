@@ -31,6 +31,7 @@
 - name: Set store.res file
   template: src=store.res.j2 dest=/etc/drbd.d/store.res
   when: hostname is defined and store_res.stat.exists is defined and store_res.stat.exists==1
+  tags: host-name
 
 #domain {{ domain }}
 #nameserver {{ dns }}
