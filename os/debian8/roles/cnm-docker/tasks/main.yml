@@ -1,0 +1,44 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Se asigna repositorio
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: cnm-docker
+
+- name: Install packages
+  apt: name={{item}} state=installed force=yes
+  with_items:
+   - apt-transport-https
+   - ca-certificates
+   - curl
+   - gnupg2
+   - software-properties-common
+   - curl
+  tags: cnm-docker
+
+- name: Install docker apt key
+  shell: curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo apt-key add -
+  tags: cnm-docker
+
+#Verify with:
+#sudo apt-key fingerprint 0EBFCD88
+
+#- name: Add docker repository
+#  command: sudo add-apt-repository \
+#   "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+#   $(lsb_release -cs) \
+#   stable"
+#  tags: cnm-docker
+#
+#deb [arch=amd64] https://download.docker.com/linux/debian jessie stable
+
+- name: Se asigna repositorio
+  apt_repository: repo="deb https://download.docker.com/linux/debian jessie stable" state=present
+  tags: cnm-docker
+
+- name: Install docker package
+  apt: name=docker-ce=17.12.0~ce-0~debian state=installed force=yes
+  tags: cnm-docker
+
+...

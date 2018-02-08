@@ -1,0 +1,9 @@
+---
+# This playbook configure the local resolver
+- name: CNM Docker support for monitoring containers
+  hosts: all
+  remote_user: root
+
+  roles:
+    - cnm-docker 
+
