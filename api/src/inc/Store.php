@@ -7195,16 +7195,25 @@ function cond2query($k_cond,$v_cond,$a_table_descr=array()){
       }
       // El campo esta definido como una cadena
       else{
-         /*
-          * Tenemos en cuenta:
-          * !   : NOT LIKE %%
-          * =   : EQUAL
-          * 
-         */
-         if(strpos($v_cond,'=')!==false)     $cond = " AND $k_cond LIKE '".str_replace('=','',$v_cond)."' ";
-         elseif(strpos($v_cond,'!')!==false) $cond = " AND $k_cond NOT LIKE '%".str_replace('!','',$v_cond)."%' ";
-         else                                $cond = " AND $k_cond LIKE '%$v_cond%' ";
-      }
+
+         // El campo es un array de strings
+         if(is_array($v_cond)) {
+            $v_cond_quoted=Array();
+            foreach ($v_cond as $v) { array_push($v_cond_quoted,"'$v'"); }
+            $cond = " AND $k_cond IN (".implode(',',$v_cond_quoted). ") ";
+         }
+         else {
+	         /*
+   	       * Tenemos en cuenta:
+      	    * !   : NOT LIKE %%
+         	 * =   : EQUAL
+	          * 
+   	      */
+      	   if(strpos($v_cond,'=')!==false)     $cond = " AND $k_cond LIKE '".str_replace('=','',$v_cond)."' ";
+         	elseif(strpos($v_cond,'!')!==false) $cond = " AND $k_cond NOT LIKE '%".str_replace('!','',$v_cond)."%' ";
+         	else                                $cond = " AND $k_cond LIKE '%$v_cond%' ";
+      	}
+		}
    }
    // En caso de no estar ese campo en $a_table_descr
    else{

@@ -69,7 +69,8 @@ foreach my $feat (@features) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 02. Se crea /cfg/cnm_vars.yml si  no existe
+# 02. Se crea /cfg/cnm_vars.yml si no existe. 
+#     Necesario al actualizar un sistema previo (instalado con cnm-install)
 #-------------------------------------------------------------------------------------------
 my $CNM_CFG_DIR='/cfg';
 my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
@@ -92,8 +93,8 @@ if (! -f $CNM_VARS_FILE) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 03. Al actualizar un sistema previo (cnm-install), sSe crea /cfg/ansible.hosts si no existe 
-#     En una nueva instalacion no se crea.
+# 03. Se crea /cfg/ansible.hosts si no existe.
+#     Necesario al actualizar un sistema previo (instalado con cnm-install)
 #-------------------------------------------------------------------------------------------
 my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
 
@@ -104,7 +105,7 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 }
 
 #-------------------------------------------------------------------------------------------
-# 04. Se crea /root/.my.cnf si  no existe
+# 04. Se crea /root/.my.cnf si  no existe. 
 #-------------------------------------------------------------------------------------------
 if ($opts{u}) {
 	my $CNM_INSTALL_MY_FILE='/root/.my.cnf';
@@ -124,7 +125,6 @@ CNMMYDATA
 #-------------------------------------------------------------------------------------------
 # 05. Se instala/actualiza cnm-core
 #-------------------------------------------------------------------------------------------
-
 my %cfg_vars=();
 $cfg_vars{'db_root_password'} = $DB_ROOT_PWD;
 
@@ -139,15 +139,11 @@ if (scalar(keys %cfg_vars)>0) {
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian8');
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts $extra_vars cnm.yml > /tmp/cnm-install-core.log";
-print "CMD >> $cmd ...\n";
+print "$cmd\n\n";
 print "Check progress with tail -f /tmp/cnm-install-core.log\n";
 `$cmd`;
 chdir($cwd);
  
-#print "Ejecutar:\ncd /opt/cnm/os/debian8\n";
-#print 'ansible-playbook -c local -i /cfg/ansible.hosts --extra-vars "db_root_password=$DB_ROOT_PWD" cnm.yml | tee /tmp/cnm-install-core.log'."\n";
-
-
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 sub get_feature {

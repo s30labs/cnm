@@ -568,7 +568,6 @@ sub prepare_ansible {
 
 	my $DRBD_PARTITION='/dev/sda6';
 	my $CNM_CFG_DIR='/cfg';
-	my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
 	my $CNM_VARS = <<"CNMVARS";
 ---
 # Variables de CNM
@@ -580,13 +579,15 @@ key: gpl
 
 CNMVARS
 
-
+	# Solo se crea si no existe
+	my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
 	if (! -f $CNM_VARS_FILE) {
   		open (F,">$CNM_VARS_FILE");
   		print F $CNM_VARS;
   		close F;
 	}
 
+	# Solo se crea si no existe
 	my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
 	if (! -f $ANSIBLE_HOSTS_FILE) {
   		open (F,">$ANSIBLE_HOSTS_FILE");

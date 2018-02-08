@@ -1,6 +1,6 @@
 resource store {
   device    /dev/drbd1;
-  disk      /dev/sda6;
+  disk      {{ drbd_partition }};
   meta-disk internal;
 
   on {{ hostname }} {
