@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #---------------------------------------------------------------------------
-use lib '/opt/cnm-designer';
-use lib '/opt/cnm-designer/proxy-pkgs';
+use lib '/opt/cnm/designer';
+use lib '/opt/cnm/designer/proxy-pkgs';
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -9,7 +9,7 @@ use Digest::MD5 qw(md5_hex);
 use Getopt::Std;
 
 #---------------------------------------------------------------------------
-my $DIR_BASE = '/opt/cnm-designer';
+my $DIR_BASE = '/opt/cnm/designer';
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
 my %opts=();
@@ -20,9 +20,9 @@ if ($opts{h}) {
 }
 
 #---------------------------------------------------------------------------
-my $SCRIPT_SRC_PATH = $DIR_BASE.'/xagent/base';
+#my $SCRIPT_SRC_PATH = $DIR_BASE.'/xagent/base';
+#my $SCRIPT_DST_PATH='xagent/base';
 
-my $SCRIPT_DST_PATH='xagent/base';
 my $MODULES_DIR = $DIR_BASE.'/proxy-pkgs';
 my $SCRIPT_SRC_PATH=$DIR_BASE.'/xagent/base';
 my $SCRIPT_DST_PATH='xagent/base';
@@ -119,11 +119,12 @@ my %ATTR = eval '%'.$MODULE.'::ATTR';
 my @METRICS = eval '@'.$MODULE.'::METRICS';
 my @APPS = eval '@'.$MODULE.'::APPS';
 
-my ($TOTAL_METRICS, $TOTAL_APPS, $TOTAL_MONITORS)=(0,0,0);
+my ($TOTAL_SCRIPTS, $TOTAL_METRICS, $TOTAL_APPS, $TOTAL_MONITORS)=(0,0,0,0);
 
 #---------------------------------------------------------------------------
 print "CFG=$CFG\n";
 print "SCRIPT_NAME=$SCRIPT_NAME\n";
+if ((ref(\%SCRIPT) eq "HASH") && (exists $SCRIPT{'__SCRIPT__'})) { $TOTAL_SCRIPTS=1; }
 
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
@@ -421,7 +422,7 @@ else {
 }
 
 #---------------------------------------------------------------------------
-print "***TOTAL**** METRICAS=$TOTAL_METRICS | MONITORES=$TOTAL_MONITORS\n";
+print "***TOTAL**** SCRIPTS=$TOTAL_SCRIPTS METRICAS=$TOTAL_METRICS | MONITORES=$TOTAL_MONITORS\n";
 
 
 }
