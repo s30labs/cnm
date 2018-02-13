@@ -48,8 +48,8 @@ $linux_metric_db_mssqlCmd::SCRIPT_NAME = 'linux_metric_db_mssqlCmd.pl';
 
 		'p01' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '2', '__PARAM_PREFIX__' => '-host', '__PARAM_DESCR__' => 'IP', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-port', '__PARAM_DESCR__' => 'Puerto', '__PARAM_VALUE__' => '1433', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
-		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-user', '__PARAM_DESCR__' => 'Usuario', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
-		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pwd', '__PARAM_DESCR__' => 'Clave', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
+		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-user', '__PARAM_DESCR__' => 'Usuario', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
+		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-pwd', '__PARAM_DESCR__' => 'Clave', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-sqlcmd', '__PARAM_DESCR__' => 'Comando SQL', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-tag', '__PARAM_DESCR__' => 'Tag', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-label', '__PARAM_DESCR__' => 'Metrica', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
@@ -63,7 +63,7 @@ $linux_metric_db_mssqlCmd::SCRIPT_NAME = 'linux_metric_db_mssqlCmd.pl';
 
 The parameters are:
 
- linux_metric_db_mssqlCmd.pl -host 1.1.1.1 -db MYDATABASE -user user1 -pwd mysecret -sqlcmd "SET NOCOUNT ON;SELECT COUNT(xx) AS \'001\' FROM ttt FOR JSON AUTO" [-port 1433] [-tag 001] [-label "Number of users"]
+ linux_metric_db_mssqlCmd.pl -host 1.1.1.1 -db MYDATABASE -user user1 -pwd mysecret -sqlcmd "SET NOCOUNT ON;SELECT COUNT(xx) AS "001" FROM ttt FOR JSON AUTO" [-port 1433] [-tag 001] [-label "Number of users"]
  linux_metric_db_mssqlCmd.pl -h  : Help
 
  -host       : Database Server Host
