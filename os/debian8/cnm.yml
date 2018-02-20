@@ -26,6 +26,8 @@
     - cnm-runtime
     - otrs
 
+    - cnm-docker
+
     - cnm-sp
     - cnm-provision
 
