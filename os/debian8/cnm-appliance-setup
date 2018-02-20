@@ -126,12 +126,13 @@ my $CNM_CFG_DIR='/cfg';
 my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
 my $CNM_VARS = <<"CNMVARS";
 ---
-# Variables de CNM
+# CNM Global Vars
 
-cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
-ntpserver: pool.ntp.org
-drbd_partition: $DRBD_PARTITION
 key: gpl
+cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+drbd_partition: $DRBD_PARTITION
+ntpserver: pool.ntp.org
+mtu: 1450
 
 CNMVARS
 
