@@ -1216,6 +1216,49 @@ my ($self,$level,$file)=@_;
 
 }
 
+=item B<$script-E<gt>endpoint()>
+
+ Permite hacer peticiones a un API REST usando curl.
+=cut
+
+#-----------------------------------------------------------------------------------
+sub endpoint {
+my ($self,$data) = @_;
+
+	my $url =  $data->{'url'};
+	my $request = $data->{'request'};
+	my $headers = $data->{'headers'};
+	my $params = $data->{'params'};
+
+
+   my $cmd_base = 'curl -s -X GET ';
+	if ($request =~/post/i) { $cmd_base = 'curl -s -X POST '; }
+
+   my $headers_str = '';
+   foreach my $k (sort keys %$headers) {
+      my $x = '-H "'.$k.': '.$headers->{$k}.'" ';
+      $headers_str .=  $x;
+   }
+
+   my $params_str = '';
+   if (scalar keys %$params > 0) {
+      $params_str = ' -d ';
+      $params_str .= "'".encode_json($params)."'";
+   }
+
+   my $cmd = $cmd_base.$headers_str.' '.$params_str.' '.$url;
+
+	$self->log('info',"endpoint:: $cmd");
+
+   my $response = `$cmd`;
+   return $response;
+
+}
+
+
+
+
+
 #----------------------------------------------------------------------------
 # UTILIDADES
 #----------------------------------------------------------------------------
