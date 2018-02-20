@@ -137,6 +137,16 @@ system("/usr/bin/touch $Crawler::Actions::ROTATE_FILE");
 system("/etc/init.d/snmpd restart");
 
 #-------------------------------------------------------------------------------------------
+# Se limpian ejecutables temporales en /tmp
+my $temp_dir = '/tmp';
+if (opendir (DIR, $temp_dir)) {
+   my @files = grep {/\S+?\-\w{32}/} readdir (DIR);
+   foreach my $f (@files) {
+      if (-X "$temp_dir/$f") { unlink "$temp_dir/$f"; }	
+   }
+}
+
+#-------------------------------------------------------------------------------------------
 # Se eliminan los mensajes frozen en exim
 # Chequear:  	exim -bp | grep frozen | wc -l
 # Eliminar:		exim -bpru | grep frozen | awk '{print $3}' |xargs exim -Mrm
