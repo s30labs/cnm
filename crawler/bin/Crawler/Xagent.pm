@@ -1493,7 +1493,7 @@ sub _params_ok  {
 my ($self,$params)=@_;
 
 	my $ok=1;
-	my @all_tags = ( '\$sec.ssh.user', '\$sec.ssh.pwd', '\$sec.telnet.user', '\$sec.telnet.pwd', '\$sec.wmi.user', '\$sec.wmi.pwd', '\$sec.cifs.user', '\$sec.cifs.pwd', '\$sec.vmware.user', '\$sec.vmware.pwd', '\$sec.http.user', '\$sec.http.pwd', '\$sec.https.user', '\$sec.https.pwd', '\$sec.api.user', '\$sec.api.pwd', '\$sec.webmon.user', '\$sec.webmon.pwd', '\$sec.ipmi.user', '\$sec.ipmi.pwd', '\$sec.mssql.user', '\$sec.mssql.pwd');
+	my @all_tags = ( '\$sec.ssh.user', '\$sec.ssh.pwd', '\$sec.telnet.user', '\$sec.telnet.pwd', '\$sec.wmi.user', '\$sec.wmi.pwd', '\$sec.cifs.user', '\$sec.cifs.pwd', '\$sec.vmware.user', '\$sec.vmware.pwd', '\$sec.http.user', '\$sec.http.pwd', '\$sec.https.user', '\$sec.https.pwd', '\$sec.api.user', '\$sec.api.pwd', '\$sec.webmon.user', '\$sec.webmon.pwd', '\$sec.ipmi.user', '\$sec.ipmi.pwd', '\$sec.mssql.user', '\$sec.mssql.pwd', '\$sec.ldap.user', '\$sec.ldap.pwd', '\$sec.app1.user', '\$sec.app1.pwd', '\$sec.app2.user', '\$sec.app2.pwd', '\$sec.app3.user', '\$sec.app3.pwd', '\$sec.app4.user', '\$sec.app4.pwd', '\$sec.app5.user', '\$sec.app5.pwd' );
 
 	foreach my $tag (@all_tags) {
 #print "tag=$tag params=$params\n";

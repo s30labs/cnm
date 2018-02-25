@@ -1066,7 +1066,7 @@ mysql> select * from credentials;
 2 rows in set (0.00 sec)
 */
 			'all_credentials'=> "SELECT id_credential,pwd,descr,type,user,port,name,scheme,passphrase,key_file FROM credentials",
-			'all_credentials_real'=> "SELECT id_credential,pwd,descr,type,user,port,name FROM credentials where type IN ('ssh','telnet','wmi','cifs','vmware','syslog-local2','syslog-local3','syslog-local4','syslog-filters','ipmi','api','mssql')",
+			'all_credentials_real'=> "SELECT id_credential,pwd,descr,type,user,port,name FROM credentials where type IN ('ssh','telnet','wmi','cifs','vmware','syslog-local2','syslog-local3','syslog-local4','syslog-filters','ipmi','api','mssql','ldap','app1','app2','app3','app4','app5')",
 			'all_credentials_webservice'=> "SELECT id_credential,pwd,descr,type,user,port,name FROM credentials where type IN ('http','https')",
 			'get_credentials_by_id'=> "SELECT id_credential,pwd,descr,type,user,port,name FROM credentials WHERE id_credential IN (__ID_CREDENTIAL__)",
 			'update_credential_no_passwd'=>"UPDATE credentials SET name='__NAME__',type='__TYPE__',user='__USER__',port='__PORT__',scheme='__SCHEME__',passphrase='__PASSPHRASE__',key_file='__KEY_FILE__' WHERE id_credential=__ID_CREDENTIAL__",
