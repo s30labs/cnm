@@ -1358,114 +1358,6 @@ my  $self = shift;
 }
 
 
-
-#----------------------------------------------------------------------------
-# run_old
-#----------------------------------------------------------------------------
-sub run_old {
-my ($self) = @_;
-my $pid;
-
-   my $store=$self->create_store();
-   my $dbh=$store->open_db();
-	$self->dbh($dbh);
-	my $range=$self->range();
-   my $spath=$self->store_path();
-   my $dpath=$self->data_path();
-
-	my $cfg=$self->cfg();
-	my $mode_db=$cfg->{'mode_db'}->[0] || 0;
-	my $mode_rrd=$cfg->{'mode_rrd'}->[0] || 1;
-
-#	my $tdisp = new TDispatch();
-#	$self->tdisp($tdisp);
-
-	my $rv=$store->get_crawler_task_descriptor($dbh,$range);
-
-   if (!defined $rv) {
-      $self->log('warning',"run::[WARN] NO registrados crawlers. Ejecutar crawler -i");
-      return;
-   }
-
-   my $c=scalar @$rv;
-   if (! $c) {
-      $self->log('warning',"run::[WARN] No hay descriptor de tarea para range=$range");
-      return;
-   }
-
-	# Si no se ha definido un rango hay que arrancar todos los procesos
-   # Por eso, lo primero que hago es eliminar los ficheros .pid
-   if (! $range) {
-      while (</var/run/crawler*.pid>) { unlink $_; }
-   }
-
-   foreach my $l (@$rv) {
-      my $range=$l->[0];
-      my $lapse=$l->[1];
-      my $type=$l->[2];
-
-      if ( (! $type) || (! $range) || (! $lapse)) {
-			$self->log('warning',"run::[WARN] NO definido tipo|rango|lapse");
-			next;
-		}
-
-		$pid=$self->procreate($type,$range,$lapse);
-			
-		if ($pid == 0) {
-  			$self->start_flag(1);
-
-			# Secuenciamiento de crawlers. Para mejorar I/O
-			#my $delay_base = ($lapse==60) ? 12 : 60;
-			#my $delay = ($range % 5)*$delay_base;
-     		#$self->log('info',"pre_run:: crawler $range [type=$type|lapse=$lapse] delay=$delay ($dpath)");
-			#sleep $delay;
-     		$self->log('info',"run:: crawler $range [type=$type|lapse=$lapse] ($dpath)");
-
-			my $log_level=$self->log_level();
-			$store->update_metrics($dbh, {crawler_idx=>$range, crawler_pid=>$$} );
-
-			if ($type eq 'snmp') {			
-				my $snmp=Crawler::SNMP->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert'=>1} );
-
-				$snmp->do_task($lapse,$range);
-				#my $mth_snmp = (exists $cfg->{'mth_snmp'}->[0]) ? $cfg->{'mth_snmp'}->[0] : 0;
-				#$self->log('info',"run:: crawler $range [type=$type|lapse=$lapse] MTH_SNMP=$mth_snmp");
-				#if ($mth_snmp) { $snmp->do_task_mth($lapse,$range);	}
-				#else {  $snmp->do_task($lapse,$range); }
-			}
-
-			elsif ($type eq 'latency') {
-		      my $latency=Crawler::Latency->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert'=>1} );
-
-				$latency->do_task($lapse,$range);
-
-				#my $mth_latency = (exists  $cfg->{'mth_latency'}->[0]) ? $cfg->{'mth_latency'}->[0] : 0;
-				#$self->log('info',"run:: crawler $range [type=$type|lapse=$lapse] MTH_LATENCY=$mth_latency");
-            #if ($mth_latency) {$latency->do_task_mth($lapse,$range); }
-            #else { $latency->do_task($lapse,$range); }
-
-			}
-         elsif ($type eq 'xagent') {
-            my $xagent=Crawler::Xagent->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert'=>1} );
-
-				$xagent->do_task($lapse,$range);
-
-				#my $mth_xagent = (exists $cfg->{'mth_xagent'}->[0]) ? $cfg->{'mth_xagent'}->[0] : 0;
-				#$self->log('info',"run:: crawler $range [type=$type|lapse=$lapse] MTH_XAGENT=$mth_xagent");
-            #if ($mth_xagent) {$xagent->do_task_mth($lapse,$range); }
-            #else { $xagent->do_task($lapse,$range); }
-         }
-         elsif ($type eq 'wbem') {
-            my $wbem=Crawler::Wbem->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert'=>1} );
-            $wbem->do_task($lapse,$range);
-         }
-			else { $self->log('warning',"run::[WARN] Tipo=$type desconocido"); }
-		}
-		sleep 3;
-	}
-}
-
-
 #----------------------------------------------------------------------------
 # run
 #----------------------------------------------------------------------------
@@ -3352,6 +3244,45 @@ my ($self)=@_;
       }
    }
    return $pwd;
+}
+
+#----------------------------------------------------------------------------
+# get_json_config
+# Obtiene un hash con los datos de configuracion definidos en fichero json.
+# Dos modos de funcionamiento según el parametro sea un fichero o un directorio
+# a. Si es un fichero decodifica el json y devuelve la estructura que tenga
+# b. Si es un directorio, recorre el directorio y devuelve un array de estructuras
+# Se recomienda que cada fichero sea un hash y se eviten estructuras complejas
+# salvo casos especiales.
+#----------------------------------------------------------------------------
+sub get_json_config {
+my ($self, $path)=@_;
+
+	my $cfg={};
+   my @cfg_vector=();
+   if (-d $path) {
+      opendir (DIR,$path);
+      my @cfg_files = readdir(DIR);
+      closedir(DIR);
+      foreach my $file (sort @cfg_files) {
+         if (($file eq '.') || ($file eq '..')) { next; }
+         my $data = $self->slurp_file("$path/$file");
+         eval {
+            $cfg=decode_json($data);
+         };
+         if ($@) { $self->log('warning',"get_json_config::**ERROR JSON** En $path/$file ($@)"); }
+			else { push @cfg_vector, $cfg; }
+      }
+		return \@cfg_vector;
+   }
+	elsif (-f $path) {
+      my $data = $self->slurp_file($path);
+      eval {
+         $cfg=decode_json($data);
+      };
+      if ($@) { $self->log('warning',"get_json_config::**ERROR JSON** En $path ($@)"); }
+	}
+	return [$cfg];
 }
 
 #----------------------------------------------------------------------------
