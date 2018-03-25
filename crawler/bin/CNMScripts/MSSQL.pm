@@ -25,7 +25,7 @@ my ($class,%arg) =@_;
 
 
    my $self=$class->SUPER::new(%arg);
-   $self->{_cmd} = $arg{cmd} || "docker run microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S ";
+   $self->{_cmd} = $arg{cmd} || "docker run --rm microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S ";
    $self->{_host} = $arg{host} || '';
    $self->{_port} = $arg{port} || '1433';
    $self->{_user} = $arg{user} || '';
