@@ -284,7 +284,7 @@ my ($desc,$monitor,$results)=@_;
 #-----------------------------------------------------------------------------------
 sub mon_http {
 my $desc=shift;
-my $TIMEOUT=30;
+my $TIMEOUT=3;
 my $t=time;
 my $t0 = [gettimeofday];
 my $elapsed=0;
@@ -295,9 +295,8 @@ my @R=();
 	$Monitor::RC='';
 	$Monitor::RCSTR='';
 
-#   use Crawler;
-#   #my $LOG=Crawler->new( name=>"", lapse=>300, range=>0, log_level=>'debug', mode_flag=>{rrd=>0, alert=>0} );
-#   my $LOG=Crawler->new( log_level=>'debug' );
+   use Crawler;
+   my $LOG=Crawler->new( log_level=>'debug' );
 
    _validate_http_params($desc,'mon_http',\@R);
    if ($desc->{'rc'} eq 'U') { return \@R; }
@@ -309,6 +308,7 @@ my @R=();
    my $elapsed3 = sprintf("%.6f", $elapsed);
    $desc->{'elapsed'}=$elapsed3;
 
+#$LOG->log('debug',"mon_http:: **DEBUG** TIMEOUT=$TIMEOUT (1)");
 #print 'METHOD='.$desc->{url_type}.' | PORT='.$desc->{port}.' | PARAMS='.$desc->{params}.' | URL='.$url."\n";
    my $mech = WWW::Mechanize->new( autocheck => 1, ssl_opts => { verify_hostname => 0 }, timeout => $TIMEOUT, keep_alive=>1, agent => $Monitor::Agent, onerror => \&ferror );
 	#$mech->agent_alias($Monitor::Agent);
@@ -331,10 +331,24 @@ my @R=();
 		$mech->proxy( $desc->{scheme}, $desc->{proxy_url} ); 
 		#$mech->proxy( ['http', 'ftp'] => 'user:pwd@proxy.domain:port' );
 	}
+#$LOG->log('debug',"mon_http:: **DEBUG** TIMEOUT=$TIMEOUT (2)");
 
-   my $res=$mech->get( $url);
+	#my $res=$mech->get( $url);
+
+	my $res;
+	$SIG{ALRM} = sub { die "timeout" };
+	eval {
+		alarm($TIMEOUT);
+   	$res=$mech->get( $url);
+		alarm(0);
+   };
+
+   if ($@) { my $rcstr="[ERROR: Timeout]"; }
+
+
    $Monitor::PAGE=$res->decoded_content;
 	$Monitor::PAGE=~s/\r//g;
+#$LOG->log('debug',"mon_http:: **DEBUG** TIMEOUT=$TIMEOUT (3)");
 
 	#Obtiene codigo de retorno
    my $error=$mech->res->status_line;
@@ -363,6 +377,7 @@ my @R=();
    	my @links = $mech->links();
 		$desc->{'nlinks'}=scalar @links;
 	}
+#$LOG->log('debug',"mon_http:: **DEBUG** TIMEOUT=$TIMEOUT (4)");
 
    return \@R;
 }
@@ -464,7 +479,7 @@ my $desc=shift;
 #-----------------------------------------------------------------------------------
 sub mon_httplinks {
 my $desc=shift;
-my $TIMEOUT=10;
+my $TIMEOUT=3;
 my $t=time;
 my $t0 = [gettimeofday];
 my $elapsed=0;
@@ -527,7 +542,7 @@ my @R=();
 #-----------------------------------------------------------------------------------
 sub mon_httppage {
 my $desc=shift;
-my $TIMEOUT=10;
+my $TIMEOUT=3;
 my $t=time;
 my $t0 = [gettimeofday];
 my $elapsed=0;
@@ -1532,7 +1547,7 @@ my $msg='';
 
    use Crawler;
    my $LOG=Crawler->new( log_level=>'debug' );
-	$LOG->log('info',"crawler.5000 ***FML*** base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
+	$LOG->log('debug',"mon_ldap:: base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
 
 
 #print "($ip, port=> $port, timeout=>$TIMEOUT  )\n";
@@ -1613,7 +1628,7 @@ my $msg='';
 
    use Crawler;
    my $LOG=Crawler->new( log_level=>'debug' );
-   $LOG->log('info',"crawler.5000 ***FML*** base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
+   $LOG->log('debug',"mon_ldap_attr:: base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
 
 
 #print "($ip, port=> $port, timeout=>$TIMEOUT  )\n";
@@ -1712,7 +1727,7 @@ my $msg='';
 
    use Crawler;
    my $LOG=Crawler->new( log_level=>'debug' );
-   $LOG->log('info',"crawler.5000 ***FML*** base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
+   $LOG->log('debug',"mon_ldap_val:: base_dn=$base_dn   filter=$filter    user=$user    pwd=$pwd   version=$version    (ip=$ip port=$port)");
 
 
 #print "($ip, port=> $port, timeout=>$TIMEOUT  )\n";
