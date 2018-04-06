@@ -906,6 +906,23 @@ my ($self,$results,$params)=@_;
 		return;
 	}
 
+	elsif ($mode eq 'csv') {
+
+		#dumph2csv : hash->csv
+		print join (',', sort keys %{$results->[0]})."\n";
+		foreach my $h (@$results) {
+			my @line = ();
+			foreach my $k (sort keys %$h) {
+				my $val = $h->{$k};
+				if ($val=~/\s+/) { push @line, '"'.$h->{$k}.'"'; }
+				else { push @line, $h->{$k}; }
+			}
+			print join (',', @line)."\n";
+		}
+		return;
+
+	}
+
 	my $table_col_descriptor = $self->table_col_descriptor();
 	my %col_map=();
 	foreach my $h (@$table_col_descriptor) {
