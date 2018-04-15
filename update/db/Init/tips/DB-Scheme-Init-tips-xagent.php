@@ -240,7 +240,7 @@ Number of times TCP connections have made a direct transition from the LISTEN st
          'descr' => 'Mide: <strong>el tiempo de caducidad (en horas) de un certificado SSL</strong>'
       );
       $TIPS[]=array(
-         'id_ref' => 'xagt_004010',          'tip_type' => 'agent',
+         'id_ref' => 'xagt_004009',          'tip_type' => 'agent',
          'url' => '',      'date' => '',     'tip_class' => 1,
          'name' => 'Descripcion',
          'descr' => 'Se trata de una metrica compleja que implementa un <strong>bucle de correo con envio por protocolo SMTP y recepcion mediante POP3</strong>. Requiere lo siguiente:<br>1. Poder enviar correos por SMTP desde el servidor o relay de correo que se quiera validar.<br>2. Disponer de una cuenta de correo en internet donde se haya configurado un reenvio a la direccion interna.<br>3. Disponer de acceso al buzon de recepcion de estos correos en el servidor POP3'

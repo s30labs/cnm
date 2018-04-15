@@ -10,7 +10,7 @@
 	);
 
 	$CFG_MONITOR_AGENT[]=array(
-		'subtype' => 'xagt_004010',
+		'subtype' => 'xagt_004009',
 		'description' => 'EXTERNAL MAIL LOOP BY POP3',
 	);
 

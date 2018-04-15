@@ -10,7 +10,7 @@
 	);
 
 	$CFG_MONITOR_AGENT[]=array(
-		'subtype' => 'xagt_004010',
+		'subtype' => 'xagt_004009',
 		'description' => 'BUCLE DE CORREO EXTERNO POP3',
 	);
 

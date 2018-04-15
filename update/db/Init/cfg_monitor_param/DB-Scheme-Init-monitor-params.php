@@ -29,55 +29,55 @@
 //linux_metric_mail_loop.pl
 //[-mxhost;Host SMTP;]:[-to;Destinatario del correo;]:[-from;Origen del correo;]:[-pop3host;Host POP3;]:[-user;Usuario POP3;]:[-pwd;Clave POP3;]:[-n;Numero de correos a enviar;3]
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000010', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000010', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000011', 'type' => 'xagent', 'enable' => '1', 'value'=>'25',
+      'subtype' => 'xagt_004009', 'hparam' => '00000011', 'type' => 'xagent', 'enable' => '1', 'value'=>'25',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000012', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000012', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000013', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000013', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000014', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000014', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000015', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000015', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000016', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000016', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000017', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000017', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000018', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '00000018', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '00000019', 'type' => 'xagent', 'enable' => '1', 'value'=>'110',
+      'subtype' => 'xagt_004009', 'hparam' => '00000019', 'type' => 'xagent', 'enable' => '1', 'value'=>'110',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '0000001a', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '0000001a', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '0000001b', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
+      'subtype' => 'xagt_004009', 'hparam' => '0000001b', 'type' => 'xagent', 'enable' => '1', 'value'=>'',
       'script' => 'linux_metric_mail_loop.pl',
    );
    $CFG_MONITOR_PARAM[]=array(
-      'subtype' => 'xagt_004010', 'hparam' => '0000001c', 'type' => 'xagent', 'enable' => '1', 'value'=>'3',
+      'subtype' => 'xagt_004009', 'hparam' => '0000001c', 'type' => 'xagent', 'enable' => '1', 'value'=>'3',
       'script' => 'linux_metric_mail_loop.pl',
    );
 

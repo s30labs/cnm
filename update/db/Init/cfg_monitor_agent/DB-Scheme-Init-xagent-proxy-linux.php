@@ -47,7 +47,7 @@ RANGO: xagt_004000-xagt_004999
 */
 //linux_metric_mail_loop.pl
       $CFG_MONITOR_AGENT[]=array(
-            'subtype' => 'xagt_004010',   'class' => 'proxy-linux',  'description' => 'BUCLE DE CORREO EXTERNO POP3',
+            'subtype' => 'xagt_004009',   'class' => 'proxy-linux',  'description' => 'BUCLE DE CORREO EXTERNO POP3',
             'apptype' => 'IPSERV.POP3',  'itil_type' => '1',		'tag' => '001|002|003|004',   'esp'=>'o1|o2|o3|o4',	'iptab' => '0',
             'items' => 'Enviados|Recibidos|Ttx|Trx',        'vlabel' => 'num/segs',      'mode' => 'GAUGE',
             'mtype' => 'STD_AREA',        'top_value' => '1',     'module' => 'mod_xagent_get',    'nparams' => '7',
