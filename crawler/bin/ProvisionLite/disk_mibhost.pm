@@ -121,7 +121,7 @@ sub desc_disk_mibhost {
 my $desc=shift;
 
    $desc=~s/\s*Serial\s*Number\s*\w+//;
-   $desc=substr($desc,0,28);
+   $desc=substr($desc,0,80);
    return $desc;
 }
 
