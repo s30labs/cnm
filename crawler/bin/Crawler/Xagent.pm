@@ -52,9 +52,14 @@ use File::Basename;
 # arquitectura del equipo win32/linux
 # $XAGENT_CACHE_VERSION{$ip}=[$rc,$rcstr,$res]
 #
-# XAGENT_CACHE_DATA Almacena los datos de las metricas con iids
+# %XAGENT_CACHE_DATA Almacena los datos de las diferentes metricas indexados por tag
+# $task_id >> 10.50.100.44-linux_metric_event_counter.pl-8b3b4935-001 >>> 001=tag
 # $XAGENT_CACHE_DATA{$task_id}=[$rc,$rcstr,$res]
 my %XAGENT_CACHE_DATA=();
+# %XAGENT_CACHE_EVENT_DATA Almacena los datos extra de las diferentes metricas indexados por tag
+# El script puede proporcionar informacion extra (event_info) por cada tag reportado
+# $XAGENT_CACHE_EVENT_DATA{$task_id}=[info1,info2 .....]
+my %XAGENT_CACHE_EVENT_DATA=();
 my %XAGENT_CACHE_ERRORS=();
 my %XAGENT_CACHE_RAW=();
 
@@ -255,6 +260,7 @@ my $self=shift;
    #%XAGENT_CACHE_VERSION=();
 	%XAGENT_CACHE_ERRORS=();
    %XAGENT_CACHE_DATA=();
+	%XAGENT_CACHE_EVENT_DATA=();
    %XAGENT_CACHE_RAW=();
 }
 
@@ -275,15 +281,10 @@ my ($self,$ts,$range,$sanity_lapse)=@_;
    my $ts0=$self->log_tmark();
    if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-      my $rc=system ("/opt/crawler/bin/crawler -s -c $range");
-      if ($rc==0) {
-         $self->log('info',"do_task::[INFO] SANITY ($rc)");
-      }
-      else {
-         $self->log('warning',"do_task::**WARN** SANITY ($rc) ($!)");
-      }
+      $self->log('info',"do_task::[INFO] SANITY");
       exit(0);
    }
+
 }
 
 
@@ -1249,21 +1250,34 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 
          foreach my $l (@$out_cmd) {
 
-				my ($prefix,$parsed_line)=('','');
-            if ($l =~ /^<(.*?)>.*?\=\s*(.*?)\s*$/) { 
-					($prefix,$parsed_line)=($1,$2);  
-					if ($parsed_line eq '') { $parsed_line='U'; }
+				if ($l =~ /^\[(.*?)\]\[(.*?)\](.+)$/) {
+					my ($p,$k,$ev)=($1,$2,$3);
+					my $key = $task_id_base .'-'.$p;
+					if ((exists $XAGENT_CACHE_EVENT_DATA{$key}) && (ref($XAGENT_CACHE_EVENT_DATA{$key}) eq 'ARRAY')) {
+						push @{$XAGENT_CACHE_EVENT_DATA{$key}}, $ev;
+					}
+					else {
+						$XAGENT_CACHE_EVENT_DATA{$key} = [$ev];
+					}
 				}
-            else { $parsed_line=$l; }
+				else {
+					my ($prefix,$parsed_line)=('','');
+	            if ($l =~ /^<(.*?)>.*?\=\s*(.*?)\s*$/) { 
+						($prefix,$parsed_line)=($1,$2);  
+						if ($parsed_line eq '') { $parsed_line='U'; }
+					}
+            	else { $parsed_line=$l; }
 
-            my @parsed_out_cmd=split(':', $parsed_line);
-            my $key = $task_id_base .'-'.$prefix;
-				$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
+	            my @parsed_out_cmd=split(':', $parsed_line);
+					# key >> 10.50.100.44-linux_metric_event_counter.pl-95eefcb3-001  >> prfix=001
+      	      my $key = $task_id_base .'-'.$prefix;
+					$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
 
-				my $ip = $desc->{host_ip};
-				$XAGENT_CACHE_ERRORS{$ip} = [$rc, $rcstr, \@parsed_out_cmd];
-
-            $XAGENT_CACHE_DATA{$key}=[$rc, $rcstr, \@parsed_out_cmd];
+					my $ip = $desc->{host_ip};
+					$XAGENT_CACHE_ERRORS{$ip} = [$rc, $rcstr, \@parsed_out_cmd];
+	
+   	         $XAGENT_CACHE_DATA{$key}=[$rc, $rcstr, \@parsed_out_cmd];
+				}
          }
 		}
 		else {
@@ -1278,6 +1292,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
    	   my $task_idx = $task_id_base.'-'.$tagi;
       	$self->log('debug',"core_xagent_get::[INFO ID=$task_id] OBTENGO VALOR DE $task_idx");
       	foreach my $r (@{$XAGENT_CACHE_DATA{$task_idx}->[2]}) { push @values,$r; push @iids,'ALL'; }
+      	foreach my $evx (@{$XAGENT_CACHE_EVENT_DATA{$task_idx}}) { $self->event_data($evx); }
    	}
 
    }
@@ -1357,24 +1372,39 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 			# <001.acpid> Num. procesos [acpid] = 1 
          foreach my $line (@$out_cmd) {
 
-            my @data=();
-				# <104.CNM-DEVEL> connectionState = 1 
-				#if ($line=~/<(\S+)\.(\S+)>.*?=\s*(\d+\.*\d*)\s*$/) {
-				if ($line=~/<(\S+?)\.(.+?)>.*?=\s*(\d+\.*\d*)\s*$/) {
-               my ($rtag,$iid,$v) = ($1,$2,$3);
-               push @data, $v;
+
+            if ($line =~ /^\[(.*?)\.(.+?)\]\[(.*?)\](.+)$/) {
+               my ($rtag,$iid,$k,$ev)=($1,$2,$3,$4);
+               my $key = $task_id_base .'-'.$rtag.'.'.$iid;
+               if ((exists $XAGENT_CACHE_EVENT_DATA{$key}) && (ref($XAGENT_CACHE_EVENT_DATA{$key}) eq 'ARRAY')) {
+                  push @{$XAGENT_CACHE_EVENT_DATA{$key}}, $ev;
+               }
+               else {
+                  $XAGENT_CACHE_EVENT_DATA{$key} = [$ev];
+               }
+            }
+
+				else {
+
+	            my @data=();
+					# <104.CNM-DEVEL> connectionState = 1 
+					#if ($line=~/<(\S+)\.(\S+)>.*?=\s*(\d+\.*\d*)\s*$/) {
+					if ($line=~/^<(\S+?)\.(.+?)>.*?=\s*(\d+\.*\d*)\s*$/) {
+            	   my ($rtag,$iid,$v) = ($1,$2,$3);
+               	push @data, $v;
 
 #$VAR1 = [           '1248:@:"notRunning"',           '1376:@:"notRunning"' ]
 
-					my $key_raw = $task_id_base .'-'.$rtag;
-					$XAGENT_CACHE_RAW{$key_raw}->{$iid} = {'line'=>$line, 'v'=>$v }; 
+						my $key_raw = $task_id_base .'-'.$rtag;
+						$XAGENT_CACHE_RAW{$key_raw}->{$iid} = {'line'=>$line, 'v'=>$v }; 
 
-					my $key = $task_id_base .'-'.$rtag.'.'.$iid;
-   	         $XAGENT_CACHE_DATA{$key}=[$rc, $rcstr, \@data];
+						my $key = $task_id_base .'-'.$rtag.'.'.$iid;
+   	   	      $XAGENT_CACHE_DATA{$key}=[$rc, $rcstr, \@data];
 
-      	      $self->log('info',"core_xagent_get::[INFO ID=$task_id] cfg=2 CACHEFILL KEY=$key ----- iid=$iid DATA=@data");
-				}
-         }
+      	   	   $self->log('info',"core_xagent_get::[INFO ID=$task_id] cfg=2 CACHEFILL KEY=$key ----- iid=$iid DATA=@data");
+					}
+       	  	}
+			}
       }
 		else {
          $ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
@@ -1399,6 +1429,7 @@ $self->log('debug',"do_task::[****] BUCLE tagi=$tagi (task_idx=$task_idx)");
 					push @values,$r; 
 					push @iids, $iidx; 
 				}
+				foreach my $evx (@{$XAGENT_CACHE_EVENT_DATA{$task_idx}}) { $self->event_data($evx); }
 			}
 			else {
 				foreach my $i (sort keys %{$XAGENT_CACHE_RAW{$task_idx}}) { 
@@ -1407,6 +1438,7 @@ $self->log('debug',"do_task::[****] BUCLE tagi=$tagi (task_idx=$task_idx)");
 					push @values, $v; 
 					push @iids, $i; 
 				}
+				foreach my $evx (@{$XAGENT_CACHE_EVENT_DATA{$task_idx}}) { $self->event_data($evx); }
 			}
 
          $self->log('debug',"core_xagent_get::[INFO ID=$task_id] (iid=$iidx) OBTENGO VALUES DE $task_idx (@values)");
