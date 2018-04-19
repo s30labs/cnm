@@ -107,7 +107,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
 		'__NPARAMS__'=> '3', 	'__PARAMS__'=> '[-n;IP;;2]:[-p;Puerto;80;0]:[-t;Timeout;2;0]', 	
 		'__PARAMS_DESCR__'=> '',
 		'__SCRIPT__'=> $linux_metric_tcp_check::SCRIPT_NAME, 	'__SEVERITY__'=> '1', 	'__CFG__'=> '1',
-		'__GET_IID__'=> '0', 	'__PROXY_TYPE__'=> 'linux', 	'__INCLUDE__'=> '1',
+		'__GET_IID__'=> '0', 	'__PROXY_TYPE__'=> 'linux', 	'__INCLUDE__'=> '0',
 		'__MYRANGE__'=>'tcp-check,[-n;IP;;2]:[-p;Puerto;80;0]:[-t;Timeout;2;0]',
 
 		# ----------------------------
@@ -153,7 +153,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
 
       '__PARAMS_DESCR__'=> '',
       '__SCRIPT__'=> $linux_metric_tcp_check::SCRIPT_NAME,  '__SEVERITY__'=> '1',   '__CFG__'=> '1',
-      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '0',
       '__MYRANGE__'=>'tcp-check,[-n;IP;;2]:[-p;Puerto;80;0]:[-t;Timeout;2;0]',
 
       # ----------------------------
@@ -189,7 +189,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
       '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-p;Puerto;443;0]:[-t;Timeout;2;0]',
       '__PARAMS_DESCR__'=> '',
       '__SCRIPT__'=> $linux_metric_tcp_check::SCRIPT_NAME,  '__SEVERITY__'=> '1',   '__CFG__'=> '1',
-      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '0',
       '__MYRANGE__'=>'tcp-check,[-n;IP;;2]:[-p;Puerto;443;0]:[-t;Timeout;2;0]',
 
       # ----------------------------
@@ -228,7 +228,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
 
       '__PARAMS_DESCR__'=> '',
       '__SCRIPT__'=> $linux_metric_tcp_check::SCRIPT_NAME,  '__SEVERITY__'=> '1',   '__CFG__'=> '1',
-      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '0',
       '__MYRANGE__'=>'tcp-check,[-n;IP;;2]:[-p;Puerto;443;0]:[-t;Timeout;2;0]',
 
       # ----------------------------
