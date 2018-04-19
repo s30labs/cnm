@@ -388,20 +388,14 @@ my  ($user,$group);
 # sanity_check
 #----------------------------------------------------------------------------
 sub sanity_check  {
-my ($self,$ts)=@_;
+my ($self,$ts,$range,$sanity_lapse)=@_;
 
    local $SIG{CHLD}='';
 
    my $ts0=$self->log_tmark();
-   if ($ts-$ts0>$Crawler::SANITY_LAPSE) {
+   if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-		my $rc=system ("/opt/crawler/bin/actionsd");
-      if ($rc==0) {
-         $self->log('info',"do_task::[INFO] SANITY ($rc)");
-      }
-      else {
-         $self->log('warning',"do_task::**WARN** SANITY ($rc) ($!)");
-      }
+      $self->log('info',"do_task::[INFO] SANITY");
       exit(0);
    }
 }
@@ -411,7 +405,7 @@ my ($self,$ts)=@_;
 # do_task
 #----------------------------------------------------------------------------
 sub do_task  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
 	local $SIG{CHLD}='IGNORE';
 
@@ -457,11 +451,13 @@ my ($self,$lapse,$task)=@_;
    $DOMAIN_LIST=$store->get_mcnm_domain_cids($dbh,{'cid'=>$cid});
 
 	$self->init_tmark();
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
 
    while (1) {
 
       my $TNOW=time;
-      $self->sanity_check($TNOW);
+      #$self->sanity_check($TNOW);
+		$self->sanity_check($TNOW,$range,$sanity_lapse);
      	$self->time_ref($TNOW);
 
       my $child=fork;

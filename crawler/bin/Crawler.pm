@@ -3089,6 +3089,7 @@ my ($self) = @_;
 
 #----------------------------------------------------------------------------
 # chk_tmark_files
+# Si los procesos no registran actividad en $max_time se reinician desde cnm-watch
 #----------------------------------------------------------------------------
 sub chk_tmark_files {
 my ($self, $vector, $offset) = @_;
@@ -3116,6 +3117,7 @@ my ($self, $vector, $offset) = @_;
 		#/actionsd/ y /notificationsd/ siguen otro criterio.
 		if ($proc =~ /actionsd/) { $max_time = 7200; }
 		elsif ($proc =~ /notificationsd/) { $max_time = 3600; }
+		elsif ($proc =~ /crawler-app/) { $max_time = 7200; }
 
 		if (-s $file == 0) { next; }
    	open (F,"<$file");

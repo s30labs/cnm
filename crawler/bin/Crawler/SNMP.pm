@@ -566,14 +566,6 @@ my ($self,$ts,$range,$sanity_lapse)=@_;
    my $ts0=$self->log_tmark();
    if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-#      my $rc=system ("/opt/crawler/bin/crawler -s -c $range");
-#		if ($rc==0) {
-#	      $self->log('info',"do_task::[INFO] SANITY ($rc)");
-#		}
-#		else {
-#	      $self->log('warning',"do_task::**WARN** SANITY ($rc) ($!)");
-#		}
-
       $self->log('info',"do_task::[INFO] SANITY");
       exit(0);
    }

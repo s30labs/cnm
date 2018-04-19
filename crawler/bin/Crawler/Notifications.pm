@@ -487,7 +487,7 @@ my ($self)=@_;
 # do_task_mail
 #----------------------------------------------------------------------------
 sub do_task_mail  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
    $self->log('info',"do_task::START [lapse=$lapse]");
    my $cid=$self->cid();
@@ -506,11 +506,15 @@ my ($self,$lapse,$task)=@_;
 	my $log_level=$self->log_level();
 	my $email_manager=Crawler::LogManager::Email->new('log_level'=>$log_level, 'cid'=>$cid, cid_ip=>$cid_ip, 'reload_file'=>$RELOAD_FILE);
 
+	$self->init_tmark();
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
+
    while (1) {
 
       eval {
 
 		   my $t=time;
+			$self->sanity_check($t,$range,$sanity_lapse);
    		$self->time_ref($t);
 
          #----------------------------------------------------------------------
@@ -557,7 +561,7 @@ my ($self,$lapse,$task)=@_;
 # do_task_notifications
 #----------------------------------------------------------------------------
 sub do_task_notifications  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
    my $ok=1;
    $self->log('info',"do_task::START [lapse=$lapse]");
@@ -595,11 +599,12 @@ my ($self,$lapse,$task)=@_;
    #--------------------
 
    $self->init_tmark();
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
 
    while (1) {
 
       my $ts=time;
-      $self->sanity_check($ts);
+		$self->sanity_check($ts,$range,$sanity_lapse);
 
       eval {
 
@@ -703,7 +708,7 @@ my ($self,$ts)=@_;
 #
 #----------------------------------------------------------------------------
 sub do_task  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
 	my $ok=1;
    $self->log('info',"do_task::START [lapse=$lapse]");
@@ -746,11 +751,12 @@ my ($self,$lapse,$task)=@_;
 	#--------------------	
 
 	$self->init_tmark();
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
 
    while (1) {
 		
       my $ts=time;
-      $self->sanity_check($ts);
+		$self->sanity_check($ts,$range,$sanity_lapse);
 
 		eval {
 
@@ -949,7 +955,7 @@ my ($self,$lapse,$task)=@_;
 # do_task_sev4
 #----------------------------------------------------------------------------
 sub do_task_sev4  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
 	my $ok=1;
    $self->log('info',"do_task_sev4::START [lapse=$lapse]");
@@ -988,12 +994,15 @@ my ($self,$lapse,$task)=@_;
    $self->actions($actions);
    #--------------------
 
+	$self->init_tmark();
+   my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
+
    while (1) {
 
       eval {
 
 		   my $t=time;
-   		$self->time_ref($t);
+			$self->sanity_check($t,$range,$sanity_lapse);
 
          #----------------------------------------------------------------------
          # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
@@ -1095,7 +1104,7 @@ my ($self,$dbh,$store)=@_;
 # do_task_analysis
 #----------------------------------------------------------------------------
 sub do_task_analysis  {
-my ($self,$lapse,$task)=@_;
+my ($self,$lapse,$range)=@_;
 
 	my $ok=1;
    $self->log('info',"do_task_analysis::START [lapse=$lapse]");
@@ -1104,11 +1113,15 @@ my ($self,$lapse,$task)=@_;
 
    $SNMP->reset_mapping();
 
+   $self->init_tmark();
+   my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
+
    while (1) {
 
       eval {
 
 		   my $t=time;
+			$self->sanity_check($t,$range,$sanity_lapse);
    		$self->time_ref($t);
 
          #----------------------------------------------------------------------
