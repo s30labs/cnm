@@ -1174,11 +1174,11 @@ print "======================================prov_device_app_metrics============
       # init=1 ==> Desde asistente -> Genera Metricas
       # init=2 ==> Desde asistente -> Genera Plantilla
       # init=4 ==> Desde asistente -> Genera Metricas (desde csv)
-		# En este punto hacen lo mismo (stamos generando plantilla)
+		# En este punto hacen lo mismo (estamos generando plantilla)
 		# En init=2 luego se salta la generacion de metricas
       #--------------------------------------------------------------------------------
       if (( $in->{'init'}==1 ) || ( $in->{'init'}==2 ) || ( $in->{'init'}==4 ) ){
-				
+						
    		$self->log('debug',"prov_do_set_device_metric::[DEBUG] GENERA METRICAS DESDE ASISTENTE (INIT=$in->{'init'}) ID_DEV=$ID_DEV");
 
    		# Meto en @def_metrics las metricas (del asistente) seleccionadas por el usuario.
@@ -1301,7 +1301,7 @@ print "======================================prov_metrics=======================
 		# Iteramos sobre cada una de las metricas+iid del dispositivo
 		# type,subtype,watch,iid,mname,label,status,lapse
 		foreach my $v (@$rMETRIC) {
-
+		
 my $kkk=Dumper($v);
 print "========METRICAS+IIDS DEL DISPOSITIVO===========\n";
 print "VVV=$kkk\n";
@@ -1342,7 +1342,7 @@ print "================================================\n";
 			#-------------------------------------------------------------------------------
 			if ($v->{'type'} eq 'snmp') {
 			#-------------------------------------------------------------------------------
-			
+						
 				#Hay que revisar como se diferencian las distintas metricas	
 		      my $rv=$STORE->get_from_db($dbh,'cfg','cfg_monitor_snmp',"subtype='$v->{subtype}'");
 		      if (!defined $rv) {
@@ -1402,22 +1402,22 @@ print "================================================\n";
 				
 			# %$MDATA CONTIENE LOS DATOS DEL DISPOSITIVO
    	   foreach my $dev_iid (sort keys %$MDATA) {
-							
+										
 				$label_in_tpl=0;
 				$iid_in_tpl=0;
 				# %$V CONTIENE LOS DATOS DE la plantilla
-				$self->log('debug',"prov_do_set_device_metric::[INFO] MDATA ITERO SOBRE dev_iid=$dev_iid con iid_in_tpl=$iid_in_tpl $MDATA->{$dev_iid}->{'label'}");
+				$self->log('debug',"prov_do_set_device_metric::[INFO] MDATA -> EL DISPOSITIVO RESPONDE A iid=$dev_iid LABEL=$MDATA->{$dev_iid}->{'label'}");
 
 				foreach my $tpl_iid (sort keys %{$v->{'IIDS'}} ) {
 				
-print "**FML** ITERO SOBRE dev_iid=$dev_iid tpl_iid=$tpl_iid\n";	
-					$self->log('debug',"prov_do_set_device_metric::[INFO] MDATA ITERO SOBRE dev_iid=$dev_iid tpl_iid=$tpl_iid");
+#print "**FML** ITERO SOBRE dev_iid=$dev_iid tpl_iid=$tpl_iid\n";	
+					#$self->log('debug',"prov_do_set_device_metric::[INFO] MDATA ITERO SOBRE dev_iid=$dev_iid tpl_iid=$tpl_iid");
 					if ( $tpl_iid eq $dev_iid ) {
 						$iid_in_tpl=1;
+					 	$self->log('debug',"prov_do_set_device_metric::[INFO] EL iid=$dev_iid ESTA EN LA PLANTILLA CON LABEL=$v->{'IIDS'}->{$tpl_iid}->{'label'}");
 						#1.
 						if ( $MDATA->{$dev_iid}->{'label'} eq $v->{'IIDS'}->{$tpl_iid}->{'label'} ) {
-                     # Si coincide label y iid ==> nochange
-                     $nochange{$dev_iid} = {
+							$nochange{$dev_iid} = {
                         'label' => $MDATA->{$dev_iid}->{'label'},
                         'status' => $v->{'IIDS'}->{$tpl_iid}->{'status'},
                         'watch' => $v->{'IIDS'}->{$tpl_iid}->{'watch'},
@@ -1446,6 +1446,7 @@ print "\tCHANGEIID iid=$dev_iid UPDATE  $MDATA->{$dev_iid}->{'label'} <> $v->{'I
 
 				# Si es una metrica que no esta en la plantilla ==> change
 				if (! $iid_in_tpl) {
+					$self->log('debug',"prov_do_set_device_metric::[INFO] EL iid=$dev_iid NO ESTA EN LA PLANTILLA CON LABEL=$MDATA->{$dev_iid}->{'label'}");
 					$change{$dev_iid} = {
 						'label' => $MDATA->{$dev_iid}->{'label'},
                   'status'=> 1,
@@ -1484,10 +1485,12 @@ print Dumper(\%nochange);
 print "------------------------------\n";
 print "REMOVE:\n";
 print Dumper(\%remove);
-my $xxx=Dumper(\%remove);
-$xxx=~s/\n/ \./g;
-$self->log('info',"prov_do_set_device_metric::[INFO] REMOVE: $xxx");
 print "------------------------------\n";
+			if (scalar(keys %remove) > 0) {
+				my $xaux=Dumper(\%remove);
+				$xaux=~s/\n/ \./g;
+				$self->log('info',"prov_do_set_device_metric::[INFO] TEMPLATE REMOVE: $xaux");
+			}
 #print "MDATA: (disp)\n";
 #print Dumper($MDATA);
 #print "------------------------------\n";
@@ -1557,7 +1560,7 @@ print "------------------------------\n";
 			
 			# Genero metricas (change)
          foreach my $iid (sort keys %change) {
-
+			
             my $m=$MDATA->{$iid};
             my $kk=$m->{'label'};
             $self->rcstr(" : $kk<br>",0);
@@ -1581,6 +1584,24 @@ print "------------------------------\n";
          }
 
 		}
+
+		# Se eliminan las metricas azules del dispositivo (en metrics) 
+		# select mname from alerts where id_device=100 and severity=4;
+      my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',"id_device=$ID_DEV and severity=4");
+      if (scalar(@$rx)>0) {
+			my @mnames=();
+         foreach my $x (@$rx) {
+				push @mnames,"'".$x->[0]."'";
+				#/opt/data/mdata/output/default/a/10.72.0.22.4.snmp.49.mib2_glob_duplex
+				my $file_mdata = '/opt/data/mdata/output/default/a/'.join('.', $x->[1],'4',$x->[2],$x->[0]);
+				my $rx = unlink $file_mdata;
+				$self->log('info',"prov_do_set_device_metric::[INFO] BORRAR AZULES ($rx) $file_mdata");
+         }
+			my $c1=join(',',@mnames);	
+			$self->log('info',"prov_do_set_device_metric::[INFO] BORRAR AZULES name in ($c1) AND id_dev=$ID_DEV");			
+			$STORE->delete_from_db($dbh,'metrics',"name in ($c1) AND id_dev=$ID_DEV");	
+      }
+
 			
 print "-------TEMPL-----------------------\n";
 print "TEMPLATE:\n";
