@@ -588,13 +588,18 @@ elsif ($link_error == 2) {
 my $api=undef;
 my @lines = `/usr/bin/dig -f $FILE_DYN_NAMES  +noall +answer`;
 my ($changes,$total)=(0,0);
+my %cnames=();
 foreach my $l (@lines) {
 	chomp $l;
 	#www.s30labs.com.        14070   IN      A       178.33.163.102
-	if ($l=~/^(\S+)\s+.*?(\d+\.\d+\.\d+\.\d+)/) {
+	#test-oauth2-provider.eu.cloudhub.io. 21 IN CNAME ch-prod-web-elbweb-xxxxxxxxx-570345098.eu-west-1.elb.amazonaws.com.
+	if ($l=~/^(\S+)\.\s+\d+\s+IN\s+CNAME\s+(\S+)\./) { $cnames{$2}=$1; }
+	elsif ($l=~/^(\S+)\s+.*?(\d+\.\d+\.\d+\.\d+)/) {
 		my ($n,$ip)=($1,$2);
 		$n=~s/\.$//;
 		$total+=1;
+		if (exists $cnames{$n}) { $n=$cnames{$n}; }	
+		
 		if ($DYN_NAMES{$n}->{'ip'} eq $ip) { next; }
 
 		# Ha habido cambio de IP. Se actualiza el dispositivo
@@ -828,13 +833,16 @@ my $rc=0;
 	my %ps=();
 	my @ps_extra=();
 	my %idx_extra=();
+	my %app_running=();
 	foreach my $v (@r) {
 		chomp $v;
 		$v=~s/^\s+//;
    	my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$v);
 
+		#[crawler-app.8000.app.300]
+		if ($cmd=~/crawler-app\.(\d+)\.app\.(\d+)/) { $app_running{$1}=1; }
 	   #[crawler.003.latency.300]
-   	if ($cmd=~/crawler\.(\d+)\..*?/) {
+   	elsif ($cmd=~/crawler\.(\d+)\..*?/) {
 			my $idx=$1;
 			$store->log('debug',"watchdog::[DEBUG] RES DEL PS: PID=$pid, CMD=$cmd, IDX=$idx");
 
@@ -851,6 +859,19 @@ my $rc=0;
 					$idx_extra{$idx}=1;
 				} 
 			}
+		}
+	}
+
+	my $file_runner = '/cfg/crawler-app-runner.json';
+	if (-f $file_runner){ 
+		my $x=$store->get_json_config($file_runner);
+	   my $runner = $x->[0]->{'runner'};
+	   foreach my $h (@$runner) {
+   	   if ((! exists $h->{'run'}) || ( $h->{'run'} != 1)) { next; }
+      	my $range = $h->{'range'};
+			if (! $range) { next; }
+			if ($app_running{$range}) { next; }	
+			start_app($range); 
 		}
 	}
 
@@ -996,6 +1017,17 @@ my $rc;
 
    $rc=system ("/opt/crawler/bin/crawler -s -c $idx");
    $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
+   #$store->reset_crawler_changes($dbh,$idx);
+}
+
+#-------------------------------------------------------------------------------------------
+# start_app
+#-------------------------------------------------------------------------------------------
+sub start_app {
+my ($range)=@_;
+
+   my $rc=system ("/opt/crawler/bin/crawler-app -s -c $range");
+   $store->log('notice',"cnm-watch::[INFO] start_app $range (RC=$rc)");
    #$store->reset_crawler_changes($dbh,$idx);
 }
 
