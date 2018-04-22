@@ -54,7 +54,7 @@ elsif ($opts{s}) {
 #-------------------------------------------------------------------------------------------
 elsif ($opts{k}) {
         # Termina los procesos crawler registrados ------------------------------------------
-        my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+        my $crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
         $crawler->stop();
 }
 #-------------------------------------------------------------------------------------------

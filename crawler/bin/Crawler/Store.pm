@@ -1161,7 +1161,13 @@ print "**FML**SQL=$libSQL::cmd\n";
       $self->log('debug',"store_metric::[DEBUG] MNAME=$table{name} ID_DEV=$table{id_dev} (ID_METRIC=$id_metric)");
       $self->log('debug',"store_metric::[DEBUG] T=$TAB_METRICS_NAME C=name = \'$table{name}\' && id_dev=\'$id_dev\'");
    }
-	else { $self->log('warning',"store_metric::[WARN] MNAME=$table{name} ID_DEV=$table{id_dev} ($libSQL::err : $libSQL::errstr)");  }
+	else { 
+		$self->log('warning',"store_metric::[WARN] MNAME=$table{name} ID_DEV=$table{id_dev} ($libSQL::err : $libSQL::errstr)");
+		my $sql=$libSQL::cmd;
+		$sql =~ s/\n/ /g;
+		$sql =~ s/\r/ /g;
+		$self->log('warning',"store_metric::[WARN] SQL=$sql");
+	}
    return $id_metric;
 
 
@@ -9165,7 +9171,7 @@ my ($self, $max_size) =@_;
 # Inserta en BBDD las lineas de log recibidas por syslogd
 # En este caso el nombre de la tabla se obtiene a partir de la IP y el local utilizado
 sub set_log_rx_lines  {
-my ($self,$dbh,$ip,$id_dev,$logfile,$lines)=@_;
+my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 
    # ------------------------------------------------------
    # logr_010002254223_syslog
@@ -9173,7 +9179,12 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$lines)=@_;
    my @o3 = map { sprintf("%03d",$_) } @o;
 
 	$logfile=~s/\-/_/g;
-   my $table = 'logr_'.join ('',@o3).'_'.$logfile;
+	my $prefix = ($source eq 'syslog') ? 'logr' : 'logp';
+   my $table = $prefix.'_'.join ('',@o3).'_'.$logfile;
+	# En el caso de las apps source es la app_id que se usa papra identificar la tabla.
+	if ($source ne 'syslog') {
+		$table = $prefix.'_'.$source.'_'.$logfile;
+	}
 
    foreach my $l (@$lines) {
       my %h = ();
@@ -9208,6 +9219,8 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$lines)=@_;
 			# todb indica si se recibe o es log_pull
 			#----------------------------------------------------------------------------
 			my %d=('id_dev'=>$id_dev,'id_credential'=>0,'logfile'=>$logfile,'tabname'=>$table,'todb'=>1,'status'=>0);
+			if ($source ne 'syslog') { $d{'id_credential'}=1; }
+
 			$self->init_device2log($dbh,\%d);
    	   $self->error($libSQL::err);
       	$self->errorstr($libSQL::errstr);

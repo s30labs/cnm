@@ -263,7 +263,7 @@ my ($self,$line,$ip) = @_;
    # Almaceno el evento ---------------------------------------------------------------------
    my $t=time;
 	# Almaceno en la tabla de log correspondiente
-	my $table = $store->set_log_rx_lines($dbh,$MSG{'ip'},$MSG{'id_dev'},$logfile,[{'ts'=>$t, 'line'=>$MSG{'source_line'}}]);
+	my $table = $store->set_log_rx_lines($dbh,$MSG{'ip'},$MSG{'id_dev'},$logfile,'syslog',[{'ts'=>$t, 'line'=>$MSG{'source_line'}}]);
 
    $self->log('info',"check_event:: STORE LOG ($table) date=>$t, code=>1, proccess=>$MSG{'proccess'}, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}, evkey=>$evkey");
 

@@ -50,6 +50,7 @@ my ($class,%arg) =@_;
    my $self=$class->SUPER::new(%arg);
    $self->{_cfg} = $arg{cfg} || {};
    $self->{_tasks} = $arg{tasks} || [];
+   $self->{_tasks_cfg} = $arg{tasks_cfg} || [];
    $self->{_app} = $arg{app} || {};
    $self->{_daemon} = $arg{daemon} || 1;		# daemon mode
    $self->{_config_path} = $arg{config_path} || '/cfg/crawler-app-runner.json';
@@ -99,6 +100,17 @@ my ($self,$tasks) = @_;
       $self->{_tasks}=$tasks;
    }
    else { return $self->{_tasks}; }
+}
+
+#----------------------------------------------------------------------------
+# tasks_cfg
+#----------------------------------------------------------------------------
+sub tasks_cfg {
+my ($self,$tasks_cfg) = @_;
+   if (defined $tasks_cfg) {
+      $self->{_tasks_cfg}=$tasks_cfg;
+   }
+   else { return $self->{_tasks_cfg}; }
 }
 
 #----------------------------------------------------------------------------
@@ -296,6 +308,48 @@ my ($self,$lapse)=@_;
 }
 
 
+#----------------------------------------------------------------------------
+# stop
+#----------------------------------------------------------------------------
+sub stop {
+my  $self = shift;
+
+   my $store=$self->create_store();
+   my $dbh=$store->open_db();
+   $self->dbh($dbh);
+   my $cfg=$self->cfg();
+
+   my $file_runner = $self->config_path();
+   my $x=$self->get_json_config($file_runner);
+   my $runner = $x->[0]->{'runner'};
+
+   my $range_param = $self->range();
+
+	my %app_running=();
+   my @r=`/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler-app | /bin/grep -v grep`;
+   foreach my $v (@r) {
+      chomp $v;
+      $v=~s/^\s+//;
+      my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$v);
+      #[crawler-app.8000.app.300]
+      if ($cmd=~/crawler-app\.(\d+)\.app\.(\d+)/) { $app_running{$1}=$pid; }
+
+	}
+
+
+   foreach my $h (@$runner) {
+
+		if (! $h->{'range'}) { next; }
+		if (($range_param ne 'all') && ($range_param ne $h->{'range'})) {
+print "range_param=$range_param -> SALTO $h->{'range'} ----\n";
+next; }
+
+		my $rc=kill 9, $app_running{$h->{'range'}};
+		$self->log('notice',"stop:: crawler $h->{'range'} [RC=$rc]");
+   }
+
+}
+
 
 #----------------------------------------------------------------------------
 # run
@@ -317,88 +371,79 @@ my $pid;
 	my $x=$self->get_json_config($file_runner);
 	my $runner = $x->[0]->{'runner'};
 
-print Dumper($runner);
-#$VAR1 = [
+#print Dumper($runner);
+#'runner' = [
 #          {
-#            'runner' => [
-#                          {
+#            'lapse' => '300',
+#            'tasks' => {
 #                            '333333000xxx' => {
-#                                                'tag' => 'mail-imap4',
-#                                                'cfg' => '/cfg/crawler-app/app-333333000xxx-mail-imap4.json'
+#                                                'cfg' => '/cfg/crawler-app/app-333333000xxx-mail-imap4.json',
+#                                                'tag' => 'mail-imap4'
 #                                              }
 #                          },
-#                          {
-#                            '333333001001' => {
-#                                                'cfg' => '/cfg/crawler-app/app-333333001001-saptodu-prod.json',
-#                                                'tag' => 'saptodu'
-#                                              },
-#                            '333333001000' => {
-#                                                'tag' => 'saptodu',
-#                                                'cfg' => '/cfg/crawler-app/app-333333001000-saptodu-devel.json'
-#                                              }
-#                          }
-#                        ]
+#            'range' => '8000',
+#            'type' => 'app'
 #          }
 #        ];
 
 
-
-
-
+	my $range_param = $self->range();
+	
 	my $i = 0;
-   #foreach my $h (@$apps) {
-
-
    foreach my $h (@$runner) {
 
-		my @tasks=();
-		foreach my $k (keys %$h) {
+		if ((! exists $h->{'run'}) || ( $h->{'run'} != 1)) { next; }
 
-			if (! -f $h->{$k}->{'cfg'}) {
-				$self->log('warning',"run::[WARN] NO EXISTE FICHERO $h->{$k}->{'cfg'}");
-   	      next;
-	      }
+      my $range = $h->{'range'};
+		if (($range_param ne 'all') && ($range ne $range_param)) { next; }
 
-			my $x=$self->get_json_config($h->{$k}->{'cfg'});
-			push @tasks, $x->[0];
-		}
+      my $lapse = $h->{'lapse'};
+      my $type = $h->{'type'};
 
-#print Dumper (\@tasks);
-#next;
-
-      my $range='8000';
-      my $lapse=300;
-      my $type='app';
-	
       if ( (! $type) || (! $range) || (! $lapse)) {
          $self->log('warning',"run::[WARN] NO definido tipo|rango|lapse");
          next;
       }
 
-		$i++;
+		my @tasks=();
+		my @tasks_cfg=();
+		foreach my $k (keys %{$h->{'tasks'}}) {
 
+			if (! -f $h->{'tasks'}->{$k}->{'cfg'}) {
+				$self->log('warning',"run::[WARN] NO EXISTE FICHERO $h->{'tasks'}->{$k}->{'cfg'}");
+   	      next;
+	      }
+
+			print "CFG FILE: $h->{'tasks'}->{$k}->{'cfg'}\n";
+			my $x=$self->get_json_config($h->{'tasks'}->{$k}->{'cfg'});
+			push @tasks, $x->[0];
+			push @tasks_cfg, $h->{'tasks'}->{$k}->{'cfg'};
+		}
+
+#print Dumper (\@tasks);
+#next;
+
+		$i++;
+		
       $pid=$self->procreate($type,$range,$lapse);
+
+		print "\t>>>START $i: crawler-app.$range.$type.$lapse\n";
 
 		# child do the task
       if ($pid == 0) {
          $self->start_flag(1);
-
-         # Secuenciamiento de crawlers. Para mejorar I/O
-         #my $delay_base = ($lapse==60) ? 12 : 60;
-         #my $delay = ($range % 5)*$delay_base;
-         #$self->log('info',"pre_run:: crawler $range [type=$type|lapse=$lapse] delay=$delay ($dpath)");
-         #sleep $delay;
-         #$self->log('info',"run:: crawler $range [type=$type|lapse=$lapse]");
 
          my $log_level=$self->log_level();
 			my $x = $self->daemon();
 			my $cp = $self->config_path();
 
          my $app=Crawler::LogManager::App->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, 'config_path'=>$file_runner, 'app'=>$h, 'daemon'=>$x );
-			# Necesario. No basta con eponerlo en el constructor
+
+			# Necesario. No basta con ponerlo en el constructor
 			$app->daemon($x);
 			$app->config_path($cp);
 			$app->tasks(\@tasks);
+			$app->tasks_cfg(\@tasks_cfg);
          $app->do_task($lapse,$range);
       }
       sleep 3;
@@ -442,7 +487,6 @@ my ($self,$lapse,$task)=@_;
       	}
 
 
-
          #----------------------------------------------------------------------
          # Si $lapse es alto, lo mas probable es que se haya perdido la conexion a la BBDD.
          # Por eso fuerzo directamente una reconexion
@@ -454,16 +498,15 @@ my ($self,$lapse,$task)=@_;
          ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
          if ($ok) {
 
+				$self->log_tmark();
+				my $x=0;
+				my $tasks_cfg = $self->tasks_cfg();
 				foreach my $app (@$tasks) {
 
 					$self->app($app);
-					my $app = $self->get_app_host_info();
-
-					my $lines_raw = $self->get_app_data();
-
-					#my $lines = $self->app_parser($lines_raw);
-					my $lines = $self->raw_parser($lines_raw);
-
+					my $lines = $self->get_app_data($tasks_cfg->[$x]);
+				
+					$x++;
 					my $i=0;
 					my $total=scalar(@$lines);
 
@@ -502,15 +545,11 @@ my ($self,$lapse,$task)=@_;
 # get_app_host_info
 #----------------------------------------------------------------------------
 sub get_app_host_info {
-my ($self)=@_;
+my ($self,$app_id,$host)=@_;
 
 	my $app = $self->app();
-	if (!exists $app->{'host'}) {
-		$self->log('warning',"get_app_host_info:: **ERROR** FALTA DEFINIR host EN FICHERO JSON");
-		return;
-	}
 
-	my @d = split(/\./, $app->{'host'});
+	my @d = split(/\./, $host);
 	my $condition='name="'.$d[0].'"';
 	my ($name,$domain)=($d[0],'');
 	if (scalar(@d)>1){
@@ -530,10 +569,10 @@ my ($self)=@_;
 		$app->{'host_ip'}=$rv->[0][1];
 	}
 	else {
-		$self->log('warning',"get_app_host_info:: **ERROR** SIN RESULTADOS ($condition)");
+		$self->log('warning',"get_app_host_info:: **ERROR** HOST NO APARECE EN BBDD ($condition)");
 	}
 
-	$self->log('info',"get_app_host_info:: ---APP--- name=$name|domain=$domain|host_ip=$app->{'host_ip'}|id_dev=$app->{'id_dev'}");
+	$self->log('info',"get_app_host_info:: ---APP: $app_id--- name=$name|domain=$domain|host_ip=$app->{'host_ip'}|id_dev=$app->{'id_dev'}");
 
 	$self->app($app);
 	return $app;	
@@ -551,7 +590,7 @@ my ($self)=@_;
 # timestamp,app-id,app-name,json-msg-hash
 #----------------------------------------------------------------------------
 sub get_app_data {
-my ($self)=@_;
+my ($self,$task_cfg_file)=@_;
 
    #$|=1;
    my $host = $self->host();
@@ -573,12 +612,12 @@ $self->log('debug',"get_app_data:: app=$xx");
 	my $data=[];
 
 	#--------------------------------------------
-	# CAPTURE DATA
+	# 1. CAPTURE DATA
 	#--------------------------------------------
 	# Internal cmd capture
 	if ($cmd eq 'core-imap') {
 
-		$data = $self->app_get_mail_imap4(); 
+		$data = $self->core_imap_get_app_data($task_cfg_file); 
 
 	}
 	# External cmd captura 
@@ -598,19 +637,23 @@ $self->log('debug',"get_app_data:: app=$xx");
 		$data = [@lines];
 	}
 
-
+	# Si no hay datos, termina
 	my $n=scalar(@$data);
 	$self->log('info',"get_app_data:: CAPTURED >> $n LINES");
 	if ($n==0) { return $data; }
 
    #--------------------------------------------
-   # TRANSFORM DATA -> Mediante custom module
+   # 2. TRANSFORM DATA (line by line) -> custom_line_parser
+   #--------------------------------------------
+	# a. Carga de modulos
    #--------------------------------------------
 	my %LOADED=();
    #foreach my $h (@{$app->[0]->{'mapper'}}) {
    foreach my $h (@{$app->{'mapper'}}) {
       my @k = keys %$h;
       my $app_id = $k[0]; # module = app_id
+		my $host = (exists $h->{$app_id}->{'host'}) ? $h->{$app_id}->{'host'} : $app->{'host'};
+      my $app = $self->get_app_host_info($app_id,$host);
 
 		my $module = 'MOD'.$app_id;
 #$self->log('warning',"app_parser:: **DEBUG** module=$module");
@@ -633,129 +676,86 @@ $self->log('debug',"get_app_data:: app=$xx");
 		}
 	}
 
+
 	# $data es un array con lineas estructuradas asi:
 	# timestamp,app-id,app-name,json-msg-hash
+ 
+   #--------------------------------------------
+	# b. Data Transformation -> custom_line_parser
+   #--------------------------------------------
+	# Solo aplica si hay modulos cargados
+	if (scalar(keys %LOADED) != 0) { 
 
-	if (scalar(keys %LOADED) == 0) { return $data; }
+		$self->log('info',"app_parser:: ------- DATA TRANSFORMATION ---------");
+		my @new_data=();
+		foreach my $l (@$data) {
 
-	$self->log('info',"app_parser:: **DEBUG** TRANSFORM--------------");
-	my @new_data=();
-	foreach my $l (@$data) {
+$self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 1 >>>>>>$l<<<<<<<<<<");
 
-$self->log('info',"app_parser:: **DEBUG** LINE-PARSER 1 >>>>>>$l<<<<<<<<<<");
+      	chomp $l;
+      	if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
+				my %line_parts=();
+				$line_parts{'ts'} = $1;
+				$line_parts{'app_id'} = $2;
+				$line_parts{'app_name'} = $3; 
+				$line_parts{'source_line'} = $4;
 
-      chomp $l;
-      if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
-			my %line_parts=();
-			$line_parts{'ts'} = $1;
-			$line_parts{'app_id'} = $2;
-			$line_parts{'app_name'} = $3; 
-			$line_parts{'source_line'} = $4;
+				my $module='MOD'.$line_parts{'app_id'};
+$self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 2");
+				if (! exists $LOADED{$line_parts{'app_id'}}) { push @new_data,$l; }
+				else {
+$self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 
-			my $module='MOD'.$line_parts{'app_id'};
-$self->log('info',"app_parser:: **DEBUG** LINE-PARSER 2");
-			if (! exists $LOADED{$line_parts{'app_id'}}) { push @new_data,$l; }
-			else {
-$self->log('info',"app_parser:: **DEBUG** LINE-PARSER 3");
+					my $expanded = $MODINFO::custom_line_parser{$line_parts{'app_id'}}->($app,\%line_parts);
+     				#my $expanded = custom_line_parser($app,\%line_parts);
+     				my $n = scalar(@$expanded);
 
-				my $expanded = $MODINFO::custom_line_parser{$line_parts{'app_id'}}->($app,\%line_parts);
-     			#my $expanded = custom_line_parser($app,\%line_parts);
-     			my $n = scalar(@$expanded);
-				push @new_data,@$expanded;
-     			$self->log('info',"app_parser:: $line_parts{'app_id'} >> $n lines");
-     		}
+					push @new_data,@$expanded;
+   	  			$self->log('info',"app_parser:: $line_parts{'app_id'} >> $n lines");
+     			}
+			}
 		}
 
+		$data = [@new_data];
 	}
 
-   return \@new_data;
-
-}
-
-
-##----------------------------------------------------------------------------
-## app_parser
-##----------------------------------------------------------------------------
-#sub app_parser {
-#my ($self,$data)=@_;
-#
-#
-#	my $app=$self->app();
-#
-#	my $module_parser = (exists $app->{'parser'}) ? $app->{'parser'} : 'none';
-#
-##   # Debug --------------------------
-##   my $fout='/tmp/'.$module_parser.'log';
-##	open (F, ">$fout");
-##	foreach my $l (@$data) { print F "$l\n"; }
-##	close F;
-##	# --------------------------------
-#
-#	
-#	if (1) {
-#	#if ($module_parser eq 'none') {
-#		my $lines = $self->raw_parser($data);
-#		return $lines;
-#	}
-#
-#	if (! -f '/cfg/modules/'.$module_parser.'.pm') {
-#		$self->log('warning',"app_parser:: **ERROR** NO EXISTE EL MODULO (/cfg/modules/$module_parser.pm')");
-#		return $data;
-#   }
-#
-#	eval {
-#  		(my $file = $module_parser) =~ s|::|/|g;
-#    	require $file . '.pm';
-#  	 	$module_parser->import();
-#	};
-#	if ($@) {
-#		$self->log('warning',"app_parser:: **ERROR** al cargar module_parser ($module_parser) ($@)");
-#	}
-#	else {
-#		my $lines = custom_parser($app,$data);
-#		my $n = scalar(@$lines);
-#		$self->log('info',"app_parser:: $module_parser >> $n lines");
-#		return $lines;
-#  	}
-#
-#	return [];
-#}
+   #--------------------------------------------
+   # 3. TRANSFORM DATA (block transform) -> custom_block_parser
+   #--------------------------------------------
+	# To be implemented .....
 
 
-#----------------------------------------------------------------------------
-# raw_parser
-#----------------------------------------------------------------------------
-sub raw_parser {
-my ($self,$data)=@_;
-
-
-	my $app = $self->app();
-
-	#timestamp,app-id,app-name,json info hash
+   #--------------------------------------------
+   # 4. PREPARE LINES csv -> hash
+   #--------------------------------------------
+   #timestamp,app-id,app-name,json info hash
    my @lines=();
    foreach my $l (@$data) {
 
       chomp $l;
 
-	   my %MSG = ();
-   	$MSG{'name'} = $app->{'host_name'};
-   	$MSG{'domain'} = $app->{'host_domain'};
-	   $MSG{'ip'} = $app->{'host_ip'};
-   	$MSG{'id_dev'} = $app->{'id_dev'};
-   	$MSG{'source_line'} = '';
-   	$MSG{'date'} = '';
+      my %MSG = ();
+      $MSG{'name'} = $app->{'host_name'};
+      $MSG{'domain'} = $app->{'host_domain'};
+      $MSG{'ip'} = $app->{'host_ip'};
+      $MSG{'id_dev'} = $app->{'id_dev'};
+      $MSG{'source_line'} = '';
+      $MSG{'date'} = '';
 
-		if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
-			$MSG{'ts'} = $1;
-			$MSG{'app_id'} = $2;
-			$MSG{'app_name'} = $3;
-			$MSG{'source_line'} = $4;
-		}
-		else { 
-			$MSG{'source_line'} = $l;
-		}
+#$self->log('info',"app_parser:: ***DEBUG*** l=$l-----");
+#$self->log('info',"app_parser:: ***DEBUG*** $MSG{'name'}-$MSG{'domain'}-$MSG{'ip'}-$MSG{'id_dev'}");
 
-$self->log('warning',"app_parser:: **DEBUGRAW**source_line=$MSG{'source_line'}*****')");
+      if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
+         $MSG{'ts'} = $1;
+         $MSG{'app_id'} = $2;
+         $MSG{'app_name'} = $3;
+         $MSG{'source_line'} = $4;
+      }
+      else {
+         $MSG{'source_line'} = $l;
+      }
+
+$self->log('debug',"app_parser:: source_line=$MSG{'source_line'}*****')");
 
       push @lines, \%MSG;
 
@@ -884,15 +884,8 @@ my ($self)=@_;
    my $dbh=$self->dbh();
    my $event=$self->event();
 
-   #my $alert2expr=$store->get_remote_alert_expr_by_type($dbh,'syslog');
-   #my $event2alert=$store->get_cfg_syslog_remote_alerts($dbh);
-
    my $alert2expr=$self->alert2expr();
    my $event2alert=$self->event2alert();
-
-#my $kk1=Dumper($event2alert);
-#$kk1=~s/\n/ /g;
-#$self->log('debug',"event2alert:: Las alertas remotas tipo syslog definidas (email2alert) son: $kk1");
 
    my $num_alerts = scalar(keys %$event2alert);
    if ($num_alerts ==  0) {
@@ -1056,24 +1049,30 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
 # CORE-IMAP4 >> app-get-mail-imap4 
 # Obtiene correos por IMAP4
 #------------------------------------------------------------------------------------------
-sub app_get_mail_imap4 {
-my ($self)=@_;
+sub core_imap_get_app_data {
+my ($self,$task_cfg_file)=@_;
 
 	my @RESULT = ();
 
-	#-------------------------------------------------------------------------------------------A
-	# Fichero de credenciales IMAP
-	my $FILE_MAIL_CONFIG = '/opt/cnm-areas/cfg/mail-manager/areas_imap_mso365.json';
-	#my $x=$self->get_json_config($FILE_MAIL_CONFIG);
+   # Debe existir el fichero de configuracion de la APP
+   if ((! defined $task_cfg_file) && (! -f $task_cfg_file)) {
+      $self->log('warning',"core-imap4:: **ERROR** SIN FICHERO DE CONFIGURACION DE LA APP");
+      return \@RESULT;
+   }
 
-	# Fichero descriptos de la/s APP/s
-	#my $FILE_APP_CONFIG = '/opt/cnm-areas/cfg/crawler-app/app-333333000xxx-mail-imap4.json';
+	$self->log('info',"core-imap4:: $task_cfg_file");
 
-	my $FILE_APP_CONFIG = '/cfg/crawler-app/app-333333000xxx-mail-imap4.json';
-	my $file_cfg_app=$FILE_APP_CONFIG;
-	my $app=$self->get_json_config($file_cfg_app);
+	my $app=$self->get_json_config($task_cfg_file);
 
-	my $x=$self->get_json_config($FILE_MAIL_CONFIG);
+	# Debe existir el fichero de credenciales IMAP
+	if ((! exists $app->[0]->{'credentials'}) && (! -f $app->[0]->{'credentials'})) {
+		$self->log('warning',"core-imap4:: **ERROR** SIN CREDENCIALES DE ACCESO");
+		return \@RESULT;	
+	}
+
+	$self->log('info',"core-imap4:: $app->[0]->{'credentials'}");
+
+	my $x=$self->get_json_config($app->[0]->{'credentials'});
 
 	# Recorre las cuentas de correo definidas
 	foreach my $h (@$x) {
@@ -1089,19 +1088,19 @@ my ($self)=@_;
 	   my $imap = new Net::IMAP::Simple($h->{'imap_host'}, Timeout=>$timeout , ResvPort=>$port, use_ssl=>$use_ssl);
 
    	if (!defined $imap) { 
-			$self->log('warning',"core-imap4::app_get_mail_imap4:: **ERROR** EN CONEXION IMAP $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
+			$self->log('warning',"core-imap4:: **ERROR** EN CONEXION IMAP $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
 			return \@RESULT;
 		}
 
    	my $r=$imap->login($h->{'imap_user'},$h->{'imap_pwd'});
 
    	if (! defined $r) { 
-         $self->log('warning',"core-imap4::app_get_mail_imap4:: **ERROR** EN LOGIN IMAP $h->{'imap_user'}/xxxxxxxx");
+         $self->log('warning',"core-imap4:: **ERROR** EN LOGIN IMAP $h->{'imap_user'}/xxxxxxxx");
          return \@RESULT;
       }
 
    	my $nm=$imap->select($mailbox);
-		$self->log('info',"core-imap4::app_get_mail_imap4:: IMAP CONEX OK $nm MSGs in $mailbox");
+		$self->log('info',"core-imap4:: IMAP CONEX OK $nm MSGs in $mailbox");
    	my $parser = new MIME::Parser;
    	#$parser->output_to_core(1);
 
@@ -1143,7 +1142,7 @@ close F;
       	$line{'From'} =~ s/.+?<(.+)>/$1/;
 	      $line{'Date'} = $HEAD{'Date'};
    	   $line{'ts'} = $ts; # Necesario para que cambie el hash md5 que identifica el mensaje
-      	$self->log('debug',"core-imap4::app_get_mail_imap4:: LEIDO MSG $i|$nm (size=$msize leido=$seen) >> From=$line{'From'} | Subject=$line{'Subject'}");
+      	$self->log('debug',"core-imap4:: LEIDO MSG $i|$nm (size=$msize leido=$seen) >> From=$line{'From'} | Subject=$line{'Subject'}");
 
       	#$line{'Message-ID'} = $HEAD{'Message-ID'};
       	#$line{'cnt'} = $i;
