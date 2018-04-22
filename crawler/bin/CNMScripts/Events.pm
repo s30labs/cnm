@@ -40,11 +40,13 @@ my ($self,$dbh,$params)=@_;
 	$self->err_num(0);
 
 
+	my ($event_counter,$event_info) = ('U','UNK');
    my $res = $self->dbCmd($dbh,"SELECT tabname FROM device2log WHERE tabname LIKE '%$id_app%'");
    if ($res->[0] !~ /log/) {
-		$self->err_str("**ERROR** NO EXISTE TABLA PARA ID APP $id_app");
+		$event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
+		$self->err_str($event_info);
 		$self->err_num(1);
-		return 0;
+   	return ($event_counter,$event_info);
 	}
 
    my $tabname = $res->[0];
@@ -55,9 +57,17 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__PATTERN__/$pattern/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
+	$self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbCmd($dbh,$SQL);
-	my $event_counter = $res->[0];
+	if ($self->err_num() == 0) { $event_counter = $res->[0]; }
+	else {
+		$self->log('warning',"ERROR dbCmd >> $SQL");
+		$event_info = $self->err_str();
+   	return ($event_counter,$event_info);
+	}
+
+	$self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
 	$SQL_BASE="SELECT substr(line,1,500) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
 	$SQL=$SQL_BASE;
@@ -65,12 +75,16 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__PATTERN__/$pattern/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-#print "$SQL\n";
+	$self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbCmd($dbh,$SQL);
-   my $event_info = $res->[0];
+   if ($self->err_num() == 0) { $event_info = $res->[0]; }
+   else {
+      $self->log('warning',"ERROR dbCmd >> $SQL");
+      $event_info = '';
+      return ($event_counter,$event_info);
+   }
 
-#print "$event_info---\n";
 
    return ($event_counter,$event_info);
 }
