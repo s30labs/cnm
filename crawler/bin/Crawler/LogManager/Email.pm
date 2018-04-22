@@ -6,6 +6,7 @@ package Crawler::LogManager::Email;
 use Crawler::LogManager;
 @ISA=qw(Crawler::LogManager);
 use strict;
+use Net::IMAP::Simple;
 use Digest::MD5 qw(md5_hex);
 use Data::Dumper;
 
@@ -63,29 +64,95 @@ my ($self)=@_;
 
 #------------------------------------------------------------------------------------------
 # bulk_processor
-# Los eventos se pueden procesar de dos formas:
+#------------------------------------------------------------------------------------------
+# Procesa los eventos generados a partir de correos. 
+# Tiene dos modos de funcionamiento (mta|imap)
+# a. mta: En este caso el CNM recibe directamente el correo en un buzón previamente definido:
+#		/opt/data/buzones/cnmnotifier/new/  (El CNM es un servidor de correo)
+# b. imap: En este caso el CNM es un cliente de correo y descarga los correos de un servidor remoto.
+#
+# Notar que Los eventos se pueden procesar de dos formas:
 # 1 a 1 o en bloque. Los procesos arrancados por el syslog-ng lo hacen uno a uno.
 # Para el caso de email es preferible hacerlo en bloque chequeando el buzon de entrade de
-# cnmnotifier. (La otra opcion seria lanzarlo desde el exim, pero es menos eficiente).
+# cnmnotifier. (En el caso mta se podria lanzar desde el exim, pero es menos eficiente).
 #------------------------------------------------------------------------------------------
 sub bulk_processor {
 my ($self)=@_;
 
 
+	$self->check_configuration();
+
+
+	# a. Modo mta 
+	# ---------------------------------------------------
    #my $MAIL_INBOX='/opt/data/buzones/cnmnotifier/new/';
    opendir (DIR,$MAIL_INBOX);
    my @mail_files = readdir(DIR);
    closedir(DIR);
 
-	$self->check_configuration();
-
    foreach my $file (sort @mail_files) {
 
-		#$self->check_event($file);
-      if (! $self->check_event($file)) { next; }
-
+      if (! $self->check_event({'file'=>$file})) { next; }
 		$self->check_alert();
+	}
 
+   # a. Modo imap
+   # ---------------------------------------------------
+	my $x=$self->get_json_config('/cfg/mail-manager');
+	foreach my $h (@$x) {
+
+	   if (! exists $h->{'imap_host'}) { next; }
+   	if (! exists $h->{'imap_user'}) { next; }
+   	if (! exists $h->{'imap_pwd'}) { next; }
+   	my $port = (exists $h->{'imap_port'}) ? $h->{'imap_port'} : 143;
+   	my $timeout = (exists $h->{'imap_timeout'}) ? $h->{'imap_timeout'} : 2;
+  	 	my $use_ssl = (exists $h->{'imap_secure'}) ? $h->{'imap_secure'} : 0;
+   	my $mailbox = (exists $h->{'imap_mailbox'}) ? $h->{'imap_mailbox'} : 'INBOX';
+
+   	my $imap = new Net::IMAP::Simple($h->{'imap_host'}, Timeout=>$timeout , ResvPort=>$port, use_ssl=>$use_ssl);
+
+   	if (!defined $imap) { 
+			$self->log('info',"bulk_processor::[**ERROR**] en conexion IMAP Host=$h->{'imap_host'} Port=$port use_ssl=$use_ssl");
+			next;
+		}
+
+   	my $r=$imap->login($h->{'imap_user'},$h->{'imap_pwd'});
+
+   	if (! defined $r) { 
+         $self->log('info',"bulk_processor::[**ERROR**] en login IMAP Host=$h->{'imap_host'} Port=$port use_ssl=$use_ssl user=$h->{'imap_user'}|pwd=$h->{'imap_pwd'}");
+         next;
+      }
+
+	   my $nm=$imap->select($mailbox);
+   	for(my $i = 1; $i <= $nm; $i++){
+      	my $seen = $imap->seen($i);
+      	my $msize  = $imap->list($i);
+			$self->log('info',"bulk_processor:: IMAP MSG [$i|$nm] size=$msize leido=$seen - Host=$h->{'imap_host'} mailbox=$mailbox");
+
+      	#my $header = $imap->top( $i ); print for @{$header};
+      	my $msg = $imap->get($i);
+			if (! $msg) {
+				my $errstr = $imap->errstr;
+				$self->log('info',"bulk_processor::[**ERROR**] en GET IMAP MSG=$i ($errstr)");
+	         next;
+   	   }
+
+			my $fmsg=int(10000000000*rand());
+			open (F,">$MAIL_INBOX$fmsg");
+			print F $msg;
+			close F;
+$self->log('info',"bulk_processor::[*DEBUG**] Creado fichero $MAIL_INBOX$fmsg");
+
+	      if (! $self->check_event({'file'=>$fmsg})) { next; }
+   	   $self->check_alert();
+			$imap->delete($i);
+   	}
+		if ($nm>0) {
+			my $expunged = $imap->expunge_mailbox($mailbox);
+			$self->log('info',"bulk_processor:: IMAP expunged=$expunged");
+		}
+   	$imap->quit();
+   	undef $imap;
 	}
 }
 
@@ -97,36 +164,50 @@ my ($self)=@_;
 # 0 -> No se ha almacenado evento, 1 -> Si se ha almacenado evento
 #------------------------------------------------------------------------------------------
 sub check_event {
-my ($self,$file) = @_;
+#my ($self,$file) = @_;
+my ($self,$params) = @_;
 
    my %MSG=( 'Subject'=>'', 'Body'=>'' );
 	$self->event(\%MSG);
    my $store=$self->store();
    my $dbh=$self->dbh();
 
-   my $file_path=$MAIL_INBOX.$file;
-   if (! -f $file_path) { return 0; }
+	my $ent;
+	my $file_path='';
 
-
-   $self->log('debug',"check_event::[DEBUG] START file_path=$file_path");
-
-
-    #$parser->output_dir("mimedump-tmp");
-      #$MAIL_DATA{'Subject'}='';
-      #$MAIL_DATA{'Body'}='';
-
-   my $parser = new MIME::Parser;
+	my $parser = new MIME::Parser;
    $parser->output_to_core(1);
    $parser->decode_headers(1);
    $parser->ignore_errors(1);
 
-   my $ent = $parser->parse_open($file_path);
-   if (! $ent) {
-      $self->log('info',"check_event::[**ERROR**] parse_open de $file_path");
-      # Se borra el correo
-      unlink $file_path;
-      return 0;
+	if (exists $params->{'file'}) {
+
+	   $file_path=$MAIL_INBOX.$params->{'file'};
+  	 	if (! -f $file_path) { return 0; }
+   	$self->log('debug',"check_event::[DEBUG] START file_path=$file_path");
+
+	   $ent = $parser->parse_open($file_path);
+   	if (! $ent) {
+      	$self->log('info',"check_event::[**ERROR**] parse_open de $file_path");
+      	# Se borra el correo
+      	unlink $file_path;
+      	return 0;
+   	}
+	}
+	elsif (exists $params->{'msg'}) {
+		my $msg=$params->{'msg'};
+		$ent = $parser->parse_data(\$msg);
+      if (! $ent) {
+         $self->log('info',"check_event::[**ERROR**] parse_open de MSG");
+         return 0;
+      }
    }
+	else { 
+      $self->log('info',"check_event::[**ERROR**] en params");
+		return 0; 
+	}
+
+
 
    $self->_mime_dump($ent);
 	my $event=$self->event();
@@ -186,12 +267,11 @@ $self->log('info',"check_event:: **FML** EXISTE name=$name ip=$ip domain=$domain
 
 	$self->log('debug',"check_event:: STORE EVENT date=>$t, code=>1, proccess=>$proccess, ip=>$ip, name=>$name, domain=>$domain, evkey=>$evkey, msg_custom=>'' ");
 
-#parche fml
-#`/bin/cp $file_path /tmp`;
+#parche FML
+#`/bin/cp $file_path /home/cnm/correos/`;
 
    # Se borra el correo
    unlink $file_path;
-
 
    return 1;
 
