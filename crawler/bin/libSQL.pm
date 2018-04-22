@@ -221,6 +221,7 @@ eval {
 	my $names=join(",", @$rfields);
 
 	my $sql = sprintf "INSERT INTO %s (%s) values (%s)", $table, join(",", @$rfields), join(",", ("?")x@$rfields);
+	$libSQL::cmd=$sql;
 
    my $sth = $dbh->prepare($sql);
 
@@ -265,6 +266,8 @@ sub sqlCmd_fast
 {
 my($dbh,$rvalues,$sql)=@_;
 my $rc=1;
+
+	$libSQL::cmd=$sql;
 
 eval {
 
