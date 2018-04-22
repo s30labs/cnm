@@ -2,7 +2,7 @@
 #-------------------------------------------------------------------------------------------
 use lib "/opt/crawler/bin";
 use strict;
-use Getopt::Std;
+use Getopt::Long;
 use CNMScripts::CNMAPI;
 use Data::Dumper;
 use JSON;
@@ -11,7 +11,7 @@ use JSON;
 my @fpth = split ('/',$0,10);
 my @fname = split ('\.',$fpth[$#fpth],10);
 my $USAGE = <<USAGE;
-API Scripts - GET CSV Devices
+API Scripts - GET CSV Metrics
 (c) s30labs
 
 $fpth[$#fpth] [-d debug|info] [-c cid] -n host/ip 
@@ -20,13 +20,20 @@ USAGE
 
 #-------------------------------------------------------------------------------------------
 my $log_mode=3;
-my %opts=();
-getopts("hd:c:n:",\%opts);
-if ($opts{h}) { die $USAGE;}
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','debug','n=s','host=s','c=s','csv' )
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
-my $host_ip = (defined $opts{n}) ? $opts{n} : 'localhost';
-my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
-my $cid = (defined $opts{c}) ? $opts{c} : 'default';
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+
+my $host_ip = 'localhost';
+if (defined $OPTS{n}) { $host_ip = $OPTS{n}; }
+elsif (defined $OPTS{host}) { $host_ip = $OPTS{host}; }
+
+my $log_level = 'info';
+if ($OPTS{debug}) { $log_level = 'debug'; }
+
+my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
 
 
 #-------------------------------------------------------------------------------------------
@@ -35,8 +42,8 @@ my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
 #print "sid=$sid\n";
 
-my $class='';
-my $endpoint='metrics/info.json?deviceip=10.2.254.72';
+my ($class,$endpoint) = ('metrics', 'info.json');
+
 my $response = $api->ws_get($class,$endpoint);
 
 $api->table_col_descriptor ( 
@@ -60,5 +67,10 @@ $api->table_col_descriptor (
 ]
 );
 
-$api->print_app_table($response);
 
+if ($OPTS{'csv'}) {
+	$api->print_app_table($response, {'mode'=>'csv'});
+}
+else {
+	$api->print_app_table($response);
+}
