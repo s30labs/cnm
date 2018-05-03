@@ -10,7 +10,7 @@ use DBI;
 use Logger;
 use strict;
 
-@EXPORT_OK = qw( sqlConnect sqlDropDatabase sqlInsert sqlInsert_fast sqlCmd_fast sqlCmd sqlCmdRows sqlSelectCount sqlSelectHashref sqlSelectAll sqlSelectAllCmd sqlUpdate sqlInsertUpdate sqlInsertUpdate4x sqlDelete sqlDrop sqlCreate sqlTableExists sqlShowVars sqlSetCS sqlShowColumns sqlLastInsertId errstr err cmd);
+@EXPORT_OK = qw( sqlConnect sqlDropDatabase sqlInsert sqlInsert_fast sqlCmd_fast sqlCmd sqlCmdRows sqlSelectCount sqlSelectHashref sqlSelectAll sqlSelectAllCmd sqlUpdate sqlInsertUpdate sqlInsertUpdate4x sqlDelete sqlDrop sqlCreate sqlCreateView sqlTableExists sqlShowVars sqlSetCS sqlShowColumns sqlLastInsertId errstr err cmd);
 @EXPORT = @EXPORT_OK;
 @ISA = qw(Exporter);
 
@@ -134,6 +134,38 @@ else {
 
 	return $rc;
 }
+
+
+########################################################
+sub sqlCreateView
+{
+#fml
+my($dbh,$vtable,$select)=@_;
+my $rc;
+
+eval {
+
+# CREATE VIEW vlogp_333333001004_api_sc_catalog_prod_from_elk AS SELECT id_log,hash,ts,line,'api_sc_catalog_prod_from_elk' as logfile,21 as id_device2log,'app-api-sc-catalog' as name FROM logp_333333001004_api_sc_catalog_prod_from_elk;
+
+   my $sql="CREATE VIEW $vtable AS $select\n";
+   $libSQL::cmd=$sql;
+   $rc=$dbh->do($sql);
+};
+
+if ($@) {
+
+   $libSQL::errstr=$DBI::errstr;
+   $libSQL::err=$DBI::err;
+}
+else {
+   $libSQL::errstr='';
+   $libSQL::err=0;
+}
+
+   return $rc;
+}
+
+
 
 ########################################################
 sub sqlDrop

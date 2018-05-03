@@ -9022,7 +9022,9 @@ $self->log('warning',"load_raw_graph_data::[DEBUG] Actualizo $table_scratch (RV=
 # Descripcion:
 #----------------------------------------------------------------------------
 sub get_size_of_tables {
-my ($self, $dbh) =@_;
+my ($self, $dbh, $top) =@_;
+
+	if (! defined $top) { $top=20; }
 
    my $sql='SELECT table_schema as `DB`, table_name AS `Table`, round(((data_length + index_length) / 1024 / 1024), 2) `MB`  FROM information_schema.TABLES  ORDER BY (data_length + index_length) DESC';
    my $rres=$self->get_from_db_cmd($dbh,$sql,'');
@@ -9032,7 +9034,7 @@ my ($self, $dbh) =@_;
    foreach my $l (@$rres) {
       my $key = join('.', sprintf("%03d",$i), $l->[0], $l->[1]);
       $res{$key} = {'db'=>$l->[0], 'table'=>$l->[1], 'size'=>$l->[2]};
-      if ($i<10) {
+      if ($i<$top) {
          $self->log('info',"get_size_of_tables: $l->[2] MB >> $l->[0].$l->[1]");
       }
       $i+=1;
@@ -9057,7 +9059,7 @@ my ($self, $dbh, $max_number) =@_;
 
       my $table = $l->[0];
       $self->log('info',"MANTENIMIENTO DE DATOS: $table");
-      $self->limit_table_in_lines($dbh, $table, 'id_log', $max_number, 'ENTRADAS DE LOG');
+      $self->limit_table_in_lines($dbh, $table, 'id_log', $max_number, 'LOGS');
    }
 
 }
@@ -9069,12 +9071,15 @@ my ($self, $dbh, $max_number) =@_;
 sub limit_table_in_lines {
 my ($self, $dbh, $table, $table_id, $max_lines, $text_item) =@_;
 
-   my $rres=sqlSelectAll($dbh,$table_id,$table,'',"order by $table_id  desc limit $max_lines");
-	my $border_id=0;
-   foreach my $r (@$rres) {
-		# Es el ultimo id que nos devuelve la consulta
-      $border_id=$r->[0];
-   }
+   my $rres=sqlSelectAll($dbh,$table_id,$table,'',"order by $table_id  desc limit $max_lines,1");
+	my $border_id = (exists $rres->[0][0]) ? $rres->[0][0] : 0;
+	
+   $self->error($libSQL::err);
+   $self->errorstr($libSQL::errstr);
+   $self->lastcmd($libSQL::cmd);
+	if ($libSQL::err) {
+		$self->log('warning',"**DB-ERROR** [$libSQL::err] $libSQL::errstr ($libSQL::cmd)");
+	}
 
   	my $rows=sqlDelete($dbh, $table, "$table_id<$border_id");
 
@@ -9088,7 +9093,6 @@ my ($self, $dbh, $table, $table_id, $max_lines, $text_item) =@_;
    if (! $rc) { $rcstr="Se borran $text_item ($rows lineas)";}
    $self->log_qactions($dbh, {'descr'=>"MANTENIMIENTO DE DATOS: $text_item Eliminados $rows elementos" , 'rc'=>$rc  , 'rcstr'=>$rcstr, 'atype'=>ATYPE_DB_MANT_TABLE_LIMIT });
    $self->log('info',"MANTENIMIENTO DE DATOS: $text_item Eliminados $rows elementos");
-   #print "MANTENIMIENTO DE DATOS: $text_item Eliminados $rows elementos\n";
 
 }
 
@@ -9201,7 +9205,7 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 
       #Si no existe la tabla, se crea
       if ($libSQL::err == 1146) {
-         my $rv = $self->create_log_table($dbh,$table);
+         my $rv = $self->create_log_table($dbh,$table,$ip);
          if ($rv != 0) {
             $self->error($libSQL::err);
             $self->errorstr($libSQL::errstr);
@@ -9277,7 +9281,7 @@ my ($self,$dbh,$ip,$logfile,$table,$lines)=@_;
 
 		#Si no existe la tabla, se crea
 		if ($libSQL::err == 1146) {
-			my $rv = $self->create_log_table($dbh,$table);
+			my $rv = $self->create_log_table($dbh,$table,$ip);
 			if ($rv != 0) {
 		      $self->error($libSQL::err);
       		$self->errorstr($libSQL::errstr);
@@ -9297,7 +9301,7 @@ my ($self,$dbh,$ip,$logfile,$table,$lines)=@_;
 
 #----------------------------------------------------------------------------
 sub create_log_table  {
-my ($self,$dbh,$table)=@_;
+my ($self,$dbh,$table,$ip)=@_;
 
    # ------------------------------------------------------
    my $fields_create='id_log int NOT NULL AUTO_INCREMENT, hash varchar(16) NOT NULL default "unk", ts int NOT NULL, line TEXT NOT NULL, PRIMARY KEY (id_log), UNIQUE KEY hash_idx (hash)';
@@ -9312,6 +9316,28 @@ my ($self,$dbh,$table)=@_;
 	else {
    	$self->log('info',"create_log_table:[INFO] CREADA TABLA $table ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
 	}
+
+
+	# Se crea la vista asociada
+   my $rres=sqlSelectAll($dbh,'name',$TAB_DEVICES_NAME,"ip='$ip'");
+   my $name = $rres->[0][0];
+
+	$rres=sqlSelectAll($dbh,'logfile,id_device2log,id_dev','device2log',"tabname='$table'");
+	my $logfile = $rres->[0][0];
+	my $id_device2log = $rres->[0][1];
+	my $id_dev = $rres->[0][2];
+
+
+	my $vtable = 'v'.$table;
+	my $select="SELECT id_log,hash,ts,line,'$logfile' as logfile,$id_device2log as id_device2log,'$name' as name,$id_dev as id_dev FROM $table";
+	sqlCreateView($dbh,$vtable,$select);
+   if ($libSQL::err != 0) {
+      $self->log('info',"create_log_table:**ERROR** AL CREAR VISTA $vtable ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+   else {
+      $self->log('info',"create_log_table:[INFO] CREADA VISTA $vtable ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+
 
 	return $libSQL::err;
 }
