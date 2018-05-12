@@ -514,7 +514,7 @@ my ($self,$lapse,$range)=@_;
       eval {
 
 		   my $t=time;
-			$self->sanity_check($t,$range,$sanity_lapse);
+			$self->sanity_check($t,$range,$sanity_lapse,'mail');
    		$self->time_ref($t);
 
          #----------------------------------------------------------------------
@@ -604,7 +604,7 @@ my ($self,$lapse,$range)=@_;
    while (1) {
 
       my $ts=time;
-		$self->sanity_check($ts,$range,$sanity_lapse);
+		$self->sanity_check($ts,$range,$sanity_lapse,'notifications');
 
       eval {
 
@@ -650,19 +650,30 @@ my ($self,$lapse,$range)=@_;
 # sanity_check
 #----------------------------------------------------------------------------
 sub sanity_check  {
-my ($self,$ts)=@_;
+my ($self,$ts,$range,$sanity_lapse,$mode)=@_;
 
    local $SIG{CHLD}='';
 
+	my $rc=0;
+	if (!defined $sanity_lapse) { $sanity_lapse=$Crawler::SANITY_LAPSE; }
+	if (!defined $mode) { $mode='normal'; }
+
    my $ts0=$self->log_tmark();
-   if ($ts-$ts0>$Crawler::SANITY_LAPSE) {
+   #if ($ts-$ts0>$Crawler::SANITY_LAPSE) {
+   if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-		my $rc=system ("/opt/crawler/bin/notificationsd -t normal");
+		if ($mode eq 'mail') {
+			$rc=system ("/opt/crawler/bin/mail_manager");
+		}
+		else {
+			$rc=system ("/opt/crawler/bin/notificationsd -t $mode");
+		}
+
       if ($rc==0) {
-         $self->log('info',"do_task::[INFO] SANITY ($rc)");
+         $self->log('info',"do_task::[INFO] SANITY $mode ($rc)");
       }
       else {
-         $self->log('warning',"do_task::**WARN** SANITY ($rc) ($!)");
+         $self->log('warning',"do_task::**WARN** SANITY $mode ($rc) ($!)");
       }
       exit(0);
    }
@@ -756,7 +767,7 @@ my ($self,$lapse,$range)=@_;
    while (1) {
 		
       my $ts=time;
-		$self->sanity_check($ts,$range,$sanity_lapse);
+		$self->sanity_check($ts,$range,$sanity_lapse,'normal');
 
 		eval {
 
@@ -1002,7 +1013,7 @@ my ($self,$lapse,$range)=@_;
       eval {
 
 		   my $t=time;
-			$self->sanity_check($t,$range,$sanity_lapse);
+			$self->sanity_check($t,$range,$sanity_lapse,'sev4');
 
          #----------------------------------------------------------------------
          # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
@@ -1121,7 +1132,7 @@ my ($self,$lapse,$range)=@_;
       eval {
 
 		   my $t=time;
-			$self->sanity_check($t,$range,$sanity_lapse);
+			$self->sanity_check($t,$range,$sanity_lapse,'analysis');
    		$self->time_ref($t);
 
          #----------------------------------------------------------------------

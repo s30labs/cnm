@@ -130,7 +130,7 @@ Demonio monitor de alertas.
 
 $fpth[$#fpth] -d [debug|info]  : Nivel de depuracion
 $fpth[$#fpth] -l [60|120|900]  : Periodo de muestreo
-$fpth[$#fpth] -t [all|normal|analysis|sev4] : Tipo de alerta
+$fpth[$#fpth] -t [all|normal|notifications|sev4] : Tipo de alerta
 $fpth[$#fpth] -h  : Ayuda
 
 USAGE
