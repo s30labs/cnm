@@ -1505,7 +1505,11 @@ $self->log('debug',"_compose_params exec ::[DUMPER] credentials=$dump1");
 		}
 
       $value =~ s/^"(.*)"$/$1/g;
-      if (($value =~ /\S+\s+\S+/) || ($value =~ /\\/)) { $value = '"'.$value.'"'; }
+      if (($value =~ /\S+\s+\S+/) || ($value =~ /\\/)) { 
+			# Si $value incluye " se usa ' y en caso contrario se usa ".
+			if ($value =~ /"/) { $value = "'".$value."'"; }
+			else { $value = '"'.$value.'"'; } 
+		}
 
 		# Si el parametro es de tipo IP se obtiene de: $desc->{'host_ip'}	
 		if ($param_type==2) { $value=$host_ip; }
