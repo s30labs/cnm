@@ -1,0 +1,69 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cfg-app
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Config;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+my $store_path=$rcfgbase->{'data_path'}->[0];
+
+my $db_server=$rcfgbase->{db_server}->[0];
+my $db_name=$rcfgbase->{db_name}->[0];
+my $db_user=$rcfgbase->{db_user}->[0];
+my $db_pwd=$rcfgbase->{db_pwd}->[0];
+
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hd:r:",\%opts);
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+if (!$opts{r}) { my $USAGE = usage(); die $USAGE;}
+
+#-------------------------------------------------------------------------------------------
+my @REMOVE = split(',', $opts{'r'});
+
+my $c=Crawler::Config->new(cfg=>$rcfgbase, log_level=>$log_level);
+
+#my @REMOVE = ('333333001000', '333333001003');
+foreach my $id (@REMOVE) {
+   $c->cfg_runner_remove_task($id);
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+App configurator
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -r  d1,id2,..,idN 
+
+-h:  Ayuda
+-r:  Elimina las tareas especificadas
+-d:  Nivel de depuracion
+
+USAGE
+
+   return $USAGE;
+
+}
+
+1;
