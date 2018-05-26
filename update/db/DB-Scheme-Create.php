@@ -1513,6 +1513,7 @@ $DBScheme = array(
 		'rc'=>"int(11) NOT NULL default '0'",
 		'rcstr'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'OK'",
 		'tabname'=>"varchar(255) character set utf8 collate utf8_spanish_ci default ''",
+		'app_id'=>"varchar(20) character set utf8 collate utf8_spanish_ci default '000000000000'",
       'UNIQUE KEY `dev2log` (`id_dev`,`logfile`)'=>'',
 		'PRIMARY KEY  (`id_device2log`)'=>'',
    ),
@@ -1524,6 +1525,28 @@ $DBScheme = array(
       'PRIMARY KEY  (`tipo`,`valor`)'=>'',
       'UNIQUE KEY `id` (`id`)'=>''
    ),
+
+
+   //-----------------------------------------------------------
+   //-----------------------------------------------------------
+   //cfg_calendars
+	//data: Array en JSON con la lista de valores de cron que definen el calendario
+   'cfg_calendars'=>array(
+      'id_calendar'=>"int(11) NOT NULL auto_increment",
+      'descr'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'data'=>"text character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'PRIMARY KEY  (`id_calendar`)'=>'',
+   ),
+
+   //cfg_task2calendar
+	//mode: 1=>include | 0=>exclude
+   'cfg_task2calendar'=>array(
+		'id_cfg_task_configured'=>"int(11) NOT NULL default '0'",
+      'id_calendar'=>"int(11) NOT NULL default '0'",
+      'mode'=>"int(11) NOT NULL default '0'",
+      'PRIMARY KEY  (`id_cfg_task_configured`,`id_calendar`)'=>'',
+   ),
+
 
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
