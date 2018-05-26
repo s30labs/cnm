@@ -407,6 +407,7 @@ my $pid;
 
 		my @tasks=();
 		my @tasks_cfg=();
+		# Itera sobre las tareas de cada runner
 		foreach my $k (keys %{$h->{'tasks'}}) {
 
 			if (! -f $h->{'tasks'}->{$k}->{'cfg'}) {
@@ -821,7 +822,7 @@ my ($self,$msg) = @_;
 
 my $x=Dumper($msg);
 $x=~s/\n/ /g;
-$self->log('info',"check_event::[DEBUG] MSG = $x");
+$self->log('debug',"check_event::[DEBUG] MSG = $x");
 
 #   $MSG{'proccess'}='SYSLOG';
 #   my $ip2name=$self->ip2name();
@@ -861,9 +862,15 @@ $self->log('info',"check_event::[DEBUG] MSG = $x");
 	my $app_id = (exists $msg->{'app_id'}) ? $msg->{'app_id'} : '000000000000';
 	
    # Almaceno en la tabla de log correspondiente
-   my $table = $store->set_log_rx_lines($dbh,$msg->{'ip'},$msg->{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$msg->{'source_line'}}]);
+   my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$msg->{'ip'},$msg->{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$msg->{'source_line'}}]);
 
-   $self->log('info',"check_event:: STORE LOG [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$msg->{'msg'}, name=>$msg->{'name'}, domain=>$msg->{'domain'}, ip=>$msg->{'ip'}, evkey=>$evkey");
+	if ($cnt_lines == 0) {
+	   $self->log('info',"check_event:: event exists - no alert checking [$app_id] evkey=>$evkey");
+		return 0;
+	}
+	else {
+	   $self->log('info',"check_event:: STORE LOG [$cnt_lines] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$msg->{'msg'}, name=>$msg->{'name'}, domain=>$msg->{'domain'}, ip=>$msg->{'ip'}, evkey=>$evkey");
+	}
 
    $self->event($msg);
 
@@ -1225,7 +1232,7 @@ my ($self,$app,$line) = @_;
 
       # Hay que validar From
       if (exists $h->{$app_id}->{'From'}) {
-			$self->log('debug',"core-imap4::mail_app_mapper:: CHECK1: $app_id >> From=$h->{$app_id}->{'From'} <> $line->{'From'}--");
+			$self->log('info',"core-imap4::mail_app_mapper:: CHECK1: $app_id >> From=$h->{$app_id}->{'From'} <> $line->{'From'}--");
          if ($line->{'From'} ne $h->{$app_id}->{'From'}) {
             $ok=0;
 				$self->log('debug',"core-imap4::mail_app_mapper:: CHECK1: $app_id >> ok=$ok >> END");
@@ -1235,7 +1242,7 @@ my ($self,$app,$line) = @_;
 
       # Hay que validar subject
       if (exists $h->{$app_id}->{'Subject'}) {
-			$self->log('debug',"core-imap4::mail_app_mapper:: CHECK2: $app_id >> Subject=$h->{$app_id}->{'Subject'} <> $line->{'Subject'}--");
+			$self->log('info',"core-imap4::mail_app_mapper:: CHECK2: $app_id >> Subject=$h->{$app_id}->{'Subject'} <> $line->{'Subject'}--");
          my $rule_subject = $h->{$app_id}->{'Subject'};
          if ($line->{'Subject'} !~ /$rule_subject/) {
             $ok=0;

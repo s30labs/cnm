@@ -9174,6 +9174,8 @@ my ($self, $max_size) =@_;
 # set_log_rx_lines
 # Inserta en BBDD las lineas de log recibidas por syslogd
 # En este caso el nombre de la tabla se obtiene a partir de la IP y el local utilizado
+# Devuelve el nombre de la tabla y el numero de filas insertadas
+#----------------------------------------------------------------------------
 sub set_log_rx_lines  {
 my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 
@@ -9189,7 +9191,8 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 	if ($source ne 'syslog') {
 		$table = $prefix.'_'.$source.'_'.$logfile;
 	}
-
+	
+	my $cnt_lines=0;
    foreach my $l (@$lines) {
       my %h = ();
       $h{'line'} = $l->{'line'};
@@ -9205,6 +9208,18 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 
       #Si no existe la tabla, se crea
       if ($libSQL::err == 1146) {
+
+         # id_dev,id_credential,logfile,tabname,todb,status,parser
+         # todb indica si se recibe o es log_pull
+         #----------------------------------------------------------------------------
+         my %d=('id_dev'=>$id_dev,'id_credential'=>0,'logfile'=>$logfile,'tabname'=>$table,'todb'=>1,'status'=>0,'app_id'=>$source);
+         if ($source ne 'syslog') { $d{'id_credential'}=1; }
+
+         $self->init_device2log($dbh,\%d);
+         $self->error($libSQL::err);
+         $self->errorstr($libSQL::errstr);
+         $self->lastcmd($libSQL::cmd);
+
          my $rv = $self->create_log_table($dbh,$table,$ip);
          if ($rv != 0) {
             $self->error($libSQL::err);
@@ -9218,17 +9233,18 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
          $self->errorstr($libSQL::errstr);
          $self->lastcmd($libSQL::cmd);
 
+			if ($libSQL::err == 0) { $cnt_lines++; }
 
-			# id_dev,id_credential,logfile,tabname,todb,status,parser
-			# todb indica si se recibe o es log_pull
-			#----------------------------------------------------------------------------
-			my %d=('id_dev'=>$id_dev,'id_credential'=>0,'logfile'=>$logfile,'tabname'=>$table,'todb'=>1,'status'=>0);
-			if ($source ne 'syslog') { $d{'id_credential'}=1; }
-
-			$self->init_device2log($dbh,\%d);
-   	   $self->error($libSQL::err);
-      	$self->errorstr($libSQL::errstr);
-	      $self->lastcmd($libSQL::cmd);
+#			# id_dev,id_credential,logfile,tabname,todb,status,parser
+#			# todb indica si se recibe o es log_pull
+#			#----------------------------------------------------------------------------
+#			my %d=('id_dev'=>$id_dev,'id_credential'=>0,'logfile'=>$logfile,'tabname'=>$table,'todb'=>1,'status'=>0,'app_id'=>$source);
+#			if ($source ne 'syslog') { $d{'id_credential'}=1; }
+#
+#			$self->init_device2log($dbh,\%d);
+#   	   $self->error($libSQL::err);
+#      	$self->errorstr($libSQL::errstr);
+#	      $self->lastcmd($libSQL::cmd);
 
 		}
       elsif ($libSQL::err == 1062) {
@@ -9240,10 +9256,11 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
          $self->lastcmd($libSQL::cmd);
          $self->log('info',"DB ERR [$libSQL::err] $libSQL::errstr ($libSQL::cmd)");
       }
+		else { $cnt_lines++; }
 
    }
 
-   return $table;
+   return ($table,$cnt_lines);
 }
 
 
