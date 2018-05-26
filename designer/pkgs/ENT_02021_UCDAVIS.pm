@@ -46,6 +46,23 @@ $ENT_02021_UCDAVIS::ENTERPRISE_PREFIX='02021';
 #---------------------------------------------------------------------------
 @ENT_02021_UCDAVIS::METRICS=(
 
+#UCD-SNMP-MIB::memIndex.0 = INTEGER: 0
+#UCD-SNMP-MIB::memErrorName.0 = STRING: swap
+#UCD-SNMP-MIB::memTotalSwap.0 = INTEGER: 1048572
+#UCD-SNMP-MIB::memAvailSwap.0 = INTEGER: 0
+#UCD-SNMP-MIB::memTotalReal.0 = INTEGER: 503609340
+#UCD-SNMP-MIB::memAvailReal.0 = INTEGER: 1855088
+#UCD-SNMP-MIB::memTotalFree.0 = INTEGER: 1855088
+#UCD-SNMP-MIB::memMinimumSwap.0 = INTEGER: 16000
+#UCD-SNMP-MIB::memShared.0 = INTEGER: 7139372
+#UCD-SNMP-MIB::memBuffer.0 = INTEGER: 21568
+#UCD-SNMP-MIB::memCached.0 = INTEGER: 36900104
+#UCD-SNMP-MIB::memSwapError.0 = INTEGER: 1
+#UCD-SNMP-MIB::memSwapErrorMsg.0 = STRING: Running out of swap space (0)
+
+# ( ((memTotalFree + memBuffer + memCache) / memTotalReal) ) * 100
+   {  'name'=> 'MEMORIA DISPONIBLE EN SO LINUX (%)',   'oid'=>'UCD-SNMP-MIB::memTotalFree.0|UCD-SNMP-MIB::memBuffer.0|UCD-SNMP-MIB::memCached.0|UCD-SNMP-MIB::memTotalReal.0', 'subtype'=>'ucd_mem_linux', 'class'=>'UCDAVIS', 'include'=>1, 'esp'=>'100*(o1+o2+o3)/o4',  'vlabel'=>'Percent', 'items'=>'Memory available', 'itil_type' => 4, 'apptype'=>'SO.UCDAVIS' },
+
 	{  'name'=> 'USO DE MEMORIA (SWAP)',   'oid'=>'UCD-SNMP-MIB::memAvailSwap.0|UCD-SNMP-MIB::memTotalSwap.0', 'subtype'=>'ucd_mem_swap', 'class'=>'UCDAVIS', 'include'=>1, 'esp'=>'o1*1024|o2*1024', 'apptype'=>'SO.UCDAVIS' },
 	{  'name'=> 'USO DE MEMORIA (REAL)',   'oid'=>'UCD-SNMP-MIB::memAvailReal.0|UCD-SNMP-MIB::memTotalReal.0', 'subtype'=>'ucd_mem_real', 'class'=>'UCDAVIS', 'include'=>1, 'esp'=>'o1*1024|o2*1024', 'apptype'=>'SO.UCDAVIS' },
 	{  'name'=> 'USO DE MEMORIA (BUFFER)',   'oid'=>'UCD-SNMP-MIB::memShared.0|UCD-SNMP-MIB::memBuffer.0|UCD-SNMP-MIB::memCached.0', 'subtype'=>'ucd_mem_buffer', 'class'=>'UCDAVIS', 'include'=>1, 'esp'=>'o1*1024|o2*1024|o3*1024', 'apptype'=>'SO.UCDAVIS' },

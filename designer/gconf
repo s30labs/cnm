@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #---------------------------------------------------------------------------
 #use lib '/opt/custom_pro/conf';
-use lib '/opt/cnm-designer';
+use lib '/opt/cnm/designer';
 #use lib '/opt/custom_pro/conf/pkgs';
 use strict;
 use Data::Dumper;
@@ -30,7 +30,7 @@ my %opts=();
 getopts("hbm:c:d:i:l:",\%opts);
 
 #my $PKGS_DIR='/opt/custom_pro/conf/pkgs';
-my $PKGS_DIR='/opt/cnm-designer/pkgs';
+my $PKGS_DIR='/opt/cnm/designer/pkgs';
 if ($opts{l}) { $PKGS_DIR=$opts{l}; }
 push @INC,$PKGS_DIR;
 #use lib $PKGS_DIR;
@@ -41,7 +41,7 @@ my @files = < $MODULES_PATH >;
 foreach my $mod(@files){
    my($filename, $directories, $suffix) = fileparse($mod);
    #if ($filename =~/(\S+)\.pm/) { print "/opt/custom_pro/conf/gconf -m $1\n"; }
-   if ($filename =~/(\S+)\.pm/) { print "/opt/cnm-designer/gconf -m $1\n"; }
+   if ($filename =~/(\S+)\.pm/) { print "/opt/cnm/designer/gconf -m $1\n"; }
 }
 #---------------------------------------------------------------------------
 
@@ -1342,7 +1342,7 @@ $fpth[$#fpth] -h  : Ayuda
 $fpth[$#fpth] -m  : Nombre de modulo p.ej: ENT_00000_MIB_II 
 $fpth[$#fpth] -b  : Indica si se incluye en la base. Por defecto se instalan en cnm-sp
 $fpth[$#fpth] -c  : Fichero de CACHE
-$fpth[$#fpth] -l  : Lib Dir (por defecto es /opt/cnm-designer/pkgs)
+$fpth[$#fpth] -l  : Lib Dir (por defecto es /opt/cnm/designer/pkgs)
 
 USAGE
 
