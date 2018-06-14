@@ -80,6 +80,7 @@ bless {
          _err_str =>$arg{err_str} || '[OK]',
          _err_num =>$arg{err_num} || 0,
 			_nologinit => $arg{nologinit} || 1,
+			_timeout => $arg{timeout} || 25,
 
          _store_dir =>$arg{store_dir} || '/opt/data/scripts',
          _store_limit =>$arg{store_limit} || 5,
@@ -208,6 +209,19 @@ my ($self,$nologinit) = @_;
    }
    else {
       return $self->{_nologinit};
+   }
+}
+
+#----------------------------------------------------------------------------
+# timeout
+#----------------------------------------------------------------------------
+sub timeout {
+my ($self,$timeout) = @_;
+   if (defined $timeout) {
+      $self->{_timeout}=$timeout;
+   }
+   else {
+      return $self->{_timeout};
    }
 }
 
