@@ -58,6 +58,10 @@
   file: path=/etc/cron.daily/logrotate state=absent
   tags: cnm-runtime
 
+- name: crawler-hourly.conf -> cron.hourly
+  copy: src=crawler-hourly.conf dest=/etc/cron.hourly/crawler-hourly.conf owner=root group=root mode=0755
+  tags: cnm-runtime
+
 - name: cnm-watch -> cron.fast
   copy: src=cnm-watch dest=/etc/cron.fast/cnm-watch  owner=root group=root mode=0755
   tags: cnm-runtime
