@@ -9191,20 +9191,42 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 	if ($source ne 'syslog') {
 		$table = $prefix.'_'.$source.'_'.$logfile;
 	}
-	
+
+	my $rv=0;	
 	my $cnt_lines=0;
    foreach my $l (@$lines) {
       my %h = ();
       $h{'line'} = $l->{'line'};
       $h{'ts'}=$l->{'ts'};
-      my $k=md5_hex($l->{'line'});
-      $h{'hash'} = substr $k,0,16;
+
+		if ((exists $l->{'md5'}) && ($l->{'md5'}=~/\w{16}/)) {
+			$h{'hash'} = $l->{'md5'};
+
+      	$rv=sqlInsertUpdate4x($dbh,$table,\%h,\%h);
+	      $self->error($libSQL::err);
+   	   $self->errorstr($libSQL::errstr);
+      	$self->lastcmd($libSQL::cmd);
+
+$libSQL::cmd=~ s/\n/ /g;
+$self->log('info',"*****DEBUG*****$libSQL::cmd******");
+
+		}
+		else {
+	      my $k=md5_hex($l->{'line'});
+   	   $h{'hash'} = substr $k,0,16;
+
+	      $rv=sqlInsert($dbh,$table,\%h);
+   	   $self->error($libSQL::err);
+      	$self->errorstr($libSQL::errstr);
+      	$self->lastcmd($libSQL::cmd);
+
+		}
 
       #------------------------------------------------------------------------
-      my $rv=sqlInsert($dbh,$table,\%h);
-      $self->error($libSQL::err);
-      $self->errorstr($libSQL::errstr);
-      $self->lastcmd($libSQL::cmd);
+      #my $rv=sqlInsert($dbh,$table,\%h);
+      #$self->error($libSQL::err);
+      #$self->errorstr($libSQL::errstr);
+      #$self->lastcmd($libSQL::cmd);
 
       #Si no existe la tabla, se crea
       if ($libSQL::err == 1146) {

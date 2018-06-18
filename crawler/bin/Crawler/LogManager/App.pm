@@ -25,6 +25,8 @@ use IO::CaptureOutput qw/capture/;
 use Net::IMAP::Simple;
 use MIME::Parser;
 use HTML::TableExtract;
+use Schedule::Cron;
+
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
 
@@ -53,6 +55,7 @@ my ($class,%arg) =@_;
    $self->{_tasks_cfg} = $arg{tasks_cfg} || [];
    $self->{_app} = $arg{app} || {};
    $self->{_daemon} = $arg{daemon} || 1;		# daemon mode
+   $self->{_crontab} = $arg{crontab} || '';	# crontab entry (optional) 
    $self->{_config_path} = $arg{config_path} || '/cfg/crawler-app-runner.json';
 
    $self->{_timeout} = $arg{timeout} || 70;
@@ -133,6 +136,17 @@ my ($self,$daemon) = @_;
       $self->{_daemon}=$daemon;
    }
    else { return $self->{_daemon}; }
+}
+
+#----------------------------------------------------------------------------
+# crontab
+#----------------------------------------------------------------------------
+sub crontab {
+my ($self,$crontab) = @_;
+   if (defined $crontab) {
+      $self->{_crontab}=$crontab;
+   }
+   else { return $self->{_crontab}; }
 }
 
 #----------------------------------------------------------------------------
@@ -287,11 +301,31 @@ my ($self,$lapse)=@_;
    }
 
    #----------------------------------------------------
-   #my $wait = $tnext - time;
-	my $xx=$self->time_ref();
-   my $wait = ($self->time_ref() + $lapse) - time;
+	my $tnow = time;
+   my $tstart=$self->time_ref();
+   my $wait_for_lapse = ($tstart + $lapse) - $tnow;
+
+
+	my $wait_for_cron=$lapse;
+	my $crontab = $self->crontab();
+	my $n = scalar(split(/\s+/,$crontab));
+	if ($n==5) {	
+      $self->log('info',"do_task::[INFO] ***DEBUG CRONTAB*** $crontab");
+		my $cron = new Schedule::Cron(sub {});
+   	my $next_cron_time = $cron->get_next_execution_time($crontab);
+   	$wait_for_cron = $next_cron_time - $tnow;
+      $self->log('info',"do_task::[INFO] ***DEBUG CRONTAB*** next_cron_time=$next_cron_time tnow=$tnow wait_for_cron=$wait_for_cron | wait_for_lapse=$wait_for_lapse lapse=$lapse");
+	}
+	else {
+		$self->log('info',"do_task::[INFO] ***DEBUG*** wait_for_lapse=$wait_for_lapse lapse=$lapse");
+   }
+
+   #----------------------------------------------------
+	my $wait = $wait_for_lapse;
+	if ($wait_for_cron < $wait) { $wait=$wait_for_cron; } 
+
    if ($wait < 0) {
-      $self->log('warning',"do_task::[WARN] *S* [WAIT=$wait] time_ref=$xx lapse=$lapse");  
+      $self->log('warning',"do_task::[WARN] *S* [WAIT=$wait] time_ref=$tstart lapse=$lapse");  
       sleep 5;
    }
    else {
@@ -399,6 +433,7 @@ my $pid;
 
       my $lapse = $h->{'lapse'};
       my $type = $h->{'type'};
+      my $crontab = (exists $h->{'crontab'}) ? $h->{'crontab'} : '';
 
       if ( (! $type) || (! $range) || (! $lapse)) {
          $self->log('warning',"run::[WARN] NO definido tipo|rango|lapse");
@@ -442,6 +477,7 @@ my $pid;
 
 			# Necesario. No basta con ponerlo en el constructor
 			$app->daemon($x);
+			$app->crontab($crontab);
 			$app->config_path($cp);
 			$app->tasks(\@tasks);
 			$app->tasks_cfg(\@tasks_cfg);
@@ -475,7 +511,7 @@ my ($self,$lapse,$task)=@_;
    my $log_level=$self->log_level();
 
    while (1) {
-
+		
       eval {
 
          my $t=time;
@@ -511,6 +547,9 @@ my ($self,$lapse,$task)=@_;
 					my $i=0;
 					my $total=scalar(@$lines);
 
+$self->log('info',"do_task::**DEBUG***$app->{'host_name'}*****");
+#if ($app->{'host_name'} eq 'INTRANETBD2') {next;}
+
       			foreach my $lx (@$lines) {
 
 						$i++;
@@ -532,7 +571,7 @@ my ($self,$lapse,$task)=@_;
 			}
          $self->idle_time($lapse);
       };
-
+		
       if ($@) {
          my $kk=ref($dbh);
          $self->log('warning',"do_task::EXCEPTION (dbh=>$kk) $@");
@@ -645,8 +684,9 @@ $self->log('debug',"get_app_data:: app=$xx");
 
    #--------------------------------------------
    # 2. TRANSFORM DATA (line by line) -> custom_line_parser
+	# @$data formado por linas del tipo: ts,$app_id,$app_name,source_line
    #--------------------------------------------
-	# a. Carga de modulos
+	# a. Carga los modulos de las app_ids definidas en mapper
    #--------------------------------------------
 	my %LOADED=();
    #foreach my $h (@{$app->[0]->{'mapper'}}) {
@@ -687,49 +727,73 @@ $self->log('debug',"get_app_data:: app=$xx");
 	# Solo aplica si hay modulos cargados
 	if (scalar(keys %LOADED) != 0) { 
 
-		$self->log('info',"app_parser:: ------- DATA TRANSFORMATION ---------");
+		$self->log('info',"app_parser:: ------- LINE DATA TRANSFORMATION ---------");
 		my @new_data=();
 		foreach my $l (@$data) {
 
 $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 1 >>>>>>$l<<<<<<<<<<");
 
       	chomp $l;
-      	if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
-				my %line_parts=();
+			my %line_parts=();
+			my $skip_line=1;
+			if ($l=~/^(\d+?),(\d+?),(\S+?),(.+?)\:\:\:(\w{16})$/) {
+            $line_parts{'ts'} = $1;
+            $line_parts{'app_id'} = $2;
+            $line_parts{'app_name'} = $3;
+            $line_parts{'source_line'} = $4;
+            $line_parts{'md5'} = $5;
+				$skip_line=0;
+			}
+      	elsif ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
 				$line_parts{'ts'} = $1;
 				$line_parts{'app_id'} = $2;
 				$line_parts{'app_name'} = $3; 
 				$line_parts{'source_line'} = $4;
+            $line_parts{'md5'} = '';
+				$skip_line=0;
+			}	
+			if ($skip_line) { next; }
 
-				my $module='MOD'.$line_parts{'app_id'};
+			my $module='MOD'.$line_parts{'app_id'};
 $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 2");
-				if (! exists $LOADED{$line_parts{'app_id'}}) { push @new_data,$l; }
-				else {
+			if (! exists $LOADED{$line_parts{'app_id'}}) { push @new_data,$l; }
+			elsif ( 	(exists $MODINFO::custom_line_parser{$line_parts{'app_id'}}) &&
+						(ref($MODINFO::custom_line_parser{$line_parts{'app_id'}}) eq 'CODE') ) {
+
 $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 
-					my $expanded = $MODINFO::custom_line_parser{$line_parts{'app_id'}}->($app,\%line_parts);
-     				#my $expanded = custom_line_parser($app,\%line_parts);
-     				my $n = scalar(@$expanded);
+				my $expanded = $MODINFO::custom_line_parser{$line_parts{'app_id'}}->($app,\%line_parts);
+  				#my $expanded = custom_line_parser($app,\%line_parts);
+  				my $n = scalar(@$expanded);
+				if ($n == 0) { next; }
 
-					push @new_data,@$expanded;
-   	  			$self->log('info',"app_parser:: $line_parts{'app_id'} >> $n lines");
-     			}
-			}
+				push @new_data,@$expanded;
+  	  			$self->log('info',"app_parser:: $line_parts{'app_id'} >> $n lines **xx=$xx***");
+  			}
 		}
-
 		$data = [@new_data];
 	}
 
    #--------------------------------------------
    # 3. TRANSFORM DATA (block transform) -> custom_block_parser
    #--------------------------------------------
-	# To be implemented .....
+   # Solo aplica si hay modulos cargados
+	my $custom_block_id = (exists $app->{'custom_block_parser'}) ? $app->{'custom_block_parser'} : '0';
+   if ( 	(exists $LOADED{$custom_block_id}) && 
+			(exists $MODINFO::custom_block_parser{$custom_block_id}) && 
+			(ref($MODINFO::custom_block_parser{$custom_block_id}) eq 'CODE') ){
+
+      $self->log('info',"app_parser:: ------- BLOCK DATA TRANSFORMATION ($custom_block_id) ---------");
+		my $data2 = $MODINFO::custom_block_parser{$custom_block_id}->($app,$data);
+		$data = $data2;
+   }
 
 
    #--------------------------------------------
    # 4. PREPARE LINES csv -> hash
    #--------------------------------------------
    #timestamp,app-id,app-name,json info hash
+   #timestamp,app-id,app-name,json info hash:::md5_line
    my @lines=();
    foreach my $l (@$data) {
 
@@ -742,11 +806,24 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
       $MSG{'id_dev'} = $app->{'id_dev'};
       $MSG{'source_line'} = '';
       $MSG{'date'} = '';
+		$MSG{'md5'} = '';
 
 #$self->log('info',"app_parser:: ***DEBUG*** l=$l-----");
 #$self->log('info',"app_parser:: ***DEBUG*** $MSG{'name'}-$MSG{'domain'}-$MSG{'ip'}-$MSG{'id_dev'}");
 
-      if ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
+		# Incluye hash md5 de cada linea -> Util para cuando no se aplica sobre toda la linea
+		# Permite actualizar valores
+		# timestamp,app-id,app-name,json info hash:::md5_line
+      if ($l=~/^(\d+?),(\d+?),(\S+?),(.+?)\:\:\:(\w{16})$/) {
+         $MSG{'ts'} = $1;
+         $MSG{'app_id'} = $2;
+         $MSG{'app_name'} = $3;
+         $MSG{'source_line'} = $4;
+			$MSG{'md5'} = $5;
+      }
+		# El hash  md5 se calcula internamente al almacenarse el evento
+		# timestamp,app-id,app-name,json info hash
+		elsif ($l=~/^(\d+?),(\d+?),(\S+?),(.+)$/) {
          $MSG{'ts'} = $1;
          $MSG{'app_id'} = $2;
          $MSG{'app_name'} = $3;
@@ -756,7 +833,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
          $MSG{'source_line'} = $l;
       }
 
-$self->log('debug',"app_parser:: source_line=$MSG{'source_line'}*****')");
+$self->log('debug',"app_parser:: source_line=$MSG{'source_line'}*****md5=$MSG{'md5'}");
 
       push @lines, \%MSG;
 
@@ -810,50 +887,23 @@ my ($self)=@_;
 sub check_event {
 my ($self,$msg) = @_;
 
-
 	my $app = $self->app();
 
    $self->event($msg);
    my $store=$self->store();
    my $dbh=$self->dbh();
 
-#   my $tag=$self->tag();
-#   $self->log('info',"check_event::[DEBUG] START tag=$tag ");
-
 my $x=Dumper($msg);
 $x=~s/\n/ /g;
 $self->log('debug',"check_event::[DEBUG] MSG = $x");
 
-#   $MSG{'proccess'}='SYSLOG';
-#   my $ip2name=$self->ip2name();
-#   $MSG{'id_dev'} = (exists $ip2name->{$MSG{'ip'}}->{'id_dev'}) ? $ip2name->{$MSG{'ip'}}->{'id_dev'} : 0;
-#   $MSG{'critic'} = (exists $ip2name->{$MSG{'ip'}}->{'critic'}) ? $ip2name->{$MSG{'ip'}}->{'critic'} : 50;
-
-   # evkey
-   my $m1=$msg->{'ip'}.$msg->{'source_line'};
-   my $evkey1=md5_hex($m1);
-
-   my $evkey = 'log_' . substr $evkey1,0,8;
-
    $msg->{'msg_custom'}='';
    $msg->{'msg'}='<b>v1 (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'};
 
-
-#   # Si no esta configurado, no guardo nada
-#   my $acls = $store->get_cfg_syslog_acls($dbh);
-#   #my $logfile='syslog-'.$tag;
-
-
    my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
-   #my $k=$msg->{'ip'}.'.'.$logfile;
 
 	if (exists $msg->{'app_name'}) { $logfile = $msg->{'app_name'}.'-'.$logfile; }
 
-# En este caso el dispositivo no tiene que tener configurado syslog.
-#   if ((! exists $acls->{$k}) || (! $acls->{$k})) {
-#      $self->log('info',"check_event:: NO HAGO STORE LOG NO CONFIGURADO $k >> IP=$msg->{'ip'}, msg=>$msg->{'msg'}, evkey=>$evkey");
-#      return 0;
-#   }
 
    # Almaceno el evento ---------------------------------------------------------------------
    my $t = (exists $msg->{'ts'}) ? $msg->{'ts'} : time;
@@ -862,14 +912,14 @@ $self->log('debug',"check_event::[DEBUG] MSG = $x");
 	my $app_id = (exists $msg->{'app_id'}) ? $msg->{'app_id'} : '000000000000';
 	
    # Almaceno en la tabla de log correspondiente
-   my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$msg->{'ip'},$msg->{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$msg->{'source_line'}}]);
+   my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$msg->{'ip'},$msg->{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$msg->{'source_line'}, 'md5'=>$msg->{'md5'}}]);
 
 	if ($cnt_lines == 0) {
-	   $self->log('info',"check_event:: event exists - no alert checking [$app_id] evkey=>$evkey");
+	   $self->log('info',"check_event:: event exists - no alert checking [$app_id]");
 		return 0;
 	}
 	else {
-	   $self->log('info',"check_event:: STORE LOG [$cnt_lines] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$msg->{'msg'}, name=>$msg->{'name'}, domain=>$msg->{'domain'}, ip=>$msg->{'ip'}, evkey=>$evkey");
+	   $self->log('info',"check_event:: STORE LOG [$cnt_lines] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$msg->{'msg'}, name=>$msg->{'name'}, domain=>$msg->{'domain'}, ip=>$msg->{'ip'}");
 	}
 
    $self->event($msg);
@@ -1055,6 +1105,7 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
 #------------------------------------------------------------------------------------------
 # CORE-IMAP4 >> app-get-mail-imap4 
 # Obtiene correos por IMAP4
+# Resultado: \@RESULT con lineas formadas por:  ts,$app_id,$app_name,source_line
 #------------------------------------------------------------------------------------------
 sub core_imap_get_app_data {
 my ($self,$task_cfg_file)=@_;
