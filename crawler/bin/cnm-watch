@@ -17,6 +17,7 @@ my $VERSION='1.0';
 #-------------------------------------------------------------------------------------------
 my $rc;
 my $FILE_CONF='/cfg/onm.conf';
+my $MAX_OPEN_FILES=8192;
 
 #-------------------------------------------------------------------------------------------
 my $ip=my_ip();
@@ -321,32 +322,32 @@ if (! $running{'mysql'})  {
 # actionsd --------------------------------------------------
 # Debe estar funcionando siempre. Si no es asi, en modo pasivo no restaura.
 if (! $running{'actionsd'}) {
-   $rc=system ("/opt/crawler/bin/actionsd");
+   $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/actionsd");
    $store->log('notice',"cnm-watch::[WARN] RESTART: actionsd");
 }
 
 if ($ACTIVE) {
 	# notificationsd.010 -----------------------------------------
 	if (! $running{'notificationsd.010'}) {
-  	 	$rc=system ("/opt/crawler/bin/notificationsd -t normal");
+  	 	$rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t normal");
    	$store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.010");
 	}
 
    # notificationsd.020 -----------------------------------------
    if (! $running{'notificationsd.020'}) {
-      $rc=system ("/opt/crawler/bin/notificationsd -t notifications");
+      $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t notifications");
       $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.020");
    }
 
    # notificationsd.040 -----------------------------------------
    if (! $running{'notificationsd.040'}) {
-      $rc=system ("/opt/crawler/bin/notificationsd -t sev4");
+      $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t sev4");
       $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.040");
    }
 
 	# mail_manager -----------------------------------------------
 	if (! $running{'mail_manager'}) {
-   	$rc=system ("/opt/crawler/bin/mail_manager");
+   	$rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/mail_manager");
    	$store->log('notice',"cnm-watch::[WARN] RESTART: mail_manager");
 	}
 }
@@ -1015,7 +1016,7 @@ sub start_one {
 my ($idx)=@_;
 my $rc;
 
-   $rc=system ("/opt/crawler/bin/crawler -s -c $idx");
+   $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $idx");
    $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
    #$store->reset_crawler_changes($dbh,$idx);
 }
