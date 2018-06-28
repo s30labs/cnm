@@ -635,7 +635,7 @@ my ($self,$task_cfg_file)=@_;
    #$|=1;
    my $host = $self->host();
 	my $app = $self->app();
-
+	$app->{'file_temp'}=[];
 
 
 my $xx = Dumper($app);
@@ -1307,12 +1307,15 @@ my ($self,$app,$line) = @_;
          last;
       }
    }
-	$self->log('debug',"core-imap4::mail_app_mapper:: RES: ok=$ok");
+
    if (! $ok) {
       ($app_id,$app_name) = ($app->[0]->{'default'}->{'app_id'}, $app->[0]->{'default'}->{'app_name'});
+		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO default app_id=$app_id | app_name=$app_name");
    }
+	else {
+		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO app_id=$app_id | app_name=$app_name");
+	}
 
-	$self->log('info',"core-imap4::mail_app_mapper:: ----app_id=$app_id | app_name=$app_name----");
    return ($app_id,$app_name);
 }
 
