@@ -54,12 +54,16 @@
   copy: src=logrotate dest=/etc/cron.daily12/logrotate owner=root group=root mode=0755
   tags: cnm-runtime
 
-- name: Clean logrotate in cron.daily
+- name: Clean logrotate in cron.daily DEBUG
   file: path=/etc/cron.daily/logrotate state=absent
   tags: cnm-runtime
 
-- name: crawler-hourly.conf -> cron.hourly
-  copy: src=crawler-hourly.conf dest=/etc/cron.hourly/crawler-hourly.conf owner=root group=root mode=0755
+- name: logrotate-hourly.conf -> /etc
+  copy: src=logrotate-hourly.conf dest=/etc/logrotate-hourly.conf owner=root group=root mode=0644
+  tags: cnm-runtime
+
+- name: logrotate-hourly -> cron.hourly
+  copy: src=logrotate-hourly dest=/etc/cron.hourly/logrotate-hourly owner=root group=root mode=0755
   tags: cnm-runtime
 
 - name: cnm-watch -> cron.fast
