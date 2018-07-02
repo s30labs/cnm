@@ -12,7 +12,7 @@ use Crawler::Store;
 #-------------------------------------------------------------------------------------------
 my $VERSION='1.0';
 #-------------------------------------------------------------------------------------------
-my $FILE_CONF='/cfg/onm.conf'; 
+my $FILE_CONF='/cfg/onm.conf';
 
 #-------------------------------------------------------------------------------------------
 my $rCFG=conf_base($FILE_CONF);
@@ -61,12 +61,12 @@ my %DEVICES_WITH_OLD_RRDS=();
 my $res=$store->get_from_db($dbh,'id_dev,name,status', 'devices','','');
 foreach my $a (@$res) {
 
-  	$DEVICES_IN_DB{$a->[0]}={ 'name'=>$a->[1], 'status'=>$a->[2], 'alert'=>0 };
+        $DEVICES_IN_DB{$a->[0]}={ 'name'=>$a->[1], 'status'=>$a->[2], 'alert'=>0 };
 }
 
 $res=$store->get_from_db($dbh,'id_device,subtype', 'alerts',"counter>0 AND severity<4 and cause='SIN RESPUESTA SNMP'",'');
 foreach my $a (@$res) {
-	$DEVICES_IN_DB{$a->[0]}->{'alert'}=1;
+        $DEVICES_IN_DB{$a->[0]}->{'alert'}=1;
 }
 
 #-------------------------------------------------------------------------------------------
@@ -78,13 +78,13 @@ my @old_files=`/usr/bin/find /opt/data/rrd/elements -ctime +1`;
 my ($cnt_metric,$cnt_dev)=(0,0);
 foreach my $f (@old_files) {
    #./0000000054/mon_http-STD.rrd
-	chomp $f;
+        chomp $f;
    if ($f =~ /elements\/(\d+)\//) {
       my $id=int $1;
-		if ($DEVICES_IN_DB{$id}->{'status'} == 0) {
-      	push @{$DEVICES_WITH_OLD_RRDS{$id}},$f;
-			$cnt_metric+=1;
-		}
+                if ($DEVICES_IN_DB{$id}->{'status'} == 0) {
+        push @{$DEVICES_WITH_OLD_RRDS{$id}},$f;
+                        $cnt_metric+=1;
+                }
    }
 }
 
@@ -95,50 +95,75 @@ my @TEMP=();
 #Un rrd puede no actualizarse por:
 #1. Se ha eliminado la métrica de métricas en curso -> Queda (o no) en la plantilla desactivada. En este caso ya no está en la tabla métrics.
 #2. El dispositivo está  en alerta -> No responde a snmp-> No pinta las métricas snmp
-my @SIN_SNMP=();
+my %SIN_SNMP=();
+my @PROV_IDS=();
 print "GRUPO1 : DISPOSITIVOS ACTIVOS EN BBDD (status=0) CON METRICAS SIN ACTUALIZAR\n".'-' x70 . "\n";
 foreach my $id (sort {$a <=> $b} keys %DEVICES_WITH_OLD_RRDS) {
-	if (! exists $DEVICES_IN_DB{$id}->{'status'}) { 
-		my $subdir=sprintf("%010d",$id);
-		$DEVICES_DELETED{$id} = "rm -rf /opt/data/rrd/elements/$subdir/*";
-		push @TEMP,$id;
-	}
-	else { 
-		if ($DEVICES_IN_DB{$id}->{'status'} == 0) {  
-			my $n = $DEVICES_IN_DB{$id}->{'name'};
-			if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { push @SIN_SNMP, "$id [$n]"; }
-			else {
-				print "$id [$n],"; 
-			}
-		}
-	}
+        if (! exists $DEVICES_IN_DB{$id}->{'status'}) {
+                my $subdir=sprintf("%010d",$id);
+                $DEVICES_DELETED{$id} = "rm -rf /opt/data/rrd/elements/$subdir/*";
+                push @TEMP,$id;
+        }
+        else {
+                if ($DEVICES_IN_DB{$id}->{'status'} == 0) {
+                        my $n = $DEVICES_IN_DB{$id}->{'name'};
+                        if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { $SIN_SNMP{$id} = "$id [$n]"; }
+                        else {
+                                print "$id [$n],";
+                                push @PROV_IDS, $id;
+                        }
+                }
+        }
 }
 
 print "\n\n";
 
 print "---->SIN SNMP:\n";
-print join(',',@SIN_SNMP), "\n";
+print join(',',values(%SIN_SNMP)), "\n";
+
+print "\n\n";
+print join(',',@PROV_IDS), "\n";
 
 print "\n\n";
 
 print "GRUPO2 : DISPOSITIVOS ELIMINADOS CON RRDs SIN ELIMINAR\n".'-' x70 . "\n";
 foreach my $id (sort {$a <=> $b} keys %DEVICES_DELETED) {
-	print $DEVICES_DELETED{$id}."\n";
+        print $DEVICES_DELETED{$id}."\n";
 }
 print "\n";
 
 print join(',',@TEMP),"\n\n";
 
 $cnt_dev=scalar (keys %DEVICES_WITH_OLD_RRDS);
-my  $cnt_dev_sin_snmp=scalar@SIN_SNMP;
+my  $cnt_dev_sin_snmp=scalar(keys(%SIN_SNMP));
 print "GRUPO1 : TOTAL DISPOSITIVOS ACTIVOS CON METRICAS SIN ACTUALIZAR = $cnt_dev [sin snmp=$cnt_dev_sin_snmp]\n";
 print "GRUPO1 : TOTAL METRICAS SIN ACTUALIZAR = $cnt_metric\n\n";
 
-print "GRUPO1 : DISPOSITIVOS ACTIVOS EN BBDD CON METRICAS SIN ACTUALIZAR **DETALLADO**\n".'-' x70 . "\n";
+print "GRUPO1 : DISPOSITIVOS ACTIVOS EN BBDD CON METRICAS SIN ACTUALIZAR QUE HAY QUE REVISAR\n".'-' x70 . "\n";
 foreach my $id (sort {$a <=> $b} keys %DEVICES_WITH_OLD_RRDS) {
-	if ($DEVICES_IN_DB{$id}->{'status'} != 0) { next; } 
-	print "#_old $id :".scalar(@{$DEVICES_WITH_OLD_RRDS{$id}})."\n";
-	foreach my $f (@{$DEVICES_WITH_OLD_RRDS{$id}}) { print "\trm $f\n"; }
+        # Si el dispositivo no esta activo, no hay que revisar
+        if ($DEVICES_IN_DB{$id}->{'status'} != 0) { next; }
+        # Si el dispositivo esta con alerta de SIN SNMP no hay que revisar
+        if (exists $SIN_SNMP{$id}) { next; }
+
+        # Hay que ver que las metricas esten activas
+        my %metrics_not_active=();
+        $res=$store->get_from_db($dbh,'t.type,t.subtype,i.iid,i.label', 'prov_template_metrics t, prov_template_metrics2iid i',"t.id_template_metric=i.id_template_metric and t.id_dev=$id and i.status>0",'');
+        foreach my $a (@$res) {
+                my ($type,$subtype,$iid,$label)=($a->[0],$a->[1],$a->[2],$a->[3]);
+                my $rrd='/opt/data/rrd/elements/'.sprintf("%010d",$id).'/';
+                if ($iid eq 'ALL') { $rrd.= $subtype.'-STD.rrd'; }
+                else {  $rrd.= $subtype.'-'.$iid.'-STD.rrd'; }
+#print "+++debug++$rrd\n";
+                $metrics_not_active {$rrd}=1;
+        }
+
+        print "#_old $id :".scalar(@{$DEVICES_WITH_OLD_RRDS{$id}})."\n";
+        foreach my $f (@{$DEVICES_WITH_OLD_RRDS{$id}}) {
+                if (exists $metrics_not_active{$f}) { next; }
+                print "\trm $f\n";
+                system ("echo -n '#  ' && /bin/ls -l $f");
+        }
 }
 
 
@@ -153,9 +178,9 @@ foreach my $id (sort {$a <=> $b} keys %DEVICES_WITH_OLD_RRDS) {
 my %RRDS_IN_DIR_FILES=();
 my @all_files=`/usr/bin/find /opt/data/rrd/elements -type f`;
 foreach my $f (@all_files) {
-	if ($f =~ /elements\/(\d+\/.*)$/) { 
-		$RRDS_IN_DIR_FILES{$1}=1; 
-	}
+        if ($f =~ /elements\/(\d+\/.*)$/) {
+                $RRDS_IN_DIR_FILES{$1}=1;
+        }
 }
 
 $res=$store->get_from_db($dbh,'m.file,d.name', 'devices d, metrics m','m.id_dev=d.id_dev and d.status=0 and m.status=0','order by file');
@@ -164,15 +189,16 @@ print "***METRICAS ACTIVAS TOTALES = $xx\n";
 print "GRUPO3 : METRICAS ACTIVAS EN BBD SIN RRDs EN DIRECTORIO\n".'-' x70 . "\n";
 my  $i=1;
 foreach my $a (@$res) {
-	if (! exists $RRDS_IN_DIR_FILES{$a->[0]}) { 
-		print "[$i]\t**NO EXISTE** $a->[0]\t[$a->[1]]"; 
-		if ($a->[0]=~/(\d+)\/\S+/) {
-			my $id = int $1;
-			if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { print "\t**sin snmp**";}
-		}
-		print "\n";
-		$i+=1;
-	}
+        if (! exists $RRDS_IN_DIR_FILES{$a->[0]}) {
+                print "[$i]\t**NO EXISTE** $a->[0]\t[$a->[1]]";
+                if ($a->[0]=~/(\d+)\/\S+/) {
+                        my $id = int $1;
+                        if ($DEVICES_IN_DB{$id}->{'alert'} == 1) { print "\t**sin snmp**";}
+                }
+                print "\n";
+                $i+=1;
+        }
 }
 $store->close_db($dbh);
+
 
