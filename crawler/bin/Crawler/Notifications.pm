@@ -1014,6 +1014,7 @@ my ($self,$lapse,$range)=@_;
 
 		   my $t=time;
 			$self->sanity_check($t,$range,$sanity_lapse,'sev4');
+			$self->time_ref($t);
 
          #----------------------------------------------------------------------
          # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
