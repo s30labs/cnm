@@ -947,7 +947,7 @@
             else{
                // error: el parámetro no existe
                $rc = 1;
-               CNMUtils::error_log(__FILE__, __LINE__, "cnmdevice->set_system_field() >> param doesn't exist");
+               CNMUtils::error_log(__FILE__, __LINE__, "cnmdevice->set_system_field() >> param ".func_get_arg(0)." doesn't exist");
             }
          }
          else{
@@ -1367,7 +1367,7 @@ mysql> select * from devices_custom_types;
                'enterprise'  => '0',
                'mac'         => '0',
                'macvendor'   => '',
-               'netmask'     => '',
+               // 'netmask'     => '',
                'network'     => '',
                'switch'      => '0',
 				);
@@ -1401,13 +1401,14 @@ mysql> select * from devices_custom_types;
                'enterprise'  => ($results[4]=='')?'0':$results[4],
                'mac'         => ($results[5]=='')?'0':$results[5],
                'macvendor'   => ($results[6]=='')?'':$results[6],
-               'netmask'     => ($results[7]=='')?'':$results[7],
+               // 'netmask'     => ($results[7]=='')?'':$results[7],
                'network'     => ($results[8]=='')?'':$results[8],
                'switch'      => ($results[9]=='')?'0':$results[9],
             );
 
 			}
-			CNMUtils::info_log(__FILE__, __LINE__, "cnmdevice->do_mib2_system() >> snmpsysdesc:{$a_field['snmpsysdesc']} snmpsysoid:{$a_field['snmpsysoid']} snmpsysloc:{$a_field['snmpsysloc']} enterprise:{$a_field['enterprise']} mac:{$a_field['mac']} macvendor:{$a_field['macvendor']} netmask:{$a_field['netmask']} network:{$a_field['network']} switch:{$a_field['switch']}");
+			// CNMUtils::info_log(__FILE__, __LINE__, "cnmdevice->do_mib2_system() >> snmpsysdesc:{$a_field['snmpsysdesc']} snmpsysoid:{$a_field['snmpsysoid']} snmpsysloc:{$a_field['snmpsysloc']} enterprise:{$a_field['enterprise']} mac:{$a_field['mac']} macvendor:{$a_field['macvendor']} netmask:{$a_field['netmask']} network:{$a_field['network']} switch:{$a_field['switch']}");
+			CNMUtils::info_log(__FILE__, __LINE__, "cnmdevice->do_mib2_system() >> snmpsysdesc:{$a_field['snmpsysdesc']} snmpsysoid:{$a_field['snmpsysoid']} snmpsysloc:{$a_field['snmpsysloc']} enterprise:{$a_field['enterprise']} mac:{$a_field['mac']} macvendor:{$a_field['macvendor']} network:{$a_field['network']} switch:{$a_field['switch']}");
          $this->set_system_field($a_field);
 		}
 
