@@ -94,7 +94,7 @@ if ($opts{f}) {
 
 }
 else	{
-	
+		
 	# Permite configurar la conectividad basica sin necesidad de configurar el resto
 	if ($opts{m}) {
 	
@@ -503,10 +503,11 @@ sub read_host_conf {
 	$HOST_CFG{'INTERFACE'} = `/sbin/ip route | awk '/default/ { print \$5 }'`;
 	chomp $HOST_CFG{'INTERFACE'};
 
-	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
+	#172.17.0.x -> docker IP addresses -> SKIP
+	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig | grep -v '172.17.0.' | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
 	chomp $HOST_CFG{'IPADDR'};
 
-	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig | /bin/grep -Eo ' (Mask:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '255.0.0.0'`;
+	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig | grep -v '172.17.0.' | /bin/grep -Eo ' (Mask:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '255.0.0.0'`;
 	chomp $HOST_CFG{'NETMASK'};
 
 	$HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;

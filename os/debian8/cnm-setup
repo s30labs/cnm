@@ -165,7 +165,10 @@ my ($feature,$url) = @_;
       print "pull from $url ...\n";
       $cmd = "$GIT pull";
       $rc = system ($cmd);
-      if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+      if ($rc !=0) { 
+			print "**WARNNG** Found local changes - pull exits (rc=$rc)\n"; 
+			exit;
+		}
       $cmd = "$GIT checkout";
       $rc = system ($cmd);
       if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
