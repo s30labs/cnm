@@ -51,8 +51,12 @@ $linux_metric_file_server::SCRIPT_NAME = 'linux_metric_file_server.pl';
 		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-user', '__PARAM_DESCR__' => 'Server User', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
 		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-pwd', '__PARAM_DESCR__' => 'Server Password', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
 		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-proto', '__PARAM_DESCR__' => 'Server Protocol', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
-		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-files', '__PARAM_DESCR__' => 'Num Files', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
-		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-size', '__PARAM_DESCR__' => 'Files Total Size', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-action', '__PARAM_DESCR__' => 'Script Action', '__PARAM_VALUE__' => 'test', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-files', '__PARAM_DESCR__' => 'Num Files', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p08' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-size', '__PARAM_DESCR__' => 'Files Total Size', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p09' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-lapse', '__PARAM_DESCR__' => 'Time offset', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p10' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-remotedir', '__PARAM_DESCR__' => 'Remote directory', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
+		'p11' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-timeout', '__PARAM_DESCR__' => 'Timeout', '__PARAM_VALUE__' => '20', '__SCRIPT__' => $linux_metric_file_server::SCRIPT_NAME },
 
 		},
 
@@ -61,17 +65,31 @@ $linux_metric_file_server::SCRIPT_NAME = 'linux_metric_file_server.pl';
 		'__DESCR_TIP__' => 'Checks File Server Operation 
 The script copies the number of files (text files) specified (default is 10) to the server and then copies back from the server checking the integrity of the received files.
 
-It provides two metrics:
+It provides several metrics depending on the action value:
 
+action=test
 <001> File Transfer Latency (sg) = 7.350022
+<001RC> STATUS - File Transfer Latency (sg) = 0
 <002> File Transfer Success (%) = 100
+<002RC> STATUS - File Transfer Success (%) = 0
 
-File Transfer Latency show the time consumed in the overall operation.
-File Transfer Success show the percent of success in file transfers.
+action=count
+<003> Number of Files = unk
+<003RC> STATUS - Number of Files = 0
 
+action=last
+<004> Last File Modification Time = 118224
+<004RC> STATUS - Last File Modification Time = 0
+
+File Transfer Latency show the time consumed in the test overall operation.
+File Transfer Success show the percent of success in the test file transfers.
+Number of Files counts the files on directory
+Last File Modification Time shows the delta time with the current time
 The parameters are:
 
- linux_metric_file_server.pl -host 1.1.1.1 -user user1 -pwd xxx [-port 22|...] [-proto sftp|...] [-files 10|...] [-size 100000|...] [-v]
+ linux_metric_file_server.pl -host 1.1.1.1 -user user1 -pwd xxx [-port 22|...] [-proto sftp|...] [-action test] [-files 10|...] [-size 100000|...] [-v]
+ linux_metric_file_server.pl -host 1.1.1.1 -user user1 -pwd xxx [-port 22|...] [-proto sftp|...] -action count [-remotedir /dir1/xx] [-v]
+ linux_metric_file_server.pl -host 1.1.1.1 -user user1 -pwd xxx [-port 22|...] [-proto sftp|...] -action last [-remotedir /dir1/xx] [-lapse 3600] [-v]
  linux_metric_file_server.pl -h  : Help
 
  -host       : File Server Host
@@ -79,8 +97,12 @@ The parameters are:
  -user       : Server User
  -pwd        : Server User Password
  -proto      : Protocol (default sftp)
- -files      : Number of files used (tx/rx). Default is 10.
- -size       : Aggregated size. Default is 300KB.
+ -action     : test|count|last
+ -files      : Number of files used (tx/rx). Default is 10. (mode=test)
+ -size       : Aggregated size. Default is 300KB. (mode=test)
+ -remotedir  : Remote directory  (mode=count|test)
+ -lapse      : Tnow-lapse  (mode=count)
+ -timeout    : Max. Timeout [Default 20 sg]
  -v/-verbose : Verbose output (debug)
  -h/-help    : Help
 ',
