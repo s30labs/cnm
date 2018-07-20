@@ -442,6 +442,31 @@ my ($self,$tag,$result)=@_;
 }
 
 
+=item B<$script-E<gt>print_metric_all($data)>
+
+ Escribe todos los resultados de las metricas del script.
+=cut
+
+#----------------------------------------------------------------------------
+# print_metric_all
+#----------------------------------------------------------------------------
+sub print_metric_all {
+my ($self,$metric_data,$metric_info)=@_;
+
+	foreach my $tag (sort keys %$metric_data) {
+	   $self->test_done($tag,$metric_data->{$tag});
+	}
+   $self->print_metric_data();
+
+	if ((!defined $metric_info)||(ref($metric_info) ne 'HASH')) { return; } 
+
+   foreach my $tag (sort keys %$metric_info) {
+		print $tag.' '.$metric_info->{$tag}."\n";
+   }
+
+
+}
+
 =item B<$script-E<gt>app_init($tag,$descr)>
 
  En la propiedad test_results de la clase CNMScript se almacena un hash cuyas claves son las columnas de los resultados de ejecutar una aplicacion contra un determinado host, como por ejemplo:
