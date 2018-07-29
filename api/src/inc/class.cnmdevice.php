@@ -516,9 +516,9 @@
    			$result = doQuery('update_device',$data);
 	         if ($result['rc']!=0) {
 	            $a_res['rc']    = 1;
-               $err_msg = "Can't update device (step 1):{$result['rcstr']}";
+               $err_msg = "Can't update device (step 1):{$result['rcstr']} Query:{$result['query']}";
                $a_res['rcstr'] = $err_msg;
-               CNMUtils::error_log(__FILE__, __LINE__, "cnmdevice->save() >> ".$err_msg);
+               CNMUtils::error_log(__FILE__, __LINE__, "cnmdevice->save() >> ${result['rc']} ".$err_msg);
 	            return $a_res;
 	         }
 
@@ -1171,21 +1171,40 @@ mysql> select * from cfg_organizational_profile;
 				2=>'MAINTENANCE',
 			);
 
+			$all_tags = CNMUtils::core_i18n_global();
+			$kk = $all_tags['_name'];
+			CNMUtils::info_log(__FILE__, __LINE__, "set_device_record >> DEBUG kk=$kk");
+	
+
 			$descripcion='';
 
 			// ///////////////// //
 			// CAMPOS DE SISTEMA //
 			// ///////////////// //
-		   $descripcion.="NAME: ".$this->get_system_field('name')."\n";
-		   $descripcion.="DOMAIN: ".$this->get_system_field('domain')."\n";
-		   $descripcion.="IP ADDRESS: ".$this->get_system_field('ip')."\n";
-		   $descripcion.="SNMP COMMUNITY: ".$this->get_system_field('snmpcommunity')."\n";
-		   $descripcion.="MAC ADDRESS: ".$this->get_system_field('mac')."\n";
-		   $descripcion.="CRITIC: ".$this->get_system_field('critic')." OUT OF 100\n";
-		   $descripcion.="TYPE: ".$this->get_system_field('type')."\n";
-		   $descripcion.="STATUS: ".$this->get_system_field('name')."\n";
-		   $descripcion.="NAME: ".$this->get_system_field('name')."\n";
-		   $descripcion.="STATUS: ".$a_status_string[$this->get_system_field('status')]."\n";
+		   $descripcion.=$all_tags['_name'].': '.$this->get_system_field('name')."\n";
+		   $descripcion.=$all_tags['_domain'].': '.$this->get_system_field('domain')."\n";
+		   $descripcion.=$all_tags['_ip'].': '.$this->get_system_field('ip')."\n";
+		   $descripcion.=$all_tags['_snmpcommunity'].': '.$this->get_system_field('snmpcommunity')."\n";
+			$mac_info='-';
+			if ($this->get_system_field('mac') != 0) {
+				$mac_info = $this->get_system_field('mac').' ('.$this->get_system_field('mac_vendor').')';
+			}
+		   $descripcion.=$all_tags['_mac'].': '.$mac_info."\n";
+		   $descripcion.=$all_tags['_criticity'].': '.$this->get_system_field('critic').' '.$all_tags['_outof100']."\n";
+		   $descripcion.=$all_tags['_type'].': '.$this->get_system_field('type')."\n";
+
+		   $descripcion.=$all_tags['_status'].': ';
+			$stat = $this->get_system_field('status');
+			if ($stat==0) { $descripcion.=$all_tags['_active']."\n"; }
+			elseif ($stat==1) { $descripcion.=$all_tags['_unmanaged']."\n"; }
+			elseif ($stat==2) { $descripcion.=$all_tags['_maintenance']."\n"; }
+
+			$descripcion.=$all_tags['_alertssensitivity'].': ';
+			$sens = $this->get_system_field('sensibility');
+         if ($sens==0) { $descripcion.=$all_tags['_normal']."\n"; }
+         elseif ($sens==5) { $descripcion.=$all_tags['_low']."\n"; }
+         elseif ($sens==10) { $descripcion.=$all_tags['_verylow']."\n"; }
+			
 
 			// ///////////////// //
 			// CAMPOS DE USUARIO //
@@ -1222,7 +1241,7 @@ mysql> select * from devices_custom_types;
 			// //////// //
 			// PERFILES //
 			// //////// //
-			$descripcion.="ORGANIZATIONAL PROFILES : ".$this->get_system_field('profile')."\n";
+			$descripcion.=$all_tags['_organizationalprofiles'].': '.$this->get_system_field('profile')."\n";
 
 			// ¿?¿?¿?¿?
 		   $descripcion = substr_replace($descripcion,'',-1);
@@ -1232,7 +1251,8 @@ mysql> select * from devices_custom_types;
 			// INSERTAR LA FICHA EN LA BBDD //
 			// //////////////////////////// //
 		   $date=time();
-			$sqlTip = "INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr) VALUES ('".$this->get_system_field('id')."','id_dev','DEVICE SUMMARY','$date',1,'".$this->str2jsQM($descripcion)."') ON DUPLICATE KEY UPDATE date='$date',descr='".$this->str2jsQM($descripcion)."',name='DEVICE SUMMARY' ";
+			$name=$all_tags['_docdevicesummary'];
+			$sqlTip = "INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr) VALUES ('".$this->get_system_field('id')."','id_dev','$name','$date',1,'".$this->str2jsQM($descripcion)."') ON DUPLICATE KEY UPDATE date='$date',descr='".$this->str2jsQM($descripcion)."',name='$name' ";
 		   $dbc->query($sqlTip);
 		}
 
@@ -1306,7 +1326,8 @@ mysql> select * from devices_custom_types;
 		   $result = $dbc->query($sql);
 		   if (@PEAR::isError($result)) {
 		      $msg_error=$result->getMessage();
-		      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $msg_error ($sql)");
+		      $code_error=$result->getCode();
+		      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** ($code_error) $msg_error ($sql)");
 		      return 1;
 		   }
 		   else{

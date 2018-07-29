@@ -1,0 +1,18 @@
+_docdevicesummary||Device Summary
+_name||Name
+_domain||Domain
+_ip||IP Address
+_snmpcommunity||SNMP Community
+_mac||MAC Address
+_criticity||Criticity
+_outof100||out of 100
+_type||Type
+_status||Status
+_alertssensitivity||Alerts Sensitivity
+_active||Active
+_unmanaged||Unmanaged
+_maintenance||Maintenance
+_organizationalprofiles||Organizational Profiles
+_normal||Normal
+_low||Low
+_verylow||Very Low

@@ -1,0 +1,18 @@
+﻿_docdevicesummary||Ficha de dispositivo
+_name||Nombre
+_domain||Dominio
+_ip||IP
+_snmpcommunity||Comunidad SNMP
+_mac||MAC
+_criticity||Criticidad
+_outof100||sobre 100
+_type||Tipo
+_status||Estado
+_alertssensitivity||Sensibilidad de Alertas
+_active||Activo
+_unmanaged||De Baja
+_maintenance||En mantenimiento
+_organizationalprofiles||Perfiles Organizativos
+_normal||Normal
+_low||Baja
+_verylow||Muy Baja

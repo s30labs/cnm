@@ -79,6 +79,51 @@ class CNMUtils {
 	}
 
    //--------------------------------------------------------------------------
+   // core_i18n_global
+   // Obtiene todos los tags definidos para el lenguaje configurado en onm.lang
+   //--------------------------------------------------------------------------
+   public static function core_i18n_global() {
+
+		$data = array();
+		$lang = 'en';
+		$lang_config_file = '/cfg/onm.lang';
+		if (file_exists($lang_config_file)) {
+			$x = trim(file_get_contents($lang_config_file));
+			list($a, $b) =  split("_", $x, 2);
+			if ($a != '') { $lang = $a; }
+		}
+
+		$lang_data_file = '/opt/cnm/lang/'.$lang.'/'.$lang.'.lang';
+		if (file_exists($lang_data_file)) {
+
+			$fh = fopen($lang_data_file, 'r');
+			$content = fread($fh, filesize($lang_data_file));
+			$my_array = explode("\n", $content);
+			foreach($my_array as $line) {
+    			$tmp = explode('||', $line);
+    			$data[$tmp[0]] = $tmp[1];
+			}
+			fclose($fh);
+		}
+		return $data;
+	}
+
+
+   //--------------------------------------------------------------------------
+   // core_i18n_tag
+   // Obtiene la traduccion de un tag concreto que se pasa como parametro.
+   //--------------------------------------------------------------------------
+   public static function core_i18n_tag($txt) {
+
+		$all_tags = CNMUtils::core_i18n_global();
+		if (array_key_exists($txt,$all_tags)) {
+			return $all_tags[$txt];
+		}
+		return "";
+
+	}
+
+   //--------------------------------------------------------------------------
 	// get_json
    // Obtiene un parametro json, ya sea por GET o POST.
    //--------------------------------------------------------------------------
