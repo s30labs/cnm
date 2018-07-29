@@ -677,6 +677,24 @@ $self->log('debug',"get_app_data:: app=$xx");
 		$data = [@lines];
 	}
 
+
+   #--------------------------------------------
+	# Hace clear de datos en caso de que aplique
+   #--------------------------------------------
+   foreach my $h (@{$app->{'mapper'}}) {
+      my @k = keys %$h;
+      my $app_id = $k[0]; # module = app_id
+		if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
+ 			my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
+			if (exists $h->{$app_id}->{'app_name'}) { $logfile = $h->{$app_id}->{'app_name'}.'-'.$logfile; }
+			$self->log('info',"get_app_data:: **FLUSH** app_id=$app_id logfile=$logfile");
+		   my $store=$self->store();
+   		my $dbh=$self->dbh();
+			$store->clear_app_data($dbh,$logfile,$app_id);
+		}
+	}
+
+   #--------------------------------------------
 	# Si no hay datos, termina
 	my $n=scalar(@$data);
 	$self->log('info',"get_app_data:: CAPTURED >> $n LINES");
