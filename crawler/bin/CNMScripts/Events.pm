@@ -27,6 +27,13 @@ my ($class,%arg) =@_;
 
 #----------------------------------------------------------------------------
 # get_application_events
+# Returns ($event_counter,$event_info,$last_ts)
+# a. 	$event_counter -> Numero de filas que cumplen el patron $params->{'pattern'} 
+#		durante la ventana now-$params->{'lapse'}
+# b. 	$event_info -> Devuelve el valor de la linea mas reciente que cumple el patron 
+#		$params->{'pattern'} durante la ventana now-$params->{'lapse'}
+# c.	$last_ts -> Ultimo valor de ts (date) almacenado que cumple el patron
+#		$params->{'pattern'} durante la ventana now-$params->{'lapse'}
 #----------------------------------------------------------------------------
 sub get_application_events {
 my ($self,$dbh,$params)=@_;
@@ -66,7 +73,6 @@ my ($self,$dbh,$params)=@_;
    	return ($event_counter,$event_info);
 	}
 
-	$self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
 	$SQL="SELECT substr(line,1,500) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
    $SQL =~ s/__TABLE__/$tabname/;
@@ -94,6 +100,7 @@ my ($self,$dbh,$params)=@_;
       $self->log('warning',"ERROR dbCmd >> $SQL");
    }
 
+	$self->log('debug',"**DEBUG** RES >> $event_counter | $event_info | $last_ts");
 
    return ($event_counter,$event_info,$last_ts);
 }
