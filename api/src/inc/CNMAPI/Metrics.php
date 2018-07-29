@@ -378,9 +378,22 @@ function myflot($input){
    return($data);
 }
 
+// ------------------------------------------------------------------------------
+// api_delete_metrics
+// ------------------------------------------------------------------------------
+// IN:   id (Id de la metrica)
+// OUT:  Array con el resultado
+// ------------------------------------------------------------------------------
+// Para eliminar una metrica concreta:
+// curl -ki "https://localhost/onm/api/1.0/auth/token.json?u=admin&p=cnm123"
+// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" -X DELETE "https://localhost/onm/api/1.0/metrics/1223.json"
+// ------------------------------------------------------------------------------
+function api_delete_metrics($id) {
+   include_once('inc/class.cnmmetric.php');
 
-
-
-
+CNMUtils::info_log(__FILE__, __LINE__, "api_delete_metrics >> $id");
+   $a_res = cnmmetric::del($id,1);
+   return $a_res;
+}
 
 ?>

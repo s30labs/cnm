@@ -957,6 +957,27 @@
 //
 
 
+                                                           //////////////////
+                                                           //// //////// ////
+                                                           //// CALENDAR ////
+                                                           //// //////// ////
+                                                           //////////////////
+
+// /////////// //
+// Calendar: GET //
+// /////////// //
+//
+// curl -ki "https://localhost/onm/api/1.0/auth/token.json?u=admin&p=cnm123"
+// curl -ki -g -H "Authorization: c555e76fd03d91b5480e6d739c6cbb2e" -X GET => BASE
+//
+// token=$(curl -k "https://localhost/onm/api/1.0/auth/token.json?u=admin&p=cnm123"|cut -d'"' -f6)
+// curl -k -g -H "Authorization: $token" -X GET => BASE
+//
+// "https://localhost/onm/api/1.0/calendar/capacity/34.json"    => Descargar el informe de capacidad de la vista 1
+//
+
+
+
 
 // --------------------------------------------------------------------------------------------
 require_once('inc/session.php');
@@ -1430,6 +1451,16 @@ function DEL($nparts,$endpoint,$endpoint_parts){
          if ($nparts==2){
             if(is_numeric($endpoint_parts[1])) {
                $output = api_delete_alerts_store($endpoint_parts[1]);
+            }
+         }
+         break;
+
+      case "metrics":
+
+         //DELETE /metrics/1223.json => Se borra la metric con id 1223
+         if ($nparts==2){
+            if(is_numeric($endpoint_parts[1])) {
+               $output = api_delete_metrics($endpoint_parts[1]);
             }
          }
          break;
