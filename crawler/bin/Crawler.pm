@@ -3355,6 +3355,45 @@ my ($self)=@_;
 	return $rc;
 }
 
+
+
+#----------------------------------------------------------------------------
+sub core_i18n_global {
+my ($self)=@_;
+
+	my %data=();
+	my $lang_config_file = '/cfg/onm.lang';
+	my $lang = 'en';
+	if (-f $lang_config_file) {
+		my $x = $self->slurp_file($lang_config_file);
+		chomp $x;
+		if ($x=~/^(\w{2})_\w{2}$/) { $lang = $1; }
+	}
+	my $lang_data_file = '/opt/cnm/lang/'.$lang.'/'.$lang.'.lang';	
+
+	if (-f $lang_data_file) {
+		open (F,"<$lang_data_file");
+		while (<F>) {
+			chomp;
+			my ($k,$v) = split (/\|\|/, $_);
+			$data{$k}=$v;
+		}
+		close F;
+	}
+
+	return \%data;
+}
+
+#----------------------------------------------------------------------------
+sub core_i18n_tag {
+my ($self,$txt)=@_;
+
+	my $all = $self->core_i18n_global();
+	my $tag = (exists $all->{$txt}) ? $all->{$txt} : '';
+	return $tag;
+
+}
+
 1;
 __END__
 

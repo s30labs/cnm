@@ -539,6 +539,70 @@ my ($self,$rrd,$data)=@_;
 
 }
 
+#----------------------------------------------------------------------------
+# Funcion: put_rrd_data
+# Descripcion:
+#----------------------------------------------------------------------------
+sub put_rrd_data  {
+my ($self,$params)=@_;
+
+	my $rrd = (exists $params->{'rrd'}) ? $params->{'rrd'} : '';
+	my $lapse = (exists $params->{'lapse'}) ? $params->{'lapse'} : 300;
+	my $t = (exists $params->{'t'}) ? $params->{'t'} : 0;
+	my $values = (exists $params->{'values'}) ? $params->{'values'} : [];
+	my $items = (exists $params->{'items'}) ? $params->{'items'} : '';
+	my $mode = (exists $params->{'mode'}) ? $params->{'mode'} : 'COUNTER';
+	my $type = (exists $params->{'type'}) ? $params->{'type'} : '';
+	my $task_id = (exists $params->{'task_id'}) ? $params->{'task_id'} : '';
+
+	my $N=2;
+	my $tx = $t-$N*$lapse;
+
+	#----------------------------------------------------------
+   if (! -e $rrd) {
+		$self->create_rrd($rrd,$items,$mode,$lapse,$tx,$type);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] NO EXISTE $rrd -> LO CREO");
+		my $i=$N;
+      while ($i>0) {
+      	my $dx=join(':',$tx,@$values);
+         $self->update_rrd($rrd,$dx);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE $rrd -> $dx");
+         $tx+=$lapse;
+			$i--;
+      }
+   }
+
+	#----------------------------------------------------------
+	my $data=join(':',$t,@$values);
+	my	$r = $self->update_rrd($rrd,$data);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE NORMAL ($lapse) $rrd -> $data");
+
+	#----------------------------------------------------------
+   if ($r) {
+      my $ru = unlink $rrd;
+      $self->log('info',"put_rrd_data::[DEBUG ID=$task_id] Elimino $rrd  ($ru)");
+
+		$tx = ($lapse == 3600) ? $t-(12+$N)*$lapse : $t-$N*$lapse;
+      $self->create_rrd($rrd,$items,$mode,$lapse,$tx,$type);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] NO EXISTE $rrd -> LO CREO");
+		my $i=$N;
+      while ($i>0) {
+	      my $dx=join(':',$tx,@$values);
+   	   $self->update_rrd($rrd,$dx);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE $rrd -> $dx");
+      	$tx+=$lapse;
+			$i--;
+   	}
+
+	   #----------------------------------------------------------
+	   my $data=join(':',$t,@$values);
+   	my $r = $self->update_rrd($rrd,$data);
+$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE NORMAL1 ($lapse) $rrd -> $data");
+
+	}
+
+}
+
 
 #----------------------------------------------------------------------------
 # Funcion: fetch_rrd
@@ -875,25 +939,41 @@ my $condition;
 my $rres;
 my $new_id_dev;
 
+	my $lang = $self->core_i18n_global();
 
    my $description='';
    # 1. Obtener los campos basicos del dispositivo
-   $rres=sqlSelectAll($dbh,'id_dev,name,domain,type,community,status',$TAB_DEVICES_NAME,"ip='$ip'");
+   $rres=sqlSelectAll($dbh,'id_dev,name,domain,type,community,status,mac,mac_vendor,critic,wsize',$TAB_DEVICES_NAME,"ip='$ip'");
    my $id_dev=$rres->[0][0];
-   $description.='Nombre: '.$rres->[0][1]."\n";
-   $description.='Dominio: '.$rres->[0][2]."\n";
-   $description.='IP: '.$ip."\n";
-   $description.='Community SNMP: '.$rres->[0][4]."\n";
-   $description.='Tipo: '.$rres->[0][3]."\n";
-   if ($rres->[0][5]==0){
-      $description.="Estado: Activo\n";
-   }
-   if ($rres->[0][5]==1){
-      $description.="Estado: De Baja\n";
-   }
-   if ($rres->[0][5]==2){
-      $description.="Estado: En Mantenimiento\n";
-   }
+   $description .= $lang->{'_name'}.': '.$rres->[0][1]."\n";
+   $description .= $lang->{'_domain'}.': '.$rres->[0][2]."\n";
+   $description .= $lang->{'_ip'}.': '.$ip."\n";
+   $description .= $lang->{'_snmpcommunity'}.': '.$rres->[0][4]."\n";
+	my $mac_info='-';
+	if ($rres->[0][6] != 0) { 
+		$mac_info=$rres->[0][6].' ('.$rres->[0][7].')';
+	}
+   $description .= $lang->{'_mac'}.': '.$mac_info."\n";
+   $description .= $lang->{'_criticity'}.': '.$rres->[0][8].' '.$lang->{'_outof100'}."\n";
+   $description .= $lang->{'_type'}.': '.$rres->[0][3]."\n";
+	$description .= $lang->{'_status'}.': ';
+   if ($rres->[0][5]==0){ $description .= $lang->{'_active'}."\n";  }
+   elsif ($rres->[0][5]==1){ $description .= $lang->{'_unmanaged'}."\n"; }
+   elsif ($rres->[0][5]==2){ $description .= $lang->{'_maintenance'}."\n"; }
+
+	$description .= $lang->{'_alertssensitivity'}.': ';
+   if ($rres->[0][9]==0){ $description .= $lang->{'_normal'}."\n";  }
+   elsif ($rres->[0][9]==5){ $description .= $lang->{'_low'}."\n";  }
+   elsif ($rres->[0][9]==10){ $description .= $lang->{'_verylow'}."\n";  }
+
+#mysql> select * from cfg_device_wsize;
+#+-------+----------+
+#| wsize | label    |
+#+-------+----------+
+#|     0 | Normal   |
+#|     5 | Baja     |
+#|    10 | Muy Baja |
+#+-------+----------+
 
    # 2. Obtener los campos definidos por el usuario
    #$rres=sqlSelectAll($dbh,'id_descr','devices_custom_types');
@@ -923,7 +1003,7 @@ my $new_id_dev;
                               FROM cfg_devices2organizational_profile
                               WHERE id_dev=$id_dev)";
 
-   $description.="Perfiles Organizativos: ";
+   $description .= $lang->{'_organizationalprofiles'}.': ';
    $rres=sqlSelectAllCmd($dbh,$sql,'');
    foreach my $r (@$rres) {
       $description.=$r->[0].',';
@@ -935,10 +1015,15 @@ my $new_id_dev;
    $rres=sqlSelectAll($dbh,'id_tip','tips',"tip_class=1 and id_ref=$id_dev");
 
 	my $id_tip=$rres->[0][0];
-   my %table = ('id_ref'=>$id_dev, 'tip_type'=>'id_dev', 'name'=>'Ficha de Dispositivo', 'date'=>$date, 'tip_class'=>1, 'descr'=>$description   );
+	my $name = $lang->{'_docdevicesummary'};
+   my %table = ( 'id_ref'=>$id_dev, 'tip_type'=>'id_dev', 'name'=>$name, 'date'=>$date, 'tip_class'=>1, 'descr'=>$description );
 	if (defined $id_tip) { $table {'id_tip'}=$id_tip; }
 
    $rv=sqlInsertUpdate4x($dbh,'tips',\%table,\%table);
+
+my $sqlc=$libSQL::cmd;
+$sqlc=~s/\n/ /g;
+	$self->log('info',"store_device_record:: **DEBUG** $sqlc ($libSQL::err : $libSQL::errstr)");
 
 }
 
@@ -8397,7 +8482,7 @@ my %table=();
 my $rv=undef;
 my $values="d.id_dev,d.ip,d.name,d.domain,d.critic,l.logfile,l.todb,l.script,l.last_access,l.last_line,l.parser,c.name,c.type,c.user,c.pwd,c.port,l.tabname";
 my $tables='device2log l, devices d, credentials c';
-my $condition='l.id_dev=d.id_dev AND l.id_credential=c.id_credential';
+my $condition='l.id_dev=d.id_dev AND l.id_credential=c.id_credential AND l.status=0';
 
    my $rres=sqlSelectAll($dbh,$values,$tables,$condition);
 
@@ -9169,6 +9254,31 @@ my ($self, $max_size) =@_;
 		$self->log('info',"limit_metric_files:: Borrados $n files en $dir");
    }
 }
+
+#----------------------------------------------------------------------------
+# clear_app_data
+# Elimina de la BBDD los datos previamente obtenidos de una APP.
+# Tablas logp_xxxxx (logp_333333001008_icg_from_db)
+#----------------------------------------------------------------------------
+sub clear_app_data  {
+my ($self,$dbh,$logfile,$source)=@_;
+
+   # ------------------------------------------------------
+	$logfile=~s/\-/_/g;
+	my $table = 'logp_'.$source.'_'.$logfile;
+	my $where = '';
+
+	if (! defined $dbh) { return undef; }
+   my $rres=sqlDelete($dbh, $table, $where);
+
+	$self->log('info',"delete_from_dated_table::[DEBUG] $libSQL::cmd");
+   if ($libSQL::err) {
+      $self->manage_db_error($dbh,"clear_app_data");
+	}
+   return;
+
+}
+
 
 #----------------------------------------------------------------------------
 # set_log_rx_lines
