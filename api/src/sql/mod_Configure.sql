@@ -1618,9 +1618,9 @@ mysql> select * from device2credential;
 
          // ---------------------------------------------------------------------------------------
          // Almacena (crea/modifica) la metrica de tipo proxy especificada
-         'cnm_cfg_proxy_store_create'=>"INSERT INTO cfg_monitor_agent (subtype,description,id_proxy,vlabel,items,params,proxy,cfg,custom,script,class,mode,mtype,top_value,module,nparams,get_iid,apptype,proxy_type,tag,esp,iptab) VALUES ('__SUBTYPE__', '__DESCR__',__ID_PROXY__,'__VLABEL__','__ITEMS__','__PARAMS__',1,'__CFG__',1,'__SCRIPT__','__CLASS__','__MODE__','__MTYPE__',1,'mod_xagent_get',__NPARAMS__,0,'__APPTYPE__','__PROXY_TYPE__','__TAG__','__ESP__','__IPTAB__')",
+         'cnm_cfg_proxy_store_create'=>"INSERT INTO cfg_monitor_agent (subtype,description,id_proxy,vlabel,items,params,proxy,cfg,custom,script,class,mode,mtype,top_value,module,nparams,get_iid,apptype,proxy_type,tag,esp,iptab,lapse) VALUES ('__SUBTYPE__', '__DESCR__',__ID_PROXY__,'__VLABEL__','__ITEMS__','__PARAMS__',1,'__CFG__',1,'__SCRIPT__','__CLASS__','__MODE__','__MTYPE__',1,'mod_xagent_get',__NPARAMS__,0,'__APPTYPE__','__PROXY_TYPE__','__TAG__','__ESP__','__IPTAB__','__LAPSE__')",
 
-         'cnm_cfg_proxy_store_update'=>"UPDATE cfg_monitor_agent SET class='__CLASS__', apptype='__APPTYPE__', description='__DESCR__', id_proxy=__ID_PROXY__, vlabel='__VLABEL__', items='__ITEMS__', params='__PARAMS__',proxy=1,cfg=__CFG__,custom=1,mode='__MODE__',apptype='__APPTYPE__',nparams=__NPARAMS__,script='__SCRIPT__',proxy_type='__PROXY_TYPE__',tag='__TAG__',esp='__ESP__',iptab='__IPTAB__',mtype='__MTYPE__' WHERE id_cfg_monitor_agent=__ID_CFG_MONITOR_AGENT__",
+         'cnm_cfg_proxy_store_update'=>"UPDATE cfg_monitor_agent SET class='__CLASS__', apptype='__APPTYPE__', description='__DESCR__', id_proxy=__ID_PROXY__, vlabel='__VLABEL__', items='__ITEMS__', params='__PARAMS__',proxy=1,cfg=__CFG__,custom=1,mode='__MODE__',apptype='__APPTYPE__',nparams=__NPARAMS__,script='__SCRIPT__',proxy_type='__PROXY_TYPE__',tag='__TAG__',esp='__ESP__',iptab='__IPTAB__',mtype='__MTYPE__',lapse='__LAPSE__' WHERE id_cfg_monitor_agent=__ID_CFG_MONITOR_AGENT__",
 
 			'cnm_cfg_proxy_store_unasoc'=>"DELETE FROM prov_template_metrics2iid WHERE mname=(SELECT subtype FROM cfg_monitor_agent WHERE id_cfg_monitor_agent=__ID_CFG_MONITOR_AGENT__) AND id_dev IN (__ID_DEV__)",
 
