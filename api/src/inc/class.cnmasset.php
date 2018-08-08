@@ -415,7 +415,7 @@
 		   $date=time();
 		   $sqlExist="SELECT id_tip from tips where tip_class=1 and id_ref='".$this->get_field('id')."' AND tip_type='asset'";
 		   $resultExist=$dbc->query($sqlExist);
-		   $resultExist->fetchInto($rExist);
+			$rExist = $resultExist->fetch_assoc();	
 		   if ($rExist['id_tip']==''){
 		      $sqlTip="INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr)
 		               VALUES ('".$this->get_field('id')."','asset','ASSET SUMMARY','$date',1,'".$this->str2jsQM($descripcion)."')";

@@ -1,5 +1,4 @@
 <?php
-require_once('/usr/share/pear/DB.php');
 include_once('inc/session.php');
 include_once('/var/www/html/tphp/class.TemplatePower.inc.php');
 include_once('inc/CNMUtils.php');
@@ -10,7 +9,7 @@ $Store_RC_PARAMS=array();
 
 /*
  * $a_global_sql_error => Errores sql y su descripción
- * NOTAS: Se obtiene de /usr/share/pear/DB.php
+ * NOTAS: Se obtiene de /usr/share/pxxear/DB.php
  *        Se aplica en responseJSON y responseXML
 */
 $a_global_sql_error = array(
@@ -672,7 +671,7 @@ global $dbc;
          WHERE ip='$IP'";
    // print "******* $sql *****\n";
    $result = $dbc->query($sql);
-   $result->fetchInto($r);
+	$r = $result->fetch_assoc();
 	return $r;
 }
 
@@ -689,7 +688,7 @@ global $dbc;
          WHERE cause='$cause'";
    // print "******* $sql *****\n";
    $result = $dbc->query($sql);
-   $result->fetchInto($r);
+	$r = $result->fetch_assoc();
    return $r;
 }
 
@@ -703,23 +702,23 @@ function delete_device($ID,$cid){
 global $dbc;
 //	//Elimina el dispositivo de la tabla
 //	$sql="delete from devices where id_dev in ($ID)";
-//	$result = mysql_query($sql);
+//	$result = $dbc->query($sql);
 //
 //	// Notifica a los crawlers que se deben eliminar las metricas
 //	$sql="Update metrics set status=3, refresh=1 where id_dev in ($ID)";
-//	$result = mysql_query($sql);
+//	$result = $dbc->query($sql);
 //
 //	// Elimina las alertas asociadas de ese dispositivo
 //	$sql="delete from alerts where id_device in  ($ID)";
-//	$result = mysql_query($sql);
+//	$result = $dbc->query($sql);
 //
 //   // Elimina las alertas asociadas de ese dispositivo
 //   $sql="delete from alerts_store where id_device in  ($ID)";
-//   $result = mysql_query($sql);
+//   $result = $dbc->query($sql);
 
 //   // Elimina los avisos asociadas de ese dispositivo
 //   $sql="delete from cfg_notification2device where id_device in  ($ID)";
-//   $result = mysql_query($sql);
+//   $result = $dbc->query($sql);
 
 
    if (! $ID) {
@@ -740,16 +739,20 @@ global $dbc;
 	// Busco las metricas asociadas al dispositivo y las elimino
    $sql="SELECT id_metric FROM metrics WHERE id_dev IN ($ID)";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)){echo 'Store: '.$result->getMessage()."$sql <BR>";  }
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      echo "Store: $err_str - $sql <BR>";
+   }
+
 	$IDM=array();
-	while ($result->fetchInto($r)){array_push ($IDM,$r['id_metric']);}
+	while ($r = $result->fetch_assoc()){array_push ($IDM,$r['id_metric']);}
 	$id_metrics= join(',', $IDM);
 
 	delete_metrics($id_metrics,$cid);
 
    $sql="SELECT id_dev,name,ip,domain FROM devices WHERE id_dev IN ($ID)";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       info_qactions('Borrar dispositivo',$_SESSION['LUSER'],0,"El usuario {$_SESSION['LUSER']} desde la ip {$_SESSION['REMOTE_ADDR']} ha borrado el dispositivo {$r['name']}.{$r['domain']} ({$r['ip']}) ID={$r['id_dev']}");
    }
 
@@ -798,7 +801,7 @@ global $dbc;
    $sql="select id_template_metric from prov_template_metrics where id_dev in($ID)";
    $result = $dbc->query($sql);
 	$ids_tm=Array();
-   while ($result->fetchInto($r)){ array_push($ids_tm, $r['id_template_metric']);  }
+   while ($r = $result->fetch_assoc()) { array_push($ids_tm, $r['id_template_metric']);  }
 	$IDS=implode (',', $ids_tm);
 
    // Se borra de prov_template_metric2iid
@@ -819,7 +822,7 @@ global $dbc;
 	// Elimina las entradas en metrics asociados al dispositivo
 	$sql="select id_metric from metrics where id_dev in($ID)";
 	$result = $dbc->query($sql);
-	while ($result->fetchInto($r)){
+	while ($r = $result->fetch_assoc()){
 		$sqlDel="delete from metric2latency where id_metric=".$r['id_metric'];
 		$dbc->query($sqlDel);
 		$sqlDel="delete from metric2snmp where id_metric=".$r['id_metric'];
@@ -876,7 +879,7 @@ global $dbc;
 	$sql="SELECT name FROM cfg_task_configured WHERE id_cfg_task_configured IN ($ID)";
 	$result = $dbc->query($sql);
 
-	while ($result->fetchInto($r)){
+	while ($r = $result->fetch_assoc()){
 		$sql="DELETE FROM task2device WHERE name LIKE '{$r['name']}'";
 		$dbc->query($sql);
 
@@ -907,7 +910,7 @@ global $dbc;
    $sql="SELECT name FROM cfg_task_configured WHERE task LIKE '$name'";
    $result = $dbc->query($sql);
 
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $sql="DELETE FROM task2device WHERE name LIKE '{$r['name']}'";
       $dbc->query($sql);
 
@@ -929,7 +932,7 @@ global $dbc;
 	// Se borra el template asociado a la tarea definida
 	$sql="SELECT template FROM cfg_task_supported WHERE name LIKE '$name'";
    $result = $dbc->query($sql);
-	$result->fetchInto($r);
+	$r = $result->fetch_assoc();
 	unlink($r['template']);
 	
    // Se borra la tarea definida por el usuario de la BBDD
@@ -948,7 +951,10 @@ global $dbc;
    //Elimina la metrica del repositorio
    $sql="delete from cfg_register_apps where name='$name'";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)){echo 'Store: '.$result->getMessage()."$sql <BR>";  }	
+	if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+		echo "Store: $err_str - $sql <BR>";
+	}
 }
 
 
@@ -979,13 +985,20 @@ global $dbc;
    //Elimina la metrica del repositorio
    $sql="delete from cfg_monitor_agent where name='$name'";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)){echo 'Store: '.$result->getMessage()."$sql <BR>";  }
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      echo "Store: $err_str - $sql <BR>";
+   }
 
    //Elimina de otras tablas .......
    $sql="select id_metric from metrics where name='$name'";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)){echo 'Store: '.$result->getMessage()."$sql <BR>";  }
-	while ($result->fetchInto($r)){
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      echo "Store: $err_str - $sql <BR>";
+   }
+
+	while ($r = $result->fetch_assoc()){
       $id_metric=$r['id_metric'];
 		delete_metrics($id_metric,$cid);
 	}
@@ -1023,38 +1036,38 @@ global $dbc;
 	//por notificationsd
 	$sql="Update metrics set status=3, refresh=1 where id_metric in ($ID)";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)){
-		$response['msg']=$result->getMessage();
-		$response['rc']=$result->getCode();
-		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-	}
+   if ($dbc->errno != 0) {
+      $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      $response['rc']=$dbc->errno;
+      CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+   }
 
    //Elimina las relaciones con las vistas de la metrica en cuestion
    $sql="delete from cfg_views2metrics where id_metric in ($ID)";
 	$result = $dbc->query($sql);
-	if (@PEAR::isError($result)) {
-      $response['msg']=$result->getMessage();
-		$response['rc']=$result->getCode();
+   if ($dbc->errno != 0) {
+      $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      $response['rc']=$dbc->errno;
       CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
    }
 
    // Se buscan las vistas en las que están dichas métricas y se actualiza el campo nmetrics
    $sql="SELECT DISTINCT(id_cfg_view) AS id_cfg_view FROM cfg_views2metrics WHERE id_metric IN ($ID)";
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)) view_update_nmetrics($r['id_cfg_view'],$cid);
+   while ($r = $result->fetch_assoc()) view_update_nmetrics($r['id_cfg_view'],$cid);
 
    //Elimina de otras tablas .......
    $sql="select m.id_dev,m.name,m.type,m.subtype,d.ip,m.file,m.id_metric,m.label,d.name as dev_name,d.domain from metrics m, devices d where m.id_dev=d.id_dev and id_metric in ($ID)";
 	$result1 = $dbc->query($sql);
-   if (@PEAR::isError($result1)) {
-      $response['msg']=$result->getMessage();
-		$response['rc']=$result->getCode();
+   if ($dbc->errno != 0) {
+      $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      $response['rc']=$dbc->errno;
       CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
    }
 
 CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
 
-	while ($result1->fetchInto($r)){
+	while ($r = $result1->fetch_assoc()){
 		$id_dev=$r['id_dev'];
 		$mname=$r['name'];
 		$type=$r['type'];
@@ -1074,35 +1087,37 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
 			// Desactiva la metrica de la plantilla del dispositivo
          $sql="UPDATE prov_template_metrics2iid SET status=1 WHERE id_dev=$id_dev AND mname='$mname'";
          $result = $dbc->query($sql);
-         if (@PEAR::isError($result)){
-            $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-         }
+		   if ($dbc->errno != 0) {
+      		$response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      		$response['rc']=$dbc->errno;
+      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+   		}
 
 			$sql="delete from alerts where id_device=$id_dev and mname='$mname'";
 			$result = $dbc->query($sql);
-		   if (@PEAR::isError($result)) {
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
+
 			$sql="delete from alerts_store where id_device=$id_dev and mname='$mname'";
 			$result = $dbc->query($sql);
-         if (@PEAR::isError($result)) {
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
 
 			if ($id_metric) {
 	         $sql="delete from alerts_read where id_metric=$id_metric";
    	      $result = $dbc->query($sql);
-      	   if (@PEAR::isError($result)) {
-			      $response['msg']=$result->getMessage();
-					$response['rc']=$result->getCode();
-      			CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   			}
+	         if ($dbc->errno != 0) {
+   	         $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      	      $response['rc']=$dbc->errno;
+         	   CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         	}
+
 			}
 		}
 
@@ -1116,19 +1131,19 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
 			# otra metrica la causante, ya se vlveria a producir.
          $sql="delete from alerts where id_device=$id_dev and mname='mon_snmp'";
          $result = $dbc->query($sql);
-         if (@PEAR::isError($result)){
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
 
 			$sql="delete from metric2snmp where id_metric in ($ID)";
 			$result = $dbc->query($sql);
-         if (@PEAR::isError($result)) {
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
 
 			//fml REVISAR !!
 	      //Elimina una posible preasignacion de la metrica al dispositivo
@@ -1138,11 +1153,12 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
 			if (($id_dev) && ($mname)) {
          	$sql="delete from cnm.work_snmp where cid='$cid' and id_dev=$id_dev and mname='$mname'";
          	$result = $dbc->query($sql);
-         	if (@PEAR::isError($result)) {
-            	$response['msg']=$result->getMessage();
-					$response['rc']=$result->getCode();
-            	CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+	         if ($dbc->errno != 0) {
+   	         $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      	      $response['rc']=$dbc->errno;
+         	   CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
          	}
+
 			}
 		}
 
@@ -1151,11 +1167,11 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
 		elseif ($type == 'latency'){
          $sql="delete from metric2latency where id_metric in ($ID)";
 			$result = $dbc->query($sql);
-         if (@PEAR::isError($result)) {
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
 
 	      //Elimina una posible preasignacion de la metrica al dispositivo
    	   //delete_assigned_metrics($ip,$mname);
@@ -1164,14 +1180,12 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
          if (($id_dev) && ($mname)) {
             $sql="delete from cnm.work_latency where cid='$cid' and id_dev=$id_dev and mname='$mname'";
             $result = $dbc->query($sql);
-            if (@PEAR::isError($result)) {
-               $response['msg']=$result->getMessage();
-					$response['rc']=$result->getCode();
-               CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-            }
+	         if ($dbc->errno != 0) {
+   	         $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      	      $response['rc']=$dbc->errno;
+         	   CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         	}
          }
-
-
 
 		}
 		// ----------------------------------------------------------------------
@@ -1181,11 +1195,11 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
          # otra metrica la causante, ya se vlveria a producir.
          $sql="delete from alerts where id_device=$id_dev and mname='mon_wbem'";
          $result = $dbc->query($sql);
-         if (@PEAR::isError($result)) {
-		      $response['msg']=$result->getMessage();
-				$response['rc']=$result->getCode();
-      		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-   		}
+         if ($dbc->errno != 0) {
+            $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+            $response['rc']=$dbc->errno;
+            CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         }
 
 		}
 
@@ -1197,11 +1211,11 @@ CNMUtils::info_log(__FILE__, __LINE__, "delete_metrics: **2** ID=$ID");
          if (($id_dev) && ($mname)) {
             $sql="delete from cnm.work_xagent where cid='$cid' and id_dev=$id_dev and mname='$mname'";
             $result = $dbc->query($sql);
-            if (@PEAR::isError($result)) {
-               $response['msg']=$result->getMessage();
-               $response['rc']=$result->getCode();
-               CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
-            }
+	         if ($dbc->errno != 0) {
+   	         $response['msg']=$dbc->sqlstate.' - '.$dbc->error;
+      	      $response['rc']=$dbc->errno;
+         	   CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$response['msg']} rc={$response['rc']} ($sql)");
+         	}
          }
 		}
 
@@ -1242,7 +1256,10 @@ global $dbc;
    $sql="delete from cfg_assigned_metrics where id_type='ip' and myrange='$ip' and subtype='$subtype'";
 
 	$result = $dbc->query($sql);
-   if (@PEAR::isError($result)){echo 'Store: '.$result->getMessage()."$sql <BR>";  }
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      echo "Store: $err_str - $sql <BR>";
+   }
 
 }
 
@@ -1262,7 +1279,7 @@ global $dbc;
 
    $sql="SELECT id_cfg_view,name,cid,cid_ip FROM cfg_views WHERE id_cfg_view IN ($ID) AND cid='$cid' AND cid_ip='$cid_ip'";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       info_qactions('Borrar vista',$_SESSION['LUSER'],0,"El usuario {$_SESSION['LUSER']} desde la ip {$_SESSION['REMOTE_ADDR']} ha borrado la vista {$r['name']} ID={$r['id_cfg_view']} CID=$cid CID_IP=$cid_ip");
    }
 
@@ -1309,7 +1326,7 @@ global $dbc;
 
    $sql="SELECT id_cfg_monitor,description from cfg_monitor where id_cfg_monitor in ($ID) and monitor not in ('mon_icmp','disp_icmp')";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       info_qactions('Borrar métrica(latency)',$_SESSION['LUSER'],0,"El usuario {$_SESSION['LUSER']} desde la ip {$_SESSION['REMOTE_ADDR']} ha borrado la métrica {$r['description']} ID={$r['id_cfg_monitor']}");
    }
 
@@ -1319,7 +1336,7 @@ global $dbc;
    $sql="select monitor from cfg_monitor where id_cfg_monitor in ($ID) and monitor not in ('mon_icmp','disp_icmp')";
 	$result = $dbc->query($sql);
 	$monitor=Array();
-	while ($result->fetchInto($r)){ 	array_push($monitor,"'".$r['monitor']."'");  }
+	while ($r = $result->fetch_assoc()){ 	array_push($monitor,"'".$r['monitor']."'");  }
 	if (count($monitor) == 0) { return; }
 
 	$MON = implode(",", $monitor);
@@ -1346,7 +1363,7 @@ global $dbc;
    // Obtengo id_cfg_notification a partir de monitor para eliminarla de los avisos.
    $sql="select id_cfg_notification from cfg_notifications where monitor in ($MON)";
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $id=$r['id_cfg_notification'];
       delete_cfg_notification($id);
    }
@@ -1356,7 +1373,7 @@ global $dbc;
    $sql="select id_metric from metrics where name in ($MON)";
    $result = $dbc->query($sql);
    $ids=Array();
-   while ($result->fetchInto($r)){  array_push($ids,$r['id_metric']);  }
+   while ($r = $result->fetch_assoc()){  array_push($ids,$r['id_metric']);  }
    $IDMETR = implode(",", $ids);
 
    delete_metrics($IDMETR,$cid);
@@ -1375,7 +1392,7 @@ global $dbc;
 	// borro las preasignaciones de monitores a dispositivos concretos
 	$sql="select monitor from alert_type where id_alert_type in ($ID)";
 	$result1 = $dbc->query($sql);
-   while ($result1->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
 		$monitor=$r['monitor'];
 
 		// Elimina el monitor de la provision de  metricas
@@ -1399,7 +1416,7 @@ global $dbc;
    // Obtengo id_cfg_notification a partir de id_alert_type
    $sql="select id_cfg_notification from cfg_notifications where id_alert_type in ($ID)";
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $id=$r['id_cfg_notification'];
       delete_cfg_notification($id);
    }
@@ -1440,7 +1457,7 @@ global $dbc;
    // Obtengo id_metric a partir de subtype
    $sql="SELECT id_metric FROM metrics WHERE subtype IN ($ID)";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $id_metric=$r['id_metric'];
       delete_metrics($id_metric,$cid);
    }
@@ -1479,7 +1496,7 @@ global $dbc;
    // Obtengo id_metric a partir de subtype
    $sql="SELECT id_metric FROM metrics WHERE subtype IN ($ID)";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $id_metric=$r['id_metric'];
       delete_metrics($id_metric,$cid);
    }
@@ -1523,7 +1540,7 @@ global $dbc;
 
 		$sql = "SELECT id_cfg_monitor_snmp,descr AS description FROM cfg_monitor_snmp WHERE subtype='$subtype'";
 		$result = $dbc->query($sql);
-		while ($result->fetchInto($r)){
+		while ($r = $result->fetch_assoc()){
 			info_qactions('Borrar metrica(snmp)',$_SESSION['LUSER'],0,"El usuario {$_SESSION['LUSER']} desde la ip {$_SESSION['REMOTE_ADDR']} ha borrado la métrica {$r['description']} ID={$r['id_cfg_monitor_snmp']}");
 		}
 
@@ -1537,7 +1554,7 @@ global $dbc;
 	   $sql="select id_template_metric from prov_template_metrics where subtype='$subtype'";
    	$result = $dbc->query($sql);
    	$ids=Array();
-   	while ($result->fetchInto($r)){  array_push($ids,$r['id_template_metric']);  }
+   	while ($r = $result->fetch_assoc()){  array_push($ids,$r['id_template_metric']);  }
    	if (count($ids) != 0) {
 
 	   	$id_template_metric = implode(",", $ids);
@@ -1555,7 +1572,7 @@ global $dbc;
 		// Obtengo id_metric a partir de subtype
       $sql="select id_metric from metrics where subtype='$subtype'";
       $result = $dbc->query($sql);
-      while ($result->fetchInto($r)){
+      while ($r = $result->fetch_assoc()){
          $id_metric=$r['id_metric'];
 			// Borra las metricas en curso asociadas a la metrica snmp
          delete_metrics($id_metric,$cid);
@@ -1567,7 +1584,7 @@ global $dbc;
       // Las metricas predefinidas no se pueden eliminar.
       $sql="select id_alert_type from alert_type where subtype='$subtype'";
       $result1 = $dbc->query($sql);
-      if ($result1->fetchInto($r)){
+      if ($r = $result1->fetch_assoc()){
          delete_monitor($r['id_alert_type']);
       }
 	}
@@ -1588,7 +1605,7 @@ global $dbc;
 
    $sql="SELECT name,description,oid,class,module,fx,items,vlabel,mode,label,mtype,get_iid,info,iparams,range from cfg_monitor_snmp_esp where name='$NAME'";
    $result = $dbc->query($sql);
-   if ($result->fetchInto($r)){
+   if ($r = $result->fetch_assoc()){
       $name=$r['name'];
       $description=strtoupper($r['description']);
       $oidc=$r['oid'];
@@ -1653,9 +1670,9 @@ global $dbc;
 
 
    $result = $dbc->query($sql);
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-	$rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+	$rcstr=$dbc->error;
 	str_replace("\"", "\\\"",$rcstr);
 	str_replace("\'", "\\\'",$rcstr);
 
@@ -1667,7 +1684,7 @@ global $dbc;
 
    $sql="SELECT name,description,oid,class,module,fx,items,vlabel,mode,label,mtype,get_iid,info,iparams,range from cfg_monitor_snmp_esp where name='$NAME'";
    $result = $dbc->query($sql);
-   if ($result->fetchInto($r)){
+   if ($r = $result->fetch_assoc()){
       $name=$r['name'];
       $description=strtoupper($r['description']);
       $oidc=$r['oid'];
@@ -1731,9 +1748,9 @@ global $dbc;
 depura_datos("STORE.PHP-LINEA ".__LINE__," update_custom_metric_snmp_esp $sql");
 
    $result = $dbc->query($sql);
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+   $rcstr=$dbc->error;
    str_replace("\"", "\\\"",$rcstr);
    str_replace("\'", "\\\'",$rcstr);
 
@@ -1764,7 +1781,8 @@ global $dbc;
 
    print $sql."\n";
    $result = $dbc->query($sql);
-   if ( (@PEAR::isError($result)) || ( $dbc->affectedRows() == 0) ){ $RC=10; }
+
+   if ( ($dbc->errno != 0) || ( $dbc->affected_rows == 0) ){ $RC=10; }
 
    return $RC;
 
@@ -1794,7 +1812,7 @@ global $dbc;
          WHERE id_dev=$id_dev and label like '%$label%'";
    print $sql."\n";
 	$result = $dbc->query($sql);
-   if ( (@PEAR::isError($result)) || ( $dbc->affectedRows() == 0) ){ $RC+=10; }
+	if ( ($dbc->errno != 0) || ( $dbc->affected_rows == 0) ){ $RC+=10; }
 
 	// Puede ser que la metrica no este en plantilla. Aplico el monitor
 	// directamente sobre la metrica en curso
@@ -1803,7 +1821,7 @@ global $dbc;
    	$sql="SELECT id_metric 	FROM metrics WHERE id_dev=$id_dev and label like '%$label%'";
 	   // print "$sql";
    	$result = $dbc->query($sql);
-   	$result->fetchInto($r);
+   	$r = $result->fetch_assoc();
 	   $id_metric=$r['id_metric'];
 
 	   $sql="UPDATE metrics
@@ -1811,7 +1829,7 @@ global $dbc;
       	   WHERE id_metric=$id_metric";
 	   //print $sql."\n";
    	$result = $dbc->query($sql);
-   	if ( (@PEAR::isError($result)) || ( $dbc->affectedRows() == 0) ){ $RC+=10; }
+		if ( ($dbc->errno != 0) || ( $dbc->affected_rows == 0) ){ $RC+=10; }
 
 	}
 	return $RC;
@@ -1868,13 +1886,13 @@ global $dbc;
 	$sql1="SELECT id_dev,name,domain FROM devices WHERE ip='$range'";
 	// print "$sql1";
 	$result1 = $dbc->query($sql1);
-	$result1->fetchInto($r1);
+	$r = $result1->fetch_assoc();
 
 	$sql_12="SELECT name,domain FROM devices WHERE id_dev=$id_dest";
 depura_datos("STORE.PHP-LINEA ".__LINE__," $sql_12");
 
 	$result_12 = $dbc->query($sql_12);
-   $result_12->fetchInto($r_12);
+	$r_12 = $result_12->fetch_assoc();
 
 	$id_dev=$r1['id_dev'];
 	// $full_name=$r1['name'];
@@ -1887,7 +1905,7 @@ depura_datos("STORE.PHP-LINEA ".__LINE__," $sql_12");
 	$result2 = $dbc->query($sql2);
 	// print_r($result2);
 	// print $sql2;
-   if (@PEAR::isError($result2)) {
+	if ($dbc->errno != 0) {
 	   $sql2="UPDATE prov_template_metrics SET id_dev=$id_dev,lapse=300,type='$type',subtype='$subtype',id_dest=$id_dest WHERE id_dev=$id_dev and subtype='$subtype'";
 	 	// print "$sql2";
    	$result2 = $dbc->query($sql2);
@@ -1898,7 +1916,7 @@ depura_datos("STORE.PHP-LINEA ".__LINE__," $sql_12");
 	$sql3="SELECT id_template_metric FROM prov_template_metrics WHERE id_dev=$id_dev and subtype='$subtype' and id_dest=$id_dest";
 	//print $sql3;
 	$result3 = $dbc->query($sql3);
-	if ($result3->fetchInto($r3)){
+	if ($r3 = $result3->fetch_assoc()) {
 		$id_template_metric=$r3['id_template_metric'];	
 	}else{
 		print "ERROR get id_template_metric";
@@ -1924,7 +1942,7 @@ depura_datos("STORE.PHP-LINEA ".__LINE__," $sql_12");
 
 	// print $sql4."<br>";
 	$result4 = $dbc->query($sql4);
-	$result4->fetchInto($r4);
+	$r4 = $result4->fetch_assoc();
 	$label1=$r4['label'];
 	$esp=$r4['esp'];
 
@@ -1957,7 +1975,7 @@ CNMUtils::info_log(__FILE__, __LINE__, "**DEBUG TABLE** esp=$esp label1=$label1"
 // print_r($result5);
 CNMUtils::info_log(__FILE__, __LINE__, "**DB_DEBUG** SQL=$sql5");
 
-      if (@PEAR::isError($result5)) {
+		if ($dbc->errno != 0) {
          if ($watch != '0') {
             $sql6="UPDATE prov_template_metrics2iid SET id_template_metric=$id_template_metric,iid='$iid',label='$label',status=$status,mname='$mname', watch='$watch', id_dev=$id_dev, id_dest=$id_dest, hiid='$hiid' WHERE id_template_metric=$id_template_metric and iid='$n'";
             $result6 = $dbc->query($sql6);
@@ -2071,7 +2089,7 @@ if ($type=='xagent') $n = $iid;
       	$result5 = $dbc->query($sql5);
 // print_r($result5);
 
-	      if (@PEAR::isError($result5)) {
+			if ($dbc->errno != 0) {
 				if ($watch != '0') {
 	   	      $sql6="UPDATE prov_template_metrics2iid SET id_template_metric=$id_template_metric,iid='$iid',label='$label',status=$status,mname='$mname', watch='$watch', id_dev=$id_dev, id_dest=$id_dest, hiid='$hiid' WHERE id_template_metric=$id_template_metric and iid='$n'";
 					$result6 = $dbc->query($sql6);
@@ -2087,9 +2105,9 @@ if ($type=='xagent') $n = $iid;
    	}
 	}
 
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+   $rcstr=$dbc->error;
    str_replace("\"", "\\\"",$rcstr);
    str_replace("\'", "\\\'",$rcstr);
 
@@ -2114,7 +2132,7 @@ global $dbc;
 	$RES=Array();
    $sql="SELECT id_alert_type,cause,monitor,expr,params,severity,mname,type,subtype FROM alert_type WHERE mname = '$DATA[mname]' AND expr = '$DATA[expr]'";
    $result = $dbc->query($sql);
-   if ($result->fetchInto($r)) {
+   if ($r = $result->fetch_assoc()) {
       $RES['id_alert_type']=$r['id_alert_type'];
       $RES['cause']=$r['cause'];
       $RES['monitor']=$r['monitor'];
@@ -2173,7 +2191,7 @@ global $dbc;
 
       // print ("SQL UPDATE =>$sql<br>");
       $result = $dbc->query($sql);
-      if (@PEAR::isError($result)) { $RC=3; }
+		if ($dbc->errno != 0) { $RC=3; }
       else{ $RC=2; }
 	}
 	// Estoy creando un nuevo monitor
@@ -2193,7 +2211,7 @@ global $dbc;
 
 	   // print ("SQL INSERT =>$sql<br>");
    	$result = $dbc->query($sql);
-//   	if (@PEAR::isError($result)) {
+//   	if ($dbc->errno != 0) {
 //
 //      	$sql="UPDATE alert_type set  cause='$DATA[cause]',
 //         	                          expr='$DATA[expr]',
@@ -2204,11 +2222,11 @@ global $dbc;
 //                        	           where mname = '$DATA[mname]' AND expr = '$DATA[expr]'";
 //	      // print ("SQL UPDATE =>$sql<br>");
 //   	   $result = $dbc->query($sql);
-//      	if (@PEAR::isError($result)) { $RC=3; }
+//      	if ($dbc->errno != 0) { $RC=3; }
 //      	else{ $RC=2; }
 //  		}
 
-		if (@PEAR::isError($result)) { $RC=4; }
+		if ($dbc->errno != 0) { $RC=4; }
 		else{ $RC=1; }
 	}
 
@@ -2251,21 +2269,21 @@ global $dbc;
    $sql2="SELECT id_dev FROM devices WHERE name='$name' and domain='$domain' and ip='$ip'";
 
    $result = $dbc->query($sql);
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+   $rcstr=$dbc->error;
    str_replace("\"", "\\\"",$rcstr);
    str_replace("\'", "\\\'",$rcstr);
 
    $response=array('rows'=>$rows,'rc'=>$rc,'rcstr'=>$rcstr);
 
    $result2 = $dbc->query($sql2);
-   while ($result2->fetchInto($r)){ $response['id_dev']=$r['id_dev']; }
+   while ($r = $result2->fetch_assoc()){ $response['id_dev']=$r['id_dev']; }
 
    //Hay que asignarlo por defecto al perfil organizativo global
 	$sql="SELECT id_cfg_op FROM cfg_organizational_profile WHERE descr='Global'";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){ $id_cfg_op=$r['id_cfg_op']; }
+   while ($r = $result->fetch_assoc()){ $id_cfg_op=$r['id_cfg_op']; }
 
 	$id_dev=$response['id_dev'];
    $sql="INSERT INTO cfg_devices2organizational_profile (id_dev,id_cfg_op)
@@ -2309,9 +2327,9 @@ global $dbc;
 //print "SQL=$sql\n";
 
    $result = $dbc->query($sql);
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+   $rcstr=$dbc->error;
    str_replace("\"", "\\\"",$rcstr);
    str_replace("\'", "\\\'",$rcstr);
 
@@ -2351,9 +2369,9 @@ global $dbc;
 
 
    $result = $dbc->query($sql);
-   $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
+   $rows=$dbc->affected_rows;
+   $rc=$dbc->errno;
+   $rcstr=$dbc->error;
    str_replace("\"", "\\\"",$rcstr);
    str_replace("\'", "\\\'",$rcstr);
 
@@ -2397,11 +2415,11 @@ global $dbc;
                                  oid='$oid', oidn='$oidn', items='$items', label='$label',
                                  vlabel='$vlabel' ,mode='$mode', get_iid='$get_iid', mtype='$mtype', oid_info='$info'";
    $result = $dbc->query($sql);
-   $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
+   $rows = $dbc->affected_rows;
+   $RESULT['rc']=$dbc->errno;
 
    if ($RESULT['rc']) {
-      $rcstr=mysql_error();
+      $rcstr=$dbc->error;
       $RESULT['rcstr']=$rcstr;
  	}
    elseif ($rows == 1){ $RESULT['rcstr']="Nueva M&eacute;trica SNMP generada."; }
@@ -2430,11 +2448,11 @@ global $dbc;
          ON DUPLICATE KEY UPDATE name='$name'";
 
    $result = $dbc->query($sql);
-   $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
+   $rows = $dbc->affected_rows;
+   $RESULT['rc']=$dbc->errno;
 
    if ($RESULT['rc']) {
-      $rcstr=mysql_error();
+      $rcstr=$dbc->error;
       $RESULT['rcstr']=$rcstr;
    }
    elseif ($rows == 1){ $RESULT['rcstr']="Nueva Vista  generada."; }
@@ -2442,7 +2460,7 @@ global $dbc;
 
    $sql="SELECT id_cfg_view FROM cfg_views WHERE name='$name'";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){ $RESULT['id_cfg_view'] = $r['id_cfg_view']; }
+   while ($r = $result->fetch_assoc()){ $RESULT['id_cfg_view'] = $r['id_cfg_view']; }
 
    return $RESULT;
 }
@@ -2471,11 +2489,11 @@ global $dbc;
 
 //print "SQL=$sql\n";
    $result = $dbc->query($sql);
-   $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
+   $rows = $dbc->affected_rows;
+   $RESULT['rc']=$dbc->errno;
 
    if ($RESULT['rc']) {
-      $rcstr=mysql_error();
+      $rcstr=$dbc->error;
       $RESULT['rcstr']=$rcstr;
    }
    elseif ($rows == 1){ $RESULT['rcstr']="Metrica en vista generada."; }
@@ -2521,7 +2539,7 @@ global $dbc;
 
 	
 	$result = $dbc->query($sql);
-	if ($result->fetchInto($r)){
+	if ($r = $result->fetch_assoc()) {
 		$cont=$r['cuantos'];
 	}
 	*/
@@ -2536,7 +2554,7 @@ global $dbc;
          FROM devices d,cfg_devices2organizational_profile o $where order by d.name";
 
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
 		array_push ($aID, "'".$r['indice']."'");
 		array_push ($aNAME_FULL, "'".$r['dispo'].".".$r['domain']."'");
 		array_push ($aIP, "'".$r['ip']."'");
@@ -2563,7 +2581,7 @@ global $dbc;
 			WHERE counter>0";
 	$total=0;
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['id_device']]=1;
    }
 
@@ -2582,7 +2600,7 @@ global $dbc;
 			GROUP by d.host_idx";
    $total=0;
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['host_idx']]=$r['cuantos'];
    }
 
@@ -2601,7 +2619,7 @@ global $dbc;
          GROUP by d.domain";
    $total=0;
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['domain']]=$r['cuantos'];
    }
 
@@ -2622,7 +2640,7 @@ global $dbc;
 
    $total=0;
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['id_cfg_op']]=$r['cuantos'];
    }
 	return $devices_in_red;
@@ -2638,7 +2656,7 @@ global $dbc;
    $sql="select d.type,count(distinct a.id_device) as cuantos from alerts a,devices d where a.id_device=d.id_dev and a.counter>0 group by d.type";
 	$total=0;
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['type']]=$r['cuantos'];
    }
 
@@ -2655,7 +2673,7 @@ global $dbc;
    $sql="select d.status,count(distinct a.id_device) as cuantos from alerts a,devices d where a.id_device=d.id_dev and a.counter>0 group by d.status";
 	$total=0;
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['status']]=$r['cuantos'];
    }
 
@@ -2673,7 +2691,7 @@ global $dbc;
    $sql="select d.sysoid,count(distinct a.id_device) as cuantos from alerts a,devices d where a.id_device=d.id_dev and a.counter>0 group by d.sysoid";
 	$total=0;
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['sysoid']]=$r['cuantos'];
    }
 
@@ -2700,7 +2718,7 @@ global $dbc;
 	// print "$sql<br>";
    $total=0;
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $devices_in_red[$r['col']]=$r['cuantos'];
    }
 
@@ -2738,7 +2756,7 @@ global $dbc;
 	$total=0;
 	$result = $dbc->query($sql);
 //print $sql;
-	while ($result->fetchInto($r)){
+	while ($r = $result->fetch_assoc()) {
       $id=$r['id_cfg_view'];
 		if (array_key_exists($id, $views_in_red)) {
 			if ( $views_in_red["$id"] > $r['severity']) { $views_in_red["$id"]=$r['severity']; }
@@ -2758,7 +2776,7 @@ global $dbc;
    $result = $dbc->query($sql);
 
 	$idm=Array();
-   while ($result->fetchInto($r)){ array_push ($idm, $r['id_metric']); }
+   while ($r = $result->fetch_assoc()){ array_push ($idm, $r['id_metric']); }
 	$idm_comma = join(",", $idm);
 
 	// Si no hay ningun valor en esta situacion uso id_metric=0.
@@ -2770,7 +2788,7 @@ global $dbc;
 	   $sql="select id_metric from metrics where name like '%_icmp' and id_dev in (select id_dev from metrics where id_metric in ($idm_comma))";
    	$result = $dbc->query($sql);
    	$idm1=Array();
-   	while ($result->fetchInto($r)){ array_push ($idm1, $r['id_metric']); }
+   	while ($r = $result->fetch_assoc()){ array_push ($idm1, $r['id_metric']); }
    	$idm_comma1 = join(",", $idm1);
 		if (count($idm1) == 0) {  $idm_comma1=0;  }
 	}
@@ -2787,7 +2805,7 @@ global $dbc;
 
 	//print "SQL=$sql";
    $result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       $id=$r['id_cfg_view'];
       $views_in_red["$id"]=1;
    }
@@ -2815,7 +2833,7 @@ global $dbc;
    $label_in_select=array();
    $label_in_title=array();
 	$result = $dbc->query($sql);
-   while ($result->fetchInto($r)){
+   while ($r = $result->fetch_assoc()){
       array_push($label_in_select,'columna'.$r['id']);
       array_push($label_in_title,strtoupper($r['descr']));
       //array_push($label_in_title_id,$r['id'].'.'.strtoupper($r['descr']));
@@ -2833,10 +2851,10 @@ global $dbc;
 
 //print "SQL=$sql\n";
    $result = $dbc->query($sql);
-	$result->fetchInto($r);
+	$r = $result->fetch_assoc();
 	//return $r;
 	$data=Array();
-   while ($result->fetchInto($r)) { array_push($data,$r['id_dev']);  }
+   while ($r = $result->fetch_assoc()) { array_push($data,$r['id_dev']);  }
    return $data;
 }
 
@@ -2892,7 +2910,7 @@ $descripcion='';
    $sql1="SELECT id_dev,name,domain,type,community,status,mac,mac_vendor,critic,wsize FROM devices WHERE ip='$ip'";
 	// print "******* $sql1 *****\n";
    $result1 = $dbc->query($sql1);
-   $result1->fetchInto($r1);
+	$r1 = $result1->fetch_assoc();
 
    $descripcion.=i18('_nombre').": {$r1['name']}\n";
    $descripcion.=i18('_dominio').": {$r1['domain']}\n";
@@ -2914,11 +2932,11 @@ $descripcion='';
    // 2. Obtener los campos definidos por el usuario
    $sql2="SELECT id,descr,tipo FROM devices_custom_types";
    $result2 = $dbc->query($sql2);
-   while ($result2->fetchInto($r2)){
+   while ($r2 = $result2->fetch_assoc()){
       $descripcion.=$r2['descr'];
       $sql3="SELECT columna{$r2['id']} as dato FROM devices_custom_data WHERE id_dev={$r1['id_dev']}";
       $result3 = $dbc->query($sql3);
-      $result3->fetchInto($r3);
+		$r3 = $result3->fetch_assoc();
 		if (($r2['tipo']==2)and($r3['dato']!='-')){
 			$descripcion.=": <a href='{$r3['dato']}' target='_blank' style='color=#0000CC;text-decoration=underline'> {$r3['dato']} </a>\n";
 			// <a target="_blank ref="paginaweb.htm">Texto del hipervíulo</a>
@@ -2957,7 +2975,7 @@ $descripcion='';
                               WHERE id_dev=".$r1['id_dev'].")";
    $result4 = $dbc->query($sql4);
    $descripcion.=i18('_perfilesorganizativos').": ";
-   while ($result4->fetchInto($r4)){
+   while ($r4 = $result4->fetch_assoc()){
       $descripcion.=$r4['descr'].',';
    }
 	$descripcion = substr_replace($descripcion,'',-1);
@@ -2967,7 +2985,7 @@ $descripcion='';
    $date=time();
    $sqlExist="SELECT id_tip from tips where tip_class=1 and id_ref='{$r1['id_dev']}' AND tip_type='id_dev'";
    $resultExist=$dbc->query($sqlExist);
-   $resultExist->fetchInto($rExist);
+	$rExist = $resultExist->fetch_assoc();
    if ($rExist['id_tip']==''){
       $sqlTip="INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr)
                VALUES ('{$r1['id_dev']}','id_dev','".i18('_fichadedispositivo')."','$date',1,'".str2jsQM($descripcion)."')";
@@ -3035,7 +3053,7 @@ global $dbc;
    $date=time();
    $sqlExist="SELECT id_tip from tips where tip_class=1 and id_ref='$hash_asset' AND tip_type='asset'";
    $resultExist=$dbc->query($sqlExist);
-   $resultExist->fetchInto($rExist);
+	$rExist = $resultExist->fetch_assoc();
    if ($rExist['id_tip']==''){
       $sqlTip="INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr)
                VALUES ('$hash_asset','asset','".i18('_fichadeelementoti')."','$date',1,'".str2jsQM($descripcion)."')";
@@ -3077,7 +3095,7 @@ global $dbc;
 		// print "SQL ES == $sql";
 
 		$result = $dbc->query($sql);
-		if (@PEAR::isError($result)) {
+		if ($dbc->errno != 0) {
       	return 1;
 	   }else{
 	      return 0;
@@ -3124,9 +3142,9 @@ global $dbc;
    // print "SQL ES == $sql";
 	
    $result = $dbc->query($sql);
-	if (@PEAR::isError($result)) {
-      $msg_error=$result->getMessage();
-		CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $msg_error ($sql)");
+	if ($dbc->errno != 0) {
+		$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+		CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $err_str ($sql)");
 		return 1;
    }
 	else{
@@ -3150,9 +3168,9 @@ global $dbc;
    // print "SQL ES == $sql";
 
    $result = $dbc->query($sql);
-   if (@PEAR::isError($result)) {
-      $msg_error=$result->getMessage();
-      depura_datos("STORE.PHP-LINEA ".__LINE__,"$msg_error $sql");
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      depura_datos("STORE.PHP-LINEA ".__LINE__,"$err_str $sql");
       return 1;
    }else{
       return 0;
@@ -3234,12 +3252,12 @@ global $dbc;
 				//  print ("SQL= == $sql0\n");
             $result0 = $dbc->query($sql0);
             // EN CASO DE HABER ERROR EN LA CONSULTA
-            if (@PEAR::isError($result0)) {
+			   if ($dbc->errno != 0) {
+      			$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
                print "ERROR: No se ha podido obtener los campos de devices_custom_data\n";
-               $msg_error=$result0->getMessage();
-               depura_datos("import_devices.php-LINEA ".__LINE__,"$msg_error $sql0");
+               depura_datos("import_devices.php-LINEA ".__LINE__,"$err_str $sql0");
             }
-            $result0->fetchInto($r0);
+				$r0 = $result0->fetch_assoc();
             array_push($array_titulos_usuario,'columna'.$r0['id']);
          }
          $titulos_usuario=implode(',',$array_titulos_usuario);
@@ -3252,9 +3270,9 @@ global $dbc;
 			// 0. COMPROBAMOS SI EXISTE EL DISPOSITIVO
 			$sqlIDDEV="SELECT id_dev FROM devices WHERE ip='".$data[2]."'";
 			$resultIDDEV = $dbc->query($sqlIDDEV);
-			$resultIDDEV->fetchInto($rIDDEV);
+			$rIDDEV = $resultIDDEV->fetch_assoc();
 			// EXISTE EL DISPOSITIVO
-			if($rIDDEV['id_dev']){
+			if ($rIDDEV['id_dev']) {
 				$sql="UPDATE devices SET ";
 				for ($i=0;$i<count($campos_device);$i++){
          	   if ($campos_device[$i]){
@@ -3286,12 +3304,11 @@ global $dbc;
          // print "SQL == $sql\n";
          $result = $dbc->query($sql);
          // EN CASO DE HABER ERROR EN LA CONSULTA
-         if (@PEAR::isError($result)) {
-				
-			//	print_r($data);	
+
+         if ($dbc->errno != 0) {
+            $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
             print "ERROR: No se ha insertar el dispositivo en devices el dispositivo ".$data[2]."\n";
-            $msg_error=$result->getMessage();
-            depura_datos("import_devices.php-LINEA ".__LINE__,"$msg_error $sql");
+            depura_datos("import_devices.php-LINEA ".__LINE__,"$err_str $sql");
             continue;
          }else{
 				print "INFO: Se ha insertado correctamente en la BBDD el dispositivo ".$data[2]."\n";
@@ -3302,12 +3319,12 @@ global $dbc;
 					 WHERE ip='".$data[2]."'";
          // print "SQL2 == $sql2\n";
          $result2 = $dbc->query($sql2);
-			$result2->fetchInto($r2);	
+			$r2 = $result2->fetch_assoc();
 
-         if (@PEAR::isError($result2)) {
+         if ($dbc->errno != 0) {
+            $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
             print "ERROR: No se ha podido obtener el id_dev del dispositivo ".$data[2]."\n";
-            $msg_error=$result2->getMessage();
-            depura_datos("import_devices.php-LINEA ".__LINE__,"$msg_error $sql2");
+            depura_datos("import_devices.php-LINEA ".__LINE__,"$err_str $sql2");
          }else{
 				print "INFO: Se ha obtenido el id_dev del dispositivo ".$data[2]." == ".$r2['ultimo']."\n";
 			}
@@ -3323,10 +3340,10 @@ global $dbc;
          $sql3=substr($sql3,0,-1);
          // print "SQL3 == $sql3\n";
          $result3 = $dbc->query($sql3);
-         if (@PEAR::isError($result3)) {
+         if ($dbc->errno != 0) {
+            $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
             print "ERROR: No se ha podido insertar en devices_custom_data los datos del dispositivo ".$data[2]."\n";
-            $msg_error=$result3->getMessage();
-            depura_datos("import_devices.php-LINEA ".__LINE__,"$msg_error $sql3");
+            depura_datos("import_devices.php-LINEA ".__LINE__,"$err_str $sql3");
          }else{
 				print "INFO: Se ha insertado correctamente en en devices_custom_data los datos del dispositivo ".$data[2]."\n";
 			}
@@ -3336,7 +3353,7 @@ global $dbc;
 		   $sql4="SELECT id_cfg_op FROM cfg_organizational_profile WHERE descr='Global'";
 			// print "SQL4 == $sql4\n";
 		   $result4 = $dbc->query($sql4);
-		   $result4->fetchInto($r4);
+			$r4 = $result4->fetch_assoc();
 			$id_cfg_op=$r4['id_cfg_op'];
 
 		   $sql5="INSERT INTO cfg_devices2organizational_profile (id_dev,id_cfg_op)
@@ -3352,7 +3369,7 @@ global $dbc;
 				$sql6="SELECT id_cfg_op FROM cfg_organizational_profile WHERE descr='$perfil'";
 				// print $sql6;
 				$result6 = $dbc->query($sql6);
-        		$result6->fetchInto($r6);
+				$r6 = $result6->fetch_assoc();
 				$id_cfg_op=$r6['id_cfg_op'];
 				$sql7="INSERT INTO cfg_devices2organizational_profile (id_dev,id_cfg_op)
 						 VALUES ($id_dev,$id_cfg_op)
@@ -3412,11 +3429,12 @@ function get_remote_client() {
    */
 	function getQuery($id,$data){
 		global $sql_pool;
+		global $dbc;
 		include_once('sql/mod_Configure.sql');
 		$sql=$sql_pool[$id];
 		if (count($data)>0) {
 	      foreach ($data as $key => $value){
-				if($key!='__CONDITION__') $value = mysql_real_escape_string($value);
+				if($key!='__CONDITION__') $value = $dbc->real_escape_string($value);
 				// $value = addslashes($value);
 				// $value = str_replace("'","\'",$value);
       	   $sql=str_replace($key,$value,$sql);
@@ -3438,17 +3456,16 @@ function get_remote_client() {
 		$comma = '';
 		foreach($a_params as $param){
 			if(is_int($param))          $sql.=$comma.$param;
-			elseif(is_string($param))   $sql.=$comma.'"'.mysql_real_escape_string($param).'"';
+			elseif(is_string($param))   $sql.=$comma.'"'.$dbc->real_escape_string($param).'"';
 			$comma = ',';
 		}
 		$sql.=")";
 
 		$return['sql'] = $sql;
 
-      $result = $dbc->query($sql);
-      if (@PEAR::isError($result)){
-         $return['rcstr']=$result->getMessage();
-         $return['rc']=$result->getCode();
+      if ($dbc->errno != 0) {
+         $return['rcstr']=$dbc->sqlstate.' - '.$dbc->error;
+         $return['rc']=$dbc->errno;
       }
       return $return;
 	}
@@ -3508,9 +3525,9 @@ function get_remote_client() {
 		global $dbc;
       $return=array('rc'=>'0','rcstr'=>'','msg'=>'','obj'=>array(),'cont'=>0);
       $result = $dbc->query($sql);
-      if (@PEAR::isError($result)){
-         $return['rcstr']=$result->getMessage();
-         $return['rc']=$result->getCode();
+      if ($dbc->errno != 0) {
+         $return['rcstr']=$dbc->sqlstate.' - '.$dbc->error;
+         $return['rc']=$dbc->errno;
          $return['msg']="Ha habido algun problema al realizar los cambios en la base de datos<br>Error SQL {$return['rc']} => {$return['rcstr']}";
          $return['ico']="ico_alarm";
          $return['query']=$sql;
@@ -3519,7 +3536,7 @@ function get_remote_client() {
       }
       else{
 			if(is_object($result)){
-            while ($result->fetchInto($r)){
+            while ($r = $result->fetch_assoc()){
                $return['obj'][]=$r;
                $return['cont']++;
             }
@@ -3539,15 +3556,15 @@ function get_remote_client() {
    function QueryNoGlobal($dbc,$sql){
       $return=array('rc'=>'0','rcstr'=>'','msg'=>'','obj'=>array(),'cont'=>0);
       $result = $dbc->query($sql);
-      if (@PEAR::isError($result)){
-         $return['rcstr'] = $result->getMessage();
-         $return['rc']    = $result->getCode();
+      if ($dbc->errno != 0) {
+         $return['rcstr']=$dbc->sqlstate.' - '.$dbc->error;
+         $return['rc']=$dbc->errno;
          $return['msg']   = "Ha habido algun problema al realizar los cambios en la base de datos<br>Error SQL {$return['rc']} => {$return['rcstr']}";
          $return['ico']   = "ico_alarm";
       }
       else{
          if(is_object($result)){
-            while ($result->fetchInto($r)){
+            while ($r = $result->fetch_assoc()){
                $return['obj'][]=$r;
                $return['cont']++;
             }
@@ -3570,9 +3587,9 @@ function get_remote_client() {
       //print $sql;
       $result = $dbc->query($sql);
       // $return['obj']=$result;
-      if (@PEAR::isError($result)){
-         $return['rcstr']=$result->getMessage();
-         $return['rc']=$result->getCode();
+      if ($dbc->errno != 0) {
+         $return['rcstr']=$dbc->sqlstate.' - '.$dbc->error;
+         $return['rc']=$dbc->errno;
          $return['msg']="Ha habido algun problema al realizar los cambios en la base de datos<br>Error SQL {$return['rc']} => {$return['rcstr']}";
          $return['ico']="ico_alarm";
          $aux="Error en la query *** $sql ***<br>ID = $id<br>";
@@ -7310,18 +7327,22 @@ function DDBB_Table_Info($id_table){
    global $dbc;
    $return=array();
    $result = $dbc->query("SHOW FIELDS FROM $id_table");
-   if (!@PEAR::isError($result)){
-      if(is_object($result)){
-         while ($result->fetchInto($r)){
-				$type = 'int';
-				if(strpos($r['Type'],'char')!==false)     $type = 'string';
-				elseif(strpos($r['Type'],'text')!==false) $type = 'string';
-				elseif(strpos($r['Type'],'blob')!==false) $type = 'string';
 
-				$return[$r['Field']] = $type;
-			}
-         $result->free();
-      }
+   if ($dbc->errno != 0) {
+		return $return;
+   }
+
+
+   if(is_object($result)){
+      while ($r = $result->fetch_assoc()){
+			$type = 'int';
+			if(strpos($r['Type'],'char')!==false)     $type = 'string';
+			elseif(strpos($r['Type'],'text')!==false) $type = 'string';
+			elseif(strpos($r['Type'],'blob')!==false) $type = 'string';
+
+			$return[$r['Field']] = $type;
+		}
+      $result->free();
    }
    return $return;
 }
@@ -7398,7 +7419,7 @@ global $dbc;
    $a_asoc = array();
    $sql2="SELECT id,descr FROM devices_custom_types";
    $result2 = $dbc->query($sql2);
-   while ($result2->fetchInto($r2)) $a_asoc[$r2['descr']] = $r2['id'];
+	while ($r2 = $result2->fetch_assoc()) { $a_asoc[$r2['descr']] = $r2['id']; }
 
    foreach($a_campos as $key=>$value){
       // El campo de usuario que ha metido el usuario no existe en la BBDD
@@ -7407,7 +7428,7 @@ global $dbc;
          $a_return['data'][]=array('key'=>$key,'descr'=>'The field doesnt exist in the CNM database');
          continue;
       }
-      $dato=mysql_real_escape_string($value);
+      $dato=$dbc->real_escape_string($value);
       // SSV: PROXY INVERSO
       $dato=str_replace('[proxy]', '____PROXY____[proxy]', $dato);
 
@@ -7477,7 +7498,7 @@ mysql> select * from cfg_organizational_profile;
    $a_asoc = array();
    $sql2="SELECT id_cfg_op,descr FROM cfg_organizational_profile";
    $result2 = $dbc->query($sql2);
-   while ($result2->fetchInto($r2))$a_asoc[$r2['descr']] = $r2['id_cfg_op'];
+   while ($r2 = $result2->fetch_assoc()) { $a_asoc[$r2['descr']] = $r2['id_cfg_op']; }
 
    foreach($a_asoc as $descr => $id_cfg_op){
       // Se inserta

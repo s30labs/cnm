@@ -68,6 +68,8 @@
       * Descr: Actualiza la BBDD con los datos obtenidos de los CNMs remotos
       */
 		public static function put(){
+			global $dbc;
+		
          $a_res = array(
             'rc'    => 0,
             'rcstr' => '',
@@ -146,10 +148,10 @@
                $sep = '';
 
                foreach($a_data_cnm['data']['devices_custom_types'] as $a){
-                  foreach($a as $k => $v) $a[$k] = mysql_real_escape_string($v);
+                  foreach($a as $k => $v) $a[$k] = $dbc->real_escape_string($v);
 
                   foreach($a_data_cnm['data']['devices_custom_data'] as $b){
-                     foreach($b as $k => $v) $b[$k] = mysql_real_escape_string($v);
+                     foreach($b as $k => $v) $b[$k] = $dbc->real_escape_string($v);
 							$md5_name = 'custom_'.substr(md5($a['descr']),0,8);
                      $data['__VALUES__'].=$sep."('{$b['id_dev']}','{$a['descr']}','$md5_name','{$a['tipo']}','{$b['columna'.$a['id']]}','{$cnm['cid']}','{$cnm['host_ip']}')";
                      $sep=',';
@@ -229,7 +231,7 @@ Array
                   $data = array('__VALUES__'=>'');
                   $sep = '';
                   foreach($a_data_cnm['data']['alerts'] as $a){
-							foreach($a as $k => $v) $a[$k] = mysql_real_escape_string($v);
+							foreach($a as $k => $v) $a[$k] = $dbc->real_escape_string($v);
                      $data['__VALUES__'].=$sep."('{$a['id_alert']}','{$a['id_metric']}','{$a['id_device']}','{$a['severity']}','{$a['counter']}','{$a['mname']}','{$a['watch']}','{$a['ack']}','{$a['id_ticket']}','{$a['type']}','{$a['date']}','{$a['name']}','{$a['domain']}','{$a['ip']}','{$a['label']}','{$a['cause']}','{$a['event_data']}','{$a['correlated']}','{$a['correlated_by']}','{$cnm['cid']}','{$cnm['host_ip']}','{$a['ticket_descr']}','{$a['mode']}','{$a['critic']}')";
                      $sep=',';
                   }
@@ -258,7 +260,7 @@ Array
                   $data = array('__VALUES__'=>'');
                   $sep = '';
                   foreach($a_data_cnm['data']['alert2user'] as $a){
-							foreach($a as $k => $v) $a[$k] = mysql_real_escape_string($v);
+							foreach($a as $k => $v) $a[$k] = $dbc->real_escape_string($v);
                      $data['__VALUES__'].=$sep."('{$a['id_alert']}','{$a['login_name']}','{$cnm['cid']}','{$cnm['host_ip']}')";
                      $sep=',';
                   }
@@ -291,7 +293,7 @@ Array
 						$data = array('__VALUES__'=>'');
 						$sep = '';
 						foreach($a_data_cnm['data']['cfg_views'] as $a){
-							foreach($a as $k => $v) $a[$k] = mysql_real_escape_string($v);
+							foreach($a as $k => $v) $a[$k] = $dbc->real_escape_string($v);
 							$data['__VALUES__'].=$sep."('{$a['id_cfg_view']}','{$a['name']}','{$a['type']}','{$a['itil_type']}','{$a['function']}','{$a['weight']}','{$a['background']}','{$a['ruled']}','{$a['severity']}','{$a['red']}','{$a['orange']}','{$a['yellow']}','{$a['blue']}','{$cnm['cid']}','{$cnm['host_ip']}','{$a['global']}','{$a['nmetrics']}','{$a['nremote']}','{$a['nsubviews']}','0')";
 							$sep=',';
 	               }
@@ -320,7 +322,7 @@ Array
                   $data = array('__VALUES__'=>'');
                   $sep = '';
                   foreach($a_data_cnm['data']['cfg_user2view'] as $a){
-							foreach($a as $k => $v) $a[$k] = mysql_real_escape_string($v);
+							foreach($a as $k => $v) $a[$k] = $dbc->real_escape_string($v);
                      $data['__VALUES__'].=$sep."('{$a['id_user']}','{$a['id_cfg_view']}','{$a['login_name']}','{$cnm['cid']}','{$cnm['host_ip']}')";
                      $sep=',';
                   }
@@ -431,7 +433,7 @@ Array
 						$data['__VALUES__'].=$sep."('$cid','$cid_ip',$id_dev";
 						foreach((array)$a_field_id as $field_id){
 							$field_value = $aux_field[$field_id];
-							$data['__VALUES__'].=",'".mysql_real_escape_string($field_value)."'";
+							$data['__VALUES__'].=",'".$dbc->real_escape_string($field_value)."'";
 						}
 						$data['__VALUES__'].=")";	
 	         		$sep = ',';
@@ -570,7 +572,9 @@ Array
 	      // print "SQL ES == $sql";
 
 	      $result = $dbc->query($sql);
-	      if (@PEAR::isError($result)) {
+			if ($dbc->errno != 0) {
+				$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+				CNMUtils::error_log(__FILE__, __LINE__, "_info_qactions: $err_str ($sql)");
 	         return 1;
 	      }else{
 	         return 0;

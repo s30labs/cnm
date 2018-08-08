@@ -1,7 +1,6 @@
 <?php
 
 include_once('inc/Store.php');
-require_once('/usr/share/pear/DB.php');
 
 define("LOG_PREFIX", "cnm-api");
 
@@ -31,15 +30,23 @@ class CNMAPI {
    	   	'hostspec' => $db_data['DB_SERVER'],
       		'database' => $db_data['DB_NAME'],
    		);
-	   	// NOS CONECTAMOS A LA BBDD
-   		$dbc = @DB::Connect($data,TRUE);
-   		if (@PEAR::isError($dbc)) {
-				throw new Exception("ERROR DE CONEXION"); 
-   		}else {
-      		$dbc->setFetchMode(DB_FETCHMODE_ASSOC);
+
+		   // NOS CONECTAMOS A LA BBDD
+   		$timeout = 2;
+   		$dbc = mysqli_init();
+   		$dbc->options( MYSQLI_OPT_CONNECT_TIMEOUT, $timeout );
+   
+			$dbc->real_connect($data['hostspec'], $data['username'], $data['password'], $data['database']);
+
+   		if ($dbc->connect_errno) {
+      		$err_str = '('.$dbc->connect_errno.'): '.$dbc->connect_error;
+				throw new Exception("ERROR DE CONEXION - $err_str");
    		}
-			//$this->dbc = $dbc;
-     		return $dbc;
+   		else {
+      		$dbc->query("SET CHARACTER SET UTF8");
+      		$dbc->query("SET NAMES UTF8");
+   		}
+			return $dbc;
 		}
 		catch (Exception $e) {
     		throw $e->getMessage();

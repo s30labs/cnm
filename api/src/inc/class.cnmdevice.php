@@ -1057,8 +1057,8 @@
 */
 		   $sql2="SELECT id,descr FROM devices_custom_types";
 		   $result2 = $dbc->query($sql2);
-		   while ($result2->fetchInto($r2)){
-				$dato=mysql_real_escape_string($this->get_custom_field($r2['descr']));
+		   while ($r2 = $result2->fetch_assoc()){
+				$dato=$dbc->real_escape_string($this->get_custom_field($r2['descr']));
 				// ////////////////// //
 				// SSV: PROXY INVERSO //
 				// ////////////////// //
@@ -1129,7 +1129,7 @@ mysql> select * from cfg_organizational_profile;
 		   $a_asoc = array();
 		   $sql2="SELECT id_cfg_op,descr FROM cfg_organizational_profile";
 		   $result2 = $dbc->query($sql2);
-		   while ($result2->fetchInto($r2))$a_asoc[$r2['descr']] = $r2['id_cfg_op'];
+		   while ($r2 = $result2->fetch_assoc()) { $a_asoc[$r2['descr']] = $r2['id_cfg_op']; }
 	
 		   foreach($a_asoc as $descr => $id_cfg_op){
 		      // Se inserta
@@ -1228,7 +1228,7 @@ mysql> select * from devices_custom_types;
 
 		   $sql2="SELECT id,descr,tipo FROM devices_custom_types";
 		   $result2 = $dbc->query($sql2);
-		   while ($result2->fetchInto($r2)){
+		   while ($r2 = $result2->fetch_assoc()){
 				$descripcion.=$r2['descr'];
 				if($r2['tipo']==2 and $this->get_custom_field($r2['descr'])!='-'){
 					$descripcion.=": <a href='".$this->get_custom_field($r2['descr'])."' target='_blank' style='color=#0000CC;text-decoration=underline'> ".$this->get_custom_field($r2['descr'])." </a>\n";
@@ -1324,10 +1324,9 @@ mysql> select * from devices_custom_types;
 		   // print "SQL ES == $sql";
 
 		   $result = $dbc->query($sql);
-		   if (@PEAR::isError($result)) {
-		      $msg_error=$result->getMessage();
-		      $code_error=$result->getCode();
-		      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** ($code_error) $msg_error ($sql)");
+         if ($dbc->errno != 0) {
+            $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+		      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $err_str ($sql)");
 		      return 1;
 		   }
 		   else{
@@ -1342,7 +1341,7 @@ mysql> select * from devices_custom_types;
 
    		$sql="SELECT id_metric,label from metrics WHERE id_dev=".$this->get_system_field('id');
 		   $result = $dbc->query($sql);
-		   while ($result->fetchInto($r)){
+		   while ($r = $result->fetch_assoc()){
 		      $id_metric=$r['id_metric'];
 		      $new_label = str_replace($this->a_meta_fields['old_name'].".".$this->a_meta_fields['old_domain'],$this->get_system_field('name').".".$this->get_system_field('domain'),$r['label']);
 		      $sql="UPDATE metrics set label='$new_label' WHERE id_metric=$id_metric";

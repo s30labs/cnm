@@ -105,9 +105,9 @@ else{
 //	   global $dbc;
 //	   $return=array();
 //	   $result = $dbc->query("SHOW FIELDS FROM $id_table");
-//	   if (!@PEAR::isError($result)){
+//	   if ($dbc->errno == 0){
 //	      if(is_object($result)){
-//	         while ($result->fetchInto($r)){
+//	         while ($r = $result->fetch_assoc()){
 //	            $type = 'int';
 //	            if(strpos($r['Type'],'char')!==false)     $type = 'string';
 //	            elseif(strpos($r['Type'],'text')!==false) $type = 'string';
@@ -434,6 +434,8 @@ else{
     *         mod_dispositivo_layout.php
    */
 	function common_devices_get_table($mode=0,$input_params=array(),$extra_params=array(),$input_tabla='',$input_a_ss_params=array()){
+		global $dbc;
+
 	   if($mode==0){
 	      $tabla       = new Table();
 			$posStart    = $extra_params['posStart'];
@@ -593,7 +595,7 @@ else{
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -653,7 +655,7 @@ else{
 		      $cond.=$sep_params."( ''='' ";
 		      $sep_params = ' OR ';
 	
-		      foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		      foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 		
 		      foreach($params as $k_cond => $v_cond){
 			      if($v_cond=='') continue;
@@ -1571,6 +1573,8 @@ Condición de búsqueda');
 
 
 	function common_views_get_table($mode=0,$input_params=array()){
+		global $dbc;
+
       $tabla = new Table();
       $posStart    = 0;
       $count       = 1000000;
@@ -1659,7 +1663,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -1757,6 +1761,8 @@ Condición de búsqueda');
 	}
 
 	function common_metrics_get_table($mode=0,$input_params=array(),$extra_params=array()){
+		global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -1821,7 +1827,7 @@ Condición de búsqueda');
       // Parte de búsquedas //
       ////////////////////////
       if(! empty($params)){
-         foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+         foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 
          foreach($params as $k_cond => $v_cond){
             if($v_cond=='') continue;
@@ -1876,7 +1882,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -2045,7 +2051,7 @@ Condición de búsqueda');
       // Parte de búsquedas //
       ////////////////////////
       if(! empty($params)){
-         foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+         foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 
          foreach($params as $k_cond => $v_cond){
             if($v_cond=='') continue;
@@ -2094,6 +2100,8 @@ Condición de búsqueda');
 
 
 	function common_views_get_remote_alerts($mode,$id_cfg_view,$input_params,$extra_params){
+		global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2148,7 +2156,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -2194,6 +2202,8 @@ Condición de búsqueda');
 
 
 	function common_alerts_get_table($mode,$input_params,$extra_params){
+		global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2287,7 +2297,7 @@ Condición de búsqueda');
 	   ////////////////////////
 	   // Parte de búsquedas //
 	   ////////////////////////
-	   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+	   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 
 	   foreach($params as $k_cond => $v_cond){
 	      if($v_cond=='') continue;
@@ -2347,6 +2357,8 @@ Condición de búsqueda');
 	* Descr:
 	*/
 	function common_alerts_store_get_table($mode,$input_params,$extra_params){
+		global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2439,7 +2451,7 @@ Condición de búsqueda');
 	   ////////////////////////
 	   // Parte de búsquedas //
 	   ////////////////////////
-	   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+	   foreach($params as $key=>$value) $params[$key]=$dbc->real_escape_string($value);
 
 	   foreach($params as $k_cond => $v_cond){
 	      if($v_cond=='') continue;
@@ -2491,6 +2503,8 @@ Condición de búsqueda');
 
 
 	function common_tickets_get_table($mode,$input_params,$extra_params){
+		global $dbc;
+
 		$tabla = new Table();
 		$tabla->no_limit_words();
 		/////////////
@@ -2598,11 +2612,11 @@ Condición de búsqueda');
 	   foreach($params as $key=>$value) {
 			if(is_array($value)){
 				foreach($value as $k => $v){
-					$params[$key][$k]=mysql_real_escape_string($v);
+					$params[$key][$k]=$dbc->real_escape_string($v);
 				}
 			}
 			else{
-				$params[$key]=mysql_real_escape_string($value);
+				$params[$key]=$dbc->real_escape_string($value);
 			}
 		}
 
@@ -3560,9 +3574,9 @@ global $dbc;
    // print "SQL ES == $sql";
 
    $result = $dbc->query($sql);
-   if (@PEAR::isError($result)) {
-      $msg_error=$result->getMessage();
-      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $msg_error ($sql)");
+  	if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $err_str ($sql)");
       return 1;
    }
    else{

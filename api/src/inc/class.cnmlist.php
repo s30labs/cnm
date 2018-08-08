@@ -1622,8 +1622,10 @@ mysql> select a.id_asset,a.name,a.status,a.critic,a.owner,b.descr AS type,IFNULL
 
 
 		public function set_field($key,$val){
+			global $dbc;
+
 			$rc = 0;
-			$this->a_input_data[$key] = mysql_real_escape_string($val);
+			$this->a_input_data[$key] = $dbc->real_escape_string($val);
 			return $rc;
 		}
 

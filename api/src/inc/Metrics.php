@@ -95,6 +95,8 @@ function fill_lapses  ($lapse,&$LAPSES)
 //       Si $alert_type > 0 ==> Se pinta el fondo rojo.
 //--------------------------------------------------------------------------
 function get_alert_monitor ($alerts_key,$id_dev,$r,$mname,&$color_ico,&$expr,&$monitor_desc=''){
+	global $dbc;
+
 	/*
 	print "ALERTS_KEY\n";
 	print_r($alerts_key);
@@ -152,8 +154,8 @@ function get_alert_monitor ($alerts_key,$id_dev,$r,$mname,&$color_ico,&$expr,&$m
 	// Obtenemos información del monitor que causa la alerta
    if ($alert_type == 4) {
       $sql="SELECT expr,cause,severity FROM alert_type WHERE monitor='{$r['watch']}'";
-      $result1 = mysql_query($sql);
-      $r1 = mysql_fetch_array($result1);
+      $result1 = $dbc->query($sql);
+		$r1 = $result1->fetch_assoc();
       $expr=$r1['expr'];
 		$monitor_desc=$r1['cause'];
       if($r1['severity']==2){$color_ico='naranja';}
@@ -164,8 +166,8 @@ function get_alert_monitor ($alerts_key,$id_dev,$r,$mname,&$color_ico,&$expr,&$m
 	elseif ($alert_type == 0) {
 		$color_ico=($r['watch'])?'verde':'transp';
       $sql="SELECT expr,cause FROM alert_type WHERE monitor='{$r['watch']}'";
-      $result1 = mysql_query($sql);
-      $r1 = mysql_fetch_array($result1);
+      $result1 = $dbc->query($sql);
+		$r1 = $result1->fetch_assoc();
       $expr=$r1['expr'];
 		$monitor_desc=$r1['cause'];
 	}
@@ -173,8 +175,8 @@ function get_alert_monitor ($alerts_key,$id_dev,$r,$mname,&$color_ico,&$expr,&$m
 	else{
       $color_ico=($r['watch'])?'gris':'transp';
       $sql="SELECT expr,cause FROM alert_type WHERE monitor='{$r['watch']}'";
-      $result1 = mysql_query($sql);
-      $r1 = mysql_fetch_array($result1);
+      $result1 = $dbc->query($sql);
+		$r1 = $result1->fetch_assoc();
       $expr=$r1['expr'];
       $monitor_desc=$r1['cause'];
 	}

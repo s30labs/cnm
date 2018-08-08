@@ -64,7 +64,9 @@
 	      // print "SQL ES == $sql";
 
 	      $result = $dbc->query($sql);
-	      if (@PEAR::isError($result)) {
+		   if ($dbc->errno != 0) {
+  			   $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+				CNMUtils::error_log(__FILE__, __LINE__, "_info_qactions: $err_str ($sql)");
 	         return 1;
 	      }else{
 	         return 0;

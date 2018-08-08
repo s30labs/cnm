@@ -1,5 +1,4 @@
 <?php
-require_once('/usr/share/pear/DB.php');
 require_once('inc/CNMAPI.php');
 
 //--------------------------------------------------------------------------
@@ -45,15 +44,24 @@ global $dbc;
       'hostspec' => $db_data['DB_SERVER'],
       'database' => $db_data['DB_NAME'],
    );
+
    // NOS CONECTAMOS A LA BBDD
-   $dbc = @DB::Connect($data,TRUE);
-   if (@PEAR::isError($dbc)) {
-		depura('mysql_session_abreBD error:',$dbc->getMessage());
-   }else {
-		$dbc->setFetchMode(DB_FETCHMODE_ASSOC);
-		$dbc->query("SET CHARACTER SET UTF8");
-		$dbc->query("SET NAMES UTF8");
-   }
+	$timeout = 2;
+	$dbc = mysqli_init();
+	$dbc->options( MYSQLI_OPT_CONNECT_TIMEOUT, $timeout ) ||
+		depura('mysqli_options error:',$dbc->error);
+ 
+	$dbc->real_connect($data['hostspec'], $data['username'], $data['password'], $data['database']);
+ 
+	if ($dbc->connect_errno) {
+  		$err_str = '('.$dbc->connect_errno.'): '.$dbc->connect_error;
+ 		depura('mysql_session_abreBD error:',$err_str);
+	}
+	else {
+      $dbc->query("SET CHARACTER SET UTF8");
+      $dbc->query("SET NAMES UTF8");
+	}
+
 }
 
 
@@ -74,8 +82,12 @@ global $dbc;
 	depura('mysql_session_showTime:',"QUERY == SELECT expiration FROM sessions_table WHERE SID = '$SID'");
 	$result = $dbc->query($query);
 	
-	if (@PEAR::isError($result)) {depura('mysql_session_ShowTime: ',$result->getMessage());}
-	while ($result->fetchInto($r)){$sess_Time=$r['expiration'];}
+	if ($dbc->errno != 0) {
+   	$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+		depura('mysql_session_ShowTime: ',$err_str);
+	}
+
+	while ($r = $result->fetch_assoc()) { $sess_Time=$r['expiration']; }
 	
 	$t=time();
 
@@ -135,8 +147,12 @@ global $dbc;
 	$query  = "SELECT value FROM sessions_table WHERE SID = '$SID' AND expiration > ". time();
 	$result = $dbc->query($query);
 
-	if (@PEAR::isError($result)) { depura('mysql_session_select: ',$result->getMessage());}
-	if (($result->fetchInto($r)) && ($r['value']) ) {
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      depura('mysql_session_select: ',$err_str);
+   }
+
+	if (($r = $result->fetch_assoc()) && ($r['value']) ) { 
 		depura('SSV',"**SSV 2** QUERY == $query || VALUE == {$r['value']}");
 		session_decode($r['value']);
 	}
@@ -171,14 +187,20 @@ global $dbc,$timeout;
 	depura('SSV',"**SSV** QUERY == $query");
 	depura('mysql_session_write: ',"SID => $SID");
 	$result=$dbc->query($query);
+
 /*
 	// Descomentar esto si queremos que el timeout de la sesión se actualice por cada petición
 	// En caso de existir el SID, lo actualizamos
-	if (@PEAR::isError($result)) { 
+   if ($dbc->errno != 0) {
+      //$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      //depura('mysql_session_ShowTime: ',$err_str);
 		$query = "UPDATE sessions_table set expiration=$expiration,value='$value1', user='$LOGIN_NAME' WHERE SID='$SID'";
 depura('SSV',"**SSV** QUERY == $query");
 		$result=$dbc->query($query); 
-		if (@PEAR::isError($result)){depura('mysql_session_write: ',$result->getMessage()); }
+	   if ($dbc->errno != 0) {
+  	    	$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      	depura('mysql_session_write: ',$err_str);
+		}
 	}
 */
 } // end mysql_session_write()
@@ -201,7 +223,7 @@ global $dbc,$timeout;
 	$value1     = $value2;
 	$dbc        = $_SESSION['DBC'];
 	if (! $dbc) { 
-		depura('mysql_session_write: ',"RECONNECT");
+		depura('mysql_session_write_login: ',"RECONNECT");
 		abreBD();  
 	}
 	
@@ -213,11 +235,14 @@ global $dbc,$timeout;
 
 	// Descomentar esto si queremos que el timeout de la sesión se actualice por cada petición
 	// En caso de existir el SID, lo actualizamos
-	if (@PEAR::isError($result)) { 
+   if ($dbc->errno != 0) {
 		$query = "UPDATE sessions_table set expiration=$expiration,value='$value1', user='$LOGIN_NAME' WHERE SID='$SID'";
 		depura('SSV',"**SSV** QUERY == $query");
 		$result=$dbc->query($query); 
-		if (@PEAR::isError($result)){depura('mysql_session_write: ',$result->getMessage()); }
+      if ($dbc->errno != 0) {
+     	  	$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+         depura('mysql_session_write_login: ',$err_str);
+		}
 	}
 
 } // end mysql_session_write()
@@ -232,7 +257,10 @@ global $dbc;
 	depura('mysql_session_destroy:','IN');
 	$query  = "DELETE FROM sessions_table WHERE SID = '$SID'";
 	$result = $dbc->query($query);
-	if (@PEAR::isError($result)) { depura ('mysql_session_destroy error:',$result->getMessage());	}
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      depura('mysql_session_destroy error: ',$err_str);
+	}
 	
 } // end mysql_session_destroy()
 
@@ -247,10 +275,11 @@ GLOBAL $dbc,$LIFETIME;
 	// $query = "DELETE FROM sessions_table WHERE expiration < " . (time() - $LIFETIME);
 	$query = "DELETE FROM sessions_table WHERE expiration < ". time(). " AND origin='api'";
 	$result = $dbc->query($query);
-	if (@PEAR::isError($result)) {    
-		depura ('mysql_session_garbage_collect error: ',$result->getMessage());  
+   if ($dbc->errno != 0) {
+      $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+      depura('mysql_session_garbage_collect error: ',$err_str);
 		return;
 	}
-	return $dbc->affectedRows();
+	return $dbc->affected_rows;
 } // end mysql_session_garbage_collect()
 ?>
