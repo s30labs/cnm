@@ -5,7 +5,7 @@ require_once('inc/CNMAPI.php');
 // Variables globales
 //--------------------------------------------------------------------------
 $dbc        = '';
-$DEPURA     = 0;
+$DEPURA     = 1;
 $LIFETIME   = ini_get('session.gc_maxlifetime');
 $timeout    = 180;
 
@@ -14,7 +14,8 @@ function depura($idx,$msg){
 global $DEPURA;
 
  	if ($DEPURA){
-	   $fp = fopen ('/var/log/debug_session.log','a');
+	   //$fp = fopen ('/var/log/debug_session.log','a');
+	   $fp = fopen ('/tmp/debug_session.log','a');
 		$msgf=sprintf("%s >>>> %s\n",$idx,$msg);
 		fwrite($fp,$msgf);
 		fclose($fp);
@@ -60,7 +61,10 @@ global $dbc;
 	else {
       $dbc->query("SET CHARACTER SET UTF8");
       $dbc->query("SET NAMES UTF8");
+		$dbc->autocommit(true);
 	}
+
+	return true;
 
 }
 
@@ -117,9 +121,13 @@ global $dbc;
 	depura('mysql_session_open:','IN');
 	if(!isset($_SESSION['DBC'])){
       abreBD();
+      depura('mysql_session_open: ','abreBD');
    }else{
 		$dbc=$_SESSION['DBC'];
+      depura('mysql_session_open: ','usa $_SESSION');
 	}
+
+	return true;
 } // end mysql_session_open()
 
 
@@ -132,7 +140,7 @@ global $dbc;
 function mysql_session_close() {
 
 	depura('mysql_session_close:','IN');
-	return 1;
+	return true;
 } // end mysql_session_close()
 
 
@@ -143,6 +151,7 @@ function mysql_session_close() {
 function mysql_session_select($SID) {
 global $dbc;
 
+	$rc='';
 	depura('mysql_session_select:','IN');
 	$query  = "SELECT value FROM sessions_table WHERE SID = '$SID' AND expiration > ". time();
 	$result = $dbc->query($query);
@@ -153,9 +162,13 @@ global $dbc;
    }
 
 	if (($r = $result->fetch_assoc()) && ($r['value']) ) { 
-		depura('SSV',"**SSV 2** QUERY == $query || VALUE == {$r['value']}");
+		depura('mysql_session_select QUERY: ',"$query || VALUE == {$r['value']}");
 		session_decode($r['value']);
+		$rc=$r['value'];
 	}
+
+	return $rc;
+
 } // end mysql_session_select()
 
 
@@ -177,17 +190,43 @@ global $dbc,$timeout;
 	$value2     = session_encode();
 	$value1     = $value2;
 	$dbc        = $_SESSION['DBC'];
-	if (! $dbc) { 
+
+	if ((! isset($dbc)) and (!($dbc instanceof mysqli))) {
+	//if (! $dbc) { 
 		depura('mysql_session_write: ',"RECONNECT");
 		abreBD();  
 	}
-	
-	if($LOGIN_NAME==''){return;}
-	$query = "INSERT INTO sessions_table (SID,expiration,value,user,origin) VALUES ('$SID', $expiration, '$value1','$LOGIN_NAME','api')";
-	depura('SSV',"**SSV** QUERY == $query");
-	depura('mysql_session_write: ',"SID => $SID");
-	$result=$dbc->query($query);
 
+	// SI O SE RECONECTA A BBDD. NO FUNCION !!
+	abreBD();
+	
+	if($LOGIN_NAME=='') {return;}
+
+	depura('mysql_session_write: ',"SID => $SID new expiration=$expiration");
+	$query = "SELECT expiration FROM sessions_table WHERE SID='$SID'";
+	$result=$dbc->query($query);
+	if ($r = $result->fetch_assoc()) { 
+		$exp=$r['expiration']; 
+		depura('mysql_session_write: ',"previous expiration=$exp");
+		$query = "UPDATE sessions_table set expiration=$expiration,value='$value1', user='$LOGIN_NAME' WHERE SID='$SID'";
+		$result=$dbc->query($query);
+		depura('mysql_session_write QUERY: ',$query);
+		if ($dbc->errno != 0) {
+         $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+         depura('mysql_session_write: ',$err_str);
+      }
+	}
+	else {	
+		$query = "INSERT INTO sessions_table (SID,expiration,value,user,origin) VALUES ('$SID', $expiration, '$value1','$LOGIN_NAME','api')";
+		depura('mysql_session_write QUERY: ',$query);
+		$result=$dbc->query($query);
+      if ($dbc->errno != 0) {
+         $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
+         depura('mysql_session_write: ',$err_str);
+      }
+	}
+
+	return true;
 /*
 	// Descomentar esto si queremos que el timeout de la sesión se actualice por cada petición
 	// En caso de existir el SID, lo actualizamos
@@ -213,7 +252,7 @@ depura('SSV',"**SSV** QUERY == $query");
 function mysql_session_write_login($SID, $value) {
 global $dbc,$timeout;
   
-	depura('mysql_session_write:','IN');
+	depura('mysql_session_write_login:','IN');
 	// TENEMOS EN CUENTA EL VALOR INTRODUCIDO EN LA CONFIGURACION DE USUARIO 
 	$LIFETIME   = $_SESSION['TIMEOUT'];
 	$LOGIN_NAME = $_SESSION['LUSER'];
@@ -230,7 +269,7 @@ global $dbc,$timeout;
 	if($LOGIN_NAME==''){return;}
 	$query = "INSERT INTO sessions_table (SID,expiration,value,user,origin) VALUES ('$SID', $expiration, '$value1','$LOGIN_NAME','api')";
 	depura('SSV',"**SSV** QUERY == $query");
-	depura('mysql_session_write: ',"SID => $SID");
+	depura('mysql_session_write_login: ',"SID => $SID");
 	$result=$dbc->query($query);
 
 	// Descomentar esto si queremos que el timeout de la sesión se actualice por cada petición
@@ -241,10 +280,11 @@ global $dbc,$timeout;
 		$result=$dbc->query($query); 
       if ($dbc->errno != 0) {
      	  	$err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
-         depura('mysql_session_write_login: ',$err_str);
+         depura('mysql_session_write_login_login: ',$err_str);
 		}
 	}
 
+	return true;
 } // end mysql_session_write()
 	
 //--------------------------------------------------------------------------
@@ -260,8 +300,10 @@ global $dbc;
    if ($dbc->errno != 0) {
       $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
       depura('mysql_session_destroy error: ',$err_str);
+		return false;
 	}
-	
+	return true;
+
 } // end mysql_session_destroy()
 
 //--------------------------------------------------------------------------
@@ -278,7 +320,7 @@ GLOBAL $dbc,$LIFETIME;
    if ($dbc->errno != 0) {
       $err_str = '('.$dbc->errno.'): '.$dbc->sqlstate.' - '.$dbc->error;
       depura('mysql_session_garbage_collect error: ',$err_str);
-		return;
+		return false;
 	}
 	return $dbc->affected_rows;
 } // end mysql_session_garbage_collect()

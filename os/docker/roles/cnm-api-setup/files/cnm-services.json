@@ -1,0 +1,23 @@
+{"cnm-data-db": {
+   "global": {
+        "cid_ip": "1.1.1.1",
+        "cid_ip": "default"
+    },
+    "cnm": {
+        "db_host": "docker_cnm-data-db_1",
+        "db_port": "3306",
+        "db_user": "onm",
+        "db_pwd": "onm1234",
+        "db_database": "cnm",
+        "db_type": "mysql"
+    },
+    "onm": {
+        "db_host": "docker_cnm-data-db_1",
+        "db_port": "3306",
+        "db_user": "onm",
+        "db_pwd": "onm1234",
+        "db_database": "onm",
+        "db_type": "mysql"
+    }
+}}
+

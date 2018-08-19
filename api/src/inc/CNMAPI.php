@@ -16,20 +16,51 @@ class CNMAPI {
 	public static function connectDB(){
 
 		try {
-			// RUTA DEL FICHERO DE CONFIGURACION DE CNM
-			$cfg_file='/cfg/onm.conf';
-			// HASH CON LOS DATOS NECESARIOS PARA USAR LA BBDD
-			$db_data=array('DB_NAME'=>'','DB_USER'=>'','DB_PWD'=>'','DB_SERVER'=>'');
 
-   		// RELLENAMOS LOS DATOS DEL HASH ANTERIOR
-	   	read_cfg_file($cfg_file,$db_data);
-   		$data = array(
-      		'phptype'  => 'mysql',
-      		'username' => $db_data['DB_USER'],
-	      	'password' => $db_data['DB_PWD'],
-   	   	'hostspec' => $db_data['DB_SERVER'],
-      		'database' => $db_data['DB_NAME'],
-   		);
+		   //------------------------------------------
+   		// cnm-cloud -> Diferente logica
+   		//------------------------------------------
+   		$FILE_SERVICES = '/cfg/cnm-services.json';
+   		if (file_exists($FILE_SERVICES)) {
+
+      		$content = file_get_contents($FILE_SERVICES);
+		      $jdata = json_decode($content,true);
+
+				$data = array(
+					'phptype'  => 'mysql',
+					'username' => $jdata['cnm-data-db']['cnm']['db_user'],
+					'password' => $jdata['cnm-data-db']['cnm']['db_pwd'],
+					'hostspec' => $jdata['cnm-data-db']['cnm']['db_host'],
+					'database' => 'onm',
+				);
+
+		      if (! array_key_exists('database', $data)) { $data['database']='cnm'; }
+      		if (! array_key_exists('hostspec', $data)) { $data['hostspec']='localhost'; }
+		      if (! array_key_exists('username', $data)) { $data['username']='onm'; }
+      		if (! array_key_exists('password', $data)) { $data['password']='onm1234'; }
+      		if (! array_key_exists('phptype', $data)) { $data['phptype']='mysql'; }
+
+//$data['hostspec']='midb00';
+
+			}
+			else {
+
+				// RUTA DEL FICHERO DE CONFIGURACION DE CNM
+				$cfg_file='/cfg/onm.conf';
+
+   			// RELLENAMOS LOS DATOS DEL HASH $db_data
+				$db_data=array('DB_NAME'=>'','DB_USER'=>'','DB_PWD'=>'','DB_SERVER'=>'');
+		   	read_cfg_file($cfg_file,$db_data);
+   			$data = array(
+      			'phptype'  => 'mysql',
+      			'username' => $db_data['DB_USER'],
+	      		'password' => $db_data['DB_PWD'],
+	   	   	'hostspec' => $db_data['DB_SERVER'],
+   	   		'database' => $db_data['DB_NAME'],
+   			);
+			}
+
+			CNMUtils::info_log(__FILE__, __LINE__, "**DB_DEBUG** {$data['hostspec']} {$data['username']} {$data['password']} {$data['database']}");
 
 		   // NOS CONECTAMOS A LA BBDD
    		$timeout = 2;

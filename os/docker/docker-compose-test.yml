@@ -1,0 +1,36 @@
+version: '2'
+services:
+  cnm-data-db:
+    build: ./images/cnm-data-db
+    restart: always
+    volumes:
+      - "/opt/cnm/os/docker/images/cnm-data-db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d"
+      - "/store/cnm-data-db/var/lib/mysql:/var/lib/mysql"
+      - "/etc/localtime:/etc/localtime:ro"
+    expose:
+      - "3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "cnmManag3r"
+
+  cnm-data-rrd:
+    build: ./images/cnm-data-rrd
+    volumes:
+      - "vol-data-rrd:/opt/data/rrd"
+
+  cnm-api:
+    build: ./images/cnm-api
+    restart: always
+    volumes:
+      - "/store/cnm-api/etc/apache2:/etc/apache2"
+      - "/store/cnm-api/log/apache2:/var/log/apache2"
+      - "/store/cnm-global/cfg:/cfg"
+      - "/opt/cnm/api/src:/var/www/html/onm/api"
+      - "/etc/localtime:/etc/localtime:ro"
+    links:
+      - cnm-data-db
+    ports:
+      - "2080:80"
+      - "443:443"
+
+volumes:
+  vol-data-rrd:

@@ -13,7 +13,7 @@
 	*/
 
 	 $dbsystem='mysql';
-    $host='127.0.0.1';
+	 $host=chop(`cat /cfg/onm.conf |  grep -v '#DB_SERVER' | grep DB_SERVER|cut -d "=" -f2 | tr -d ' '`);
     $dbname='onm';
     $dsn=$dbsystem.':host='.$host.';dbname='.$dbname;
     $username='onm';

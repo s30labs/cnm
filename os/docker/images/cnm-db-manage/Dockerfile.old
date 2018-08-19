@@ -1,0 +1,4 @@
+FROM php:7.2-cli
+CMD [ "mkdir", "-p", "/update/db" ]
+COPY ./update/* /update/
+CMD [ "php", "/update/db-manage.php" ]

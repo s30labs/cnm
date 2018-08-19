@@ -1,0 +1,9 @@
+---
+# This playbook deploys the whole application stack in this site.
+- name: Configure cnm-api docker image
+  hosts: all
+  remote_user: root
+
+  roles:
+    - cnm-api-setup
+

@@ -1,0 +1,142 @@
+<?php
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ciscocm_reg_phones',
+            'class' => 'CISCO-VOIP',
+            'lapse' => '300',
+            'descr' => 'TELEFONOS REGISTRADOS',
+            'items' => 'ccmRegisteredPhones.0|ccmUnregisteredPhones.0|ccmRejectedPhones.0',
+            'oid' => '.1.3.6.1.4.1.9.9.156.1.5.5.0|.1.3.6.1.4.1.9.9.156.1.5.6.0|.1.3.6.1.4.1.9.9.156.1.5.7.0',
+            'get_iid' => '',
+            'oidn' => 'CISCO-CCM-MIB::ccmRegisteredPhones.0|CISCO-CCM-MIB::ccmUnregisteredPhones.0|CISCO-CCM-MIB::ccmRejectedPhones.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-CCM-MIB::ccmRegisteredPhones.0',
+            'enterprise' => '9',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO-VOIP',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ciscocm_reg_gws',
+            'class' => 'CISCO-VOIP',
+            'lapse' => '300',
+            'descr' => 'GATEWAYS REGISTRADOS',
+            'items' => 'ccmRegisteredGateways.0|ccmUnregisteredGateways.0|ccmRejectedGateways.0',
+            'oid' => '.1.3.6.1.4.1.9.9.156.1.5.8.0|.1.3.6.1.4.1.9.9.156.1.5.9.0|.1.3.6.1.4.1.9.9.156.1.5.10.0',
+            'get_iid' => '',
+            'oidn' => 'CISCO-CCM-MIB::ccmRegisteredGateways.0|CISCO-CCM-MIB::ccmUnregisteredGateways.0|CISCO-CCM-MIB::ccmRejectedGateways.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-CCM-MIB::ccmRegisteredGateways.0',
+            'enterprise' => '9',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO-VOIP',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ciscocm_reg_mdev',
+            'class' => 'CISCO-VOIP',
+            'lapse' => '300',
+            'descr' => 'DISPOSITIVOS REGISTRADOS',
+            'items' => 'ccmRegisteredMediaDevices.0|ccmUnregisteredMediaDevices.0|ccmRejectedMediaDevices.0',
+            'oid' => '.1.3.6.1.4.1.9.9.156.1.5.11.0|.1.3.6.1.4.1.9.9.156.1.5.12.0|.1.3.6.1.4.1.9.9.156.1.5.13.0',
+            'get_iid' => '',
+            'oidn' => 'CISCO-CCM-MIB::ccmRegisteredMediaDevices.0|CISCO-CCM-MIB::ccmUnregisteredMediaDevices.0|CISCO-CCM-MIB::ccmRejectedMediaDevices.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-CCM-MIB::ccmRegisteredMediaDevices.0',
+            'enterprise' => '9',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO-VOIP',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ciscocm_reg_ctis',
+            'class' => 'CISCO-VOIP',
+            'lapse' => '300',
+            'descr' => 'DISPOSITIVOS CTI REGISTRADOS',
+            'items' => 'ccmRegisteredCTIDevices.0|ccmUnregisteredCTIDevices.0|ccmRejectedCTIDevices.0',
+            'oid' => '.1.3.6.1.4.1.9.9.156.1.5.14.0|.1.3.6.1.4.1.9.9.156.1.5.15.0|.1.3.6.1.4.1.9.9.156.1.5.16.0',
+            'get_iid' => '',
+            'oidn' => 'CISCO-CCM-MIB::ccmRegisteredCTIDevices.0|CISCO-CCM-MIB::ccmUnregisteredCTIDevices.0|CISCO-CCM-MIB::ccmRejectedCTIDevices.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-CCM-MIB::ccmRegisteredCTIDevices.0',
+            'enterprise' => '9',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO-VOIP',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'ciscocm_reg_vmail',
+            'class' => 'CISCO-VOIP',
+            'lapse' => '300',
+            'descr' => 'DISPOSITIVOS VOICE MAIL REGISTRADOS',
+            'items' => 'ccmRegisteredVoiceMailDevices.0|ccmUnregisteredVoiceMailDevices.0|ccmRejectedVoiceMailDevices.0',
+            'oid' => '.1.3.6.1.4.1.9.9.156.1.5.17.0|.1.3.6.1.4.1.9.9.156.1.5.18.0|.1.3.6.1.4.1.9.9.156.1.5.19.0',
+            'get_iid' => '',
+            'oidn' => 'CISCO-CCM-MIB::ccmRegisteredVoiceMailDevices.0|CISCO-CCM-MIB::ccmUnregisteredVoiceMailDevices.0|CISCO-CCM-MIB::ccmRejectedVoiceMailDevices.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'COUNTER',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-CCM-MIB::ccmRegisteredVoiceMailDevices.0',
+            'enterprise' => '9',
+            'esp' => '',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO-VOIP',
+      );
+
+
+?>

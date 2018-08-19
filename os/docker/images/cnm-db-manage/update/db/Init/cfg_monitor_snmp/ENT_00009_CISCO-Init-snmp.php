@@ -1,0 +1,142 @@
+<?php
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_fan_state',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ESTADO DEL VENTILADOR',
+            'items' => 'Ok(1)|Warn(2)|Crit(3)|Shut(4)|NotP(5)|NotF(6)',
+            'oid' => '.1.3.6.1.4.1.9.9.13.1.4.1.3.IID',
+            'get_iid' => 'ciscoEnvMonFanStatusDescr',
+            'oidn' => 'ciscoEnvMonFanState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-ENVMON-MIB::ciscoEnvMonFanStatusTable',
+            'enterprise' => '9',
+            'esp' => 'MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '4',
+            'apptype' => 'NET.CISCO',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_powersup_state',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ESTADO DE LA FUENTE DE ALIMENTACION',
+            'items' => 'Ok(1)|Warn(2)|Crit(3)|Shut(4)|NotP(5)|NotF(6)',
+            'oid' => '.1.3.6.1.4.1.9.9.13.1.5.1.3.IID',
+            'get_iid' => 'ciscoEnvMonSupplyStatusDescr',
+            'oidn' => 'ciscoEnvMonSupplyState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-ENVMON-MIB::ciscoEnvMonSupplyStatusTable',
+            'enterprise' => '9',
+            'esp' => 'MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '4',
+            'apptype' => 'NET.CISCO',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_temperature_state',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ESTADO DE LA TEMPERATURA',
+            'items' => 'Ok(1)|Warn(2)|Crit(3)|Shut(4)|NotP(5)|NotF(6)',
+            'oid' => '.1.3.6.1.4.1.9.9.13.1.3.1.6.IID',
+            'get_iid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'oidn' => 'ciscoEnvMonTemperatureState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-ENVMON-MIB::ciscoEnvMonTemperatureStatusTable',
+            'enterprise' => '9',
+            'esp' => 'MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '4',
+            'apptype' => 'NET.CISCO',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_voltage_state',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'ESTADO DEL VOLTAJE',
+            'items' => 'Ok(1)|Warn(2)|Crit(3)|Shut(4)|NotP(5)|NotF(6)',
+            'oid' => '.1.3.6.1.4.1.9.9.13.1.2.1.7.IID',
+            'get_iid' => 'ciscoEnvMonVoltageStatusDescr',
+            'oidn' => 'ciscoEnvMonVoltageState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-ENVMON-MIB::ciscoEnvMonVoltageStatusTable',
+            'enterprise' => '9',
+            'esp' => 'MAP(1)(1,0,0,0,0,0)|MAP(2)(0,1,0,0,0,0)|MAP(3)(0,0,1,0,0,0)|MAP(4)(0,0,0,1,0,0)|MAP(5)(0,0,0,0,1,0)|MAP(6)(0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '4',
+            'apptype' => 'NET.CISCO',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'cisco_vlan_sum',
+            'class' => 'CISCO',
+            'lapse' => '300',
+            'descr' => 'TABLA DE VLANs',
+            'items' => 'operational(1)|suspended(2)|mtuTooBigForDevice(3)|mtuTooBigForTrunk(4)',
+            'oid' => '.1.3.6.1.4.1.9.9.46.1.3.1.1.2.IID',
+            'get_iid' => 'vtpVlanName',
+            'oidn' => 'vtpVlanState.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_BASE',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'CISCO-VTP-MIB::vtpVlanTable',
+            'enterprise' => '9',
+            'esp' => 'TABLE(MATCH)(1)|TABLE(MATCH)(3)|TABLE(MATCH)(2)|TABLE(MATCH)(4)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'NET.CISCO',
+      );
+
+
+?>

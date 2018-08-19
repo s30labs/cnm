@@ -1,0 +1,228 @@
+<?php
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_ldisk_gstat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO DISCOS LOGICOS',
+            'items' => 'ok(1)|unk(4)|failure(3)|prefailure(2)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.3.1.0',
+            'get_iid' => '',
+            'oidn' => 'FSC-RAID-MIB::svrStatusLogicalDrives.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrStatusLogicalDrives.0',
+            'enterprise' => '231',
+            'esp' => 'MAP(1)(1,0,0,0)|MAP(4)(0,1,0,0)|MAP(3)(0,0,1,0)|MAP(2)(0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_dev_gstat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO DISPOSITIVOS FISICOS',
+            'items' => 'ok(1)|unk(4)|failure(3)|prefailure(2)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.3.2.0',
+            'get_iid' => '',
+            'oidn' => 'FSC-RAID-MIB::svrStatusPhysicalDevices.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrStatusPhysicalDevices.0',
+            'enterprise' => '231',
+            'esp' => 'MAP(1)(1,0,0,0)|MAP(4)(0,1,0,0)|MAP(3)(0,0,1,0)|MAP(2)(0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_cont_gstat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO CONTROLADORES',
+            'items' => 'ok(1)|unk(4)|failure(3)|prefailure(2)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.3.2.0',
+            'get_iid' => '',
+            'oidn' => 'FSC-RAID-MIB::svrStatusPhysicalDevices.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrStatusPhysicalDevices.0',
+            'enterprise' => '231',
+            'esp' => 'MAP(1)(1,0,0,0)|MAP(4)(0,1,0,0)|MAP(3)(0,0,1,0)|MAP(2)(0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_gstat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO GLOBAL',
+            'items' => 'ok(1)|unk(4)|failure(3)|prefailure(2)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.3.4.0',
+            'get_iid' => '',
+            'oidn' => 'FSC-RAID-MIB::svrStatusOverall.0',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'num',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '1',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrStatusOverall.0',
+            'enterprise' => '231',
+            'esp' => 'MAP(1)(1,0,0,0)|MAP(4)(0,1,0,0)|MAP(3)(0,0,1,0)|MAP(2)(0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_bb_stat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO BATERIA DE BACKUP',
+            'items' => 'normal(3)|unknown(1)|failed(7)| warning(6)|notInstalled(2)|charging(4)|discharging(5)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.4.2.1.24.IID',
+            'get_iid' => 'svrCtrlBusLocationText',
+            'oidn' => 'svrCtrlBBUStatusEx.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrLogicalDriveTable',
+            'enterprise' => '231',
+            'esp' => 'MAP(3)(1,0,0,0,0,0,0)|MAP(1)(0,1,0,0,0,0,0)|MAP(7)(0,0,1,0,0,0,0)|MAP(6)(0,0,0,1,0,0,0)|MAP(2)(0,0,0,0,1,0,0)|MAP(4)(0,0,0,0,0,1,0)|MAP(5)(0,0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_pdisk_stat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO DISCO FISICO',
+            'items' => '
+operational(4)|available(3)|failed(5)|offline(9)|noDisk(2)|rebuilding(6)|globalHotSpare(7)|dedicatedHotSpare(8)|unconfiguredFailed(10)|failedMissing(11)|copyBack(12)|redundantCopy(13)|waiting(14)|preparing(15)|migrating(16)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.5.2.1.20.IID',
+            'get_iid' => 'svrPhysicalDeviceSerialNumber',
+            'oidn' => 'svrPhysicalDeviceStatusEx.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrPhysicalDeviceTable',
+            'enterprise' => '231',
+            'esp' => 'MAP(4)(1,0,0,0,0,0,0,0,0,0,0,0,0,0,0)|MAP(3)(0,1,0,0,0,0,0,0,0,0,0,0,0,0,0)|MAP(5)(0,0,1,0,0,0,0,0,0,0,0,0,0,0,0)|MAP(9)(0,0,0,1,0,0,0,0,0,0,0,0,0,0,0)|MAP(2)(0,0,0,0,1,0,0,0,0,0,0,0,0,0,0)|MAP(6)(0,0,0,0,0,1,0,0,0,0,0,0,0,0,0)|MAP(7)(0,0,0,0,0,0,1,0,0,0,0,0,0,0,0)|MAP(8)(0,0,0,0,0,0,0,1,0,0,0,0,0,0,0)|MAP(10)(0,0,0,0,0,0,0,0,1,0,0,0,0,0,0)|MAP(11)(0,0,0,0,0,0,0,0,0,1,0,0,0,0,0)|MAP(12)(0,0,0,0,0,0,0,0,0,0,1,0,0,0,0)|MAP(13)(0,0,0,0,0,0,0,0,0,0,0,1,0,0,0)|MAP(14)(0,0,0,0,0,0,0,0,0,0,0,0,1,0,0)|MAP(15)(0,0,0,0,0,0,0,0,0,0,0,0,0,1,0)|MAP(16)(0,0,0,0,0,0,0,0,0,0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_ldisk_stat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO DISCO LOGICO',
+            'items' => '
+operational(2)|partiallyDegraded(3)|failed(5)|degraded(4)|offline(13)|rebuilding(6)|checking(7)|mdcing(8)|initializing(9)|backgroundInitializing(10)|migrating(11)|copying(12)',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.6.2.1.19.IID',
+            'get_iid' => 'svrLogicalDriveName',
+            'oidn' => 'svrLogicalDriveStatusEx.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrLogicalDriveTable',
+            'enterprise' => '231',
+            'esp' => 'MAP(2)(1,0,0,0,0,0,0,0,0,0,0,0)|MAP(3)(0,1,0,0,0,0,0,0,0,0,0,0)|MAP(5)(0,0,1,0,0,0,0,0,0,0,0,0)|MAP(4)(0,0,0,1,0,0,0,0,0,0,0,0)|MAP(13)(0,0,0,0,1,0,0,0,0,0,0,0)|MAP(6)(0,0,0,0,0,1,0,0,0,0,0,0)|MAP(7)(0,0,0,0,0,0,1,0,0,0,0,0)|MAP(8)(0,0,0,0,0,0,0,1,0,0,0,0)|MAP(9)(0,0,0,0,0,0,0,0,1,0,0,0)|MAP(10)(0,0,0,0,0,0,0,0,0,1,0,0)|MAP(11)(0,0,0,0,0,0,0,0,0,0,1,0)|MAP(12)(0,0,0,0,0,0,0,0,0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+
+		$CFG_MONITOR_SNMP[]=array(
+            'subtype' => 'raid_sv_ldisk_istat',
+            'class' => 'RAID',
+            'lapse' => '300',
+            'descr' => 'RAID - ESTADO INIT DISCO LOGICO',
+            'items' => 'initialized(2)|unknown(1)|notInitialized(3)|other',
+            'oid' => '.1.3.6.1.4.1.231.2.49.1.6.2.1.18.IID',
+            'get_iid' => 'svrLogicalDriveName',
+            'oidn' => 'svrLogicalDriveInitStatus.IID',
+            'oid_info' => '',
+            'module' => 'mod_snmp_get',
+            'mtype' => 'STD_SOLID',
+            'vlabel' => 'estado',
+            'mode' => 'GAUGE',
+            'top_value' => '1',
+            'cfg' => '2',
+            'custom' => '0',
+            'include' => '1',
+            'myrange' => 'FSC-RAID-MIB::svrLogicalDriveTable',
+            'enterprise' => '231',
+            'esp' => 'MAP(2)(1,0,0,0)|MAP(1)(0,1,0,0)|MAP(3)(0,0,1,0)|MAP(*)(0,0,0,1)',
+            'params' => '',
+            'itil_type' => '1',
+            'apptype' => 'HW.RAID',
+      );
+
+
+?>
