@@ -3416,7 +3416,7 @@ function get_remote_client() {
 		$sql=$sql_pool[$id];
 		if (count($data)>0) {
 	      foreach ($data as $key => $value){
-				if($key!='__CONDITION__') $value = mysql_real_escape_string($value);
+				if($key!='__CONDITION__' and $key!='__VALUES__') $value = mysql_real_escape_string($value);
 				// $value = addslashes($value);
 				// $value = str_replace("'","\'",$value);
       	   $sql=str_replace($key,$value,$sql);
