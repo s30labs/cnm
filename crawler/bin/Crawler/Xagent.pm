@@ -946,25 +946,32 @@ $self->log('info',"mod_xagent_get::  TAREA=$task_id [$desc->{'name'}] COUNTER **
             #my $mode=$desc->{mode};
             #my $lapse=$desc->{lapse};
             my $type=$desc->{mtype};
-            if (! -e $rrd) { 
-					$store->create_rrd($rrd,$items,$mode,$lapse,$t-600,$type); 
-	            my $d600=join(':',$t-600,@$values);
-   	         $store->update_rrd($rrd,$d600);
-      	      my $d300=join(':',$t-300,@$values);
-         	   $store->update_rrd($rrd,$d300);
-				}
-            my $r = $store->update_rrd($rrd,$data);
-            if ($r) {
-               my $ru = unlink $rrd;
-               $self->log('info',"mod_xagent_get::[DEBUG ID=$task_id] Elimino $rrd  ($ru)");
-               $store->create_rrd($rrd,$items,$mode,$lapse,$t-600,$type);
-               my $d600=join(':',$t-600,@$values);
-               $store->update_rrd($rrd,$d600);
-               my $d300=join(':',$t-300,@$values);
-               $store->update_rrd($rrd,$d300);
 
-               $store->update_rrd($rrd,$data);
-            }
+				$store->put_rrd_data({'rrd'=>$rrd, 'lapse'=>$lapse, 't'=>$t, 'values'=>$values, 'items'=>$items, 'mode'=>$mode, 'type'=>$type, 'task_id'=>$task_id });
+
+
+#            if (! -e $rrd) { 
+#					$store->create_rrd($rrd,$items,$mode,$lapse,$t-600,$type); 
+#	            my $d600=join(':',$t-600,@$values);
+#   	         $store->update_rrd($rrd,$d600);
+#      	      my $d300=join(':',$t-300,@$values);
+#         	   $store->update_rrd($rrd,$d300);
+#				}
+#            my $r = $store->update_rrd($rrd,$data);
+#            if ($r) {
+#               my $ru = unlink $rrd;
+#               $self->log('info',"mod_xagent_get::[DEBUG ID=$task_id] Elimino $rrd  ($ru)");
+#               $store->create_rrd($rrd,$items,$mode,$lapse,$t-600,$type);
+#               my $d600=join(':',$t-600,@$values);
+#               $store->update_rrd($rrd,$d600);
+#               my $d300=join(':',$t-300,@$values);
+#               $store->update_rrd($rrd,$d300);
+#
+#               $store->update_rrd($rrd,$data);
+#            }
+
+
+
          }
       }
       if ( $mode_flag->{'db'} ) {
