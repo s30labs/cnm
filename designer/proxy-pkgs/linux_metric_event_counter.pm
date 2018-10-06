@@ -52,6 +52,7 @@ $linux_metric_event_counter::SCRIPT_NAME = 'linux_metric_event_counter.pl';
 		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-trap', '__PARAM_DESCR__' => 'Remote Host', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_counter::SCRIPT_NAME },
 		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-lapse', '__PARAM_DESCR__' => 'Lapse (min.)', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_counter::SCRIPT_NAME },
 		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'Pattern', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_counter::SCRIPT_NAME },
+		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-json', '__PARAM_DESCR__' => 'Enable JSON Decode', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_counter::SCRIPT_NAME },
 
 		},
 
@@ -66,16 +67,23 @@ It provides one metric:
 
 The parameters are:
 
- linux_metric_event_counter.pl -app 333333000006 -lapse 120 -pattern "key":"val" [-v]
+ linux_metric_event_counter.pl -app 333333000006 -lapse 120 -pattern "MDW_Alert_Type":"MAT" [-v]
+ linux_metric_event_counter.pl -app 333333000006 -lapse 120 -pattern "MDW_Alert_Type|eq|MAT" -json [-v]
+ linux_metric_event_counter.pl -app 333333000006 -lapse 120 -pattern "TRANSCOLA|gt|10&AND&MDW_Alert_Type|eq|MAT" -json [-v]
  linux_metric_event_counter.pl -syslog ip -lapse 120 -pattern "FTP.Login.Failed" [-v]
  linux_metric_event_counter.pl -trap ip|id_dev|name.domain -lapse 120 -pattern "FTP.Login.Failed" [-v]
  linux_metric_event_counter.pl -h  : Help
 
+ -host       : Host al que se asocia la metrica
  -app        : ID de la app.
  -syslog     : IP del equipo que envia por syslog.
  -trap       : IP|id_dev|name.domain del equipo que envia el trap.
  -lapse      : Intervalo seleccionado referenciado desde el instante actual (now-lapse). Se especifica en minutos. Por defecto 60.
  -pattern    : Patron de busqueda. Por defecto se cuentan todos los eventos.
+ -json       : Decodifica la linea en JSON. Permite condiciones mas complejas.
+               En este caso pattern puede ser una lista de condiciones separadas por &AND& o &OR&
+               Cada condicion es del tipo: TRANSCOLA|gt|10 o ERRORMSG|eq|"" -> key|operador|value
+               Los operadores soportados son: gt, gte, lt, lte, eq, ne
  -v/-verbose : Verbose output (debug)
  -h/-help    : Help
 ',
