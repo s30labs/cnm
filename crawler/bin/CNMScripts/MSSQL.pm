@@ -233,9 +233,10 @@ my ($self,$sql,$params)=@_;
 		$data = eval { decode_json($stdout) };
 		if ($@) {
 			$data=[];
-			$self->err_str($@);
+			my $err_full="$stdout - $@";
+			$self->err_str($err_full);
 	      $self->err_num(11);
-   	   $self->log('error',"sqlcmd_run >> **ERROR JSON** $@ (cmdc=$cmdc)");
+   	   $self->log('error',"sqlcmd_run >> **ERROR JSON** $err_full (cmdc=$cmdc)");
 		}
 	}
 
