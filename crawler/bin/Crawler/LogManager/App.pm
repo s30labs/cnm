@@ -452,6 +452,7 @@ my $pid;
 
 			print "CFG FILE: $h->{'tasks'}->{$k}->{'cfg'}\n";
 			my $x=$self->get_json_config($h->{'tasks'}->{$k}->{'cfg'});
+
 			push @tasks, $x->[0];
 			push @tasks_cfg, $h->{'tasks'}->{$k}->{'cfg'};
 		}
@@ -542,13 +543,10 @@ my ($self,$lapse,$task)=@_;
 
 					$self->app($app);
 					my $lines = $self->get_app_data($tasks_cfg->[$x]);
-				
+
 					$x++;
 					my $i=0;
 					my $total=scalar(@$lines);
-
-$self->log('info',"do_task::**DEBUG***$app->{'host_name'}*****");
-#if ($app->{'host_name'} eq 'INTRANETBD2') {next;}
 
       			foreach my $lx (@$lines) {
 
@@ -599,7 +597,7 @@ my ($self,$app_id,$host)=@_;
 	}
 	$app->{'host_name'} = $name;
 	$app->{'host_domain'} = $domain;
-	$self->log('debug',"get_app_host_info:: **DEBUG**$condition");
+	$self->log('debug',"get_app_host_info:: **DEBUG** host=$host condition=$condition");
 
 	my $store = $self->store();
 	my $dbh = $self->dbh();
@@ -653,6 +651,9 @@ $self->log('debug',"get_app_data:: app=$xx");
 
 	#--------------------------------------------
 	# 1. CAPTURE DATA
+	# Se obtiene un vector [data] cuyas filas contienen:
+	# ts,$app_id,$app_name,source_line
+	# source_line -> datos recibidos codificados en JSON
 	#--------------------------------------------
 	# Internal cmd capture
 	if ($cmd eq 'core-imap') {
@@ -702,7 +703,6 @@ $self->log('debug',"get_app_data:: app=$xx");
 
    #--------------------------------------------
    # 2. TRANSFORM DATA (line by line) -> custom_line_parser
-	# @$data formado por linas del tipo: ts,$app_id,$app_name,source_line
    #--------------------------------------------
 	# a. Carga los modulos de las app_ids definidas en mapper
    #--------------------------------------------
@@ -736,19 +736,19 @@ $self->log('debug',"get_app_data:: app=$xx");
 	}
 
 
-	# $data es un array con lineas estructuradas asi:
-	# timestamp,app-id,app-name,json-msg-hash
- 
    #--------------------------------------------
 	# b. Data Transformation -> custom_line_parser
    #--------------------------------------------
-	# Solo aplica si hay modulos cargados
+	# Aplica sobre la app_id si hay modulo cargados la funcion custom_line_parser
+	# que convierte [data] en [newdata]
+	# Cada fila sigue siendo:
+	# timestamp,app-id,app-name,json-msg-hash
 	if (scalar(keys %LOADED) != 0) { 
 
 		$self->log('info',"app_parser:: ------- LINE DATA TRANSFORMATION ---------");
 		my @new_data=();
 		foreach my $l (@$data) {
-
+			
 $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 1 >>>>>>$l<<<<<<<<<<");
 
       	chomp $l;
@@ -1227,11 +1227,16 @@ close F;
 	      elsif ($HTML ne '') { $line{'body'} = $HTML; }
    	   $line{'body'} =~ s/\n/ /g;    # Elimina RC
       	$line{'body'} =~ s/\r/ /g;    # Elimina LF
+      	$line{'body'} =~ s/\t/ /g;    # Elimina TABS
       	$line{'body'} =~ s/ +/ /g;    # Elimina exceso de espacios
 
       	#--------------------------------------
-
+			# a. app_id identification
+			# b. variable detection if defined (S1,B1)
 	      my ($app_id,$app_name) = $self->mail_app_mapper($app,\%line);
+
+      	#--------------------------------------
+			# c. extrafile detection
    	   my $APP_FILES_DIR = '/var/www/html/onm/user/files/'.$app_name;
       	if (! -d $APP_FILES_DIR) { mkdir $APP_FILES_DIR; }
 	      my $j=1;
@@ -1287,13 +1292,17 @@ $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
 
 #-------------------------------------------------------------------------------------------
 # CORE-IMAP4 >>  mail_app_mapper
+# Asigna los datos recibidos por correo a una app_id
+# (Siempre se asigna a una app_id. Si no matchea -> default) 
 #-------------------------------------------------------------------------------------------
 sub mail_app_mapper {
 my ($self,$app,$line) = @_;
 
-   my ($ok,$app_id,$app_name) = (1,'','');
-   #my ($msg_from,$msg_subject) = ($line->{'From'}, $line->{'Subject'});
+   my ($ok,$app_id,$app_name,$app_cfg) = (1,'','',{});
 
+	#----------------------------------------------------------------------------------------
+	# a. app_id detection
+	#----------------------------------------------------------------------------------------
    foreach my $h (@{$app->[0]->{'mapper'}}) {
       my @k = keys %$h;
       $app_id = $k[0];
@@ -1322,16 +1331,46 @@ my ($self,$app,$line) = @_;
 
       if ($ok) {
          $app_name = $h->{$app_id}->{'app_name'};
+			$app_cfg = $h->{$app_id};
          last;
       }
    }
 
    if (! $ok) {
+		$app_cfg = $app->[0]->{'default'};
       ($app_id,$app_name) = ($app->[0]->{'default'}->{'app_id'}, $app->[0]->{'default'}->{'app_name'});
 		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO default app_id=$app_id | app_name=$app_name");
    }
 	else {
 		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO app_id=$app_id | app_name=$app_name");
+	}
+
+
+   #----------------------------------------------------------------------------------------
+   # b. variable detection
+   #----------------------------------------------------------------------------------------
+#my $kk=Dumper($app_cfg);
+#$kk=~s/\n/ /g;
+#$self->log('debug',"core-imap4::mail_app_mapper:: **DEBUGVAR** ----$kk----");
+
+   $line->{'S1'} = '';
+   if (exists $app_cfg->{'S1'}){
+      my $exp=$app_cfg->{'S1'};
+      if ($line->{'Subject'}=~/$exp/g) { 
+			$line->{'S1'} = $1; 
+			$self->log('info',"core-imap4::mail_app_mapper:: **VAR FOUND** S1=$line->{'S1'} |  app_id=$app_id | app_name=$app_name");
+		}
+$self->log('debug',"core-imap4::mail_app_mapper:: **DEBUGVAR** S1 exp=$exp | RES=$line->{'S1'} | Subject=$line->{'Subject'} |  app_id=$app_id | app_name=$app_name");
+   }
+
+	$line->{'B1'} = '';
+	if (exists $app_cfg->{'B1'}){
+		my $exp=$app_cfg->{'B1'};
+		if ($line->{'body'}=~/$exp/g) { 
+			$line->{'B1'} = $1; 
+			$self->log('info',"core-imap4::mail_app_mapper:: **VAR FOUND** B1=$line->{'B1'} |  app_id=$app_id | app_name=$app_name");
+		}
+$self->log('debug',"core-imap4::mail_app_mapper:: **DEBUGVAR** B1 exp=$exp | RES=$line->{'B1'} | body=$line->{'body'} |  app_id=$app_id | app_name=$app_name");
 	}
 
    return ($app_id,$app_name);
