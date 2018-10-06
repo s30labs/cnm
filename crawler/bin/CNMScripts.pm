@@ -82,7 +82,7 @@ bless {
 			_nologinit => $arg{nologinit} || 1,
 			_timeout => $arg{timeout} || 25,
 
-         _store_dir =>$arg{store_dir} || '/opt/data/scripts',
+         _store_dir =>$arg{store_dir} || '/opt/data/app-data/scripts',
          _store_limit =>$arg{store_limit} || 5,
          _store_id =>$arg{store_id} || 'default',
 
@@ -275,7 +275,7 @@ my ($self,$store_id) = @_;
 # iid
 #----------------------------------------------------------------------------
 sub set_store_id {
-my ($self,$ip,$iid) = @_;
+my ($self,$iid) = @_;
 
 #	my $key=basename($0);
 #	foreach my $k (sort keys %$opts) {
@@ -1271,6 +1271,53 @@ my ($self,$level,$file)=@_;
 #   close F;
 
 }
+
+=item B<$script-E<gt>set_store_status()>
+
+ Almacena un fichero de estado en el store
+=cut
+
+#----------------------------------------------------------------------------
+sub set_store_status {
+my ($self,$level,$data)=@_;
+
+   my $store_dir = $self->store_dir() .'/'.$self->store_id();
+   if ($level) { $store_dir.='/'.$level; }
+   if (! -d $store_dir) {  `/bin/mkdir -p $store_dir`;  }
+
+	open (F,">$store_dir/status");
+	while (my ($k,$v) = each %$data) {
+		print F "$k=$v\n";
+	}
+	close F;
+}
+
+=item B<$script-E<gt>get_store_status()>
+
+ Almacena un fichero de estado en el store
+=cut
+
+#----------------------------------------------------------------------------
+sub get_store_status {
+my ($self,$level)=@_;
+
+   my $store_dir = $self->store_dir() .'/'.$self->store_id();
+   if ($level) { $store_dir.='/'.$level; }
+	my $file = "$store_dir/status";
+	if (! -f $file) { return {}; }
+
+	my %data=();
+   open (F,"<$file");
+   while (<F>) {
+		chomp;
+		my ($k,$v) = split(/\s*=\s*/, $_);
+      $data{$k}=$v;
+   }
+   close F;
+	return \%data;
+
+}
+
 
 =item B<$script-E<gt>endpoint()>
 
