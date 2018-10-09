@@ -1647,6 +1647,28 @@ my ($self,$desc,$key)=@_;
       return undef;
    }
 
+   #-------------------------------------------------------------------
+   my $context='';
+   my $remote_port='161';
+   my $iid_mode='';
+   if ((defined $desc->{'params'}) && ($desc->{'params'} ne '')) {
+
+      #[{"key":"iid_mode","value":"ascii"}]
+      my $vparams=[];
+      eval { $vparams = decode_json($desc->{'params'}); };
+      if ($@) {
+         $self->log('warning',"fill_cache:: **ERROR** en decode_json de params >> $desc->{'params'} ($@)");
+      }
+      foreach my $l (@$vparams) {
+         if ($l->{'key'} =~/context/) { $context=$l->{'value'}; }
+         elsif ($l->{'key'} =~/remote_port/) { $remote_port=$l->{'value'}; }
+         elsif ($l->{'key'} =~/iid_mode/) { $iid_mode=$l->{'value'}; }
+      }
+      $self->log('info',"fill_cache::[INFO ID=$task_id] CONTEXT=$context REMOTE_PORT=$remote_port IID_MODE=$iid_mode");
+   }
+   #-------------------------------------------------------------------
+
+
    my $res=$self->core_snmp_table($desc);
    my $rcstr=$self->err_str();
    my $rc=$self->err_num();
@@ -1686,8 +1708,12 @@ my ($self,$desc,$key)=@_;
 #DBG--
          $self->log('debug',"fill_cache::[DEBUG ID=$task_id] CACHESET NVAL=$n KEY=$k VAL=@v**");
 #/DBG--
-         #$SNMP_CACHE{$k}=\@v;
-			$SNMP_CACHE{$k}=[$rc, $rcstr, \@v];
+         if ($iid_mode eq 'ascii') {
+            my $k1=$self->key2ascii($k);
+            $self->log('debug',"fill_cache::[DEBUG ID=$task_id] ***key2ascii**** KEY1=$k1");
+            $k=$k1;
+         }
+         $SNMP_CACHE{$k}=[$rc, $rcstr, \@v];
       }
    }
 
@@ -1701,6 +1727,34 @@ my ($self,$desc,$key)=@_;
    else { return $SNMP_CACHE{$key}; }
 
 }
+
+#----------------------------------------------------------------------------
+# Funcion: key2ascii
+# Descripcion:
+#----------------------------------------------------------------------------
+sub key2ascii {
+my ($self,$key) = @_;
+
+   my ($p1,$p2) = ('','');
+   if ($key =~ /(\d+\.\d+\.\d+\.\d+\.custom_\w{8}\-)([\d+|\.+]+)/) {
+      $p1=$1;
+      $p2=$2;
+   }
+
+   my @c = split (/\./,$p2);
+   my $txt = '';
+
+   #ojo -> Quito el primero (revisar)
+   shift @c;
+   foreach my $d (@c) {
+      if ($d<32) { $txt .= '.'; next; }
+      $txt .= chr($d);
+   }
+   my @words = split(/\./,$txt);
+   my $p2n= join('.',  @words);
+   return $p1.$p2n;
+}
+
 
 
 #----------------------------------------------------------------------------
@@ -2953,7 +3007,7 @@ my ($self,$desc)=@_;
 	my $host=$desc->{host_ip};
 	my $oid=$desc->{oid};
 	
-   my $cmd="/usr/local/bin/snmpwalk -v 1 -c public $host $oid";
+   my $cmd="/usr/local/bin/snmpwalk -Cc -v 1 -c public $host $oid";
    my $r=`$cmd`;
 
    $self->log('debug',"snmp_walk::[DEBUG] CMD=$cmd");
@@ -2997,7 +3051,7 @@ my ($self,$desc)=@_;
 
    my $cmd_base='';
    if ($version==3) {
-      $cmd_base="/usr/local/bin/snmpwalk -v $version ";
+      $cmd_base="/usr/local/bin/snmpwalk -Cc -v $version ";
 
       $cmd_base .=  ($desc->{'sec_level'}) ? "-l $desc->{'sec_level'} " : "";
       $cmd_base .=  ($desc->{'sec_name'}) ? "-u $desc->{'sec_name'} " : "";
@@ -3008,7 +3062,7 @@ my ($self,$desc)=@_;
    }
    else {
       if ($version eq '2') { $version='2c'; }
-      $cmd_base="/usr/local/bin/snmpwalk -v $version -c $community";
+      $cmd_base="/usr/local/bin/snmpwalk -Cc -v $version -c $community";
    }
 
 
@@ -3022,11 +3076,14 @@ my ($self,$desc)=@_;
       $self->log('debug',"snmp_get_iid::[DEBUG] CMD=$cmd1");
       my @r1=`$cmd1`;
       foreach my $o (@r1) {
+			chomp $o;
          #IF-MIB::ifDescr.1 = STRING: lo
-         $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO EN OID_TAB $o");
+         $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO EN OID_TAB $o ($oid_tab)");
          if ($o=~/$oid_tab\.(\S+)\s*\=\s*.*?\:\s*(.*)$/) {
-            $self->log('debug',"snmp_get_iid::[DEBUG] SEARCHED_IID = $1");
-            $SEARCHED_IIDS{$1}='';
+            my $oidx=$1;
+            $oidx=~s/"//g;
+            $self->log('debug',"snmp_get_iid::[DEBUG] SEARCHED_IID = $oidx");
+            $SEARCHED_IIDS{$oidx}='';
          }
       }
    }
@@ -3047,9 +3104,11 @@ my ($self,$desc)=@_;
       my %d=();
 		my ($oidx,$vartype,$descrx,$descr_raw)=('','','','');
       foreach my $o (@r1) {
-         $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO $o");
+			chomp $o;
+         $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO $o ($oid_descr_short)");
 			if ($o =~ /\S+\:\:$oid_descr_short\.(\S+)\s*\=\s*(.*?)\:\s*(.*)$/) {
 				$oidx=$1; $vartype=$2; $descrx=$3; $descr_raw=$descrx;
+				$oidx=~s/"//g;
 				if ($vartype =~/Hex-STRING/i) { $descrx=$self->hex2ascii($descr_raw); }
 				$d{$oidx}=$descrx;
 				$self->log('debug',"snmp_get_iid::[DEBUG] OK >> oidx=$oidx descrx=$descrx");
@@ -3066,7 +3125,11 @@ my ($self,$desc)=@_;
          my $h=$IIDS[0];
          foreach my $k (keys %$h) {
             if ($k eq $iid) {
-               $SEARCHED_IIDS{$iid} = $h->{$k};
+               my @aux=();
+               for my $i (0..scalar(@IIDS)-1) { push @aux, $IIDS[$i]->{$k}; }
+               $SEARCHED_IIDS{$iid} = join('.',@aux);
+
+               #$SEARCHED_IIDS{$iid} = $h->{$k};
 					$ok=1;
                last;
             }
@@ -3385,6 +3448,7 @@ my $sec_level = (defined $desc->{'sec_level'}) ? $desc->{'sec_level'} : '' ;
    #-------------------------------------------------------------------
    my $context='';
    my $remote_port='161';
+	my $iid_mode='';
    if ((defined $desc->{'params'}) && ($desc->{'params'} ne '')) {
 
       #[{"key":"context","value":"ctxname_vsid11"}]
@@ -3396,8 +3460,9 @@ my $sec_level = (defined $desc->{'sec_level'}) ? $desc->{'sec_level'} : '' ;
       foreach my $l (@$vparams) {
          if ($l->{'key'} =~/context/) { $context=$l->{'value'}; }
          elsif ($l->{'key'} =~/remote_port/) { $remote_port=$l->{'value'}; }
+			elsif ($l->{'key'} =~/iid_mode/) { $iid_mode=$l->{'value'}; }
       }
-      $self->log('info',"core_snmp_get::[INFO ID=$task_id] CONTEXT=$context REMOTE_PORT=$remote_port");
+      $self->log('info',"core_snmp_get::[INFO ID=$task_id] CONTEXT=$context REMOTE_PORT=$remote_port IID_MODE=$iid_mode");
 
 
 #     #context=context_vsid1
@@ -3785,7 +3850,7 @@ my $oid=$desc->{'oid'};
                               SecName=>$sec_name, SecLevel=>$sec_level, 'EngineTime'=>$EngineTime,
                               AuthProto=>$auth_proto, AuthPass=>$auth_pass, PrivProto=>$priv_proto, PrivPass=>$priv_pass,
                               Version=>$version, Timeout =>$timeout, RemotePort => $remote_port,
-                              Retries => $retries, UseSprintValue => 1);
+                              Retries => $retries, UseEnums => 0, UseSprintValue => 1);
 	}
 
    if (!defined($session)) {
@@ -4108,6 +4173,16 @@ $self->log('warning',"core_snmp_trap_ext:: enterprise=> $enterprise, agent =>$ag
 
 }
 
+#----------------------------------------------------------------------------
+sub get_oid_type  {
+my ($self,$oid)=@_;
+
+   SNMP::initMib();
+   SNMP::loadModules('ALL');
+
+   return &SNMP::getType($oid);
+
+}
 
 
 #----------------------------------------------------------------------------

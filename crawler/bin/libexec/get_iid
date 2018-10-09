@@ -294,7 +294,7 @@ elsif ( $subtype ) {
 	$oid_descr_param=$rv->[0][0];
 	$oid_descr_param=~s/^.*\:\:(.*)$/$1/;
 
-   my $cmd1="/usr/local/bin/snmpwalk -v 1 -c $community $ip $oid_descr_param 2>/dev/null";
+   my $cmd1="/usr/local/bin/snmpwalk -Cc -v 1 -c $community $ip $oid_descr_param 2>/dev/null";
 	if ($opts{z}) { print "get_iid::[DEBUG] CMD=$cmd1\n"; }
 	my @r1=`$cmd1`;
 
