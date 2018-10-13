@@ -62,7 +62,7 @@
   tags: net-snmp
 
 - name: Config files [/etc/snmp/snmp.conf]
-  copy: src=snmp.conf dest=/etc/snmp/snmp.conf owner=root group=root mode=0640
+  copy: src=snmp.conf dest=/etc/snmp/snmp.conf owner=root group=root mode=0644
   tags: net-snmp
 
 - name: Config files [/etc/snmp/snmptrapd.conf]
@@ -78,6 +78,11 @@
   with_items:
     - snmpd.conf
     - snmptrapd.conf
+  tags: net-snmp
+
+- name: Verify links  /opt/snmp -> /etc/snmp
+  file: path="/opt/snmp/etc/snmp/{{ item }}" src="/etc/snmp/{{ item }}" state=link owner=root group=root mode=0644
+  with_items:
     - snmp.conf
   tags: net-snmp
 
