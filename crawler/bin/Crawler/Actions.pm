@@ -1782,6 +1782,7 @@ my ($self,$script,$params,$dbdata,$f,$tag,$dbh)=@_;
 	my $exec_vector=$xagent->exec_vector();
 
    my($filename, $directories, $suffix) = fileparse($f);
+	$directories=~s/^(.+)\/$/$1/;
 	my $finuse=$directories.'/_'.$filename;
 
    open (FOUT, ">$finuse");
