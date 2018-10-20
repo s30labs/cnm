@@ -76,7 +76,7 @@ my ($self,$dbh,$params)=@_;
 	}
 
 
-	$SQL="SELECT substr(line,1,500) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
+	$SQL="SELECT substr(line,1,5000) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__PATTERN__/$pattern/;
    $SQL =~ s/__LAPSE__/$lapse/;
@@ -228,7 +228,63 @@ my ($self,$dbh,$params)=@_;
    return ($event_counter,$event_info,$last_ts);
 }
 
+#----------------------------------------------------------------------------
+# get_last_status_event
+#----------------------------------------------------------------------------
+# Obtiene el ultimo evento de estado almacenado (en base a pattern)
+# e identifica de que tipo es (en base a $status_map)
+# Devuelve el estado -> Hash con todos los estados 
+#----------------------------------------------------------------------------
+sub get_last_status_event {
+my ($self,$dbh,$params,$status_map)=@_;
 
+#$status_map = [
+#	{'name'=>'JOB Started', 'pattern'=>'"Subject":"ASAPRO - JOB Started : application TJBWESSALESMETAC"'},
+#	{'name'=>'JOB Ended', 'pattern'=>'"Subject":"ASAPRO - JOB Ended : application TJBWESSALESMETAC"'}
+#]
+   my $id_app = $params->{'id_app'};
+   my $pattern = $params->{'pattern'} || '';
+   $self->err_str('OK');
+   $self->err_num(0);
+
+   my ($status,$event_info,$last_ts) = ('U','UNK','U');
+   my $res = $self->dbCmd($dbh,"SELECT tabname FROM device2log WHERE tabname LIKE '%$id_app%'");
+   if ($res->[0] !~ /log/) {
+      $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
+      $self->err_str($event_info);
+      $self->err_num(1);
+      return ($status,$event_info);
+   }
+
+   my $tabname = $res->[0];
+
+   my $SQL="SELECT substr(line,1,5000),ts FROM __TABLE__ WHERE line like '%__PATTERN__%' ORDER BY id_log desc LIMIT 1";
+   $SQL =~ s/__TABLE__/$tabname/;
+   $SQL =~ s/__PATTERN__/$pattern/;
+
+   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
+
+   $res = $self->dbCmd($dbh,$SQL);
+   if ($self->err_num() == 0) { $event_info = $res->[0]; }
+   else {
+      $self->log('warning',"ERROR dbCmd >> $SQL");
+      $event_info = '';
+      return ($status,$event_info);
+   }
+
+	my $last_stored = $res->[0];
+	$last_ts = $res->[1];	
+
+	foreach my $l (@$status_map) {
+		my $pat = $l->{'pattern'};
+		if ($last_stored =~ /$pat/) { 
+			$status = $l->{'value'}; 
+			last;
+		}
+	}
+
+	return ($status,$event_info,$last_ts);
+}
 
 
 #----------------------------------------------------------------------------
