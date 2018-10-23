@@ -2772,18 +2772,22 @@ print '-'x60, "\n";
          if ($METRIC2SEVERITY->{$id_metric} == 1) {
             $VIEWS2METRICS{$id_cfg_view}->{$id_metric}->{'v1'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v1'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2METRICS ALERT v1 id_cfg_view=$id_cfg_view id_metric=$id_metric");
          }
          elsif ($METRIC2SEVERITY->{$id_metric} == 2) {
             $VIEWS2METRICS{$id_cfg_view}->{$id_metric}->{'v2'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v2'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2METRICS ALERT v2 id_cfg_view=$id_cfg_view id_metric=$id_metric");
          }
          elsif ($METRIC2SEVERITY->{$id_metric} == 3) {
             $VIEWS2METRICS{$id_cfg_view}->{$id_metric}->{'v3'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v3'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2METRICS ALERT v3 id_cfg_view=$id_cfg_view id_metric=$id_metric");
          }
          else {
             $VIEWS2METRICS{$id_cfg_view}->{$id_metric}->{'v4'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v4'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2METRICS ALERT v3 id_cfg_view=$id_cfg_view id_metric=$id_metric");
          }
       }
    }
@@ -2806,18 +2810,22 @@ print '-'x60, "\n";
          if ($REMOTE2SEVERITY->{$id} == 1) {
             $VIEWS2REMOTE{$id_cfg_view}->{$id}->{'v1'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v1'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2REMOTE ALERT v1 id_cfg_view=$id_cfg_view id=$id");
          }
          elsif ($REMOTE2SEVERITY->{$id} == 2) {
             $VIEWS2REMOTE{$id_cfg_view}->{$id}->{'v2'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v2'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2REMOTE ALERT v2 id_cfg_view=$id_cfg_view id=$id");
          }
          elsif ($REMOTE2SEVERITY->{$id} == 3) {
             $VIEWS2REMOTE{$id_cfg_view}->{$id}->{'v3'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v3'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2REMOTE ALERT v3 id_cfg_view=$id_cfg_view id=$id");
          }
          else {
             $VIEWS2REMOTE{$id_cfg_view}->{$id}->{'v4'} = 1;
 				$VIEWS2ALERTS{$id_cfg_view}->{'v4'} += 1;
+				$self->log('debug',"analize_views_ruleset::VIEWS2REMOTE ALERT v4 id_cfg_view=$id_cfg_view id=$id");
          }
       }
    }
@@ -2949,6 +2957,8 @@ $self->log('debug',"analize_views_ruleset::RULESET=$kk");
       $table{'blue'}=$VIEWS2ALERTS{$id}->{'v4'};
 
       sqlUpdate($dbh,'cfg_views',\%table,"id_cfg_view=$id and cid=\'$cid\' and cid_ip=\'$cid_ip\'");
+
+		$self->log('info',"analize_views_ruleset:: UPDATEDB id_cfg_view=$id severity=$table{'severity'} red=$table{'red'} orange=$table{'orange'} yellow=$table{'yellow'} blue=$table{'blue'} cid=$cid cid_ip=$cid_ip ($libSQL::errstr)");
    }
 
    return (\%VIEWS2ALERTS);
@@ -2959,7 +2969,8 @@ $self->log('debug',"analize_views_ruleset::RULESET=$kk");
 # get_view_component_status
 #----------------------------------------------------------------------------
 sub get_view_component_status  {
-my ($self,$id_cfg_view,$v2metric,$v2remote,$v2view,$info)=@_;
+#my ($self,$id_cfg_view,$v2metric,$v2remote,$v2view,$info)=@_;
+my ($self,$id_cfg_view,$id_cfg_viewsruleset,$v2metric,$v2remote,$v2view,$info,$views2alerts)=@_;
 
 
 #                         'sev' => '1',
@@ -2971,7 +2982,7 @@ my ($self,$id_cfg_view,$v2metric,$v2remote,$v2view,$info)=@_;
 
 	my $rc = 0;
 	if (ref($info) ne 'HASH') { 
-		$self->log('info',"get_view_component_status:: Termino - El parametro no es un hash");
+		$self->log('info',"get_view_component_status:: ruleset=$id_cfg_viewsruleset Termino - El parametro no es un hash");
 		return $rc;
 	}
 
@@ -2990,13 +3001,19 @@ my ($self,$id_cfg_view,$v2metric,$v2remote,$v2view,$info)=@_;
 		if (exists $v2remote->{$id_cfg_view}->{$sev_tag}) { $rc=1; }
 	}
 	elsif ($type eq 'view') {
-		if (exists $v2view->{$id_cfg_view}->{$sev_tag}) { $rc=1; }
+		#if (exists $v2view->{$id_cfg_view}->{$sev_tag}) { $rc=1; }
+		if ($views2alerts->{$id}->{'ruled'}) {
+			if ($views2alerts->{$id}->{'severity'} == $info->{'sev'}) { $rc=1; }
+		}
+		else {
+			if ($views2alerts->{$id}->{$sev_tag}>0) { $rc=1; }
+		}
 	}
 	else {
-		$self->log('info',"get_view_component_status:: Termino - El tipo del elemento no es correcto ($type)");
+		$self->log('info',"get_view_component_status:: ruleset=$id_cfg_viewsruleset Termino - El tipo del elemento no es correcto ($type)");
 	}
 
-	$self->log('info',"get_view_component_status:: id_cfg_view=$id_cfg_view [rc=$rc] id=$id id_dev=$id_dev sev=$sev sev_tag=$sev_tag type=$type [$info->{'descr'}]");
+	$self->log('info',"get_view_component_status:: ruleset=$id_cfg_viewsruleset id_cfg_view=$id_cfg_view [rc=$rc] id=$id id_dev=$id_dev sev=$sev sev_tag=$sev_tag type=$type [$info->{'descr'}]");
 
 	return $rc;
 
@@ -3061,14 +3078,13 @@ my ($self,$dbh,$id_cfg_view,$ruleset,$VIEWS2ALERTS,$VIEWS2METRICS,$VIEWS2REMOTE,
 		my $id_cfg_viewsruleset = $r->{'id_cfg_viewsruleset'};
    	my $expr_mod = $expr;
    	my $nvals = scalar(keys %{$rule_int->{'items'}});
-   	$self->log('info',"_get_severity_by_rules:: ---RULE START--- [$nvals items] expr=[$expr] sev=$severity id_cfg_view=$id_cfg_view [rule=$rule_descr]");
-
+		$self->log('info',"_get_severity_by_rules:: ---RULE START--- ruleset=$id_cfg_viewsruleset [$nvals items] expr=[$expr] sev=$severity id_cfg_view=$id_cfg_view [rule=$rule_descr]");
 
    	for my $i (0..$nvals-1) {
       	my $vx='v'.$i;
-      	my $val = $self->get_view_component_status($id_cfg_view,$VIEWS2METRICS,$VIEWS2REMOTE,$VIEWS2VIEWS,$rule_int->{'items'}->{$vx});
+			my $val = $self->get_view_component_status($id_cfg_view,$id_cfg_viewsruleset,$VIEWS2METRICS,$VIEWS2REMOTE,$VIEWS2VIEWS,$rule_int->{'items'}->{$vx},$VIEWS2ALERTS);
       	$expr_mod =~ s/$vx/$val/g;
-     		$self->log('info',"analize_views_ruleset:: RULE PART [v=$vx] expr_mod=$expr_mod  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
+			$self->log('info',"_get_severity_by_rules:: RULE PART ruleset=$id_cfg_viewsruleset [v=$vx] expr_mod=$expr_mod  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
    	}
 
    	#Sustituyo or por ||
@@ -3081,12 +3097,14 @@ my ($self,$dbh,$id_cfg_view,$ruleset,$VIEWS2ALERTS,$VIEWS2METRICS,$VIEWS2REMOTE,
    	my $expr_value=0;
    	if ($expr_mod =~ /(.+)/) { $expr_value = eval $1; }
 
-   	$self->log('info',"analize_views_ruleset:: RULE END RES=$expr_value [$expr] -> [$expr_mod]  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
+		$self->log('info',"_get_severity_by_rules:: RULE END ruleset=$id_cfg_viewsruleset RES=$expr_value [$expr] -> [$expr_mod]  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
 
    	if ($expr_value) {
 
+			# Severidad de la alerta en curso.
 			my $sev_in_db = $VIEW_ALERTS->{$id_cfg_view}->{$id_cfg_viewsruleset}->{'severity'};
 
+			# Severidad definida en la regla.
       	my $sev = $r->{'sev'};
       	if ($sev == 1) {
          	$VIEWS2ALERTS->{$id_cfg_view}->{'v1'}+=1;
@@ -3098,7 +3116,7 @@ my ($self,$dbh,$id_cfg_view,$ruleset,$VIEWS2ALERTS,$VIEWS2METRICS,$VIEWS2REMOTE,
          	$VIEWS2ALERTS->{$id_cfg_view}->{'v3'}+=1;
       	}
 
-    	  	$self->log('info',"analize_views_ruleset:: **RULE SET ALERT** SEV=$sev ($sev_in_db)  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
+			$self->log('info',"_get_severity_by_rules:: **RULE SET ALERT** ruleset=$id_cfg_viewsruleset SEV=$sev ($sev_in_db)  id_cfg_view=$id_cfg_view [rule=$rule_descr]");
 
 			if (! exists $VIEW_ALERTS->{$id_cfg_view}->{$id_cfg_viewsruleset}){
 				$VIEW_ALERTS->{$id_cfg_view}->{$id_cfg_viewsruleset} = {'id_cfg_view'=>$id_cfg_view, 'id_cfg_viewsruleset'=>$id_cfg_viewsruleset, 'severity'=>$sev, 'event_data'=>$expr_mod, 'dbaction'=>'SET' };
@@ -3127,6 +3145,8 @@ my ($self,$dbh,$id_cfg_view,$ruleset,$VIEWS2ALERTS,$VIEWS2METRICS,$VIEWS2REMOTE,
       $VIEWS2ALERTS->{$id_cfg_view}->{'v2'}=0;
       $VIEWS2ALERTS->{$id_cfg_view}->{'v3'}=0;
    }
+
+	$self->log('debug',"_get_severity_by_rules:: RESULTADO >> id_cfg_view=$id_cfg_view severity=$severity-----");
 
 	return $severity;
 }

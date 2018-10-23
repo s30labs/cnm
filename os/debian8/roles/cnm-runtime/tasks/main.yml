@@ -163,4 +163,10 @@
   file: src=/opt/cnm/api/src dest=/var/www/html/onm/api state=link owner=www-data group=www-data
   tags: cnm-runtime
 
+# Legacy tasks directory
+
+- name: Legacy tasks directory
+  file: path=/var/www/html/onm/files/tasks state=directory owner=www-data group=www-data mode=0755 recurse=yes
+  tags: cnm-runtime
+
 ...

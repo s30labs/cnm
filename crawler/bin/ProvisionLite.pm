@@ -3770,7 +3770,7 @@ my ($self,$host,$other)=@_;
 #		$other->{'name'}=''; $other->{'ip'}=''; 	
 #	}
 	$self->log('info',"check_tcp_ports::1-9...");
-   my @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T4 -P0 -p 1-9 $host`;
+   my @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T2 -P0 -p 1-9 $host`;
 	my $filtered=0;
    foreach my $l (@lines) {
 		chomp($l);
@@ -3789,7 +3789,7 @@ my ($self,$host,$other)=@_;
 	}
 	#Se parte en dos tramos porque si todos los puertos estan filtrados tarda mas de 100 segs.
    $self->log('info',"check_tcp_ports::10-1024...");
-   @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T4 -P0 -p 10-1024 --host-timeout 60s $host`;
+   @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T2 -P0 -p 10-1024 --host-timeout 60s $host`;
 
    foreach my $l (@lines) {
       chomp($l);
