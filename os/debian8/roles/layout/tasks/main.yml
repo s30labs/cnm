@@ -19,7 +19,7 @@
   tags: layout
 
 - name: Verify base symlinks
-  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode=0640
+  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode=0777
   with_items:
     - { path: '/opt/data', src: '/store/data' }
   tags: layout
