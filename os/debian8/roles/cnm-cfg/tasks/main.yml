@@ -29,8 +29,14 @@
   copy: src=onm.role.default dest=/cfg/onm.role owner=root group=www-data mode=0775
   tags: cnm-cfg
 
+- name: Check /cfg/key
+  stat: path=/cfg/key
+  register: cfg_key
+  tags: cnm-cfg
+
 - name: Set /cfg/key
   template: src=key.j2 dest=/cfg/key
+  when: cfg_key.stat.exists is defined and cfg_key.stat.exists==0
   tags: cnm-cfg
 
 ...
