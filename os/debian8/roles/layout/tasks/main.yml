@@ -14,11 +14,12 @@
     - { path: '/store', owner: 'root', group: 'root', mode: '0777' }
     - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
     - { path: '/store/data/app-data/remote_cfgs', owner: 'www-data', group: 'www-data', mode: '0775' }
+    - { path: '/store/remote_logs', owner: 'root', group: 'mysql', mode: '0777' }
     - { path: '/cfg', owner: 'root', group: 'www-data', mode: '0770' }
   tags: layout
 
 - name: Verify base symlinks
-  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode=0640
+  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode=0777
   with_items:
     - { path: '/opt/data', src: '/store/data' }
   tags: layout

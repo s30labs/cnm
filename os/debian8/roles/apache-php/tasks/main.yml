@@ -66,7 +66,15 @@
   tags: apache-php
 
 - name: Verify /var/log/apache2/cnm_gui.log
-  file: path=/var/log/apache2/cnm_gui.log state=touch owner=www-data group=www-data mode=0644
+  file: path=/var/log/apache2/cnm_gui.log state=touch owner=www-data group=www-data mode=0664
+  tags: apache-php
+
+- name: Verify /var/log/apache2/access.log
+  file: path=/var/log/apache2/access.log state=touch owner=www-data group=www-data mode=0664
+  tags: apache-php
+
+- name: Verify /var/log/apache2/error.log
+  file: path=/var/log/apache2/error.log state=touch owner=www-data group=www-data mode=0664
   tags: apache-php
 
 - name: Check legacy install error with cgi module

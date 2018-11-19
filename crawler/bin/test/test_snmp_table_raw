@@ -1,0 +1,14 @@
+#!/usr/bin/perl
+ 
+use SNMP;
+use Data::Dumper;
+
+my $HOST='10.168.54.254';
+my $COMMUNITY='sabai';
+my $V=2;
+
+
+my $s = new SNMP::Session(DestHost => $HOST, Community => $COMMUNITY, Version=>$V, Timeout=>'5000000', Retries=>'5' );
+
+ 
+print Dumper($s->gettable('ifTable'));
