@@ -1,6 +1,17 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
+  tags: apache-php
+
+- name: Certificate Info
+  debug:
+    msg: "{{ item }}"
+  with_items:
+   - "{{ SSLCertificateKeyFile }}"
+   - "{{ SSLCertificateChainFile }}"
+   - "{{ SSLCertificateChainFile }}"
+
+  tags: apache-php
 
 # Add specified repository into sources list.
 - name: Verify repository
@@ -159,11 +170,17 @@
   notify:
    - restart apache2
 
-- name: Verify 000-default -> sites-enabled
-  copy: src=000-default dest=/etc/apache2/sites-enabled/000-default  owner=root group=root mode=0644
+- name: 000-default -> sites-enabled
+  template: src=000-default.j2 dest=/etc/apache2/sites-enabled/000-default owner=root group=root mode=0644
   tags: apache-php
   notify:
    - restart apache2
+
+#- name: Verify 000-default -> sites-enabled
+#  copy: src=000-default dest=/etc/apache2/sites-enabled/000-default  owner=root group=root mode=0644
+#  tags: apache-php
+#  notify:
+#   - restart apache2
 
 - name: ssl.conf -> /etc/apache2/mods-available/
   copy: src=ssl.conf dest=/etc/apache2/mods-available/ssl.conf  owner=root group=root mode=0644

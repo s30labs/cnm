@@ -19,3 +19,7 @@ db_type: mysql
 db_port: 3306
 db_max_connections: 300
 
+#Default SSL Certificate
+SSLCertificateKeyFile: "SSLCertificateKeyFile /etc/apache2/cnm_default.pem"
+SSLCertificateFile: "SSLCertificateFile /etc/apache2/cnm_default.pem"
+SSLCertificateChainFile: ""

@@ -85,8 +85,9 @@
 	Header edit Set-Cookie ^(.*)$ $1;HttpOnly;Secure
 
    SSLEngine on
-   SSLCertificateKeyFile /etc/apache2/cnm_default.pem
-   SSLCertificateFile /etc/apache2/cnm_default.pem
+	{{ SSLCertificateKeyFile }}
+	{{ SSLCertificateFile }}
+	{{ SSLCertificateChainFile }}
    SetEnvIf User-Agent ".*MSIE.*" nokeepalive ssl-unclean-shutdown
 
    <Directory />
