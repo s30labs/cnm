@@ -1313,6 +1313,7 @@ my ($self,$dbh)=@_;
 
 	my @ID_TASKS=();
 	my $store=$self->store();
+	my $ts = $self->time_ref();
 
 	# $CFG_POST contiene los avisos y aplicaciones definidas
 	my $CFG_POST=$store->get_cfg_post_alert($dbh);
@@ -1325,11 +1326,11 @@ my ($self,$dbh)=@_;
 		}
 		elsif ( exists $CFG_POST->{$id}->{'app'}) { 
 			$napp+=1; 
-			$self->log('debug',"manage_app_notifications:: app_bg $CFG_POST->{$id}->{'nname'} >> $CFG_POST->{$id}->{'script'} id_dev=$CFG_POST->{$id}->{'id_dev'} monitor=$CFG_POST->{$id}->{'monitor'}");
+			$self->log('debug',"manage_app_notifications:: app_bg $CFG_POST->{$id}->{'nname'} >> $CFG_POST->{$id}->{'name'} id_dev=$CFG_POST->{$id}->{'id_dev'} monitor=$CFG_POST->{$id}->{'monitor'}");
 		}
 		elsif ( exists $CFG_POST->{$id}->{'run'}) { 
 			$nrun+=1; 
-			$self->log('debug',"manage_app_notifications:: app_run $CFG_POST->{$id}->{'nname'} >> $CFG_POST->{$id}->{'name'} id_dev=$CFG_POST->{$id}->{'id_dev'} monitor=$CFG_POST->{$id}->{'monitor'}");
+			$self->log('debug',"manage_app_notifications:: app_run $CFG_POST->{$id}->{'nname'} >> $CFG_POST->{$id}->{'script'} id_dev=$CFG_POST->{$id}->{'id_dev'} monitor=$CFG_POST->{$id}->{'monitor'}");
 		}
 	}
 	$self->log('info',"manage_app_notifications:: CHECK >> avisos=$naviso apps_bg=$napp apps_run=$nrun");
@@ -1385,7 +1386,14 @@ my ($self,$dbh)=@_;
 			}
 			else { $do_cause=1; }
 
-$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert|$id_alert_type|$monitor) ------------");
+			# SI WSIZE>0 ==> HAY DEFINIDA VENTANA DE GUARDA
+			my $delta=$ts-$a->[aDATE];
+			if ($delta < $CFG_POST->{$id}->{'wsize'}) {
+				$self->log('info',"manage_app_notifications [$id] +++WAIT WSIZE+++ ts=$ts alarm_date=$a->[aDATE] delta=$delta wsize=$CFG_POST->{$id}->{'wsize'}");
+				next;
+			}
+
+			$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert|$id_alert_type|$monitor) ------------");
 
 			# SE GENERA AVISO PARA SET --------------------------------------
 			if ( exists $CFG_POST->{$id}->{'aviso'}) { 
@@ -3034,8 +3042,7 @@ $self->log('info',"mail_alert_processor:: id_remote_alert=$id_remote_alert watch
   			# store_mode: 0->Insert 1->Update
   			if ( $action =~ /SET/i ) {
 	         $self->log('notice',"mail_alert_processor::[INFO] $monitor [SET-ALERT: IP=$ip/$name/$from | EV=$ev | MSG=$msg]");
-     			#my $alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname,  'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype }, 0);
-  	       	my $alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype  }, 1);
+  	       	my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype  }, 1);
      		}
 
      		# Procesado de alertas. CLEAR -------------------------------------------------------------
@@ -3551,15 +3558,15 @@ my ($self,$desc,$mode)=@_;
  	if (! $monitor) { $M{'id_alert_type'} = 0; }
    else { $M{'id_alert_type'} = $store->get_alert_type($dbh,$monitor); }
 	
-   my $alert_id=$store->store_alert($dbh,$monitor,\%M,$mode);
+   my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,\%M,$mode);
 	if (! defined $alert_id) { $alert_id='U'; }
 	else {
 
       #Se actualiza notif_alert_set (notificationsd evalua si hay que enviar aviso)	
-      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>''  });
+      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
 
 	}
-   $self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode");
+   $self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
 #   $store->close_db($dbh);
    return $alert_id;
 }

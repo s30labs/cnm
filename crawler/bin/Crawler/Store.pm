@@ -1745,7 +1745,7 @@ my $rres;
 		if (!defined $table{id_device}) {
 			my $ip = (defined $data->{ip}) ? $data->{ip} : 'undef';
 			$self->log('warning',"store_alert::[WARN] Error IP=$ip (id_dev=undef)");
-			return undef;
+			return (undef,undef);
 		}
 	}
 	else {$table{id_device} = $data->{id_device}; }
@@ -1789,7 +1789,7 @@ my $rres;
 
    if (! defined $data->{mname}) {
       $self->log('warning',"store_alert::[WARN] mname=UNDEF");
-      return undef;
+      return (undef,undef);
    }
 	else { $table{mname} = $data->{mname}; }
 
@@ -1878,7 +1878,7 @@ my $rres;
    my $where="id_device=\'$table{id_device}\' and mname=\'$table{mname}\'";
    if (exists $table{mode}) { $where.=" and mode=\'$table{mode}\'";}
 
-	my $what='id_alert';
+	my $what='id_alert,date';
 
 
 	#-----------------------------------------------------
@@ -1902,7 +1902,7 @@ my $rres;
 
 		if ($libSQL::err == 0) {
 	     	my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-      	return $rres->[0][0];
+      	return ($rres->[0][0],$rres->[0][1]);
    	}
       else {
          my $err=$libSQL::err;
@@ -1925,7 +1925,7 @@ my $rres;
 		if (($rv=~/\d+/) && ($rv>0)) {
 			$self->response('update');
          my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-         return $rres->[0][0];
+         return ($rres->[0][0],$rres->[0][1]);
       }
 		#Si el update no ha afectado ninguna fila (posibemente no existiera la fila)
 		#hago un insert
@@ -1953,7 +1953,7 @@ my $rres;
 	      if (($rv=~/\d+/) && ($rv>0)) {
 				$self->response('insert');
    	      my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-      	   return $rres->[0][0];
+      	   return ($rres->[0][0],$rres->[0][1]);
       	}
 			else {
 	         my $err=$libSQL::err;
@@ -1987,13 +1987,12 @@ my $rres;
 
       if (defined $rv) {
          my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-         return $rres->[0][0];
+         return ($rres->[0][0],$rres->[0][1]);
       }
    }
-	
 
    $self->log('warning',"store_alert::[WARN] Error en Insert/Update alert MODE=$mode ID_DEV=$table{id_device} (RV=undef)");
-	return undef;
+	return (undef,undef);
 
 }
 
@@ -6768,14 +6767,14 @@ my ($self,$dbh)=@_;
    my $rres=sqlSelectAll(
 
       $dbh,
-      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity',
+      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity,c.wsize',
       'cfg_notifications c,  cfg_notification2device d, cfg_notification2transport t, cfg_register_transports r',
       'c.status=0 AND c.id_cfg_notification=d.id_cfg_notification AND c.id_cfg_notification=t.id_cfg_notification AND t.id_register_transport=r.id_register_transport'
    );
 
    foreach my $l (@$rres) {
 		my $id=$l->[0].'-'.$l->[1].'-'.$l->[4];
-      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'aviso'=>1 };
+      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'wsize'=>$l->[9], 'aviso'=>1 };
    }
 
 	# --------------------------------------------------
@@ -6785,7 +6784,7 @@ my ($self,$dbh)=@_;
    $rres=sqlSelectAll(
 
       $dbh,
-      'c.id_cfg_notification,d.id_device,c.id_alert_type,a.aname,a.name,c.name as nname,c.monitor,c.type_app,c.type_run,a.script,a.params,s.timeout,c.severity',
+      'c.id_cfg_notification,d.id_device,c.id_alert_type,a.aname,a.name,c.name as nname,c.monitor,c.type_app,c.type_run,a.script,a.params,s.timeout,c.severity,c.wsize',
       'cfg_notifications c,  cfg_notification2device d, cfg_monitor_apps a, cfg_notification2app b, cfg_monitor_agent_script s',
       'c.status=0 AND c.id_cfg_notification=d.id_cfg_notification AND a.id_monitor_app=b.id_monitor_app AND b.id_cfg_notification=c.id_cfg_notification AND a.script=s.script'
    );
@@ -6795,11 +6794,11 @@ my ($self,$dbh)=@_;
 
 		#type_run != 0 => Se ejecuta inmediatamente
 		if ($l->[8] != 0) {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'run'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'run'=>1 };
 		}
 		#type_run == 0 => Se ejecuta como tarea
 		else {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'app'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'app'=>1 };
 		}
    }
 

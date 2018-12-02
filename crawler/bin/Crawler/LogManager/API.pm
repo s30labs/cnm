@@ -90,7 +90,7 @@ my ($self)=@_;
 	my @vals=($msg);
 	my $expr_logic='AND'; # REVISAR!!! FML
 	my $critic = (exists $ip2name->{$ip}->{'critic'}) ? $ip2name->{ip}->{'critic'} : 50;
-	my $alert_id=0;
+	my ($alert_id,$alert_date)=(0,0);
 
    #Si es una alerta de un dispositivo dado de alta pero no activo => No se genera la alerta
    if ((exists $ip2name->{$ip}) && ($ip2name->{$ip}->{'status'} !=0)) {
@@ -165,8 +165,7 @@ $self->log('info',"check_alert::[INFO] ***FML*** action=$action subtype=$subtype
       # Procesado de alertas. SET ---------------------------------------------------------------
       # store_mode: 0->Insert 1->Update
       if ( $action =~ /SET/i ) {
- 			#$alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device, 'notif'=>0 }, 1);
- 			$alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device }, 1);
+ 			($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device }, 1);
 			my $response = $store->response();
 
          ## Se actualizan las tablas del interfaz

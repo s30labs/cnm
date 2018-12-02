@@ -2387,10 +2387,6 @@ $M{event_data}= join (':', @$event_data);
 	else { $M{id_metric}=$desc->{idmetric}; }
    $self->log('notice',"mod_alert::[INFO ID=$task_id] **SET:$cond** [$desc->{host_name}|EV=$M{event_data}|SEV=$severity|MNAME=$M{mname}|ID_METRIC=$M{id_metric}");
 
- 	#my $alert_id=$store->store_alert($dbh,$monitor,\%M,$mode);
-   #$store->close_db($dbh);
-
-
 	#-----------------------------------------------------------------
 	#-----------------------------------------------------------------
 	#-----------------------------------------------------------------

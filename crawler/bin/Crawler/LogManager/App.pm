@@ -916,7 +916,29 @@ $x=~s/\n/ /g;
 $self->log('debug',"check_event::[DEBUG] MSG = $x");
 
    $msg->{'msg_custom'}='';
-   $msg->{'msg'}='<b>v1 (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'};
+   #$msg->{'msg'}='<b>v1: (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'}.'&nbsp;';
+	my @msgdata=();
+	#push @msgdata,'<b>v1: (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'}.'&nbsp;';
+	push @msgdata,'Line::'.$msg->{'source_line'};
+	my @vdata = ();
+	my %vardata = ();
+	push @vdata,$msg->{'source_line'};
+	my $msg_fields = {};
+   eval { $msg_fields = decode_json($msg->{'source_line'}); };
+   if (! $@) {
+		my $i=2;
+		foreach my $k (sort keys %$msg_fields) {
+			#$msg->{'msg'}.= "<b>v$i: ($k):</b>&nbsp;&nbsp;".$msg_fields->{$k}.'&nbsp;'; 
+			#push @msgdata,"<b>v$i: ($k):</b>&nbsp;&nbsp;".$msg_fields->{$k}.'&nbsp;';
+			push @msgdata,$k.'::'.$msg_fields->{$k};
+			push @vdata, $msg_fields->{$k};
+			$vardata{$k} = $msg_fields->{$k};
+			$i++;
+		}
+   }
+	$msg->{'vdata'} = \@vdata;
+	$msg->{'vardata'} = \%vardata;
+	$msg->{'msg'} = join ('|',@msgdata);
 
    my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
 
@@ -979,6 +1001,7 @@ my ($self)=@_;
    my $id_device = $event->{'id_dev'};
    my $msg = $event->{'msg'};
    my @vals=($msg);
+
    my $expr_logic='AND'; # REVISAR!!! FML
 
    #Si es una alerta de un dispositivo dado de alta pero no activo => No se genera la alerta
@@ -989,8 +1012,8 @@ my ($self)=@_;
    }
 
 
-   #Para cada alerta de tipo email configurada (y asociada a algun dispositivo)
-   #chequeo si el evento (amil) cumple sus expresiones
+   #Para cada alerta de tipo app (syslog) configurada (y asociada a algun dispositivo)
+   #chequeo si el evento cumple sus expresiones ($ev -> subtype)
    foreach my $ev  (keys %$event2alert) {
 
 
@@ -1027,8 +1050,10 @@ my ($self)=@_;
 my $kk=Dumper($alert2expr->{$id_remote_alert});
 $kk=~s/\n/ /g;
 $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
+$self->log('info',"check_alert:: id_remote_alert=$id_remote_alert VALS=@vals");
 
-      my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,\@vals);
+      #my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,\@vals);
+      my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,$event->{'vdata'});
       $self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip >> WATCH_EVAL_EXT=$condition_ok");
 
       if (! $condition_ok) {next; }
@@ -1042,14 +1067,12 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
       #Alertas nuevas
       my $cfg_mode=$mode;
       $mode=$id_remote_alert;
-      my $ts=time();
-      if ($cfg_mode ne 'INC') { $mode .= '.'.$ts; }
+      if ($cfg_mode ne 'INC') { $mode .= '.'.int(100000000*rand()); }
 
       # Procesado de alertas. SET ---------------------------------------------------------------
       # store_mode: 0->Insert 1->Update
       if ( $action =~ /SET/i ) {
-         #my $alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device, 'notif'=>0 }, 1);
-         my $alert_id=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device }, 1);
+         my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'name'=>$name, 'domain'=>$domain, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$label, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype, 'critic'=>$critic, 'date_last'=>$date_last, 'id_device'=>$id_device }, 1);
          my $response = $store->response();
 
          ## Se actualizan las tablas del interfaz
@@ -1078,7 +1101,7 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
 #         $self->log('notice',"event2alert::[INFO] $monitor [CLEAR-ALERT: IP=$ip | EV=$ev | MSG=$msg]");
 #         $store->clear_alert($dbh,{ 'ip'=>$ip, 'mname'=>$1 });
 
-         my $id_metric_clr=0;
+			my ($match_set_clear,$id_metric_clr,$id_alert_clr)=(1,0,0);
          # Se borra la original a partir del set_id.  Si no existe set_id, lo busco a partir de subtype + hiid
          if (($set_id =~ /^\d+$/) && ($set_id>0)) { $id_metric_clr=$set_id; }
          elsif ($set_subtype ne '') {
@@ -1087,16 +1110,55 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
             $id_metric_clr=$rv->[0][0];
          }
 
-         $self->log('notice',"check_alert::[INFO] $monitor [CLEAR-ALERT: IP=$ip id_metric=$id_metric_clr| EV=$ev | MSG=$msg_log]");
-         my $alert_id=$store->clear_alert($dbh,{ 'ip'=>$ip, 'id_metric'=>$id_metric_clr, 'type'=>'syslog' });
 
-         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
-         $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$alert_id, 'id_device'=>$id_device, 'id_alert_type'=>20, 'cause'=>$label, 'name'=>$name, 'domain'=>$domain, 'ip'=>$ip, 'notif'=>0, 'mname'=>$mname, 'watch'=>'', 'id_metric'=>$id_metric_clr, 'type'=>$type, 'severity'=>$severity, 'event_data'=>$msg, 'date'=>$date_last  });
+         if ($vdata ne '') {
+            $match_set_clear = 0;
+            my $rv=$store->get_from_db($dbh,'id_alert,event_data','alerts',"id_metric=$id_metric_clr");
+				foreach my $x (@$rv) {
+            	#my $event_data=$rv->[0][0];
+            	$id_alert_clr=$x->[0];
+            	my $event_data=$x->[1];
+            	if ((defined $event_data) && ($event_data ne '')) {
+						#v1 (Line):  {"CNM_Flag":"SET", "FechaDoc-BEDAT":"20180510", "NumPedido-EBELN":"4800036220", "extrafile2":"extrafile2"}v2 (CNM_Flag):  SETv3 (FechaDoc-BEDAT):  20180510v4 (NumPedido-EBELN):  4800036220v5 (extrafile2):  extrafile2
+            	   #RFC1213-MIB::ifIndex = INTEGER: 22|RFC1213-MIB::ifAdminStatus = INTEGER: 0|RFC1213-MIB::ifOperStatus = INTEGER: 0
+         	      my @set_vals_raw=split(/\|/,$event_data);
+      	         my %set_vals=();
+   	            $self->log('info',"check_alert::[INFO] match_set_clear >> id_metric=$id_metric_clr event_data=$event_data");
+	               foreach my $v (@set_vals_raw) {
+               		$self->log('info',"check_alert::[INFO] match_set_clear >> v=$v");
+               	   if ($v=~ /^(.+)\s*\:\:\s*(.+)$/) {
+            	         $set_vals{$1}= $2;
+         	         }
+      	         }
 
-         # Se actualizan las tablas del interfaz
-         $store->store_alerts_read_local_clr($dbh,$alert_id);
-         my $vk=$id_remote_alert.'.'.$ip;
-         #if (exists $alert2views->{$vk}) { $store->analize_views_ruleset($dbh,$cid);  }
+   	            my @match_vals = split(',', $vdata);
+	               my $num_ok = scalar(@match_vals);
+						my $nok=0;
+            	   foreach my $vm (@match_vals) {
+							if ($set_vals{$vm} ne $event->{'vardata'}->{$vm}) { $nok=1; }
+$self->log('info',"check_alert::[INFO] match_set_clear >> vm=$vm COMPARO $set_vals{$vm} CON $event->{'vardata'}->{$vm} (nok=$nok) id_alert_clr=$id_alert_clr");
+     		         }
+   	            if (!$nok) { 
+							$match_set_clear = 1; 
+							last;
+						}
+	            }
+				}
+         }
+
+			if ($match_set_clear) {
+	         my $alert_id=$store->clear_alert($dbh,{ 'id_alert'=>$id_alert_clr, 'ip'=>$ip, 'id_metric'=>$id_metric_clr, 'type'=>'syslog' });
+   	      $self->log('notice',"check_alert::[INFO] $monitor [CLEAR-ALERT: alert_id=$alert_id IP=$ip id_metric=$id_metric_clr| EV=$ev | MSG=$msg_log]");
+
+      	   #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
+         	$store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$alert_id, 'id_device'=>$id_device, 'id_alert_type'=>20, 'cause'=>$label, 'name'=>$name, 'domain'=>$domain, 'ip'=>$ip, 'notif'=>0, 'mname'=>$mname, 'watch'=>'', 'id_metric'=>$id_metric_clr, 'type'=>$type, 'severity'=>$severity, 'event_data'=>$msg, 'date'=>$date_last  });
+
+	         # Se actualizan las tablas del interfaz
+   	      $store->store_alerts_read_local_clr($dbh,$alert_id);
+      	   my $vk=$id_remote_alert.'.'.$ip;
+         	#if (exists $alert2views->{$vk}) { $store->analize_views_ruleset($dbh,$cid);  }
+
+			}
       }
 
       else {
