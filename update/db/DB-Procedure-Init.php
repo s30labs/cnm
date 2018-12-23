@@ -159,6 +159,26 @@ CREATE PROCEDURE sp_cnms_get_snmp_credential(IN pIP VARCHAR(30))
 
    END',
 
+   //---------------------------------------
+   // Copia tabla1 en tabla2 haciendo un delete+insert
+   //---------------------------------------
+   'sp_logp_table1_to_table2'=>'
+
+CREATE PROCEDURE sp_table1_to_table2 (IN table1 VARCHAR(80), IN table2 VARCHAR(80))
+
+	BEGIN
+
+  		SET @t1 = CONCAT("DELETE FROM ",table2);
+  		SET @t2 = CONCAT("INSERT INTO ",table2," (id_log,hash,ts,line) SELECT id_log,hash,ts,line FROM ",table1);
+  		PREPARE stmt1 FROM @t1;
+  		EXECUTE stmt1;
+  		DEALLOCATE PREPARE stmt1;
+  		PREPARE stmt2 FROM @t2;
+  		EXECUTE stmt2;
+  		DEALLOCATE PREPARE stmt2;
+
+	END',
+
 
 );
 ?>
