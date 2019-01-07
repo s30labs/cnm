@@ -53,6 +53,7 @@ $linux_metric_event_data::SCRIPT_NAME = 'linux_metric_event_data.pl';
 		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-lapse', '__PARAM_DESCR__' => 'Lapse (min.)', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_data::SCRIPT_NAME },
 		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'Pattern', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_data::SCRIPT_NAME },
 		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-field', '__PARAM_DESCR__' => 'Data Field', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_data::SCRIPT_NAME },
+		'p08' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-oper', '__PARAM_DESCR__' => 'Data Operation', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_event_data::SCRIPT_NAME },
 
 		},
 
@@ -77,6 +78,7 @@ The parameters are:
  -lapse      : Intervalo seleccionado referenciado desde el instante actual (now-lapse). Se especifica en minutos. Por defecto 60.
  -pattern    : Patron de busqueda. Por defecto se cuentan todos los eventos.
  -field      : Campo JSON que contiene el dato solicitado
+ -oper       : value (none) | sum ...
  -v/-verbose : Verbose output (debug)
  -h/-help    : Help
 ',
