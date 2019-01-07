@@ -407,7 +407,7 @@ my ($self,$file_cfg,$file_reload) = @_;
 	my $TOKEN = (exists $rcfgbase->{notif_tg_bot_token}->[0]) ? $rcfgbase->{notif_tg_bot_token}->[0] : '';
 	#while (my ($k,$v)=each %$rcfgbase) { 		$self->log('info',"check_cfgsign_notif*:: $k --> @$v"); 	}
 
-	$self->log('debug',"check_cfgsign_notif++:: LAPSE=$LAPSE|MX=$MX|FROM=$FROM|FROM_NAME=$FROM_NAME|SUBJECT=$SUBJECT|SERIAL_PORT=$SERIAL_PORT|PIN=$PIN|TOKEN=$TOKEN");
+	$self->log('info',"check_cfgsign:: **CHANGED** LAPSE=$LAPSE|MX=$MX|FROM=$FROM|FROM_NAME=$FROM_NAME|SUBJECT=$SUBJECT|SERIAL_PORT=$SERIAL_PORT|PIN=$PIN|TOKEN=$TOKEN");
 
 }
 
@@ -625,6 +625,15 @@ my ($self,$lapse,$range)=@_;
 
          if (($ok) && ($link_error <= 0)) {
 
+   			#----------------------------------------------------------------------
+			   # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
+			   # Si hay modificaciones se relee el fichero de configuracion. Tambien se puede forzar
+   			# una relectura si existe el fichero $RELOAD_FILE.
+   			# En este caso afecta la configuracion de envio de correos o de SMS.
+   			$self->check_cfgsign($FILE_CONF,$RELOAD_FILE);
+
+   			#----------------------------------------------------------------------
+				# Respuesta a alertas.
             $self->manage_app_notifications($dbh);
 
          }
