@@ -60,6 +60,19 @@ my ($self,$dbh,$params)=@_;
 
    my $tabname = $res->[0];
 
+
+#	#WAIT if lock
+#	my $fl = '/var/run/'.$id_app.'.lock';
+#	my $n=15;	#15 seg.
+#	while ($n>0) {
+#		$n--;
+#		if (-f $fl) { 
+#			$self->log('debug',"**WAITING FOR LOCK**");
+#			sleep 1; 
+#		}
+#		else { last; }
+#	}
+
    my $SQL="SELECT count(*) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__";
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__PATTERN__/$pattern/;
@@ -293,6 +306,7 @@ my ($self,$dbh,$params,$status_map)=@_;
 # a.  $data_value -> Valor del dato solicitado Contenido el campo field de las 
 #		filas que cumplen el patron $params->{'pattern'} durante la ventana 
 #		de tiempo now-$params->{'lapse'}
+#		Devuelve el valor de la primera fila encontrada !!!
 # b.  $event_info -> Devuelve el valor de la linea mas reciente que cumple el patron
 #     $params->{'pattern'} durante la ventana now-$params->{'lapse'}
 # c.  $last_ts -> Ultimo valor de ts (date) almacenado que cumple el patron
@@ -303,7 +317,11 @@ my ($self,$dbh,$params)=@_;
 
 
    my $id_app = $params->{'id_app'};
-   my $field = $params->{'field'};
+   # my $field = $params->{'field'};
+	# Se pueden especificar varios campos separados por "|"
+	my @fields = split(/\|/, $params->{'field'});
+	my $num_fields = scalar(@fields);
+
    my $lapse = $params->{'lapse'} || 60;
    $lapse *= 60;
    my $pattern = $params->{'pattern'} || '';
@@ -330,7 +348,7 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
+   $self->log('info',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
@@ -340,21 +358,186 @@ my ($self,$dbh,$params)=@_;
    }
 
 	$data_value = 0;
+	my %data_value=();
 
    foreach my $l (@$res) {
 
+		#Si hay pattern definido, el dato lo debe cumplir
+$self->log('info',"pattern=$pattern");
+$self->log('info',"line=$l->[3]");
+
+		if (($pattern ne '') && ($l->[3] !~ /$pattern/)) { next; }
+
+		my $nf = $num_fields;
       my $data = $self->json2h($l->[3]);
 
-		if (! exists $data->{$field}) {next;}
-		$data_value = $data->{$field};
+		foreach my $field (@fields) {
+			if (exists $data->{$field}) {
+				$data_value{$field} = $data->{$field};
+				$nf--;
+			}
+		}
+		
+		#if (! exists $data->{$field}) {next;}
+		#$data_value = $data->{$field};
+ 
       $event_info = $l->[3];
       $last_ts = $l->[2];
       $self->log('info',"**DEBUG** RES data_value=$data_value");
+
+		if ($nf==0) { last; }
 	}
 
-   return ($data_value,$event_info,$last_ts);
+   return (\%data_value,$event_info,$last_ts);
 }
 
+#----------------------------------------------------------------------------
+# get_application_data_sum
+# Returns ($data_value,$event_info,$last_ts)
+# a.  $data_value -> Suma de los valores del dato contenido en el 
+#		campo field de las filas que cumplen el patron $params->{'pattern'} 
+#		durante la ventana de tiempo now-$params->{'lapse'}
+#		Solo se puede especificar un campo field.
+# b.  $event_info -> Devuelve el valor de la linea mas reciente que cumple el patron
+#     $params->{'pattern'} durante la ventana now-$params->{'lapse'}
+# c.  $last_ts -> Ultimo valor de ts (date) almacenado que cumple el patron
+#     $params->{'pattern'} durante la ventana now-$params->{'lapse'}
+#----------------------------------------------------------------------------
+sub get_application_data_sum {
+my ($self,$dbh,$params)=@_;
+
+
+   my $id_app = $params->{'id_app'};
+   my $field = $params->{'field'};
+
+   my $lapse = $params->{'lapse'} || 60;
+   $lapse *= 60;
+   my $pattern = $params->{'pattern'} || '';
+   $self->err_str('OK');
+   $self->err_num(0);
+
+   my %data_value=();
+   $data_value{$field} = 0;
+   my ($event_info,$last_ts) = ('U','UNK','U');
+
+   # Se obtiene el nombre de la tabla a partir del id.
+   # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
+   my $res = $self->dbCmd($dbh,"SELECT tabname FROM device2log WHERE tabname LIKE '%$id_app%'");
+   if ($res->[0] !~ /log/) {
+      $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
+      $self->err_str($event_info);
+      $self->err_num(1);
+      return (\%data_value,$event_info);
+   }
+
+   my $tabname = $res->[0];
+
+   #EJ: my $SQL="SELECT id_log,hash,ts,line FROM logp_333333001009_icgTPVSessions_from_db WHERE ts>unix_timestamp(now())-3600;";
+   my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
+   $SQL =~ s/__TABLE__/$tabname/;
+   $SQL =~ s/__LAPSE__/$lapse/;
+
+   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+
+   $res = $self->dbSelectAll($dbh,$SQL);
+   if ($self->err_num() != 0) {
+      $self->log('warning',"ERROR dbCmd >> $SQL");
+      $event_info = $self->err_str();
+      return (\%data_value,$event_info);
+   }
+
+   foreach my $l (@$res) {
+
+      #Si hay pattern definido, el dato lo debe cumplir
+$self->log('info',"pattern=$pattern");
+$self->log('info',"line=$l->[3]");
+
+      if (($pattern ne '') && ($l->[3] !~ /$pattern/)) { next; }
+
+      my $data = $self->json2h($l->[3]);
+
+		if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) { $data_value{$field} += $data->{$field}; }
+
+      $event_info = $l->[3];
+      $last_ts = $l->[2];
+      $self->log('info',"**DEBUG** RES data_value=$data_value{$field}");
+
+   }
+
+   return (\%data_value,$event_info,$last_ts);
+}
+
+
+#----------------------------------------------------------------------------
+# Returns a vector with the lines stored
+#----------------------------------------------------------------------------
+sub get_application_data_lines {
+my ($self,$dbh,$params)=@_;
+
+
+   my $id_app = $params->{'id_app'};
+   my $field = $params->{'field'};
+   my $lapse = $params->{'lapse'} || 60;
+   $lapse *= 60;
+
+
+	my ($pattern_cond,$not_pattern_cond,$all_patterns) = ('', '', "line like '%'" );
+	if (exists $params->{'pattern'}) { $pattern_cond = "line LIKE '%".$params->{'pattern'}."%'"; }
+	if (exists $params->{'not_pattern'}) { $not_pattern_cond = "line NOT LIKE '%".$params->{'pattern'}."%'"; }
+	if (($pattern_cond ne '') && ($not_pattern_cond ne '')) { $all_patterns = "$pattern_cond AND $not_pattern_cond";}
+	elsif ($pattern_cond ne '') { $all_patterns = $pattern_cond; }
+	elsif ($not_pattern_cond ne '') { $all_patterns = $not_pattern_cond; }
+
+	
+   #my $pattern = $params->{'pattern'} || '';
+   #my $not_pattern = $params->{'not_pattern'} || '';
+   $self->err_str('OK');
+   $self->err_num(0);
+
+
+   my ($data_value,$event_info,$last_ts) = ('U','UNK','U');
+
+   # Se obtiene el nombre de la tabla a partir del id.
+   # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
+   my $res = $self->dbCmd($dbh,"SELECT tabname FROM device2log WHERE tabname LIKE '%$id_app%'");
+   if ($res->[0] !~ /log/) {
+      $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
+      $self->err_str($event_info);
+      $self->err_num(1);
+      return ($data_value,$event_info);
+   }
+
+   my $tabname = $res->[0];
+
+   #EJ: my $SQL="SELECT id_log,hash,ts,line FROM logp_333333001009_icgTPVSessions_from_db WHERE ts>unix_timestamp(now())-3600;";
+   #my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE line like '%__PATTERN__%' AND LINE NOT LIKE '%__NOT_PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
+   my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE __ALL_PATTERNS__ AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
+   $SQL =~ s/__TABLE__/$tabname/;
+	#$SQL =~ s/__PATTERN__/$pattern/;
+	#$SQL =~ s/__NOT_PATTERN__/$not_pattern/;
+	$SQL =~ s/__ALL_PATTERNS__/$all_patterns/;
+   $SQL =~ s/__LAPSE__/$lapse/;
+
+   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+
+   $res = $self->dbSelectAll($dbh,$SQL);
+   if ($self->err_num() != 0) {
+      $self->log('warning',"ERROR dbCmd >> $SQL");
+      $event_info = $self->err_str();
+      return ($data_value,$event_info);
+   }
+
+	my @lines=();
+   foreach my $l (@$res) {
+
+      my $data = $self->json2h($l->[3]);
+		push @lines,$data;
+
+   }
+
+   return \@lines;
+
+}
 
 
 
