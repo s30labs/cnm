@@ -615,7 +615,11 @@ my ($res,$cmd);
 	my $subject = $rdata->{'subject'};
 	my $txt = $rdata->{'txt'};
 
-  	my $top = MIME::Entity->build( 	From    => $from,
+	my $content_type='text/plain';
+	if ($txt=~/\<html\>/i) { $content_type='text/html'; }
+
+  	my $top = MIME::Entity->build( 	Type 	  => $content_type,
+												From    => $from,
                                		To      => $to,
                                		Subject => $subject,
                                		Data    => $txt);

@@ -3559,15 +3559,23 @@ my ($self,$desc,$mode)=@_;
    else { $M{'id_alert_type'} = $store->get_alert_type($dbh,$monitor); }
 	
    my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,\%M,$mode);
-	if (! defined $alert_id) { $alert_id='U'; }
-	else {
+	if (! defined $alert_id) { 
+		$alert_id='U'; 
+   	return $alert_id;
+	}
+
+	if ($mode !=0) {
 
       #Se actualiza notif_alert_set (notificationsd evalua si hay que enviar aviso)	
       $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
 
+   	$self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
+
 	}
-   $self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
-#   $store->close_db($dbh);
+	else {
+   	$self->log('info',"set_alert_fast:: **PASS** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
+	}
+
    return $alert_id;
 }
 
@@ -3820,6 +3828,90 @@ my ($self,$a,$n,$mode)=@_;
 
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
+#$self->set_aviso($dbh,$a,$CFG_POST->{$id},'set',\%response);
+#----------------------------------------------------------------------------
+#GENERADA ALERTA : IDX < 30
+#DISPOSITIVO = cnm-areas.localdomain
+#IP = 192.168.57.9
+#EVENTO = Ejecutado script: linux_metric_ssh_files_in_dir.pl (RC=0) RCSTR=[OK] Metrica: FICHEROS IDX
+#v1:  Num. Ficheros = 15
+#**ALERTA (v1<30) (15 < 30)**
+#
+#El informe sobre el incidente esta disponible en:
+#
+#https://192.168.57.9/onm/mod_alertas_dashboard_simple.php?id=64699
+#
+#
+#(Mensaje generado automaticamente. Por favor no responda)
+#
+#----------------------------------------------------------------------------
+sub compose_notification_body  {
+my ($self,$set_clr,$url,$a,$notif_info)=@_;
+my $DEFAULT_BODY = '
+__SET_CLR_ALERT__ : __ALERT_CAUSE__
+DATE = __DATE__
+DISPOSITIVO = __DEVICE__
+IP = __IP__
+EVENTO = __EVENT_DATA__
+
+__URL__
+
+(Mensaje generado automaticamente. Por favor no responda)
+';
+
+	my $txt = $DEFAULT_BODY;
+	if ($notif_info->{'template'} ne '') { $txt = $notif_info->{'template'}; }
+
+	my $id_dev_alert=$a->[aDEVICE];    #id del device
+   my $device=$a->[aALERT_DEV_NAME].'.'.$a->[aALERT_DEV_DOMAIN];
+   my $ip=$a->[aALERT_DEV_IP];
+   my $alert_cause=$a->[aALERT_CAUSE];	# alert cause
+   my $id_alert=$a->[aID_ALERT];			# id de la alerta
+   my $event_data=$a->[aEVENT_DATA] || ''; 	# Datos del evento
+   if ($event_data ne '') { $event_data=~s/ \| /\n/g; }
+	my $ack = $a->[aACK];					# ack 
+	my $id_ticket = $a->[aID_TICKET];	# id ticket
+	my $severity = $a->[aSEVERITY];		# severity
+	my $date_str = $self->time2date($a->[aDATE]);	# alert date
+	my $id_metric = $a->[aID_METRIC];	# id de la metrica
+	my $alert_type = $a->[aALERT_TYPE];	# alert type
+	my $notif = $a->[aNOTIF];				# notif flag
+	my $mname = $a->[aMNAME];				# metric name
+	my $watch = $a->[aWATCH];				# watch
+	my $type = $a->[aTYPE];					# type
+	my $counter = $a->[aCOUNTER];			# alert counter
+
+	# ------------------------------------------------------------
+	$txt =~s/__SET_CLR_ALERT__/$set_clr/;
+	$txt =~s/__ALERT_CAUSE__/$alert_cause/;
+	$txt =~s/__DEVICE__/$device/;
+	$txt =~s/__IP__/$ip/;
+	# OJO!! El evento puede tener caracteres html que no sean parseables por Telegram (ej. <br>)
+	# Hay que valorar si para este caso $event_data=''
+	$txt =~s/__EVENT_DATA__/$event_data/;
+
+	my $dbh=$self->dbh();
+	my $store=$self->store();
+	my $attr = $store->get_device_attributes($dbh,$id_dev_alert);
+	foreach my $k (keys %{$attr}) {
+		my $value = $attr->{$k};
+		$txt =~s/$k/$value/;
+	}
+
+	if ($alert_type == TRAP_ALERT_TYPE) { 
+		my $x='Alarma generada por un eqipo remoto, no se dispone de grafica asociada.';
+		$txt =~s/__URL__/$x/;
+	}
+	else {
+		$txt =~s/__URL__/$url/;
+	}
+	$txt =~s/__DATE__/$date_str/;
+	#$txt =~///;
+
+	return $txt;
+}
+
+#----------------------------------------------------------------------------
 sub set_aviso   {
 my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
 
@@ -3835,9 +3927,6 @@ my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
    my $event_data=$a->[aEVENT_DATA] || '';
    my $id_alert=$a->[aID_ALERT];
 
-
-$self->log('info',"set_aviso:: id_dev=$id_dev, notif_type=$notif_type, notif_descr=$notif_descr, dest=$dest, id_cfg_notif=$id_cfg_notif");
-
    my $transport=$self->transport();
 
 	my $set_clr='GENERADA ALERTA';
@@ -3848,31 +3937,18 @@ $self->log('info',"set_aviso:: id_dev=$id_dev, notif_type=$notif_type, notif_des
    my $SUBJECT = $cfg->{notif_subject}->[0].' '.$msg_full;
    $transport->subject($SUBJECT);
 
+   my $url='';
+   foreach my $u (@{$cfg->{'www_server_url'}}) {
+      $url .= $u.'/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n";
+   }
+   if ($url eq '') { $url='https://'.$self->cid_ip().'/onm/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n"; }
+
+	$self->log('info',"set_aviso:: id_dev=$id_dev, notif_type=$notif_type, notif_descr=$notif_descr, dest=$dest, id_cfg_notif=$id_cfg_notif, url=$url");
+
 	#--------------------------------------------------------------------------------
    if ($notif_type == $Crawler::Transport::NOTIF_EMAIL) {
 
-      my $url='';
-      foreach my $u (@{$cfg->{'www_server_url'}}) {
-         #$url .= $u.'/detalle_alerta.php?iddev='.$a->[aDEVICE].'&mname='.$a->[aMNAME]."\n";
-         $url .= $u.'/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n";
-      }
-      if ($url eq '') { $url='https://'.$self->cid_ip().'/onm/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n"; }
-
-		my $txt ="$set_clr : $alert_cause\nDISPOSITIVO = $device\nIP = $ip\n";
-		if ($event_data ne '') { 
-			$event_data=~s/ \| /\n/g;
-			$txt .= "EVENTO = $event_data\n"; 
-		}
-
-      #my $url = $cfg->{'www_server_url'}->[0].'/detalle_alerta.php?iddev='.$a->[aDEVICE].'&mname='.$a->[aMNAME];
-      $txt .="\nEl informe sobre el incidente esta disponible en:\n\n$url\n\n(Mensaje generado automaticamente. Por favor no responda)\n\n";
-      # Si se trata de un trap no tiene sentido usar la misma url o bien hay que modificarla
-      if ($a->[aALERT_TYPE] == TRAP_ALERT_TYPE) { $txt .="\nAlarma generada por un eqipo remoto, no se dispone de grafica asociada.\n\n(Mensaje generado automaticamente. Por favor no responda)\n\n"; }
-
-      my $data_path=$cfg->{'data_path'}->[0];
-      #my $rrd=$data_path.$res->[0][0];
-      $self->log('info',"set_aviso::AVISO=> **FML** URL=$url");
-
+		my $txt = $self->compose_notification_body($set_clr,$url,$a,$notif_info);
       $transport->notify_by_transport($notif_type, {'dest'=>$dest, 'subject'=>$SUBJECT, 'txt'=>$txt});
 
 		$msg_full.=" $alert_cause";
@@ -3889,17 +3965,9 @@ $self->log('info',"set_aviso:: id_dev=$id_dev, notif_type=$notif_type, notif_des
    #--------------------------------------------------------------------------------
    elsif ($notif_type == $Crawler::Transport::NOTIF_TELEGRAM) {
 
-      my $url='';
-      foreach my $u (@{$cfg->{'www_server_url'}}) {
-         #$url .= $u.'/detalle_alerta.php?iddev='.$a->[aDEVICE].'&mname='.$a->[aMNAME]."\n";
-         $url .= $u.'/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n";
-      }
-      if ($url eq '') { $url='https://'.$self->cid_ip().'/onm/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n"; }
-
       my $txt ="**$set_clr** <b>$alert_cause</b> en <b>$device</b> [<b>$ip</b>] ";
 		# OJO!! El evento no se debe incluir porque puede tener caracteres html (caso email p.ej) que 
 		# no sean parseables por Telegram (ej. <br>)
-
       $txt .="\nEl informe sobre el incidente esta disponible en:\n\n$url\n\n";
 
 
