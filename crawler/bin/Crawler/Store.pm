@@ -1139,6 +1139,42 @@ my @c=();
 
 }
 
+#----------------------------------------------------------------------------
+# Funcion: get_device_attributes
+# Descripcion:
+#----------------------------------------------------------------------------
+sub get_device_attributes {
+my ($self,$dbh,$id_dev)=@_;
+my @c=();
+
+	my %INFO=();
+   #my $rres=sqlSelectAll($dbh,'id,descr,tipo','devices');
+
+	my %attr_label=(); #e.j: columna1->Proveedor
+	my %attr_data=(); #e.j: columna1->indra
+
+	my $DEV_COLS='a.type,a.sysoid,a.sysdesc'; #***1****
+	my @cols = split (',', $DEV_COLS);
+   my $rres=sqlSelectAll($dbh,'id,descr,tipo','devices_custom_types');
+   foreach my $r (@$rres) {
+		my $key='b.columna'.$r->[0];
+		$attr_label{$key} = $r->[1];
+		push @cols, $r->[0];
+	}
+
+	my $what = $DEV_COLS . ',' . join ',', sort keys %attr_label;
+	$rres=sqlSelectAll($dbh,$what,'devices a, devices_custom_data b',"a.id_dev=b.id_dev AND a.id_dev=$id_dev");
+	$INFO{'__TYPE__'} = $rres->[0][0];
+	$INFO{'__SYSOID__'} = $rres->[0][1];
+	$INFO{'__SYSDESC__'} = $rres->[0][2];	#***2***
+	my $k=3;											#***3***
+	foreach my $i ($k..scalar(@cols)-1) {
+		my $key='b.columna'.$cols[$i];
+		my $attr = '__'. uc $attr_label{$key} . '__';
+		$INFO{$attr} = $rres->[0][$i];	
+	}
+	return \%INFO;
+}
 
 
 #----------------------------------------------------------------------------
@@ -6767,14 +6803,14 @@ my ($self,$dbh)=@_;
    my $rres=sqlSelectAll(
 
       $dbh,
-      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity,c.wsize',
+      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity,c.wsize,c.template',
       'cfg_notifications c,  cfg_notification2device d, cfg_notification2transport t, cfg_register_transports r',
       'c.status=0 AND c.id_cfg_notification=d.id_cfg_notification AND c.id_cfg_notification=t.id_cfg_notification AND t.id_register_transport=r.id_register_transport'
    );
 
    foreach my $l (@$rres) {
 		my $id=$l->[0].'-'.$l->[1].'-'.$l->[4];
-      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'wsize'=>$l->[9], 'aviso'=>1 };
+      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'wsize'=>$l->[9], 'template'=>$l->[10], 'aviso'=>1 };
    }
 
 	# --------------------------------------------------
@@ -6784,7 +6820,7 @@ my ($self,$dbh)=@_;
    $rres=sqlSelectAll(
 
       $dbh,
-      'c.id_cfg_notification,d.id_device,c.id_alert_type,a.aname,a.name,c.name as nname,c.monitor,c.type_app,c.type_run,a.script,a.params,s.timeout,c.severity,c.wsize',
+      'c.id_cfg_notification,d.id_device,c.id_alert_type,a.aname,a.name,c.name as nname,c.monitor,c.type_app,c.type_run,a.script,a.params,s.timeout,c.severity,c.wsize,c.template',
       'cfg_notifications c,  cfg_notification2device d, cfg_monitor_apps a, cfg_notification2app b, cfg_monitor_agent_script s',
       'c.status=0 AND c.id_cfg_notification=d.id_cfg_notification AND a.id_monitor_app=b.id_monitor_app AND b.id_cfg_notification=c.id_cfg_notification AND a.script=s.script'
    );
@@ -6794,11 +6830,11 @@ my ($self,$dbh)=@_;
 
 		#type_run != 0 => Se ejecuta inmediatamente
 		if ($l->[8] != 0) {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'run'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'run'=>1 };
 		}
 		#type_run == 0 => Se ejecuta como tarea
 		else {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'app'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'app'=>1 };
 		}
    }
 
@@ -9274,6 +9310,35 @@ my ($self, $max_size) =@_;
    }
 }
 
+
+#----------------------------------------------------------------------------
+# create_app_temp_table
+# Elimina de la BBDD los datos previamente obtenidos de una APP.
+# Tablas logp_xxxxx (logp_333333001008_icg_from_db)
+#----------------------------------------------------------------------------
+sub create_app_temp_table  {
+my ($self,$dbh,$app_id,$app_name)=@_;
+
+#CREATE TEMPORARY TABLE tmp_logp_333333001020_idocs_03_errors_from_sap (`id_log` int(11) NOT NULL AUTO_INCREMENT, `hash` varchar(16) NOT NULL DEFAULT 'unk', `ts` int(11) NOT NULL, `line` text NOT NULL,   PRIMARY KEY (`id_log`), UNIQUE KEY `hash_idx` (`hash`));
+
+	$app_name=~s/\-/_/g;
+
+	my $table = 'logp_'.$app_id.'_'.$app_name.'_temp';
+   my $fields_create='id_log int NOT NULL AUTO_INCREMENT, hash varchar(16) NOT NULL default "unk", ts int NOT NULL, line TEXT NOT NULL, PRIMARY KEY (id_log), UNIQUE KEY hash_idx (hash)';
+
+   sqlCreate($dbh,$table,$fields_create,0);
+
+   $self->error($libSQL::err);
+   $self->errorstr($libSQL::errstr);
+   $self->lastcmd($libSQL::cmd);
+   if ($libSQL::err != 0) {
+      $self->log('info',"create_app_temp_table:**ERROR** AL CREAR TABLA TEMP $table ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+   else {
+      $self->log('info',"create_app_temp_table:[INFO] CREADA TABLA TEMP $table ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+}
+
 #----------------------------------------------------------------------------
 # clear_app_data
 # Elimina de la BBDD los datos previamente obtenidos de una APP.
@@ -9283,6 +9348,7 @@ sub clear_app_data  {
 my ($self,$dbh,$logfile,$source)=@_;
 
    # ------------------------------------------------------
+	#ej: logp_333333001020_idocs_03_errors_from_sap
 	$logfile=~s/\-/_/g;
 	my $table = 'logp_'.$source.'_'.$logfile;
 	my $where = '';
@@ -9298,6 +9364,29 @@ my ($self,$dbh,$logfile,$source)=@_;
 
 }
 
+#----------------------------------------------------------------------------
+# flush_app_data
+# Mueve los datos de la tabla temporal de la app logp_xxxxx_temp a la tabla final logp_xxxx
+#----------------------------------------------------------------------------
+sub flush_app_data  {
+my ($self,$dbh,$app_id,$app_name)=@_;
+
+	$app_name=~s/\-/_/g;
+   my $table1 = 'logp_'.$app_id.'_'.$app_name.'_temp';
+   my $table2 = 'logp_'.$app_id.'_'.$app_name;
+
+   $self->log('info',"flush_app_data:: FLUSH DATA $table1 -> $table2");
+
+	#sp_table1_to_table2('logp_333333001020_idocs_03_errors_from_sap','kk');
+   my $rv=sqlCmd($dbh,"CALL sp_table1_to_table2(\'$table1\',\'$table2\')");
+
+   $self->error($libSQL::err);
+   $self->errorstr($libSQL::errstr);
+   $self->lastcmd($libSQL::cmd);
+   if ($libSQL::err) {
+      $self->manage_db_error($dbh,"flush_app_data");
+   }
+}
 
 #----------------------------------------------------------------------------
 # set_log_rx_lines
@@ -9357,7 +9446,7 @@ $self->log('info',"*****DEBUG*****$libSQL::cmd******");
       #$self->errorstr($libSQL::errstr);
       #$self->lastcmd($libSQL::cmd);
 
-      #Si no existe la tabla, se crea
+      #Si no existe la tabla (1146), se crea
       if ($libSQL::err == 1146) {
 
          # id_dev,id_credential,logfile,tabname,todb,status,parser

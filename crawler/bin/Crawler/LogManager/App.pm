@@ -26,6 +26,7 @@ use Net::IMAP::Simple;
 use MIME::Parser;
 use HTML::TableExtract;
 use Schedule::Cron;
+use Crawler::LogManager::App::SAP;
 
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
@@ -488,7 +489,6 @@ my $pid;
    }
 }
 
-
 #----------------------------------------------------------------------------
 # do_task
 #----------------------------------------------------------------------------
@@ -507,7 +507,7 @@ my ($self,$lapse,$task)=@_;
 	my $tasks = $self->tasks();
 
    my $ok=1;
-   my $RELOAD_FILE='/var/www/html/onm/tmp/mail_manager.reload';
+   my $RELOAD_FILE='/var/www/html/onm/tmp/syslog.reload';
 	$self->check_configuration();
    my $log_level=$self->log_level();
 
@@ -548,15 +548,13 @@ my ($self,$lapse,$task)=@_;
 					my $i=0;
 					my $total=scalar(@$lines);
 
-      			foreach my $lx (@$lines) {
+      			foreach my $ev (@$lines) {
 
 						$i++;
-						$self->log('info',"do_task::**DEBUG*** source_line [$i|$total] >> $lx->{'source_line'}");
-
-	        	 		if (! $self->check_event($lx)) { next; }
+						$self->log('info',"do_task:: CHECK ALERT [$i|$total] >> $ev->{'source_line'}");
 
    	      		# Gestiono la posible alerta
-      	   		$self->check_alert();
+      	   		$self->check_alert($ev);
       			}
 				}
          }
@@ -624,8 +622,10 @@ my ($self,$app_id,$host)=@_;
 # Puede hacer dos cosas:
 # 1. Ejecutar el comando cmd configurado en el decriptor.
 # 2. Ejecutar un modulo core interno (imap4)
-# La salida es un vector de datos con 4 valores separados por ','
+# A partir estos datos (vector con 4 valores separados por ','):
 # timestamp,app-id,app-name,json-msg-hash
+# Los convierte en eventos que almacena en logp_xxxx
+# La salida es un vector de eventos nuevos para hacer luego el check_alert
 #----------------------------------------------------------------------------
 sub get_app_data {
 my ($self,$task_cfg_file)=@_;
@@ -648,6 +648,8 @@ $self->log('debug',"get_app_data:: app=$xx");
    $self->log('info',"get_app_data:: CAPTURE by $cmd");
 
 	my $data=[];
+   my $store=$self->store();
+   my $dbh=$self->dbh();
 
 	#--------------------------------------------
 	# 1. CAPTURE DATA
@@ -657,10 +659,13 @@ $self->log('debug',"get_app_data:: app=$xx");
 	#--------------------------------------------
 	# Internal cmd capture
 	if ($cmd eq 'core-imap') {
-
 		$data = $self->core_imap_get_app_data($task_cfg_file); 
-
 	}
+   elsif ($cmd eq 'core-sap') {
+		my $app_sap = Crawler::LogManager::App::SAP->new(log_level=>'info');
+		$data = $app_sap->core_sap_get_app_data($task_cfg_file);
+   }
+
 	# External cmd captura 
 	else {
 	   capture sub { $rc=system($cmd); } => \$stdout, \$stderr;
@@ -680,26 +685,26 @@ $self->log('debug',"get_app_data:: app=$xx");
 
 
    #--------------------------------------------
-	# Hace clear de datos en caso de que aplique
-   #--------------------------------------------
+   my %app_flush=();
    foreach my $h (@{$app->{'mapper'}}) {
       my @k = keys %$h;
       my $app_id = $k[0]; # module = app_id
-		if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
- 			my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
-			if (exists $h->{$app_id}->{'app_name'}) { $logfile = $h->{$app_id}->{'app_name'}.'-'.$logfile; }
-			$self->log('info',"get_app_data:: **FLUSH** app_id=$app_id logfile=$logfile");
-		   my $store=$self->store();
-   		my $dbh=$self->dbh();
-			$store->clear_app_data($dbh,$logfile,$app_id);
-		}
-	}
+      if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
+			#$app_flush{$app_id}=$h->{$app_id}->{'app_name'};
+
+			$app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
+			my $logfile_temp = $app_flush{$app_id}.'_temp';
+         $store->clear_app_data($dbh,$logfile_temp,$app_id);
+      }
+   }
 
    #--------------------------------------------
 	# Si no hay datos, termina
 	my $n=scalar(@$data);
 	$self->log('info',"get_app_data:: CAPTURED >> $n LINES");
-	if ($n==0) { return $data; }
+	if ($n==0) { 
+		return $data; 
+	}
 
    #--------------------------------------------
    # 2. TRANSFORM DATA (line by line) -> custom_line_parser
@@ -813,8 +818,10 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    #timestamp,app-id,app-name,json info hash
    #timestamp,app-id,app-name,json info hash:::md5_line
    my @lines=();
+	my ($cnt_ok,$cnt_nok) = (0,0);
+	my $cnt_tot = scalar (@$data);
    foreach my $l (@$data) {
-
+		
       chomp $l;
 
       my %MSG = ();
@@ -851,11 +858,75 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
          $MSG{'source_line'} = $l;
       }
 
-$self->log('debug',"app_parser:: source_line=$MSG{'source_line'}*****md5=$MSG{'md5'}");
+$self->log('debug',"app_parser:: ts=$MSG{'ts'} app_id=$MSG{'app_id'} app_name=$MSG{'app_name'} source_line=$MSG{'source_line'} md5=$MSG{'md5'}");
 
-      push @lines, \%MSG;
+#      push @lines, \%MSG;
+
+
+
+		#-------------------
+   	#$self->event($msg);
+
+
+	   $MSG{'msg_custom'}='';
+   	my @msgdata=();
+	   push @msgdata,'Line::'.$MSG{'source_line'};
+   	my @vdata = ();
+   	my %vardata = ();
+   	push @vdata,$MSG{'source_line'};
+	   my $msg_fields = {};
+   	eval { $msg_fields = decode_json($MSG{'source_line'}); };
+   	if (! $@) {
+      	my $i=2;
+      	foreach my $k (sort keys %$msg_fields) {
+         	push @msgdata,$k.'::'.$msg_fields->{$k};
+	         push @vdata, $msg_fields->{$k};
+   	      $vardata{$k} = $msg_fields->{$k};
+      	   $i++;
+      	}
+   	}
+	   $MSG{'vdata'} = \@vdata;
+   	$MSG{'vardata'} = \%vardata;
+   	$MSG{'msg'} = join ('|',@msgdata);
+
+	   my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
+
+   	if (exists $MSG{'app_name'}) { $logfile = $MSG{'app_name'}.'-'.$logfile; }
+
+   	# Almaceno el evento ---------------------------------------------------------------------
+   	my $t = (exists $MSG{'ts'}) ? $MSG{'ts'} : time;
+
+   	# Las tablas de APPS se identifican por su $app_id, no por la direccion IP.
+   	my $app_id = (exists $MSG{'app_id'}) ? $MSG{'app_id'} : '000000000000';
+
+		# Si es modo de captura flush -> Se inserta en tabla temp
+		if (exists $app_flush{$app_id}) { $logfile .= '_temp'; }
+
+   	# Almaceno en la tabla de log correspondiente
+   	my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$MSG{'ip'},$MSG{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$MSG{'source_line'}, 'md5'=>$MSG{'md5'}}]);
+
+   	if ($cnt_lines == 0) {
+			$cnt_nok += 1;
+      	$self->log('info',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] SKIPPED - event exists no alert checking [$app_id] logfile=$logfile");
+   	}
+   	else {
+			$cnt_ok += 1;
+      	$self->log('info',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}");
+
+			push @lines, \%MSG;
+		}
 
    }
+
+   foreach my $aid (keys %app_flush) { 
+		#logp_tmp -> logp
+		#my $tabx_tmp = 'logp_'.$aid.'_'.$app_flush{$aid}.'_temp';
+		#my $tabx = 'logp_'.$aid.'_'.$app_flush{$aid};
+		#$self->log('info',"check_event:: FLUSH DATA $tabx_tmp -> $tabx");
+
+		$store->flush_app_data($dbh,$aid,$app_flush{$aid});
+	}
+
 
    return \@lines;
 }
@@ -897,89 +968,15 @@ my ($self)=@_;
 }
 
 #------------------------------------------------------------------------------------------
-# check_event
-# 1. Parsea la linea de syslog
-# 2. Almacena el evento correspondiente
-# OUT: 1 (Ha almacenado evento) | 0 (No ha almacenado evento)
-#------------------------------------------------------------------------------------------
-sub check_event {
-my ($self,$msg) = @_;
-
-	my $app = $self->app();
-
-   $self->event($msg);
-   my $store=$self->store();
-   my $dbh=$self->dbh();
-
-my $x=Dumper($msg);
-$x=~s/\n/ /g;
-$self->log('debug',"check_event::[DEBUG] MSG = $x");
-
-   $msg->{'msg_custom'}='';
-   #$msg->{'msg'}='<b>v1: (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'}.'&nbsp;';
-	my @msgdata=();
-	#push @msgdata,'<b>v1: (Line):</b>&nbsp;&nbsp;'.$msg->{'source_line'}.'&nbsp;';
-	push @msgdata,'Line::'.$msg->{'source_line'};
-	my @vdata = ();
-	my %vardata = ();
-	push @vdata,$msg->{'source_line'};
-	my $msg_fields = {};
-   eval { $msg_fields = decode_json($msg->{'source_line'}); };
-   if (! $@) {
-		my $i=2;
-		foreach my $k (sort keys %$msg_fields) {
-			#$msg->{'msg'}.= "<b>v$i: ($k):</b>&nbsp;&nbsp;".$msg_fields->{$k}.'&nbsp;'; 
-			#push @msgdata,"<b>v$i: ($k):</b>&nbsp;&nbsp;".$msg_fields->{$k}.'&nbsp;';
-			push @msgdata,$k.'::'.$msg_fields->{$k};
-			push @vdata, $msg_fields->{$k};
-			$vardata{$k} = $msg_fields->{$k};
-			$i++;
-		}
-   }
-	$msg->{'vdata'} = \@vdata;
-	$msg->{'vardata'} = \%vardata;
-	$msg->{'msg'} = join ('|',@msgdata);
-
-   my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
-
-	if (exists $msg->{'app_name'}) { $logfile = $msg->{'app_name'}.'-'.$logfile; }
-
-
-   # Almaceno el evento ---------------------------------------------------------------------
-   my $t = (exists $msg->{'ts'}) ? $msg->{'ts'} : time;
-
-	# Las tablas de APPS se identifican por su $app_id, no por la direccion IP.
-	my $app_id = (exists $msg->{'app_id'}) ? $msg->{'app_id'} : '000000000000';
-	
-   # Almaceno en la tabla de log correspondiente
-   my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$msg->{'ip'},$msg->{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$msg->{'source_line'}, 'md5'=>$msg->{'md5'}}]);
-
-	if ($cnt_lines == 0) {
-	   $self->log('info',"check_event:: event exists - no alert checking [$app_id]");
-		return 0;
-	}
-	else {
-	   $self->log('info',"check_event:: STORE LOG [$cnt_lines] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$msg->{'msg'}, name=>$msg->{'name'}, domain=>$msg->{'domain'}, ip=>$msg->{'ip'}");
-	}
-
-   $self->event($msg);
-
-   return 1;
-
-}
-
-
-
-#------------------------------------------------------------------------------------------
 # check_alert
 # Comprueba si el evento recibido por syslog debe generar una alerta.
 #------------------------------------------------------------------------------------------
 sub check_alert {
-my ($self)=@_;
+my ($self,$event)=@_;
 
    my $store=$self->store();
    my $dbh=$self->dbh();
-   my $event=$self->event();
+   $self->event($event);
 
    my $alert2expr=$self->alert2expr();
    my $event2alert=$self->event2alert();
@@ -1051,6 +1048,8 @@ my $kk=Dumper($alert2expr->{$id_remote_alert});
 $kk=~s/\n/ /g;
 $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
 $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert VALS=@vals");
+$kk = join(' - ', @{$event->{'vdata'}});
+$self->log('info',"check_alert:: id_remote_alert=$id_remote_alert VDATA=$kk");
 
       #my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,\@vals);
       my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,$event->{'vdata'});
@@ -1169,7 +1168,31 @@ $self->log('info',"check_alert::[INFO] match_set_clear >> vm=$vm COMPARO $set_va
 }
 
 
+#------------------------------------------------------------------------------------------
+# set_app_lock
+#------------------------------------------------------------------------------------------
+sub set_app_lock {
+my ($self,$app_id)=@_;
 
+	my $file='/var/run/'.$app_id.'.lock';
+	my $rc = open (F,">$file");
+	if ($rc) {
+		print F "$$\n";
+		close F;
+	}
+	$self->log('info',"set_app_lock:: $file");
+}
+
+#------------------------------------------------------------------------------------------
+# clear_app_lock
+#------------------------------------------------------------------------------------------
+sub clear_app_lock {
+my ($self,$app_id)=@_;
+
+   my $file='/var/run/'.$app_id.'.lock';
+	my $rc = unlink $file;
+	$self->log('info',"clear_app_lock:: $file");
+}
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------

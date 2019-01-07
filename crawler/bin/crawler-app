@@ -8,6 +8,7 @@ use Getopt::Std;
 use ONMConfig;
 use Crawler;
 use Crawler::LogManager::App;
+#use Crawler::LogManager::AppNew;
 
 #-------------------------------------------------------------------------------------------
 my $VERSION='1.0';
@@ -20,6 +21,19 @@ my $GROUP='root';
 my $NPROC=2;
 my $FILE_XML='1';
 my $RANGE=undef;
+
+#-------------------------------------------------------------------------------------------
+#my %USO_NUEVA = (
+#	#'8000'=>1, #correo imap
+#	#'8001'=>1, #MSSQL 2005
+#	'8002'=>1, '8003'=>1, '8004'=>1, '8005'=>1, #elk
+#	#'8006'=>1, '8007'=>1, #sap YMCSESS
+#	'8008'=>1, '8009'=>1, '8010'=>1,
+#	#'8011'=>1, # Parse log files (mount)
+#	'8012'=>1, '8013'=>1, '8014'=>1,
+#	'8015'=>1, # SFTP
+#	'8016'=>1, '8017'=>1, '8018'=>1, '8019'=>1, '8020'=>1
+#);
 
 #-------------------------------------------------------------------------------------------
 my $ip=my_ip();
@@ -36,26 +50,31 @@ getopts("hixlskrc:d:f:",\%opts);
 my $range = (defined $opts{c}) ? $opts{c} : 'all';
 my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
 
+my $crawler;
+
 if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
 #-------------------------------------------------------------------------------------------
 elsif ($opts{i}) {
-	 # Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
-        my $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
-        $crawler->register();
+	# Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
+	
+   $crawler=Crawler->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+  	$crawler->register();
 }
 #-------------------------------------------------------------------------------------------
 elsif ($opts{s}) { 
 	# Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
-	my $crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler-app", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, cid=>$cid, cid_ip=>$ip, data_path=>$data_path );
+	
+	$crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler-app", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, cid=>$cid, cid_ip=>$ip, data_path=>$data_path );
+
 	if ($opts{x}) { $crawler->daemon(0); }
 	if ($opts{f}) { $crawler->config_path($opts{f}); }
 	my $pid=$crawler->run();
 }
 #-------------------------------------------------------------------------------------------
 elsif ($opts{k}) {
-        # Termina los procesos crawler registrados ------------------------------------------
-        my $crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
-        $crawler->stop();
+   # Termina los procesos crawler registrados ------------------------------------------
+	$crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+   $crawler->stop();
 }
 #-------------------------------------------------------------------------------------------
 elsif ($opts{r}) {
