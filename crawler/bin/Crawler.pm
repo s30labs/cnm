@@ -3107,7 +3107,7 @@ my ($self, $vector, $offset) = @_;
 		#[crawler.4070.snmp.300]
 		#[crawler.7000.snmp.3600]
       #[notificationsd.010.notificationsd.60]
-      if ($f=~/^\[(\w+)\.(\d+)\.(\w+)\.(\d+)\]$/) {  ($proc,$proc_time) = ($1,$4); } 
+      if ($f=~/^\[(\S+?)\.(\d+)\.(\w+)\.(\d+)\]$/) {  ($proc,$proc_time) = ($1,$4); } 
 
 		my $max_time = $offset*$proc_time;
 		#/actionsd/ y /notificationsd/ siguen otro criterio.
@@ -3131,7 +3131,7 @@ my ($self, $vector, $offset) = @_;
 		#$self->log('debug', "chk_tmark[$$]:: f=$f PID=$pid tdiff=$tdiff ($tnow - $ts) max_time=$max_time");
 
 		if ($tdiff>$max_time) {
-	      $self->log('info',"chk_tmark:: **RESTART $f** KILL PID=$pid ($tnow - $ts) $tdiff>$max_time");
+	      $self->log('info',"chk_tmark:: **RESTART $f** KILL PID=$pid proc=$proc ($tnow - $ts) $tdiff>$max_time");
    	   my $rc=kill 9, $pid;
       	$self->log('info',"chk_tmark:: RESTART DONE [RC=$rc]");
 			unlink $file;
