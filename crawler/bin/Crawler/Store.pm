@@ -1142,6 +1142,10 @@ my @c=();
 #----------------------------------------------------------------------------
 # Funcion: get_device_attributes
 # Descripcion:
+# Returns hash with fields:
+# __TYPE__ __SYSOID__ __SYSDESC__ __SYSLOC__ __STATUS__ __COMMUNITY__ __VERSION__
+# __CRITIC__ __MAC__ __MACVENDOR__ __GEODATA__
+# + __CUSTOM FIELDS__ ....
 #----------------------------------------------------------------------------
 sub get_device_attributes {
 my ($self,$dbh,$id_dev)=@_;
@@ -1153,7 +1157,7 @@ my @c=();
 	my %attr_label=(); #e.j: columna1->Proveedor
 	my %attr_data=(); #e.j: columna1->indra
 
-	my $DEV_COLS='a.type,a.sysoid,a.sysdesc'; #***1****
+	my $DEV_COLS='a.type,a.sysoid,a.sysdesc, a.sysloc,a.status,a.community,a.version,a.critic,a.mac,a.mac_vendor,a.geodata'; #***1****
 	my @cols = split (',', $DEV_COLS);
    my $rres=sqlSelectAll($dbh,'id,descr,tipo','devices_custom_types');
    foreach my $r (@$rres) {
@@ -1166,8 +1170,19 @@ my @c=();
 	$rres=sqlSelectAll($dbh,$what,'devices a, devices_custom_data b',"a.id_dev=b.id_dev AND a.id_dev=$id_dev");
 	$INFO{'__TYPE__'} = $rres->[0][0];
 	$INFO{'__SYSOID__'} = $rres->[0][1];
-	$INFO{'__SYSDESC__'} = $rres->[0][2];	#***2***
-	my $k=3;											#***3***
+	$INFO{'__SYSDESC__'} = $rres->[0][2];
+
+	$INFO{'__SYSLOC__'} = $rres->[0][3];
+	$INFO{'__STATUS__'} = $rres->[0][4];
+	$INFO{'__COMMUNITY__'} = $rres->[0][5];
+	$INFO{'__VERSION__'} = $rres->[0][6];
+	$INFO{'__CRITIC__'} = $rres->[0][7];
+	$INFO{'__MAC__'} = $rres->[0][8];
+	$INFO{'__MACVENDOR__'} = $rres->[0][9];
+	$INFO{'__GEODATA__'} = $rres->[0][10];
+
+	#my $k=3;											#***3***
+	my $k=11;											#***3***
 	foreach my $i ($k..scalar(@cols)-1) {
 		my $key='b.columna'.$cols[$i];
 		my $attr = '__'. uc $attr_label{$key} . '__';

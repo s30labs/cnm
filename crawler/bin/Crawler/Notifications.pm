@@ -3891,30 +3891,30 @@ __URL__
 	my $counter = $a->[aCOUNTER];			# alert counter
 
 	# ------------------------------------------------------------
-	$txt =~s/__SET_CLR_ALERT__/$set_clr/;
-	$txt =~s/__ALERT_CAUSE__/$alert_cause/;
-	$txt =~s/__DEVICE__/$device/;
-	$txt =~s/__IP__/$ip/;
+	$txt =~s/__SET_CLR_ALERT__/$set_clr/g;
+	$txt =~s/__ALERT_CAUSE__/$alert_cause/g;
+	$txt =~s/__DEVICE__/$device/g;
+	$txt =~s/__IP__/$ip/g;
 	# OJO!! El evento puede tener caracteres html que no sean parseables por Telegram (ej. <br>)
 	# Hay que valorar si para este caso $event_data=''
-	$txt =~s/__EVENT_DATA__/$event_data/;
+	$txt =~s/__EVENT_DATA__/$event_data/g;
 
 	my $dbh=$self->dbh();
 	my $store=$self->store();
 	my $attr = $store->get_device_attributes($dbh,$id_dev_alert);
 	foreach my $k (keys %{$attr}) {
 		my $value = $attr->{$k};
-		$txt =~s/$k/$value/;
+		$txt =~s/$k/$value/g;
 	}
 
 	if ($alert_type == TRAP_ALERT_TYPE) { 
 		my $x='Alarma generada por un eqipo remoto, no se dispone de grafica asociada.';
-		$txt =~s/__URL__/$x/;
+		$txt =~s/__URL__/$x/g;
 	}
 	else {
-		$txt =~s/__URL__/$url/;
+		$txt =~s/__URL__/$url/g;
 	}
-	$txt =~s/__DATE__/$date_str/;
+	$txt =~s/__DATE__/$date_str/g;
 	#$txt =~///;
 
 	return $txt;
