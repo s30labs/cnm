@@ -703,6 +703,10 @@ $self->log('debug',"get_app_data:: app=$xx");
 	my $n=scalar(@$data);
 	$self->log('info',"get_app_data:: CAPTURED >> $n LINES");
 	if ($n==0) { 
+
+	   foreach my $aid (keys %app_flush) {
+      	$store->flush_app_data($dbh,$aid,$app_flush{$aid});
+   	}
 		return $data; 
 	}
 
