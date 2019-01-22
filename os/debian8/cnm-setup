@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #-------------------------------------------------------------------------------------------
-# Fichero: cnm-install-core
+# Fichero: cnm-setup
 #-------------------------------------------------------------------------------------------
 use strict;
 use Getopt::Std;
@@ -20,6 +20,7 @@ my $USAGE = <<USAGE;
 CNM Installer $VERSION (c) s30labs
 
 $fpth[$#fpth] 
+$fpth[$#fpth] [-o] 
 $fpth[$#fpth] -a root_pwd
 $fpth[$#fpth] [-m master] [-r rev_number]
 $fpth[$#fpth] -h
@@ -29,12 +30,13 @@ $fpth[$#fpth] -h
 -b : clave del usuario onm de BBDD
 -m : Modo (branch)
 -r : Revision
+-o : Store STDOUT and STDERR to file (/tmp/cnm-install-core.log)
 -h : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hum:a:b:r:",\%opts);
+getopts("houm:a:b:r:",\%opts);
 if ($opts{h}) { die $USAGE;}
 my $BRANCH = 'master';
 if ($opts{m}) { $BRANCH=$opts{m}; }
@@ -139,14 +141,28 @@ if (scalar(keys %cfg_vars)>0) {
 	}
 }
 
-my $cwd = cwd();
-chdir('/opt/cnm/os/debian8');
-my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts $extra_vars cnm.yml > /tmp/cnm-install-core.log";
+my $script_file = '/tmp/cnm-install-core.sh';
+create_script($script_file);
+my $cmd = "$script_file \"$extra_vars\"";
+if ($opts{o}) {
+	$cmd .= ' | tee /tmp/cnm-install-core.log';
+}
 print "$cmd\n\n";
-print "Check progress with tail -f /tmp/cnm-install-core.log\n";
-`$cmd`;
-chdir($cwd);
+exec "$cmd";
  
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub create_script {
+my ($script_file)=@_;
+
+   local($/) = undef;  # slurp
+	my $script_code = <DATA>;
+	open (F,">$script_file");
+	print F "$script_code\n";
+	close F;
+	chmod 0755, $script_file;
+}
+
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 sub get_feature {
@@ -218,4 +234,13 @@ my ($feature) = @_;
    close F;
 
 }
+
+__DATA__
+#!/bin/bash
+
+dir1=$(pwd)
+cd /opt/cnm/os/debian8
+ansible-playbook -c local -i /cfg/ansible.hosts $1 cnm.yml
+#cd $dir1
+
 
