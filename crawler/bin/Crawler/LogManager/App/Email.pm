@@ -45,6 +45,8 @@ my ($class,%arg) =@_;
 
    my $self=$class->SUPER::new(%arg);
 	$self->{_cfg} = $arg{cfg} || 0;
+	$self->{_mail_dir} = $arg{mail_dir} || '/home/cnm/correos';
+	$self->{_save_mail} = $arg{save_mail} || 0;
    return $self;
 
 }
@@ -59,6 +61,31 @@ my ($self,$cfg) = @_;
       $self->{_cfg}=$cfg;
    }
    else { return $self->{_cfg}; }
+}
+
+#----------------------------------------------------------------------------
+# mail_dir
+#----------------------------------------------------------------------------
+sub mail_dir {
+my ($self,$mail_dir) = @_;
+   if (defined $mail_dir) {
+      $self->{_mail_dir}=$mail_dir;
+   }
+   else { return $self->{_mail_dir}; }
+}
+
+#----------------------------------------------------------------------------
+# save_mail
+# Be careful when storing mails to disk !!!
+# Command to remove files older than 30 days.
+# find /home/cnm/correos/ -type f -name '*.msg' -mtime +30 -exec rm {} \;
+#----------------------------------------------------------------------------
+sub save_mail {
+my ($self,$save_mail) = @_;
+   if (defined $save_mail) {
+      $self->{_save_mail}=$save_mail;
+   }
+   else { return $self->{_save_mail}; }
 }
 
 #------------------------------------------------------------------------------------------
@@ -82,6 +109,9 @@ sub core_imap_get_app_data {
 my ($self,$task_cfg_file)=@_;
 
 	my @RESULT = ();
+
+	my $save_mail = $self->save_mail();
+	my $mail_dir = $self->mail_dir();
 
    # Debe existir el fichero de configuracion de la APP
    if ((! defined $task_cfg_file) && (! -f $task_cfg_file)) {
@@ -146,10 +176,12 @@ my ($self,$task_cfg_file)=@_;
    	   # Necesario para que parse_data interprete un string
       	$msg = "$msg";
 
-#Backup FML
-open (F, ">/home/cnm/correos/$ts.msg");
-print F "$msg\n";
-close F;
+			if ($save_mail) {
+				open (F, ">$mail_dir/$ts.msg");
+				print F "$msg\n";
+				close F;
+			}
+
 
       	%HEAD=();
       	($TXT,$HTML) = ('','');
@@ -292,10 +324,10 @@ my ($self,$app,$line) = @_;
    if (! $ok) {
 		$app_cfg = $app->[0]->{'default'};
       ($app_id,$app_name) = ($app->[0]->{'default'}->{'app_id'}, $app->[0]->{'default'}->{'app_name'});
-		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO default app_id=$app_id | app_name=$app_name");
+		$self->log('info',"core-imap4::mail_app_mapper:: MAIL-MAPPED TO default app_id=$app_id | app_name=$app_name");
    }
 	else {
-		$self->log('info',"core-imap4::mail_app_mapper:: MAPPED TO app_id=$app_id | app_name=$app_name");
+		$self->log('info',"core-imap4::mail_app_mapper:: MAIL-MAPPED TO app_id=$app_id | app_name=$app_name");
 	}
 
 
