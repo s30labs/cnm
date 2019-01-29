@@ -109,7 +109,7 @@ my ($self,$task_cfg_file)=@_;
 
 	# mapper contiene el ARRAY de descriptores para cada app_id con todos los dadtos de cada query
    foreach my $h (@{$app->[0]->{'mapper'}}) {
-		print Dumper($h);
+		#print Dumper($h);
 #$h = {
 #          '333333001020' => {
 #                              'app_name' => 'idocs-pedido-no-exportado',
@@ -273,10 +273,7 @@ my ($self,$task_cfg_file)=@_;
 		}
 	}
 
-print Dumper(\@RESULT);
-#foreach my $l (@RESULT) {
-#   print "$l\n";
-#}
+#print Dumper(\@RESULT);
 
 	return \@RESULT;
 

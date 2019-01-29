@@ -859,16 +859,15 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
          $MSG{'source_line'} = $l;
       }
 
-$self->log('debug',"app_parser:: ts=$MSG{'ts'} app_id=$MSG{'app_id'} app_name=$MSG{'app_name'} source_line=$MSG{'source_line'} md5=$MSG{'md5'}");
 
-#      push @lines, \%MSG;
-
-
+		if (! exists $MSG{'app_id'}) {
+			$self->log('info',"**NO EXISTE APP_ID** $l");
+		}
+		else {
+			$self->log('debug',"app_parser:: ts=$MSG{'ts'} app_id=$MSG{'app_id'} app_name=$MSG{'app_name'} source_line=$MSG{'source_line'} md5=$MSG{'md5'}");
+		}
 
 		#-------------------
-   	#$self->event($msg);
-
-
 	   $MSG{'msg_custom'}='';
    	my @msgdata=();
 	   push @msgdata,'Line::'.$MSG{'source_line'};
