@@ -1396,10 +1396,14 @@ my ($self,$dbh)=@_;
 			else { $do_cause=1; }
 
 			# SI WSIZE>0 ==> HAY DEFINIDA VENTANA DE GUARDA
-			my $delta=$ts-$a->[aDATE];
-			if ($delta < $CFG_POST->{$id}->{'wsize'}) {
-				$self->log('info',"manage_app_notifications [$id] +++WAIT WSIZE+++ ts=$ts alarm_date=$a->[aDATE] delta=$delta wsize=$CFG_POST->{$id}->{'wsize'}");
-				next;
+			if ($CFG_POST->{$id}->{'wsize'}>0) {
+				my $delta=$ts-$a->[aDATE];
+			 	$self->set_wsize_mark($id,$a->[aDATE]);
+			
+				if ($delta < $CFG_POST->{$id}->{'wsize'}) {
+					$self->log('info',"manage_app_notifications [$id] +++SET WAIT WSIZE+++ ts=$ts alarm_date=$a->[aDATE] delta=$delta wsize=$CFG_POST->{$id}->{'wsize'}");
+					next;
+				}
 			}
 
 			$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert|$id_alert_type|$monitor) ------------");
@@ -1515,6 +1519,18 @@ my ($self,$dbh)=@_;
          }
          else { $do_cause=1; }
 
+         # SI WSIZE>0 ==> HAY DEFINIDA VENTANA DE GUARDA
+         if ($CFG_POST->{$id}->{'wsize'}>0) {
+            my $ts_alert = $self->get_wsize_mark($id);
+            my $delta=$ts-$ts_alert;
+
+				$self->clear_wsize_mark($id);
+            if ($delta < $CFG_POST->{$id}->{'wsize'}) {
+               $self->log('info',"manage_app_notifications [$id] +++CLR WAIT WSIZE+++ ts=$ts alarm_date=$a->[aDATE] delta=$delta wsize=$CFG_POST->{$id}->{'wsize'}");
+               next;
+            }
+         }
+
 			# SE GENERA AVISO PARA CLR --------------------------------------
 			if ( exists $CFG_POST->{$id}->{'aviso'}) {
 				$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****AVISO**** (CLR)");
@@ -1592,6 +1608,50 @@ my ($self,$dbh)=@_;
 
 }
 
+
+#----------------------------------------------------------------------------
+# set_wsize_mark
+#----------------------------------------------------------------------------
+sub set_wsize_mark {
+my ($self,$id,$ts)=@_;
+
+   my $dir_wmark = $Crawler::MDATA_PATH.'/wsize';
+   if (! -d $dir_wmark) { mkdir $dir_wmark; }
+	my $wfile = $dir_wmark.'/'.$id;
+	open (F,">$wfile");
+	print F $ts;
+	close F;
+
+}
+
+#----------------------------------------------------------------------------
+# get_wsize_mark
+#----------------------------------------------------------------------------
+sub get_wsize_mark {
+my ($self,$id)=@_;
+
+   my $dir_wmark = $Crawler::MDATA_PATH.'/wsize';
+   if (! -d $dir_wmark) { mkdir $dir_wmark; }
+   my $wfile = $dir_wmark.'/'.$id;
+   open (F,"<$wfile");
+   my $ts = <F>;
+   close F;
+	chomp $ts;
+	return $ts;
+
+}
+
+#----------------------------------------------------------------------------
+# clear_wsize_mark
+#----------------------------------------------------------------------------
+sub clear_wsize_mark {
+my ($self,$id)=@_;
+
+   my $dir_wmark = $Crawler::MDATA_PATH.'/wsize';
+   my $wfile = $dir_wmark.'/'.$id;
+	if (-f $wfile) { unlink $wfile; }
+
+}
 
 
 
