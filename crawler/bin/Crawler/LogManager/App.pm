@@ -657,6 +657,11 @@ $self->log('debug',"get_app_data:: app=$xx");
 		my $app_imap = Crawler::LogManager::App::Email->new(log_level=>'info');
 		$app_imap->save_mail(1);
 		$data = $app_imap->core_imap_get_app_data($task_cfg_file); 
+
+		#TEST
+		#my $FILE_MSG='/home/cnm/correos/1548861072.msg';
+		#$data = $app_imap->test_msg_flow($task_cfg_file,$FILE_MSG);
+
 	}
    elsif ($cmd eq 'core-sap') {
 		my $app_sap = Crawler::LogManager::App::SAP->new(log_level=>'info');

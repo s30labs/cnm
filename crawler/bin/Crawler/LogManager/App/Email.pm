@@ -20,7 +20,7 @@ use IO::CaptureOutput qw/capture/;
 use Net::IMAP::Simple;
 use MIME::Parser;
 use HTML::TableExtract;
-
+use HTML::Strip;
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
 
@@ -133,6 +133,9 @@ my ($self,$task_cfg_file)=@_;
 
 	my $x=$self->get_json_config($app->[0]->{'credentials'});
 
+   my $json = JSON->new();
+   $json = $json->canonical([1]);
+
 	# Recorre las cuentas de correo definidas
 	foreach my $h (@$x) {
 
@@ -191,7 +194,7 @@ my ($self,$task_cfg_file)=@_;
 
       	my $entity = $parser->parse_data($msg);
 			if (! $entity) { 
-				$self->log('warning',"core-imap4::app_get_mail_imap5:: **ERROR** en MIME PARSE ($i|$nm)");
+				$self->log('warning',"core-imap4::app_get_mail_imap4:: **ERROR** en MIME PARSE ($i|$nm)");
 				next;
 			}
 
@@ -210,6 +213,7 @@ my ($self,$task_cfg_file)=@_;
 	      $line{'body'} = '';
    	   if ($TXT ne '') { $line{'body'} = $TXT; }
 	      elsif ($HTML ne '') { $line{'body'} = $HTML; }
+
    	   $line{'body'} =~ s/\n/ /g;    # Elimina RC
       	$line{'body'} =~ s/\r/ /g;    # Elimina LF
       	$line{'body'} =~ s/\t/ /g;    # Elimina TABS
@@ -246,10 +250,11 @@ $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
       	}
 
       	#--------------------------------------
+		   my %MSG = ();
+   		$MSG{'source_line'} = $json->encode(\%line);
+   		$MSG{'ts'} = $ts;
+   		$MSG{'source_line'} =~ s/","/", "/g;
 
-      	my %MSG = ();
-      	$MSG{'source_line'} = encode_json(\%line);
-      	$MSG{'ts'} = $ts;
       	push @RESULT, join (',',$MSG{'ts'},$app_id,$app_name,$MSG{'source_line'});
       	#--------------------------------------
 
@@ -274,11 +279,124 @@ $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
 }
 
 
+#------------------------------------------------------------------------------------------
+# test_msg_flow
+#------------------------------------------------------------------------------------------
+sub test_msg_flow {
+my ($self,$task_cfg_file,$file_msg)=@_;
+
+
+	my @RESULT=();
+	my $app=$self->get_json_config($task_cfg_file);
+	
+   my $parser = new MIME::Parser;
+
+   my $FROM_MAIL_FILES_DIR = '/var/www/html/onm/user/files/from_mail';
+   if (! -d $FROM_MAIL_FILES_DIR) { mkdir $FROM_MAIL_FILES_DIR; }
+   $parser->output_dir($FROM_MAIL_FILES_DIR);
+
+	my $msg = $self->slurp_file($file_msg);
+
+   %HEAD=();
+   ($TXT,$HTML) = ('','');
+   @MAIL_FILES=();
+   my $prefix = int(rand(100000000));
+   $parser->output_prefix($prefix);
+
+   my $entity = $parser->parse_data($msg);
+   if (! $entity) {
+      $self->log('warning',"core-imap4::test_msg_flow:: **ERROR** en MIME PARSE ($file_msg)");
+      return;
+   }
+
+   $self->dump_entity($entity);
+
+
+   my %line = ();
+	my $ts=time();
+   $line{'Subject'} = $HEAD{'Subject'};
+   $line{'From'} = $HEAD{'From'};
+   $line{'From'} =~ s/.+?<(.+)>/$1/;
+   $line{'Date'} = $HEAD{'Date'};
+   $line{'ts'} = $ts; # Necesario para que cambie el hash md5 que identifica el mensaje
+   $self->log('debug',"core-imap4:: LEIDO MSG ($file_msg) >> From=$line{'From'} | Subject=$line{'Subject'}");
+
+   $line{'body'} = '';
+   if ($TXT ne '') { $line{'body'} = $TXT; }
+   elsif ($HTML ne '') { $line{'body'} = $HTML; }
+
+   $line{'body'} =~ s/\n/ /g;    # Elimina RC
+   $line{'body'} =~ s/\r/ /g;    # Elimina LF
+   $line{'body'} =~ s/\t/ /g;    # Elimina TABS
+   $line{'body'} =~ s/ +/ /g;    # Elimina exceso de espacios
+
+   #--------------------------------------
+   # a. app_id identification
+   # b. variable detection if defined (S1,B1)
+   my ($app_id,$app_name) = $self->mail_app_mapper($app,\%line);
+
+   #--------------------------------------
+   # c. extrafile detection
+   my $APP_FILES_DIR = '/var/www/html/onm/user/files/'.$app_name;
+   if (! -d $APP_FILES_DIR) { mkdir $APP_FILES_DIR; }
+   my $j=1;
+   foreach my $fpath (@MAIL_FILES) {
+
+      my $f = '';
+      if ($fpath=~/$FROM_MAIL_FILES_DIR\/(.+)$/) { $f = $prefix.'-'.$1; }
+      $f=~s/\s+//g;
+
+      `mv \"$fpath\" $APP_FILES_DIR/$f`;
+$self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
+
+      my $k = '0extrafile'.$j;
+		
+     	$line{$k} = "<html><a href=user/files/$app_name/$f target=\"popup\">$k</a></html>";
+
+     	$self->log('debug',"core-imap4::***DEBUG [$j]*** $k >> $line{$k}");
+      $j++
+   }
+
+   #--------------------------------------
+	my $json = JSON->new();
+	$json = $json->canonical([1]);
+
+   my %MSG = ();
+   $MSG{'source_line'} = $json->encode(\%line);
+   $MSG{'ts'} = $ts;
+	$MSG{'source_line'} =~ s/","/", "/g;
+
+   push @RESULT, join (',',$MSG{'ts'},$app_id,$app_name,$MSG{'source_line'});
+   #--------------------------------------
+
+   return \@RESULT;
+
+}
+
 
 #-------------------------------------------------------------------------------------------
 # CORE-IMAP4 >>  mail_app_mapper
 # Asigna los datos recibidos por correo a una app_id
 # (Siempre se asigna a una app_id. Si no matchea -> default) 
+#-------------------------------------------------------------------------------------------
+#      {
+#         "333333000008" : {
+#            "B1" : "(?i)Application\\s+\\:\\s+(\\S+)",
+#            "From" : "info@s30labs.com",
+#            "Subject" : "ERROR xyz",
+#            "app_name" : "my-App"
+#				 "body_format" : "txt"
+#				 "host" : "my-host"
+#         }
+#      },
+#
+# B1: Permite extraer una parte del body como la variable B1 en el json de la linea.
+# S1: Permite extraer una parte del asunto como la variable S1 en el json de la linea.
+# From: Indica el criterio basado en el From para identificar la app
+# Subject: Indica el criterio basado en el Subject para identificar la app
+# body_format: Formato del body almacenado en source_line. Si no existe es el que tenga por defecto
+#					segun el content-type. Si vale 'txt', se eliminan los tags html
+# app_name: Nombre de la app
 #-------------------------------------------------------------------------------------------
 sub mail_app_mapper {
 my ($self,$app,$line) = @_;
@@ -356,6 +474,17 @@ $self->log('debug',"core-imap4::mail_app_mapper:: **DEBUGVAR** S1 exp=$exp | RES
 			$self->log('info',"core-imap4::mail_app_mapper:: **VAR FOUND** B1=$line->{'B1'} |  app_id=$app_id | app_name=$app_name");
 		}
 $self->log('debug',"core-imap4::mail_app_mapper:: **DEBUGVAR** B1 exp=$exp | RES=$line->{'B1'} | body=$line->{'body'} |  app_id=$app_id | app_name=$app_name");
+	}
+
+
+   #----------------------------------------------------------------------------------------
+   # c. Convert HTML body to TXT if exists body_format = 'txt'
+   #----------------------------------------------------------------------------------------
+	if ( (exists $app_cfg->{'body_format'}) && ($app_cfg->{'body_format'}=~/txt/i) ) {
+      my $hs = HTML::Strip->new();
+		my $body = $line->{'body'};
+      $line->{'body'} = $hs->parse($body);
+      $hs->eof;
 	}
 
    return ($app_id,$app_name);
