@@ -1159,14 +1159,17 @@ my @c=();
 
 	my $DEV_COLS='a.type,a.sysoid,a.sysdesc, a.sysloc,a.status,a.community,a.version,a.critic,a.mac,a.mac_vendor,a.geodata'; #***1****
 	my @cols = split (',', $DEV_COLS);
-   my $rres=sqlSelectAll($dbh,'id,descr,tipo','devices_custom_types');
+   my $rres=sqlSelectAll($dbh,'id,descr,tipo','devices_custom_types','','order by id');
+	my @keys_in_order = ();
    foreach my $r (@$rres) {
 		my $key='b.columna'.$r->[0];
+		push @keys_in_order,$key;
 		$attr_label{$key} = $r->[1];
 		push @cols, $r->[0];
 	}
 
-	my $what = $DEV_COLS . ',' . join ',', sort keys %attr_label;
+	my $what = $DEV_COLS . ',' . join ',', @keys_in_order;
+
 	$rres=sqlSelectAll($dbh,$what,'devices a, devices_custom_data b',"a.id_dev=b.id_dev AND a.id_dev=$id_dev");
 	$INFO{'__TYPE__'} = $rres->[0][0];
 	$INFO{'__SYSOID__'} = $rres->[0][1];
@@ -1187,6 +1190,7 @@ my @c=();
 		my $key='b.columna'.$cols[$i];
 		my $attr = '__'. uc $attr_label{$key} . '__';
 		$INFO{$attr} = $rres->[0][$i];	
+		$self->log('debug',"get_device_attributes:: DEBUG i=$i key=$key attr=$attr >> $INFO{$attr}");
 	}
 	return \%INFO;
 }
