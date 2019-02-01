@@ -8605,8 +8605,15 @@ sub init_device2log {
 my ($self,$dbh,$data)=@_;
 
    if (! defined $dbh) { return undef; }
-#   my $where='';
-#   my $what='id_device2log';
+
+   # apps with flush mode ==> Insert in logp_xxxxx_temp table
+   # but descriptor must be logp_xxxxx
+   if ($data->{'logfile'} =~ /^(\S+)_temp$/) { $data->{'logfile'} = $1; }
+   if ($data->{'tabname'} =~ /^(\S+)_temp$/) { $data->{'tabname'} = $1; }
+
+$self->log('info',"init_device2log::DEBUG**>> INSERTO en device2log tabname=$data->{'tabname'}---logfile=$data->{'logfile'}");
+
+
    my $rv=sqlInsertUpdate4x($dbh,'device2log',$data,$data);
 
    $self->error($libSQL::err);
@@ -9578,6 +9585,25 @@ my ($self,$dbh,$table,$ip)=@_;
    # ------------------------------------------------------
    my $fields_create='id_log int NOT NULL AUTO_INCREMENT, hash varchar(16) NOT NULL default "unk", ts int NOT NULL, line TEXT NOT NULL, PRIMARY KEY (id_log), UNIQUE KEY hash_idx (hash)';
 
+   # ------------------------------------------------------
+   # apps with flush mode ==> Insert in logp_xxxxx_temp table
+   # but logp_xxxxx table must be created.
+	my $table_no_temp=$table;
+   if ($table=~/^(\S+?)_temp$/) {
+      $table_no_temp=$1;
+      sqlCreate($dbh,$table_no_temp,$fields_create);
+      $self->error($libSQL::err);
+      $self->errorstr($libSQL::errstr);
+      $self->lastcmd($libSQL::cmd);
+      if ($libSQL::err != 0) {
+         $self->log('info',"create_log_table:**ERROR** AL CREAR TABLA $table_no_temp ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+      }
+      else {
+         $self->log('info',"create_log_table:[INFO] CREADA TABLA $table_no_temp ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+      }
+   }
+
+   # ------------------------------------------------------
    sqlCreate($dbh,$table,$fields_create);
    $self->error($libSQL::err);
    $self->errorstr($libSQL::errstr);
@@ -9594,7 +9620,7 @@ my ($self,$dbh,$table,$ip)=@_;
    my $rres=sqlSelectAll($dbh,'name',$TAB_DEVICES_NAME,"ip='$ip'");
    my $name = $rres->[0][0];
 
-	$rres=sqlSelectAll($dbh,'logfile,id_device2log,id_dev','device2log',"tabname='$table'");
+	$rres=sqlSelectAll($dbh,'logfile,id_device2log,id_dev','device2log',"tabname='$table_no_temp'");
 	my $logfile = $rres->[0][0];
 	my $id_device2log = $rres->[0][1];
 	my $id_dev = $rres->[0][2];
@@ -9610,6 +9636,21 @@ my ($self,$dbh,$table,$ip)=@_;
       $self->log('info',"create_log_table:[INFO] CREADA VISTA $vtable ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
    }
 
+   # ------------------------------------------------------
+   # apps with flush mode ==> Insert in logp_xxxxx_temp table
+   # but logp_xxxxx table must be created.
+	my $vtable_no_temp = $vtable;
+   if ($vtable=~/^(\S+?)_temp$/) {
+		$vtable_no_temp=$1;
+		my $select_no_temp="SELECT id_log,hash,ts,line,'$logfile' as logfile,$id_device2log as id_device2log,'$name' as name,$id_dev as id_dev FROM $table_no_temp";
+	   sqlCreateView($dbh,$vtable_no_temp,$select_no_temp);
+   	if ($libSQL::err != 0) {
+      	$self->log('info',"create_log_table:**ERROR** AL CREAR VISTA $vtable_no_temp ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   	}
+   	else {
+      	$self->log('info',"create_log_table:[INFO] CREADA VISTA $vtable_no_temp ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   	}
+	}
 
 	return $libSQL::err;
 }
