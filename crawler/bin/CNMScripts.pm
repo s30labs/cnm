@@ -1465,7 +1465,7 @@ my ($self,$if)=@_;
 		@r =`/usr/sbin/ifconfig -a inet | awk '/inet/ {print $2}' | grep -v '127.0.0.1'`;
 	}
 	else {
-		@r = `/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
+		@r = `/sbin/ifconfig | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
 	}
 	return \@r;
 
@@ -1477,8 +1477,9 @@ sub is_local {
 my ($self,$ip)=@_;
 
 	my $local=0;
-	my @ips = $self->local_ip();
-	foreach my $local_ip (@ips) {
+	my $ips = $self->local_ip();
+	foreach my $local_ip (@$ips) {
+		chomp $local_ip;
 
 		if ( ($ip eq 'localhost') || ($ip eq '127.0.0.1') || ($ip eq $local_ip) ) { $local=1; last; }
 
