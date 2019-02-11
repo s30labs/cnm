@@ -3109,11 +3109,14 @@ my ($self, $vector, $offset) = @_;
       #[notificationsd.010.notificationsd.60]
       if ($f=~/^\[(\S+?)\.(\d+)\.(\w+)\.(\d+)\]$/) {  ($proc,$proc_time) = ($1,$4); } 
 
-		my $max_time = $offset*$proc_time;
-		#/actionsd/ y /notificationsd/ siguen otro criterio.
+		my $max_time = $offset*$proc_time; #60, 300 ..
 		if ($proc =~ /actionsd/) { $max_time = 7200; }
-		elsif ($proc =~ /notificationsd/) { $max_time = 3600; }
-		elsif ($proc =~ /crawler-app/) { $max_time = 7200; }
+		elsif ($proc_time >= 3600) { $max_time = 1.1*$proc_time; }
+
+#		#/actionsd/ y /notificationsd/ siguen otro criterio.
+#		if ($proc =~ /actionsd/) { $max_time = 7200; }
+#		elsif ($proc =~ /notificationsd/) { $max_time = 3600; }
+#		elsif ($proc =~ /crawler-app/) { $max_time = 7200; }
 
 		if (-s $file == 0) { next; }
    	open (F,"<$file");
