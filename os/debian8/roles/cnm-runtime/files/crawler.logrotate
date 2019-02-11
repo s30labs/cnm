@@ -38,6 +38,16 @@
    endscript
 }
 
+/var/log/docker.log {
+   copytruncate
+   notifempty
+   daily
+   rotate 1
+   postrotate
+      /opt/cnm/crawler/bin/support/log2rotate.sh docker.log
+   endscript
+}
+
 /var/log/cron /var/log/secure {
         copytruncate
         notifempty
