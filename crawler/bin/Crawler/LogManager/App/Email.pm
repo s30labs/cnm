@@ -238,7 +238,7 @@ my ($self,$task_cfg_file)=@_;
       	   `mv \"$fpath\" $APP_FILES_DIR/$f`;
 $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
 
-         	my $k = 'extrafile'.$j;
+         	my $k = '0extrafile'.$j;
 
 	         #my $f = '';
    	     # if ($fpath=~/$FROM_MAIL_FILES_DIR\/(.+)$/) { $f = $1; }
@@ -413,21 +413,21 @@ my ($self,$app,$line) = @_;
 
       # Hay que validar From
       if (exists $h->{$app_id}->{'From'}) {
-			$self->log('info',"core-imap4::mail_app_mapper:: CHECK1: $app_id >> From=$h->{$app_id}->{'From'} <> $line->{'From'}--");
+			$self->log('info',"core-imap4::mail_app_mapper:: check_from: $app_id >> in rule: $h->{$app_id}->{'From'} rx: $line->{'From'}--");
          if ($line->{'From'} ne $h->{$app_id}->{'From'}) {
             $ok=0;
-				$self->log('debug',"core-imap4::mail_app_mapper:: CHECK1: $app_id >> ok=$ok >> END");
+				$self->log('debug',"core-imap4::mail_app_mapper:: check_from: $app_id >> ok=$ok >> END");
             next;
          }
       }
 
       # Hay que validar subject
       if (exists $h->{$app_id}->{'Subject'}) {
-			$self->log('info',"core-imap4::mail_app_mapper:: CHECK2: $app_id >> Subject=$h->{$app_id}->{'Subject'} <> $line->{'Subject'}--");
+			$self->log('info',"core-imap4::mail_app_mapper:: check_subject: $app_id >> in rule: $h->{$app_id}->{'Subject'} rx: $line->{'Subject'}--");
          my $rule_subject = $h->{$app_id}->{'Subject'};
          if ($line->{'Subject'} !~ /$rule_subject/) {
             $ok=0;
-				$self->log('debug',"core-imap4::mail_app_mapper:: CHECK2: $app_id >> ok=$ok >> END");
+				$self->log('debug',"core-imap4::mail_app_mapper:: check_subject: $app_id >> ok=$ok >> END");
             next;
          }
       }

@@ -546,7 +546,7 @@ my ($self,$lapse,$task)=@_;
       			foreach my $ev (@$lines) {
 
 						$i++;
-						$self->log('info',"do_task:: CHECK ALERT [$i|$total] >> $ev->{'source_line'}");
+						$self->log('info',"do_task:: CHECK ALERT [$i|$total] >> $ev->{'ip'} >> $ev->{'source_line'}");
 
    	      		# Gestiono la posible alerta
       	   		$self->check_alert($ev);
@@ -605,6 +605,10 @@ my ($self,$app_id,$host)=@_;
 
 	$self->log('info',"get_app_host_info:: ---APP: $app_id--- name=$name|domain=$domain|host_ip=$app->{'host_ip'}|id_dev=$app->{'id_dev'}");
 
+	$app->{'mapper'}->[0]->{$app_id}->{'id_dev'}=$app->{'id_dev'};
+	$app->{'mapper'}->[0]->{$app_id}->{'host_ip'}=$app->{'host_ip'};
+	$app->{'mapper'}->[0]->{$app_id}->{'host_name'}=$app->{'host_name'};
+	$app->{'mapper'}->[0]->{$app_id}->{'host_domain'}=$app->{'host_domain'};
 	$self->app($app);
 	return $app;	
 }
@@ -691,9 +695,14 @@ $self->log('debug',"get_app_data:: app=$xx");
    foreach my $h (@{$app->{'mapper'}}) {
       my @k = keys %$h;
       my $app_id = $k[0]; # module = app_id
-      if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
-			#$app_flush{$app_id}=$h->{$app_id}->{'app_name'};
 
+		# Si no existe la clave host en cualquiera de las estructuras de mapper
+		# se crea con el valor del host por defecto.
+		if (! exists $h->{$app_id}->{'host'}) { $h->{$app_id}->{'host'} = $app->{'host'}; }
+		# Se obtiene toda la info necesaria del host
+		my $app = $self->get_app_host_info($app_id,$h->{$app_id}->{'host'});
+
+      if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
 			$app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
 			my $logfile_temp = $app_flush{$app_id}.'_temp';
          $store->clear_app_data($dbh,$logfile_temp,$app_id);
@@ -722,8 +731,9 @@ $self->log('debug',"get_app_data:: app=$xx");
    foreach my $h (@{$app->{'mapper'}}) {
       my @k = keys %$h;
       my $app_id = $k[0]; # module = app_id
-		my $host = (exists $h->{$app_id}->{'host'}) ? $h->{$app_id}->{'host'} : $app->{'host'};
-      my $app = $self->get_app_host_info($app_id,$host);
+
+		#my $host = (exists $h->{$app_id}->{'host'}) ? $h->{$app_id}->{'host'} : $app->{'host'};
+      #my $app = $self->get_app_host_info($app_id,$host);
 
 		my $module = 'MOD'.$app_id;
 #$self->log('warning',"app_parser:: **DEBUG** module=$module");
@@ -829,7 +839,6 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    foreach my $l (@$data) {
 		
       chomp $l;
-
       my %MSG = ();
       $MSG{'name'} = $app->{'host_name'};
       $MSG{'domain'} = $app->{'host_domain'};
@@ -865,10 +874,18 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
       }
 
 
+		my $app_id = '000000000000';
 		if (! exists $MSG{'app_id'}) {
 			$self->log('info',"**NO EXISTE APP_ID** $l");
 		}
 		else {
+      	# Las tablas de APPS se identifican por su $app_id, no por la direccion IP.
+			$app_id = $MSG{'app_id'};
+	      $MSG{'name'} = $app->{'mapper'}->[0]->{$app_id}->{'host_name'};
+   	   $MSG{'domain'} = $app->{'mapper'}->[0]->{$app_id}->{'host_domain'};
+      	$MSG{'ip'} = $app->{'mapper'}->[0]->{$app_id}->{'host_ip'};
+      	$MSG{'id_dev'} = $app->{'mapper'}->[0]->{$app_id}->{'id_dev'};
+
 			$self->log('debug',"app_parser:: ts=$MSG{'ts'} app_id=$MSG{'app_id'} app_name=$MSG{'app_name'} source_line=$MSG{'source_line'} md5=$MSG{'md5'}");
 		}
 
@@ -902,7 +919,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    	my $t = (exists $MSG{'ts'}) ? $MSG{'ts'} : time;
 
    	# Las tablas de APPS se identifican por su $app_id, no por la direccion IP.
-   	my $app_id = (exists $MSG{'app_id'}) ? $MSG{'app_id'} : '000000000000';
+   	#my $app_id = (exists $MSG{'app_id'}) ? $MSG{'app_id'} : '000000000000';
 
 		# Si es modo de captura flush -> Se inserta en tabla temp
 		if (exists $app_flush{$app_id}) { $logfile .= '_temp'; }
@@ -916,7 +933,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    	}
    	else {
 			$cnt_ok += 1;
-      	$self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}");
+      	$self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}, $MSG{'id_dev'}");
 
 			push @lines, \%MSG;
 		}
@@ -1024,7 +1041,7 @@ my ($self,$event)=@_;
          next;
       }
 
-      $self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip...");
+      #$self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip...");
 
       my $subtype=$event2alert->{$ev}->{$ip}->{'subtype'};
       my $target=$event2alert->{$ev}->{$ip}->{'target'};
@@ -1048,7 +1065,8 @@ my ($self,$event)=@_;
       my $set_subtype=$event2alert->{$ev}->{$ip}->{'set_subtype'};
       my $set_hiid=$event2alert->{$ev}->{$ip}->{'set_hiid'};
 
-      $self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip >> action=$action id_remote_alert=$id_remote_alert subtype=$subtype");
+      #$self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip >> action=$action id_remote_alert=$id_remote_alert subtype=$subtype");
+
 my $kk=Dumper($alert2expr->{$id_remote_alert});
 $kk=~s/\n/ /g;
 $self->log('debug',"check_alert:: id_remote_alert=$id_remote_alert DUMPER=$kk");
@@ -1058,7 +1076,7 @@ $self->log('debug',"check_alert:: id_remote_alert=$id_remote_alert VDATA=$kk");
 
       #my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,\@vals);
       my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,$event->{'vdata'});
-      $self->log('info',"check_alert:: ALERTA $ev: **DEFINIDA** PARA $ip >> WATCH_EVAL_EXT=$condition_ok");
+      $self->log('info',"check_alert:: ALERTA $id_remote_alert - $ev ($action) ASOCIADA A $ip >> WATCH_EVAL_EXT=$condition_ok");
 
       if (! $condition_ok) {next; }
 
