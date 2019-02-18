@@ -5840,7 +5840,7 @@ my ($self,$dbh,$script)=@_;
    print $fh $rres->[0][0]."\n";
    close $fh;
 	$self->log('debug',"script2file:: ++++++ COPIADO SCRIPT $fscript rc=$rc");
-   chmod 0751, $fscript;
+   chmod 0775, $fscript;
 	system ("/bin/chown -R root:www-data $fscript");	
 }
 
