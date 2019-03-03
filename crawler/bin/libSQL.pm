@@ -10,7 +10,7 @@ use DBI;
 use Logger;
 use strict;
 
-@EXPORT_OK = qw( sqlConnect sqlDropDatabase sqlInsert sqlInsert_fast sqlCmd_fast sqlCmd sqlCmdRows sqlSelectCount sqlSelectHashref sqlSelectAll sqlSelectAllCmd sqlUpdate sqlInsertUpdate sqlInsertUpdate4x sqlDelete sqlDrop sqlCreate sqlCreateView sqlTableExists sqlShowVars sqlSetCS sqlShowColumns sqlLastInsertId errstr err cmd);
+@EXPORT_OK = qw( sqlConnect sqlDropDatabase sqlInsert sqlInsert_fast sqlCmd_fast sqlCmd sqlCmdRows sqlSelectCount sqlSelectHashref sqlSelectAll sqlSelectAllCmd sqlUpdate sqlInsertUpdate sqlInsertUpdate4x sqlDelete sqlDrop sqlCreate sqlCreateView sqlTableExists sqlShowVars sqlSetCS sqlShowColumns sqlLastInsertId errstr err cmd sqlCreateTS);
 @EXPORT = @EXPORT_OK;
 @ISA = qw(Exporter);
 
@@ -31,9 +31,12 @@ my $dbh=undef;
 	if ($$db{DRIVERNAME} eq 'Sybase'){
 		$dsn="DBI:$$db{DRIVERNAME}:database=$$db{DATABASE};server=$$db{SERVER};port=$$db{PORT};";
 	}
-	elsif ($$db{DRIVERNAME} eq 'SQLite'){
-		$dsn = "DBI:SQLite:dbname=$$db{DATABASE}";
+	elsif ($$db{DRIVERNAME} eq 'Pg'){
+		$dsn = "DBI:Pg:dbname=$$db{DATABASE};host=$$db{SERVER};port=$$db{PORT};";
 	}
+   elsif ($$db{DRIVERNAME} eq 'SQLite'){
+      $dsn = "DBI:SQLite:dbname=$$db{DATABASE}";
+   }
 	else {
 		$dsn = "DBI:mysql:database=$$db{DATABASE};host=$$db{SERVER};port=$$db{PORT};mysql_connect_timeout=5";
 	}
@@ -50,6 +53,9 @@ my $dbh=undef;
 	eval {
 		if ($$db{DRIVERNAME} eq 'SQLite'){
 			$dbh = DBI->connect($dsn,"","");
+		}
+	   elsif ($$db{DRIVERNAME} eq 'Pg'){
+			$dbh = DBI->connect($dsn,$$db{USER},$$db{PASSWORD},{RaiseError => 1}) ;
 		}
 		else {
 			$dbh = DBI->connect($dsn,$$db{USER},$$db{PASSWORD},{PrintError => 1,RaiseError => 1,AutoCommit => 1}) ;
@@ -112,7 +118,7 @@ sub sqlCreate
 #fml
 my($dbh,$table,$fields,$temporal)=@_;
 my($names,$values);
-my $rc;
+my $rc=1;
 
 eval {
 	
@@ -133,6 +139,41 @@ else {
 }
 
 	return $rc;
+}
+
+########################################################
+sub sqlCreateTS
+{
+#fml
+my($dbh,$table,$fields,$temporal)=@_;
+my($names,$values);
+my $rc=1;
+
+eval {
+
+	$rc = sqlCreate($dbh,$table,$fields,$temporal);
+
+	if ($rc) { return $rc; }
+
+	my $time_field='time';
+	if ($fields=~/^(\S+) /) { $time_field=$1; }
+
+   my $sql="SELECT create_hypertable('$table', '$time_field')";
+   $libSQL::cmd=$sql;
+   $rc=$dbh->do($sql);
+};
+
+if ($@) {
+
+   $libSQL::errstr=$DBI::errstr;
+   $libSQL::err=$DBI::err;
+}
+else {
+   $libSQL::errstr='';
+   $libSQL::err=0;
+}
+
+   return $rc;
 }
 
 

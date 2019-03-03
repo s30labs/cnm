@@ -1,0 +1,214 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use File::Basename;
+use File::Copy;
+use RRDs;
+use libSQL;
+use Data::Dumper;
+
+#-------------------------------------------------------------------
+my %DB = (
+        DRIVERNAME => "Pg",
+        SERVER => "172.17.0.4",
+        PORT => 5432,
+        DATABASE => "metrics",
+        USER => "postgres",
+        PASSWORD => "cnmManag3r",
+        TABLE => 'metrics2',
+);
+
+my $DBH=undef;
+#-------------------------------------------------------------------
+my @FILES=();
+my $DIR_BASE='/opt/data/rrd/elements';
+my ($dirname,$basename);
+
+# Informacion ------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+Exporta los datos de un fichero RRD a TimescaleDB
+(c) fml
+
+$fpth[$#fpth] [-hsd] -f /opt/data/rrd/file.rrd 
+$fpth[$#fpth] [-hsd] -t routers.xxx [-r disp_icmp-H0]
+
+h: Help
+d: Debug
+f: Especifica el nombre del fichero .rrd ==> Almacenamiento de un fichero concreto
+t: Especifica el tipo del dispositivo ==> Almacenamiento de todos los ficheros correspondientes a dispositivos del tipo especificado y del tipo especificado en con el parametro r
+r: Especifica el tipo de fichero rrd (por defecto es disp_icmp-H0) ==> Junto con el parametro t
+
+s: Almacena en bd
+
+USAGE
+
+#--------------------------------------------------------------------
+my %opts=();
+getopts("hdsf:t:r:v:",\%opts);
+if ($opts{h}) { die $USAGE;}
+
+
+#$DB{PASSWORD} = get_db_credentials();
+
+
+if ($opts{f}) { 
+	push @FILES, $opts{f}; 
+}
+elsif ($opts{t}) {
+	if (!defined $DBH) {  $DBH=sqlConnect(\%DB);  }
+	my $rres=db_get_devices($DBH,$opts{t});	
+	@FILES=();
+	foreach my $l (@$rres) {
+		my $id=sprintf("%010d", $l->[0]);
+		my $rrd_type=(defined $opts{r}) ? $opts{r} : 'disp_icmp-H0';
+		my $file=$DIR_BASE.'/'.$id.'/'.$rrd_type.'.rrd';
+		push @FILES, $file;
+	}
+}
+else {die $USAGE; }
+
+foreach my $file_rrd (@FILES) {
+
+	# Obtengo los datos del fichero .rrd
+	#--------------------------------------------------------------------
+	my ($start,$step,$names,$array) = RRDs::fetch $file_rrd, "AVERAGE";
+
+	my $ERROR = RRDs::error;
+	print "[ERROR] $ERROR\n" if $ERROR ;
+
+	if ($opts{d}) {
+		print "start=$start, step=$step\n";
+		print "                    ";
+		map {printf("%12s",$_)} @$names ;
+		print "\n";
+	}
+
+	my $date=$start;
+	$file_rrd=~/.*?\/(\d+)\/(\S+)\.rrd/;
+	my $id_dev=sprintf "%d",$1;
+	my $mname=$2;
+	$mname=~s/^(.*?)-.+$/$1/;
+
+	# Inserto valores en DB
+	#--------------------------------------------
+	foreach my $line (@$array){
+
+		my $datestr=localtime($date);
+		my $date_vals = $date;
+   	$date += $step;
+
+		if ( ref($line) ne  "ARRAY") {
+			if ($opts{d}) { print "[WARN] No hay datos de $date_vals $datestr\n"; }
+			next;
+		}
+		if (! defined $line->[0]) { next; }
+
+#print "***@$line****\n";
+		#my $rc=exp_disp_icmp($line);
+		#if (! defined $rc) { next; }
+	
+		if ($opts{d}) { print "$date_vals: $datestr: $mname: @$line\n"; }
+
+		if ($opts{s}) { 
+			if (!defined $DBH) {  $DBH=sqlConnect(\%DB);  }
+			db_store_ts($DBH,$date,$id_dev,$mname,$line);  
+		}
+	}
+}
+
+if ($opts{s}) { $DBH->disconnect(); }
+
+
+#--------------------------------------------
+sub exp_disp_icmp {
+my $line=shift;
+
+	#v[0]=>DISP
+	if ($line->[0] >= 0.5) { return 1; }
+
+   #v[1]=>No Computable
+   if ($line->[1] >= 0.5) { return undef; }
+
+   #v[2]=>No DISP
+   if ($line->[2] >= 0.5) { return 0; }
+
+   #v[3]=>DESC
+   if ($line->[3] >= 0.5) { return undef; }
+}
+
+
+#--------------------------------------------
+sub db_store_ts {
+my ($dbh,$ts,$id_dev,$mname,$values)=@_;
+
+   if (! defined $dbh) { return undef; }
+
+   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+   $year += 1900;
+   $mon += 1;
+   #1999-01-08 04:05:06
+   my %data=();
+   $data{'time'} = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
+   $data{'id_dev'} = $id_dev;
+   $data{'mname'} = $mname;
+	my $i=0;
+	foreach my $x (@$values) {
+		$i++;
+		my $vx = 'v'.$i;
+   	$data{$vx} = $x;
+	}
+
+   my $rv=sqlInsert($dbh,$DB{'TABLE'},\%data);
+
+	if ($opts{d}) { print Dumper (\%data); }
+
+   print "OK insert -> $data{'time'}, $data{'mname'}, @$values\n";
+
+	return $rv;
+
+
+}
+
+#--------------------------------------------
+sub db_get_devices {
+my ($dbh,$type)=@_;
+
+   if (! defined $dbh) { return undef; }
+	my $what='id_dev';
+	my $table='devices';
+	my $where="type like \'$type%\'";
+print "$what  $table  $where \n";
+print "SQL=$libSQL::cmd\n";
+
+   my $rres=sqlSelectAll($dbh, $what, $table, $where);
+   return $rres;
+}
+
+
+#----------------------------------------------------------------------------
+# get_db_credentials
+#----------------------------------------------------------------------------
+sub get_db_credentials {
+
+   my $file='/cfg/onm.conf';
+   my $pwd='';
+   open (F,"<$file");
+   while (<F>) {
+
+      chomp;
+      if (/^#/) {next;}
+
+      if (/\bDB_PWD\s*\=\s*(.*)$/) {
+         $pwd=$1;
+         last;
+      }
+   }
+	close F;
+   return $pwd;
+}
+
