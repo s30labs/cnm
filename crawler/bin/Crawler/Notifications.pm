@@ -2105,6 +2105,12 @@ my $ev=$TASKS{$key}->{'ev'};
             $TASKS{$key}->{'result'}='CLR';
             # Con id_alert bastaria para borrar la alerta
 
+				# Es neceasrio obtener la severidad de la tabla de alertas por si hubiera un watch con
+				# multiples severidades. 
+				# FIX-20190307
+				my $x=$store->get_from_db( $dbh,'severity','alerts',"id_alert=$id_alert");
+				$sev = $x->[0][0];
+
 	         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
    	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>'', 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
 
@@ -3741,12 +3747,12 @@ my ($self,$a,$id_dev,$id_alert_type,$monitor,$watch_multi,$severity)=@_;
 
 				if (exists $watch_multi->{$monitor}) {
 					if ($a->[aSEVERITY] != $severity) {
-						$self->log('info',"is_watch:: NO ES MONITOR POR SEVERIDAD alerta=$a->[aSEVERITY]|aviso config=$severity");
+						$self->log('info',"is_watch:: WATCH_MULTI - NO ES MONITOR POR SEVERIDAD alerta=$a->[aSEVERITY]|aviso config=$severity monitor=$monitor >> 1.IDDEV=$a->[aDEVICE],$id_dev|2.WATCH=$a->[aWATCH],3.ALERT_TYPE=$a->[aALERT_TYPE],$id_alert_type|4.NOTIF=$a->[aNOTIF]");
 						return 0;
 					}
 				}
 
-            $self->log('info',"is_watch:: **ES MONITOR**=> 1.IDDEV=$a->[aDEVICE],$id_dev|2.WATCH=$a->[aWATCH],3.ALERT_TYPE=$a->[aALERT_TYPE],$id_alert_type|4.NOTIF=$a->[aNOTIF]");
+            $self->log('info',"is_watch:: **ES MONITOR**=> 1.IDDEV=$a->[aDEVICE],$id_dev|2.WATCH=$a->[aWATCH],3.ALERT_TYPE=$a->[aALERT_TYPE],$id_alert_type|4.NOTIF=$a->[aNOTIF] monitor=$monitor");
 
             return 1;
    }
