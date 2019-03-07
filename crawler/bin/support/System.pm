@@ -922,8 +922,10 @@ my ($module_name)=@_;
 	if ($found) {
 		print "MODULO: [ INSTALLED  ] $version | $mversion\t$mname\n";
 
-		$version =~ s/_//g;
-		$mversion =~ s/_//g;
+		# En algunos casos el formato es x.y.z => No es numerico. 
+		# Se eliminan los '.' y asi se transforma en numerico.
+		$version =~ s/_|\.//g;
+		$mversion =~ s/_|\.//g;
 
 		#print "MODULO: [   OK  ] $version | $mversion\t$mname  VERSION INSTALADA | DISPONIBLE >> $version | $mversion\n";
 		#if ( ($version ne 'NO') && ($version != $mversion) ) {
