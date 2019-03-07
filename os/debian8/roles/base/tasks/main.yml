@@ -432,6 +432,7 @@
    - ethtool
    - sysvinit-core
    - drbd8-utils
+   - libsmbclient-dev
   tags: base
 
 - name: Install PERL modules
