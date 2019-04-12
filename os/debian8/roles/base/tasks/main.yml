@@ -432,6 +432,7 @@
    - ethtool
    - sysvinit-core
    - drbd8-utils
+   - postgresql-client
   tags: base
 
 - name: Install PERL modules
