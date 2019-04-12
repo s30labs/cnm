@@ -39,10 +39,10 @@ my $host_name=$rCFG->{host_name}->[0];
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hwd:",\%opts);
+getopts("hfvwd:",\%opts);
 if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
-my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
-
+my $log_level = (defined $opts{d}) ? $opts{d} : 'info';
+my $FORCED = (defined $opts{f}) ? 1 : 0;
 #-------------------------------------------------------------------------------------------
 my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,host=>$host_name,
 										cfg=>$rCFG, log_level=>$log_level, log_mode=>1 );
@@ -75,12 +75,16 @@ if (-f $FILE_PID) {
 # Notar que lo habitual es lanzarlas en crond
 my $file_lock='/opt/crawler/bin/watch.lock';
 my $blocked = $store->init_lock($file_lock,300,1);
-if ($blocked) {
+if ($FORCED) {
+   $store->log('info',"cnm-watch::**forced** Salto bloqueo");
+}
+elsif ($blocked) {
    $store->log('warning',"cnm-watch::Bloqueo activo ($file_lock). Terminamos ....");
    exit;
 }
 
-
+my $ts = time();
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # GESTION DE PROCESOS DE SISTEMA
@@ -164,7 +168,7 @@ foreach my $k (@res) {
 		my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'syslog-ng'}=$value;
 		if ($value > $LOAD_LEVEL) {
-   		$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid syslog-ng LOAD=$value (>$LOAD_LEVEL)\n");
+   		$store->log('info',"cpu-load::[WARN] ELIMINO PID $pid syslog-ng LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
 		}
 		else { $running{'syslog-ng'} += 1; }
@@ -175,7 +179,7 @@ foreach my $k (@res) {
 		else { $LOAD_VALUES{'httpd'}+=$value; }
 
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid httpd  LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid httpd  LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'httpd'} += 1; }
@@ -185,15 +189,20 @@ foreach my $k (@res) {
 		# Registro datos de mysqld
       if  ($args=~/sbin/) { $LOAD_VALUES{'mysql'}=$value; }
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
+         #$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
+			#kill 9, $pid;
+
+         if ($min % 10 == 0) {
+            $store->log('info',"cpu-load::[WARN] **HIGH** mysql PID $pid LOAD=$value (>$LOAD_LEVEL)\n");
+         }
+
       }
 		else { $running{'mysql'} += 1; }
 	}
    elsif ($args=~/smbd/) {  
       my $value=get_cpu_load($bsdtime,$etime,$args);
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid smbd LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid smbd LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'smbd'} += 1; }
@@ -201,7 +210,7 @@ foreach my $k (@res) {
    elsif ($args=~/nmbd/) {  
       my $value=get_cpu_load($bsdtime,$etime,$args);
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid nmbd LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid nmbd LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'nmbd'} += 1; }
@@ -210,7 +219,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'notif-010'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.010 LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.010 LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'notificationsd.010'} += 1; }
@@ -219,7 +228,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
       $LOAD_VALUES{'notif-020'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.020 LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.020 LOAD=$value (>$LOAD_LEVEL)\n");
          kill 9, $pid;
       }
       else { $running{'notificationsd.020'} += 1; }
@@ -228,7 +237,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
       $LOAD_VALUES{'notif-040'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid notificationsd.040 LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.040 LOAD=$value (>$LOAD_LEVEL)\n");
          kill 9, $pid;
       }
       else { $running{'notificationsd.040'} += 1; }
@@ -237,7 +246,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'actionsd'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid actionsd LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid actionsd LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'actionsd'} += 1; }
@@ -246,7 +255,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'trap-manager'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid trap_manager LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid trap_manager LOAD=$value (>$LOAD_LEVEL)\n");
 			kill 9, $pid;
       }
 		else { $running{'trap_manager'} += 1; }
@@ -255,7 +264,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'mail-manager'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mail_manager LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid mail_manager LOAD=$value (>$LOAD_LEVEL)\n");
          kill 9, $pid;
       }
       else { $running{'mail_manager'} += 1; }
@@ -264,7 +273,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'snmpd'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid snmpd LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmpd LOAD=$value (>$LOAD_LEVEL)\n");
          kill 9, $pid;
       }
       else { $running{'snmpd'} += 1; }
@@ -273,7 +282,7 @@ foreach my $k (@res) {
       my $value=get_cpu_load($bsdtime,$etime,$args);
 		$LOAD_VALUES{'snmptrapd'}=$value;
       if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid snmptrapd LOAD=$value (>$LOAD_LEVEL)\n");
+         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmptrapd LOAD=$value (>$LOAD_LEVEL)\n");
          kill 9, $pid;
       }
       else { $running{'snmptrapd'} += 1; }
@@ -282,7 +291,7 @@ foreach my $k (@res) {
 
 my $txt='';
 foreach my $k (sort keys %LOAD_VALUES) { $txt .= " $k=".sprintf("%.3f",$LOAD_VALUES{$k}); }
-$store->log('info',"cnm-watch:: LOAD_VALUES >> $txt");
+$store->log('info',"cpu-load:: LOAD_VALUES >> $txt");
 
 # snmpd/snmptrapd --------------------------------------------
 if (! $running{'snmpd'}) {
@@ -324,6 +333,7 @@ if (! $running{'mysql'})  {
 if (! $running{'actionsd'}) {
    $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/actionsd");
    $store->log('notice',"cnm-watch::[WARN] RESTART: actionsd");
+	if ($opts{v}) { print "Starting actionsd ...\n"; }
 }
 
 if ($ACTIVE) {
@@ -331,29 +341,34 @@ if ($ACTIVE) {
 	if (! $running{'notificationsd.010'}) {
   	 	$rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t normal");
    	$store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.010");
+		if ($opts{v}) { print "Starting notificationsd.010 ...\n"; }
 	}
 
    # notificationsd.020 -----------------------------------------
    if (! $running{'notificationsd.020'}) {
       $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t notifications");
       $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.020");
+		if ($opts{v}) { print "Starting notificationsd.020 ...\n"; }
    }
 
    # notificationsd.040 -----------------------------------------
    if (! $running{'notificationsd.040'}) {
       $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t sev4");
       $store->log('notice',"cnm-watch::[WARN] RESTART: notificationsd.040");
+		if ($opts{v}) { print "Starting notificationsd.040 ...\n"; }
    }
 
 	# mail_manager -----------------------------------------------
 	if (! $running{'mail_manager'}) {
    	$rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/mail_manager");
    	$store->log('notice',"cnm-watch::[WARN] RESTART: mail_manager");
+		if ($opts{v}) { print "Starting mail_manager ...\n"; }
 	}
 }
 
 #-------------------------------------------------------------------------------------------
 # Se validan las marcas de tiemnpo de los diferentes procesos.
+# Ojo con los valores eespecificados en el caso de procesos largos.
 $store->chk_tmark_files(0,3);
 
 #-------------------------------------------------------------------------------------------
@@ -978,14 +993,14 @@ sub restart_all {
 my $rc;
 
    $rc=system ('/opt/crawler/bin/crawler -i');
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (i)");
+   $store->log('notice',"restart-all::[INFO] (RC=$rc) (i)");
 
    $rc=system ('/usr/bin/killall -9 crawler');
    $rc=system ('/opt/crawler/bin/crawler -k');
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (k)");
+   $store->log('notice',"restart-all::[INFO] (RC=$rc) (k)");
    sleep 1;
    $rc=system ('/opt/crawler/bin/crawler -s');
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s)");
+   $store->log('notice',"restart-all::[INFO] (RC=$rc) (s)");
    #$store->reset_crawler_changes($dbh);
 
 	#system ("/bin/echo 1 > $LOCK_FILE");
@@ -1000,11 +1015,12 @@ my ($idx)=@_;
 my $rc;
 
    $rc=system ("/opt/crawler/bin/crawler -k -c $idx");
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (k -> $idx)");
+   $store->log('notice',"restart-one::[INFO] (RC=$rc) (k -> $idx)");
    sleep 1;
    $rc=system ("/opt/crawler/bin/crawler -s -c $idx");
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
+   $store->log('notice',"restart-one::[INFO] (RC=$rc) (s -> $idx)");
    #$store->reset_crawler_changes($dbh,$idx);
+	if ($opts{v}) { print "Starting crawler.$idx ...\n"; }
 }
 
 
@@ -1017,8 +1033,9 @@ my ($idx)=@_;
 my $rc;
 
    $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $idx");
-   $store->log('notice',"cnm-watch::[INFO] (RC=$rc) (s -> $idx)");
+   $store->log('notice',"start::[INFO] (RC=$rc) (s -> $idx)");
    #$store->reset_crawler_changes($dbh,$idx);
+	if ($opts{v}) { print "Starting crawler.$idx ...\n"; }
 }
 
 #-------------------------------------------------------------------------------------------
@@ -1028,7 +1045,7 @@ sub start_app {
 my ($range)=@_;
 
    my $rc=system ("/opt/crawler/bin/crawler-app -s -c $range");
-   $store->log('notice',"cnm-watch::[INFO] start_app $range (RC=$rc)");
+   $store->log('notice',"start-app::[INFO] start_app $range (RC=$rc)");
    #$store->reset_crawler_changes($dbh,$idx);
 }
 
@@ -1088,6 +1105,8 @@ Watchdog del sistema
 
 $fpth[$#fpth] [-d debug|info]
 $fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -w  : do workset
+$fpth[$#fpth] -f  : Forced. Bypass lock
 
 USAGE
 

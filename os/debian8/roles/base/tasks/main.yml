@@ -433,6 +433,7 @@
    - sysvinit-core
    - drbd8-utils
    - postgresql-client
+   - libsmbclient-dev
   tags: base
 
 - name: Install PERL modules
