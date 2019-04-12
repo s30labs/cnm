@@ -1860,7 +1860,10 @@ my ($self)=@_;
 			$self->log('warning',"set_clear_alerts:: **PASS** $KEY ($task_result) RC=$trc STAT=$tstat EV=$tev KEY=$key  RES=$desc->{result} MNAME=$desc->{mname} CAUSE=$desc->{cause} DATA_OUT=$dout");
 		}
       else {
-         $self->set_alert_fast($TASKS{$key},1);
+			# FML 20190329 - Cambio de comportamiento para result indefinido (UNK)
+			# No se hace nada. Antes por defecto se creaba una alerta, pero si hay avisos puede confundir.
+			# REVISAR !!!!
+         #$self->set_alert_fast($TASKS{$key},1);
          $self->log('warning',"set_clear_alerts::[WARN] RESULT INDEFINIDO $KEY ($task_result) RC=$trc STAT=$tstat EV=$tev KEY=$key  RES=$desc->{result} MNAME=$desc->{mname} CAUSE=$desc->{cause} DATA_OUT=$dout");
       }
    }
