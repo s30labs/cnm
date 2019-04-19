@@ -39,13 +39,13 @@ my $SUBJECT=$rcfgbase->{'notif_subject'}->[0];
 my $TOKEN=$rcfgbase->{'notif_tg_bot_token'}->[0];
 
 if (! exists $opts{t}) { my $USAGE = usage(); die $USAGE; }
-my $to = $opts{t};
-my @DEST_VECTOR=split(/\;/,$to);
+my $param_to = $opts{t};
+my @DEST_VECTOR=split(/\;/,$param_to);
 $SUBJECT = $opts{s} || 'AVISO-CNM';
 
 my $text = 'CNM :: TEST';
 if ($opts{m}) { $text = $opts{m}; }
-elsif ($to=~/\@/) { $text = 'CNM :: TEST DE ENVIO DE EMAIL.'; }
+elsif ($param_to=~/\@/) { $text = 'CNM :: TEST DE ENVIO DE EMAIL.'; }
 else { $text = 'CNM :: TEST DE ENVIO DE SMS.'; }
 
 my $cid='default'; #parametro ¿?
@@ -64,6 +64,8 @@ $transport->init();
 if (exists $opts{f}) {
 	$text=$transport->slurp_file($opts{f});
 }
+
+$transport->log('debug',"TX-EMAIL:: param_to=$param_to");
 
 foreach my $to (@DEST_VECTOR) { 
 	#--------------------------------------------------------------
