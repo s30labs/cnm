@@ -45,7 +45,7 @@ sub init_log {
 	if ($basename =~ /notificationsd\.010/) { $facility=FACILITY_NOTIFICATIONSD;}
 	elsif ($basename =~ /notificationsd\.020/) { $facility=FACILITY_NOTIFICATIONSD;}
 	elsif ($basename =~ /actionsd\.000/) { $facility=FACILITY_ACTIONSD;}
-	elsif ( ($basename eq 'cnm-watch') || ($basename eq 'cnm-daily')) { $facility=FACILITY_CRON;}
+	elsif (($basename eq 'cnm-watch') || ($basename eq 'cnm-daily') || ($basename eq 'cnm-hourly')) { $facility=FACILITY_CRON;}
 	elsif ($basename eq 'log_manager') { $facility=FACILITY_LOG_MANAGER;}
 	elsif ($basename eq 'trap_manager') { $facility=FACILITY_TRAP_MANAGER;}
 	elsif ($basename eq 'mail_manager') { $facility=FACILITY_MAIL_MANAGER;}

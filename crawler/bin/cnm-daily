@@ -142,7 +142,6 @@ system("/usr/bin/touch $Crawler::Actions::ROTATE_FILE");
 #-------------------------------------------------------------------------------------------
 # 8. Other admin tasks
 # 		- snmpd restart
-#		- docker remove stopped containers -> docker rm $(docker ps -a -q)
 #		- remove executables in /tmp
 #		- remove exim frozen messages
 #-------------------------------------------------------------------------------------------
@@ -150,17 +149,6 @@ system("/usr/bin/touch $Crawler::Actions::ROTATE_FILE");
 $cmd='/etc/init.d/snmpd restart 2>&1';
 my $rx = `$cmd`;
 $store->log('info',"SNMP: $cmd --> $rx");
-
-#-------------------------------------------------------------------------------------------
-my @cids = `docker ps -a -q`;
-foreach my $id (@cids) {
-	chomp $id;
-	$cmd = "docker rm $id 2>&1";
-	my $r = `$cmd`;
-	$r =~ s/\r/ /g;
-	$r =~ s/\n/ /g;
-	$store->log('info',"DOCKER: $cmd ($r)");
-}
 
 #-------------------------------------------------------------------------------------------
 # Se limpian ejecutables temporales en /tmp
@@ -204,9 +192,14 @@ if ($n0>0) {
 # Se eliminan los mensajes de correo de /home/cnm/correos App/Email.pm 
 #-------------------------------------------------------------------------------------------
 if (-d '/home/cnm/correos') {
-	my $r = `find /home/cnm/correos/ -type f -name '*.msg' -mtime +30 -exec rm {} \\; 2>&1`;
+	my $r = `find /home/cnm/correos/ -type f -name '*.msg' -mtime +10 -exec rm {} \\; 2>&1`;
 	$store->log('info',"EMAIL: ELIMINAR CORREOS EN /home/cnm/correos");
 }
+
+#-------------------------------------------------------------------------------------------
+# Se eliminan los ficheros en /store/www-user/files con mas de 60 dias
+#-------------------------------------------------------------------------------------------
+`find /store/www-user/files -type f  -mtime +60 -exec rm {} \\; 2>&1`;
 
 #-------------------------------------------------------------------------------------------
 my $cnmos=CNMOS->new();

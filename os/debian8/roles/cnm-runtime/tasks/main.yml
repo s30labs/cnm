@@ -46,6 +46,10 @@
     - /etc/cron.daily12
   tags: cnm-runtime
 
+- name: cnm-hourly -> cron.hourly
+  copy: src=cnm-hourly dest=/etc/cron.hourly/cnm-hourly  owner=root group=root mode=0755
+  tags: cnm-runtime
+
 - name: cnm-daily -> cron.daily
   copy: src=cnm-daily dest=/etc/cron.daily/cnm-daily  owner=root group=root mode=0755
   tags: cnm-runtime

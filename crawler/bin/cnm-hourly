@@ -1,0 +1,86 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-daily
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use warnings;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use Data::Dumper;
+
+#-------------------------------------------------------------------------------------------
+my $VERBOSE=0;
+$FILE_CONF='/cfg/onm.conf';
+my $cmd;
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $host_name=$rCFG->{host_name}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hvid:",\%opts);
+my $log_level = (defined $opts{d}) ? $opts{d} : 'info';
+my $log_mode = (defined $opts{v}) ? 3 : 1;
+my $do_install = (defined $opts{i}) ? 1 : 0;
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+if ($opts{v}) { $VERBOSE = 1; }
+
+#-------------------------------------------------------------------------------------------
+my ($tlast,$tdate,$rows,$rc,$rcstr)=(0,0,0,0,'');
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd,host=>$host_name,cfg=>$rCFG, log_level=>$log_level, log_mode=>$log_mode );
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+#-------------------------------------------------------------------------------------------
+#docker remove stopped containers -> docker rm $(docker ps -a -q)
+#-------------------------------------------------------------------------------------------
+my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
+foreach my $id (@cids) {
+	chomp $id;
+	$cmd = "docker rm $id 2>&1";
+	my $r = `$cmd`;
+	$r =~ s/\r/ /g;
+	$r =~ s/\n/ /g;
+	$store->log('info',"DOCKER: $cmd ($r)");
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Tareas de mantenimiento diario del sistema
+
+$fpth[$#fpth] [-i] [-d debug|info]
+$fpth[$#fpth] -h  : Ayuda
+
+-i: Se instalan plugins
+-d: Fija el nivel de depuracion
+USAGE
+
+   return $USAGE;
+
+}
+

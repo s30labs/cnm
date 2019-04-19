@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "cnm-hourly ..."
+/opt/crawler/bin/cnm-hourly > /tmp/cnm-hourly.log 2>&1
+
