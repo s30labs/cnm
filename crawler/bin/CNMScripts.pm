@@ -1457,6 +1457,7 @@ my ($self,$file)=@_;
 }
 
 #----------------------------------------------------------------------------
+# Obtiene la lista de IPs locales
 sub local_ip {
 my ($self,$if)=@_;
 

@@ -408,16 +408,23 @@ my ($self,$dbh,$params)=@_;
 
 
    my $id_app = $params->{'id_app'};
-   my $field = $params->{'field'};
+   #my $field = $params->{'field'};
+   # Se pueden especificar varios campos separados por "|"
+   my @fields = split(/\|/, $params->{'field'});
+   my $num_fields = scalar(@fields);
 
    my $lapse = $params->{'lapse'} || 60;
    $lapse *= 60;
    my $pattern = $params->{'pattern'} || '';
+   # Se pueden especificar varios patrones separados por "|"
+	# "|" es la barra para la regex.
+	my $num_patterns = split (/\|/, $pattern);
+
    $self->err_str('OK');
    $self->err_num(0);
 
    my %data_value=();
-   $data_value{$field} = 0;
+	foreach my $f (@fields) { $data_value{$f}=0; }
    my ($event_info,$last_ts) = ('U','UNK','U');
 
    # Se obtiene el nombre de la tabla a partir del id.
@@ -449,20 +456,42 @@ my ($self,$dbh,$params)=@_;
    foreach my $l (@$res) {
 
       #Si hay pattern definido, el dato lo debe cumplir
-$self->log('info',"pattern=$pattern");
-$self->log('info',"line=$l->[3]");
+#$self->log('debug',"pattern=$pattern");
+#$self->log('debug',"line=$l->[3]");
 
       if (($pattern ne '') && ($l->[3] !~ /$pattern/)) { next; }
 
+		 $num_patterns--;
+$self->log('debug',"**pattern OK** /$pattern/  line=$l->[3]");
+      my $nf = $num_fields;
       my $data = $self->json2h($l->[3]);
 
-		if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) { $data_value{$field} += $data->{$field}; }
+      foreach my $field (@fields) {
+#$self->log('debug',"********************pattern OK***************** $pattern | field=$field | $data->{$field}----");
+         if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) {
+				$self->log('info',"pattern=/$pattern/ OK field=$field >> SUMO $data->{$field} >> data_value $data_value{$field}");
+            $data_value{$field} += $data->{$field};
+            $nf--;
+         }
+      }
+
+
+#print Dumper($data);
+
+#		if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) { 
+#			$self->log('info',"SUMO data_value $data_value{$field}");
+#			$data_value{$field} += $data->{$field}; 
+#		}
 
       $event_info = $l->[3];
       $last_ts = $l->[2];
-      $self->log('info',"**DEBUG** RES data_value=$data_value{$field}");
 
+		if (($nf==0) && ($num_patterns==0)) { last; }
    }
+
+	foreach my $field (@fields) {
+		$self->log('info',"**DEBUG** RES $field >> $data_value{$field}");
+	}
 
    return (\%data_value,$event_info,$last_ts);
 }
