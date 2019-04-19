@@ -369,7 +369,7 @@ if ($ACTIVE) {
 #-------------------------------------------------------------------------------------------
 # Se validan las marcas de tiemnpo de los diferentes procesos.
 # Ojo con los valores eespecificados en el caso de procesos largos.
-$store->chk_tmark_files(0,3);
+$store->chk_tmark_files(0);
 
 #-------------------------------------------------------------------------------------------
 # Se chequea el punto de montaje de mdata
@@ -428,8 +428,6 @@ my $dbh=$store->open_db();
 my $params=$store->get_mcnm_credentials($dbh,{'host_ip'=>$ip});
 $store->close_db($dbh);
 
-my $FILE_DYN_NAMES='/cfg/names.dyn';
-my %DYN_NAMES=();
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 foreach my $cid (keys %$params) {
@@ -486,21 +484,6 @@ foreach my $cid (keys %$params) {
 			my $snmp=Crawler::SNMP->new( store=>$store );
 			$snmp->reset_mapping();
 		}
-
-
-      #-------------------------------------------------------------------------------------------
-      # Se obtienen los nombres dinamicos y se genera $FILE_DYN_NAMES
-      #-------------------------------------------------------------------------------------------
-      my $res=$store->get_device($dbh,{'dyn'=>1},'id_dev,name,domain,ip');
-      open (F,">$FILE_DYN_NAMES");
-      foreach my $x (@$res) {
-         my $n=$x->[1];
-         if ($x->[2] ne '') { $n.='.'.$x->[2]; }
-         print F  $n."\n";
-         $DYN_NAMES{$n}={'ip'=>$x->[3], 'id_dev'=>$x->[0]} ;
-#$store->log('info',"cnm-watch:: ALMACENANDO DYN_NAMES >> $n - $DYN_NAMES{$n}->{'ip'}");
-      }
-      close F;
 
 		$store->close_db($dbh);
    };
@@ -599,51 +582,50 @@ elsif ($link_error == 2) {
 }
 
 #-------------------------------------------------------------------------------------------
-# Se proesan los dispositivos dinamicos de /cfg/name.dyn
+# Se revisa si los dispositivos dinamicos en BBDD han cambiado de IP
+# (Son los almacenados en devices con dyn=1 y al hacer elchequeo se guardan en /cfg/name.dyn)
+# Dos/tres casos:
+# a. Equipos con 1 sola IP que cambia (asignada por DHCP)
+# b. IPs virtuales. Tienen N IPs. Ej:
+#	outlook.ms-acdc.office.com. 14  IN      CNAME   dub-efz.ms-acdc.office.com.
+#	dub-efz.ms-acdc.office.com. 14  IN      A       52.97.156.178
+#	dub-efz.ms-acdc.office.com. 14  IN      A       52.97.145.178
+#	dub-efz.ms-acdc.office.com. 14  IN      A       52.97.170.2
+#	dub-efz.ms-acdc.office.com. 14  IN      A       40.101.73.210
+# c. Habria un tercer caso. Aquellos que cambian continuamente
 #-------------------------------------------------------------------------------------------
+$dbh=$store->open_db();
+my $dyn_vector = $store->check_dyn_names($dbh);
 my $api=undef;
-my @lines = `/usr/bin/dig -f $FILE_DYN_NAMES  +noall +answer`;
 my ($changes,$total)=(0,0);
-my %cnames=();
-foreach my $l (@lines) {
-	chomp $l;
-	#www.s30labs.com.        14070   IN      A       178.33.163.102
-	#test-oauth2-provider.eu.cloudhub.io. 21 IN CNAME ch-prod-web-elbweb-xxxxxxxxx-570345098.eu-west-1.elb.amazonaws.com.
-	if ($l=~/^(\S+)\.\s+\d+\s+IN\s+CNAME\s+(\S+)\./) { $cnames{$2}=$1; }
-	elsif ($l=~/^(\S+)\s+.*?(\d+\.\d+\.\d+\.\d+)/) {
-		my ($n,$ip)=($1,$2);
-		$n=~s/\.$//;
-		$total+=1;
-		if (exists $cnames{$n}) { $n=$cnames{$n}; }	
-		
-		if ($DYN_NAMES{$n}->{'ip'} eq $ip) { next; }
+foreach my $n (sort keys %$dyn_vector) {
 
-		# Ha habido cambio de IP. Se actualiza el dispositivo
-		if (! defined $api) {
-			my $host_ip = 'localhost';
-			$api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level, 'nologinit'=>1 );
-			my ($user,$pwd)=('admin','cnm123');
-			my $sid = $api->ws_get_token($user,$pwd);
-		}
+	if (! defined $api) {
+      my $host_ip = 'localhost';
+      $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level, 'nologinit'=>1 );
+      my ($user,$pwd)=('admin','cnm123');
+      my $sid = $api->ws_get_token($user,$pwd);
+   }
 
-		$changes+=1;
-   	my $class='devices';
-  	 	my $endpoint = $DYN_NAMES{$n}->{'id_dev'}.'.json';
-  		my $response = $api->ws_put($class,$endpoint,{'ip'=>$ip});
+	$total+=1;
+	if (! $dyn_vector->{$n}->{'change'}) { next; }
 
-		$store->log('info',"cnm-watch:: DYN_NAMES **IP CHANGE** $n old=$DYN_NAMES{$n}->{'ip'} new=$ip [$response]");
-	}		
+   $changes+=1;
+   my $class='devices';
+   my $endpoint = $dyn_vector->{$n}->{'id_dev'}.'.json';
+	my $new_ip = $dyn_vector->{$n}->{'new_ip'};
+	my $db_ip = $dyn_vector->{$n}->{'ip'};
+   my $response = $api->ws_put($class,$endpoint,{'ip'=>$new_ip});
+	my ($rc,$rcstr)=($response->{'rc'}, $response->{'rcstr'});
+   $store->log('info',"cnm-watch:: DYN_NAMES **IP CHANGE** $n old=$db_ip new=$new_ip [$rc] $rcstr");
 }
-$store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");		
+$store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
 
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # Desactivo el bloqueo
 $store->close_lock('/opt/crawler/bin/watch.lock');
-
-
-
 
 
 #-------------------------------------------------------------------------------------------

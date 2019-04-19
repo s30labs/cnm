@@ -13,6 +13,7 @@ use strict;
 use RRDs;
 use libSQL;
 use Digest::MD5 qw(md5_hex);
+use Encode qw(encode_utf8);
 use Metrics::Types qw(%PERIOD %CREATE %GRAPH);
 use Time::Local;
 use Data::Dumper;
@@ -3225,7 +3226,8 @@ my ($self,$dbh,$id,$CFGVIEWS,$PH,$VIEWS2ALERTS,$VIEWS2VIEWS,$VIEWS2METRICS,$VIEW
          $self->log('debug',"summarize_view:: RECURSE id_child=$id_child -------------------------");
       }
   #    elsif ($VIEWS2ALERTS->{$id_child}->{'ruled'}) {
-		else {
+
+#		else {
 
       	my $ruleset = (exists $RULESET->{$id_child}) ? $RULESET->{$id_child} : [];
 			if (scalar(@$ruleset)) {
@@ -3236,7 +3238,7 @@ my ($self,$dbh,$id,$CFGVIEWS,$PH,$VIEWS2ALERTS,$VIEWS2VIEWS,$VIEWS2METRICS,$VIEW
 #		}
 #
 #		else {
-
+		
 			if ((exists $VIEWS2ALERTS->{$id_child}->{'v1'}) && ($VIEWS2ALERTS->{$id_child}->{'v1'} > 0)) {
             $VIEWS2VIEWS->{$id}->{'v1'} = 1;
             $VIEWS2ALERTS->{$id}->{'v1'} += $VIEWS2ALERTS->{$id_child}->{'v1'};
@@ -3263,7 +3265,7 @@ my ($self,$dbh,$id,$CFGVIEWS,$PH,$VIEWS2ALERTS,$VIEWS2VIEWS,$VIEWS2METRICS,$VIEW
 
          $CFGVIEWS->{$id}->{'done'}=1;
 
-      }
+    #  }
 
    }
 
@@ -9456,7 +9458,7 @@ $self->log('info',"*****DEBUG*****$libSQL::cmd******");
 
 		}
 		else {
-	      my $k=md5_hex($l->{'line'});
+	      my $k = md5_hex(encode_utf8($l->{'line'}));
    	   $h{'hash'} = substr $k,0,16;
 
 	      $rv=sqlInsert($dbh,$table,\%h);
@@ -9529,8 +9531,56 @@ $self->log('info',"*****DEBUG*****$libSQL::cmd******");
    return ($table,$cnt_lines);
 }
 
+#----------------------------------------------------------------------------
+# set_log_rx_lines_bulk
+#----------------------------------------------------------------------------
+# $lines -> [
+#					{'ts'=>$t, 'line'=>$MSG{'source_line'}, 'md5'=>$MSG{'md5'}}
+#					...
+#				]
+#----------------------------------------------------------------------------
+sub set_log_rx_lines_bulk  {
+my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
+
+   # ------------------------------------------------------
+   # logr_010002254223_syslog
+   my @o = split(/\./,$ip);
+   my @o3 = map { sprintf("%03d",$_) } @o;
+
+   $logfile=~s/\-/_/g;
+   my $prefix = ($source eq 'syslog') ? 'logr' : 'logp';
+   my $table = $prefix.'_'.join ('',@o3).'_'.$logfile;
+   # En el caso de las apps source es la app_id que se usa papra identificar la tabla.
+   if ($source ne 'syslog') {
+      $table = $prefix.'_'.$source.'_'.$logfile;
+   }
 
 
+	my $sql="INSERT INTO $table (ts,line,hash) VALUES (?,?,?) ON DUPLICATE KEY UPDATE ts=?, line=?, hash=?\n";
+	my @dblines=(); #[ [ts,line,hash], [ts,line,hash] ... ]
+   foreach my $l (@$lines) {
+		my $md5='';
+      if ((exists $l->{'hash'}) && ($l->{'hash'}=~/\w{16}/)) {
+         $md5 = $l->{'hash'};
+		}
+		push @dblines, [$l->{'ts'}, $l->{'line'}, $md5, $l->{'ts'}, $l->{'line'}, $md5];
+
+$self->log('info',"set_log_rx_lines_bulk: LINE $l->{'ts'}, $l->{'line'}, $md5");
+
+	}
+	
+	my $rv=sqlCmd_fast($dbh,\@dblines,$sql);
+   $self->error($libSQL::err);
+   $self->errorstr($libSQL::errstr);
+   $self->lastcmd($libSQL::cmd);
+   if ($libSQL::err != 0) {
+      $self->log('info',"set_log_rx_lines_bulk:**ERROR** ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+   else {
+      $self->log('info',"set_log_rx_lines_bulk:[INFO] ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+   }
+
+}
 
 #----------------------------------------------------------------------------
 # set_log_pull_lines
@@ -9553,7 +9603,7 @@ my ($self,$dbh,$ip,$logfile,$table,$lines)=@_;
 		my %h = ();
 		$h{'line'} = $l->{'line'};
 		$h{'ts'}=$l->{'ts'};
-		my $k=md5_hex($l->{'line'});
+		my $k = md5_hex(encode_utf8($l->{'line'}));
 		$h{'hash'} = substr $k,0,16;
 
    	#------------------------------------------------------------------------
@@ -9737,6 +9787,113 @@ my ($self,$dbh,$ip,$logfile)=@_;
    }
 
 }
+
+
+#----------------------------------------------------------------------------
+# check_dyn_names
+# 1 nombre -> N IPs
+# 1 IP -> N nombres
+#----------------------------------------------------------------------------
+#outlook.office365.com.  37      IN      CNAME   outlook-tm.g.office365.com.
+#outlook-tm.g.office365.com. 17  IN      CNAME   outlook.ha.office365.com.
+#outlook.ha.office365.com. 41    IN      CNAME   outlook.ms-acdc.office.com.
+#outlook.ms-acdc.office.com. 41  IN      CNAME   dub-efz.ms-acdc.office.com.
+#dub-efz.ms-acdc.office.com. 41  IN      A       40.101.100.2
+#dub-efz.ms-acdc.office.com. 41  IN      A       40.101.40.210
+#dub-efz.ms-acdc.office.com. 41  IN      A       40.101.72.162
+#dub-efz.ms-acdc.office.com. 41  IN      A       40.101.125.34
+#-------------------------------------------------------------------------------------------
+sub check_dyn_names {
+my ($self,$dbh) = @_;
+
+	my $file_dyn_names='/cfg/names.dyn';
+
+	my $db_dyn_stored=$self->get_device($dbh,{'dyn'=>1},'id_dev,name,domain,ip');
+	open (F,">$file_dyn_names");
+	foreach my $x (@$db_dyn_stored) {
+		my $n=$x->[1];
+		if ($x->[2] ne '') { $n = join ('.', $x->[1], $x->[2]); }
+      print F  "$n\n";
+	}
+	close F;
+
+   my @lines = `/usr/bin/dig -f $file_dyn_names  +noall +answer`;
+   my %vector=();
+   my %cnames=();
+	my %result=();
+   foreach my $l (@lines) {
+      chomp $l;
+      #www.s30labs.com.        14070   IN      A       178.33.163.102
+      #test-oauth2-provider.eu.cloudhub.io. 21 IN CNAME ch-prod-web-elbweb-xxxxxxxxx-570345098.eu-west-1.elb.amazonaws.com.
+      if ($l=~/^(\S+)\.\s+\d+\s+IN\s+A\s+(\S+)$/) {
+			my ($a,$b)=($1,$2);
+			$b=~s/(\S+)\.$/$1/;
+         $vector{$b}=$a;
+         #$self->log('info',"check_dyn_names:: A>> $b---$a----");
+      }
+      elsif ($l=~/^(\S+)\.\s+\d+\s+IN\s+CNAME\s+(\S+)$/) {
+         my ($a,$b)=($1,$2);
+         $b=~s/(\S+)\.$/$1/;
+         $cnames{$b}=$a;
+         #$self->log('info',"check_dyn_names:: CNAME>>$b---$a----");
+      }
+   }
+
+   #my $db_dyn_stored=$self->get_device($dbh,{'dyn'=>1},'id_dev,name,domain,ip');
+   foreach my $x (@$db_dyn_stored) {
+		my ($change,$new_ip) = (0,'');
+      my $id_dev=$x->[0];
+      my $ip=$x->[3];
+      my $name=$x->[1];
+      if ($x->[2] ne '') { $name = join ('.', $x->[1], $x->[2]); }
+      #$self->log('info',"check_dyn_names:: BUSCO name=$name con ip=$ip");
+      if (exists $vector{$ip}) {
+         if ($vector{$ip} eq $name) { $change = 0; }
+         else {
+            my $n = $vector{$ip};
+            while (exists $cnames{$n}) {
+      #$self->log('info',"check_dyn_names:: ITEROa $cnames{$n} == $name");
+               if ($cnames{$n} eq $name) { $change = 0; }
+               $n = $cnames{$n};
+            }
+         }
+      }
+      else { 
+			my %revcnames = reverse %cnames;
+         my $n = $name;
+         while (exists $revcnames{$n}) {
+      #$self->log('info',"check_dyn_names:: ITEROb $revcnames{$n} == $name");
+            if ($revcnames{$n} eq $name) { $change = 0; }
+            $n = $revcnames{$n};
+         }
+			foreach my $curr_ip (sort keys %vector) {
+      #$self->log('info',"check_dyn_names:: ITEROc $vector{$curr_ip} == $n");
+				if ($vector{$curr_ip} eq $n) {
+					$new_ip = $curr_ip;
+					$change = 1;
+					#$self->log('info',"check_dyn_names:: IN DB name=$n|ip=$curr_ip ok=$ok");
+					last; # La primera IP nueva es valida
+				}
+			}
+		}
+		$result{$name}={'ip'=>$ip, 'new_ip'=>$new_ip, 'id_dev'=>$id_dev, 'change'=>$change};
+      $self->log('info',"check_dyn_names:: IN DB name=$name|ip=$ip|new_ip=$new_ip change=$change");
+   }
+
+	return \%result;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #----------------------------------------------------------------------------
@@ -10235,6 +10392,14 @@ my ($self,$dbh,$tag)=@_;
       	$self->log('info',"manage_db_error::[$err] **REPAIR** TABLE: $table RESULT=$result");
 		}
    }
+	#2006
+	#MySQL server has gone away
+#	elsif ($err > 2000) {
+#     	$self->log('info',"manage_db_error::[$err] **RECONNECT**");
+#      $self->close_db($dbh);
+#      my $dbh2=$self->open_db();
+#      $self->dbh($dbh2);
+#	}
 
 }
 

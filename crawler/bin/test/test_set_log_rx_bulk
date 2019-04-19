@@ -1,0 +1,61 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# test_set_log_rx_bulk
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Store;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION="1.0";
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF="/cfg/onm.conf"; 
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{"conf_path"}->[0];
+my $txml_path=$rCFG->{"txml_path"}->[0];
+my $app_path=$rCFG->{"app_path"}->[0];
+my $dev_path=$rCFG->{"dev_path"}->[0];
+my $store_path=$rCFG->{"store_path"}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+#-------------------------------------------------------------------------------------------
+my $ip = "10.72.0.23";
+my $id_dev = 50;
+my $app_id = "333333001006";
+my $logfile = "mambo_cash_YMCDAYVALINV_from_sap";
+
+#-------------------------------------------------------------------------------------------
+my @LINES = ( 
+{ 	"ts" => 1554140704, 
+	"line"=>'{"CNM_Flag":"00", "DAYVALIDATIONDATE":"20190330", "MANDT":"800", "MOP_ERROR":"6666", "SESSION_ERROR":"0", "SITEID":"O7ES342600", "STATUS":"PEN", "TICKETS_WITHOU_SES":"0.00", "TOTALEXTERNALPENDING":"0.00", "TOTALFINALBALANCE":"16276.70", "TOTALGAP":"EUR", "TOTALSALES":"1953.12", "TOTALSTARTBALANCE":"14472.53", "cnm-key":"O7ES342600-20190330"}',
+	"hash"=>"99c9a3c1cf9d0a34" 
+},
+
+{ "ts"=>1554140704, "line"=>'{"CNM_Flag":"00", "DAYVALIDATIONDATE":"20190331", "MANDT":"800", "MOP_ERROR":"6666", "SESSION_ERROR":"0", "SITEID":"O7ES342600", "STATUS":"PEN", "TICKETS_WITHOU_SES":"0.00", "TOTALEXTERNALPENDING":"0.00", "TOTALFINALBALANCE":"21529.46", "TOTALGAP":"EUR", "TOTALSALES":"9377.90", "TOTALSTARTBALANCE":"16276.70", "cnm-key":"O7ES342600-20190331"}', "hash"=>"db12831145440898" },
+
+{ "ts"=>1554140704, "line"=> '{"CNM_Flag":"00", "DAYVALIDATIONDATE":"20190401", "MANDT":"800", "MOP_ERROR":"6666", "SESSION_ERROR":"0", "SITEID":"O7ES342600", "STATUS":"PEN", "TICKETS_WITHOU_SES":"0.00", "TOTALEXTERNALPENDING":"0.00", "TOTALFINALBALANCE":"22359.66", "TOTALGAP":"EUR", "TOTALSALES":"863.32", "TOTALSTARTBALANCE":"21529.46", "cnm-key":"O7ES342600-20190401"}', "hash"=>"76af2ee0b4a953e4" },
+
+{ "ts"=>1554140704, "line"=> '{"CNM_Flag":"00", "DAYVALIDATIONDATE":"20190325", "MANDT":"800", "MOP_ERROR":"6666", "SESSION_ERROR":"0", "SITEID":"O7ES342600", "STATUS":"VAL", "TICKETS_WITHOU_SES":"0.00", "TOTALEXTERNALPENDING":"0.00", "TOTALFINALBALANCE":"18236.21", "TOTALGAP":"EUR", "TOTALSALES":"2288.89", "TOTALSTARTBALANCE":"16396.45", "cnm-key":"O7ES342600-20190325"}', "hash"=>"97220551f5814fe5" },
+
+);
+
+#{"ts"=>$t, "line"=>$MSG{"line"}, "hash"=>$MSG{"md5"}}
+
+#-------------------------------------------------------------------------------------------
+$store->set_log_rx_lines_bulk($dbh,$ip,$id_dev,$logfile,$app_id,\@LINES);
+
+#-------------------------------------------------------------------------------------------
+$store->close_db($dbh);
+

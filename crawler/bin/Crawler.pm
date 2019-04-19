@@ -2790,7 +2790,7 @@ my ($self,$dbh,$store,$table)=@_;
 
    my $ok=1;
    if (!defined $dbh) {
-      $self->log('warning',"chk_conex::**SIN CONEXION A BBDD (dbh undef)**");
+      $self->log('warning',"chk_conex:: **reconnect** dbh undef");
       $dbh=$store->open_db(); $self->dbh($dbh); $store->dbh($dbh);
    }
    my $rres=$store->get_from_db( $dbh, 'count(*)', $table, '');
@@ -2802,7 +2802,7 @@ my ($self,$dbh,$store,$table)=@_;
    # Solo se contemplan errores por parte del cliente para forzar una reconexion
    # Errores de conexion a BBDD o errores como Mysql server has gone away (2006)
    if ($error>=2000) {
-      $self->log('warning',"chk_conex:: RECONNECT DB ($error) $errstr dbh=$dbh store=$store res_db=$res_db");
+      $self->log('warning',"chk_conex:: **reconnect** ($error) $errstr dbh=$dbh store=$store res_db=$res_db");
 		$store->close_db($dbh);
       $dbh=$store->open_db();
       $self->dbh($dbh);
@@ -2816,9 +2816,9 @@ my ($self,$dbh,$store,$table)=@_;
 
       if ($libSQL::err) {
          $ok=0;
-         $self->log('warning',"chk_conex:**ERROR EN CONEXION A BBDD** open_db ($error) $errstr res_db=$res_db");
+         $self->log('warning',"chk_conex: **reconnect** ERROR EN CONEXION A BBDD open_db ($error) $errstr res_db=$res_db");
       }
-      else { $self->log('info',"chk_conex::[INFO BD] NEW DBH OK res_db=$res_db");  }
+      else { $self->log('info',"chk_conex:: **reconnect**  NEW DBH OK res_db=$res_db");  }
    }
 
    return ($dbh,$ok);
@@ -3088,7 +3088,7 @@ my ($self) = @_;
 # Si los procesos no registran actividad en $max_time se reinician desde cnm-watch
 #----------------------------------------------------------------------------
 sub chk_tmark_files {
-my ($self, $vector, $offset) = @_;
+my ($self, $vector) = @_;
 
 	if (ref($vector) ne "ARRAY") {
 	   opendir (DIR,$Crawler::TMARK_PATH);
@@ -3098,7 +3098,7 @@ my ($self, $vector, $offset) = @_;
 	}
 
 	my $tnow=time();
-	if ($offset !~ /^\d+$/) { $offset=3; }
+	my $offset=3;
 
 	foreach my $f (@$vector) {
 		if ($f=~/^\./) { next; }
@@ -3109,8 +3109,13 @@ my ($self, $vector, $offset) = @_;
       #[notificationsd.010.notificationsd.60]
       if ($f=~/^\[(\S+?)\.(\d+)\.(\w+)\.(\d+)\]$/) {  ($proc,$proc_time) = ($1,$4); } 
 
+		# Si es actionsd -> $max_time = 7200
+		# Para proc_time hasta 300 -> $max_time = 3*proc_time
+		# Para proc_time hasta 3600 -> $max_time = 2*proc_time
+		# Para proc_time >= 3600 -> $max_time = 1.1*proc_time
 		my $max_time = $offset*$proc_time; #60, 300 ..
 		if ($proc =~ /actionsd/) { $max_time = 7200; }
+		elsif (($proc_time > 300) && ($proc_time < 3600)) { $max_time = 2*$proc_time; }
 		elsif ($proc_time >= 3600) { $max_time = 1.1*$proc_time; }
 
 #		#/actionsd/ y /notificationsd/ siguen otro criterio.
