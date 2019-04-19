@@ -327,6 +327,16 @@ my ($self,$lapse)=@_;
    else {
       $self->log('info',"do_task::[INFO] -W- [WAIT=$wait]");
       sleep $wait;
+
+      # If $wait>15 min. DB reconnect forced
+      if ($wait > 900) {
+		   my $store=$self->store();
+      	my $dbh=$self->dbh();
+         $store->close_db($dbh);
+         $dbh=$store->open_db();
+         $self->dbh($dbh);
+         $store->dbh($dbh);
+      }
    }
 
    #----------------------------------------------------
@@ -646,9 +656,11 @@ $self->log('debug',"get_app_data:: app=$xx");
    my $cmd = $app->{'cmd'};
    $self->log('info',"get_app_data:: CAPTURE by $cmd");
 
+	my $ok;
 	my $data=[];
    my $store=$self->store();
    my $dbh=$self->dbh();
+	my $t1 = time();
 
 	#--------------------------------------------
 	# 1. CAPTURE DATA
@@ -689,6 +701,23 @@ $self->log('debug',"get_app_data:: app=$xx");
 		$data = [@lines];
 	}
 
+	my $t1_end = time();
+   #--------------------------------------------
+	if ($t1_end-$t1>300) {
+      $store->close_db($dbh);
+      $dbh=$store->open_db();
+      $self->dbh($dbh);
+      $store->dbh($dbh);
+	}
+   #--------------------------------------------
+
+#   ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
+#   if ($ok==0) {
+#   	$self->log('info',"get_app_data:: **ERROR DB**");
+#      return $data;
+#	}
+#	$self->dbh($dbh);
+   #--------------------------------------------
 
    #--------------------------------------------
    my %app_flush=();
@@ -812,7 +841,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 		}
 		$data = [@new_data];
 	}
-
+	
    #--------------------------------------------
    # 3. TRANSFORM DATA (block transform) -> custom_block_parser
    #--------------------------------------------
@@ -826,6 +855,26 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 		my $data2 = $MODINFO::custom_block_parser{$custom_block_id}->($app,$data);
 		$data = $data2;
    }
+
+   my $t3_end = time();
+   #--------------------------------------------
+   if ($t3_end-$t1_end>300) {
+      $store->close_db($dbh);
+      $dbh=$store->open_db();
+      $self->dbh($dbh);
+      $store->dbh($dbh);
+   }
+   #--------------------------------------------
+
+#   #--------------------------------------------
+#	# Si hay muchas filas 2b/3 pueden tardar mucho tiempo
+#   ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
+#   if ($ok==0) {
+#      $self->log('info',"get_app_data:: **ERROR DB**");
+#      return $data;
+#   }
+#   $self->dbh($dbh);
+#   #--------------------------------------------
 
 
    #--------------------------------------------
@@ -912,7 +961,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    	$MSG{'msg'} = join ('|',@msgdata);
 
 	   my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
-
+	
    	if (exists $MSG{'app_name'}) { $logfile = $MSG{'app_name'}.'-'.$logfile; }
 
    	# Almaceno el evento ---------------------------------------------------------------------

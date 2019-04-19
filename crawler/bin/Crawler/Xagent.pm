@@ -454,6 +454,14 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
 
          $self->log('info',"do_task::[INFO] -W- xagent.$lapse|$real_lapse|IDX=$range|NM=$NM|NU=$NU|WAIT=$wait");
          sleep $wait;
+
+			# If $wait>15 min. DB reconnect forced
+			if ($wait > 900) {
+		      $store->close_db($dbh);
+      		$dbh=$store->open_db();
+		      $self->dbh($dbh);
+      		$store->dbh($dbh);
+			}
       }
       #----------------------------------------------------
       if ($Crawler::TERMINATE == 1) {
