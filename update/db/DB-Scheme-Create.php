@@ -980,6 +980,8 @@ $DBScheme = array(
 		'function'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'weight'=>"int(11) NOT NULL default '0'",
 		'background'=>"varchar(255) character set utf8 collate utf8_spanish_ci default ''",
+		# graph_w_size: Size of the window that holds the graphs of devices (XxY)
+		'graph_w_size'=>"varchar(20) character set utf8 collate utf8_spanish_ci NOT NULL default '{\"width\":700,\"height\":350,\"maximized\":false}'",
 		'ruled'=>"int(11) NOT NULL default '0'",
 		'severity'=>"int(11) NOT NULL default '6'",
 		'red'=>"int(11) NOT NULL default '0'",
@@ -1091,6 +1093,8 @@ $DBScheme = array(
 		'id_cfg_op'=>"int(11) NOT NULL default '0'",
 		'host_idx'=>"int(11) NOT NULL default '1'",
 		'background'=>"varchar(255) character set utf8 collate utf8_spanish_ci default ''",
+		# graph_w_size: Size of the window that holds the graphs of devices (XxY)
+		'graph_w_size'=>"varchar(20) character set utf8 collate utf8_spanish_ci NOT NULL default '{\"width\":700,\"height\":350,\"maximized\":false}'",
 		'enterprise'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default '0'",
 		'email'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'correlated_by'=>"int(11) default '0'",
