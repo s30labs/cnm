@@ -1,0 +1,237 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+use DBD::Pg;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+API Scripts - export-metric_data
+(c) s30labs
+
+(1) Get data from all metrics in a view (lapse=today)
+/opt/cnm/crawler/bin/ws/export-metric_data -view 127 -pg
+(2) Get data from all metrics in query (lapse=today)
+/opt/cnm/crawler/bin/ws/export-metric_data -q 'metricname=P01-SP0004%'
+
+$fpth[$#fpth] [-d debug|info] [-c cid] [-view id] [-lapse today] -q 'metricname=WEB PAGE LOAD TIME%' [-pg]
+$fpth[$#fpth] -h  : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my ($VERBOSE,$CONDITION,$log_mode,$class,$endpoint) = (0,'',3,'','');
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s', 'view=s', 'lapse=s', 'pg')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+if ((! $OPTS{'q'}) && (! $OPTS{'view'})) { die $USAGE;}
+if ( ($OPTS{'verbose'}) || ($OPTS{'v'}) ) { $VERBOSE=1; }
+
+# Data from metrics query
+if ($OPTS{'q'}) { 
+	$CONDITION = $OPTS{'q'}; 
+	$class='metrics';
+	$endpoint='info.json?'.$CONDITION;
+}
+# Data from metrics in specified view
+elsif ($OPTS{'view'}) {
+	$class='';
+	#views/127/metrics.json
+	$endpoint='views/'.$OPTS{'view'}.'/metrics.json';
+}
+
+my $host_ip='localhost';
+my $log_level= (defined $OPTS{d}) ? $OPTS{d} : 'info';
+my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
+my $lapse = (defined $OPTS{lapse}) ? $OPTS{lapse} : 'today';
+
+my @fields=('metricname', 'metricitems');
+my $ofields = join (',', @fields);
+;
+#// Para obtener todos las metricas:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/info.json"
+#// Para obtener una metrica concreta:
+#// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/2332.json"
+
+
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+my $response = $api->ws_get($class,$endpoint);
+
+#            'devicetype' => 'Servidor',
+#            'deviceid' => '6',
+#            'metricid' => '744',
+#            'metricmname' => 'xagt_004600-0299cc0e',
+#            'metrictype' => 'xagent',
+#            'metricsubtype' => 'xagt_004600',
+#            'metricitems' => 'onLoad Time|onContentLoad Time',
+#            'devicedomain' => 'cohaerentis.com',
+#            'monitorid' => '79',
+#            'devicename' => 'www',
+#            'deviceip' => '144.76.85.230',
+#            'metricstatus' => '0',
+#            'devicestatus' => '0',
+#            'monitorsevyellow' => '',
+#            'metricname' => 'WEB PAGE LOAD TIME http://www.cohaerentis.com/servicios/',
+#            'monitorname' => 'TIEMPO DE CARGA EXCESIVO',
+#            'monitorsevred' => '',
+#            'monitorsevorange' => 'v1>5'
+
+
+my %IDs=();
+if (scalar(@fields)==0) { print Dumper($response); }
+elsif (scalar(@$response)==0) { print "0\n"; }
+else {
+	foreach my $desc (@$response) {
+		my $id = $desc->{'metricid'};
+		my @fx=();
+		foreach my $f (@fields) {
+			if ($VERBOSE) { print $desc->{$f}."\t"; }
+			$IDs{$id}->{$f} = $desc->{$f};	
+			push @fx,$desc->{$f};
+		}
+		$IDs{$id}->{'fields'} = join (',',@fx);
+		$IDs{$id}->{'metricname'} = $desc->{'metricname'};
+		$IDs{$id}->{'metricitems'} = $desc->{'metricitems'};
+		if ($VERBOSE) { print "\n"; }
+	}
+}
+
+my @CSV=();
+my @HEADINGS=();
+$class='metrics';
+my $items = [];
+
+foreach my $id (sort keys %IDs) {
+	#$endpoint='data/'.$id.'.json?lapse=week_0';
+	$endpoint='data/'.$id.'.json?lapse='.$lapse;
+
+	if ($VERBOSE) { print "endpoint=$endpoint\n"; }
+
+	$response = $api->ws_get($class,$endpoint);
+	if ($VERBOSE) { print Dumper($response); }
+
+	$items=$response->{'flot'}->{'label'};
+	my $nitems=scalar(@$items);
+
+	push @HEADINGS,'Time,metricid,'.$ofields.','.join(',',@$items);
+	foreach my $hv (@{$response->{'flot'}->{'data'}}) {
+		for my $i (0..$nitems-1) {
+	      my %line=();
+   	   $line{'metricid'} = $id;
+      	$line{'ts'} = $hv->{'t'};
+      	$line{'metricname'} = $IDs{$id}->{'metricname'};
+			$line{'item'} = $items->[$i];
+			$line{'value'} = $hv->{'v'}->[$i];
+			push @CSV, \%line;
+		}
+	}
+}
+
+#                      'label' => [
+#                                   'Number of Files',
+#                                   '0=OK, 1=Connect Error, 2=Timeout, 3=Other'
+#                                 ]
+#
+#          {
+#            'item' => 'Number of Files',
+#            'metricid' => '45422',
+#            'metricname' => 'P02-SP0007-KPI0002 - BPI rejected files (prawwbpias01.areascloud.com)',
+#            'v' => '4.5000000000e+01',
+#            't' => 1555877100
+#          },
+#          {
+#            't' => 1555877100,
+#            'metricname' => 'P02-SP0007-KPI0002 - BPI rejected files (prawwbpias01.areascloud.com)',
+#            'v' => '0',
+#            'item' => '0=OK, 1=Connect Error, 2=Timeout, 3=Other',
+#            'metricid' => '45422'
+#          }
+#
+
+
+#print Dumper(\@CSV);
+#my $ofields = join(',',@fields);
+#print 'Time,metricid,'.$ofields.','.join(',',@$items)."\n";
+if ($OPTS{'csv'}) {
+
+	foreach my $h (@HEADINGS) {
+		print "$h\n";
+	}
+	foreach my $h (@CSV) {
+		print $h->{'t'}.','.$h->{'metricid'}.','.$h->{'fields'}.','.$h->{'vx'}."\n";
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+# Export to Pg (Timescale)
+#-------------------------------------------------------------------------------------------
+if ($OPTS{'pg'}) {
+
+	my $host = `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' core-timescaledb`;
+	chomp $host;
+	my $port = 5432;
+	my $driver  = "Pg";
+	my $database = "metrics";
+	my $dsn = "DBI:$driver:dbname = $database;host = $host;port = $port";
+	my $userid = "postgres";
+	my $password = "cnmManag3r";
+	my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 })
+   	or die $DBI::errstr;
+
+	print "Opened database successfully ($dsn)\n";
+
+	foreach my $l (@CSV) {
+
+		my ($metricid,$metricvalue,$value);
+      if ($l->{'ts'} !~ /^\d+$/) { next; }
+
+      if ((! defined $l->{'metricid'}) || ($l->{'metricid'} !~ /^\d+$/)) { next; }
+      if (! defined $l->{'metricname'}) { next; }
+      if (! defined $l->{'item'}) { next; }
+		$metricid = $l->{'metricid'};
+		$metricvalue = join (' - ', $l->{'metricname'}, $l->{'item'});
+		$value = ($l->{'value'} =~ /\d+/) ? $l->{'value'} : 'NULL';
+
+#          {
+#            'item' => 'Number of Files',
+#            'metricid' => '45422',
+#            'metricname' => 'P02-SP0007-KPI0002 - BPI rejected files (prawwbpias01.areascloud.com)',
+#            'v' => '4.5000000000e+01',
+#            't' => 1555877100
+#          },
+
+
+
+      #1999-01-08 04:05:06
+      my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($l->{'ts'});
+      $year += 1900;
+      $mon += 1;
+      my $data_time = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
+
+#print "....$ts, $data_time, $metricid, $metricname, $item, $value----\n";
+
+      eval {
+         my $stmt = qq(INSERT INTO metrics_app (time,metricid,metricvalue,value)
+         VALUES ('$data_time', $metricid, '$metricvalue', $value));
+         my $rv = $dbh->do($stmt) or die $DBI::errstr;
+      };
+      if ($@) {
+         print "**NO INSERT** ($@)\n";
+      }
+      else {
+         print "OK insert -> $data_time,$metricid,$metricvalue,$value\n";
+      }
+   }
+}
+

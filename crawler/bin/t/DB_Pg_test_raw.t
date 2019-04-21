@@ -14,7 +14,7 @@ use DBD::Pg;
 my @fpth = split ('/',$0,10);
 my @fname = split ('\.',$fpth[$#fpth],10);
 my $USAGE = <<USAGE;
-REMOTE_send_log v1.0 (c) s30labs
+DB_Pg_test.t (c) s30labs
 
 $fpth[$#fpth] -create
 $fpth[$#fpth] -select
@@ -27,13 +27,13 @@ USAGE
 
 #-------------------------------------------------------------------------------------------
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','create','select','insert')
+GetOptions (\%OPTS,  'h','help','v','verbose','create','select','insert=s')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
 
 #-------------------------------------------------------------------------------------------
-my $host = `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cnm-timescaledb`;
+my $host = `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' core-timescaledb`;
 chomp $host;
 my $port = 5432;
 
@@ -85,7 +85,7 @@ if ($OPTS{'create'}) {
 #-------------------------------------------------------------------------------------------
 # SELECT
 #-------------------------------------------------------------------------------------------
-if ($OPTS{'select'}) {
+elsif ($OPTS{'select'}) {
 
 	my $stmt = qq(SELECT time,mname,v1,v2,v3,v4  from metrics4;);
 	my $sth = $dbh->prepare( $stmt );
@@ -106,28 +106,73 @@ if ($OPTS{'select'}) {
 }
 
 #-------------------------------------------------------------------------------------------
-# INSERT
+# INSERT (from file)
 #-------------------------------------------------------------------------------------------
-if ($OPTS{'insert'}) {
+elsif (($OPTS{'insert'}) && (-f $OPTS{'insert'})) {
 
-	my $ts = time;
-	#1999-01-08 04:05:06
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
-	$year += 1900;
-	$mon += 1;
-	my $data_time = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
-	my $subtype = 'test_metric';
-	my $v1=int(100*rand);
-	my $v2=int(100*rand);
-	my $v3=int(100*rand);
-	my $v4=int(100*rand);
+	open (F,"<$OPTS{'insert'}");
+	while (<F>) {
+		chomp $_;
+		my ($ts,$metricid,$metricname,$v1,$v2,$v3,$v4) = split(',',$_);
+		if ($ts !~ /^\d+$/) { next; }
 
+		if (! defined $metricid) { next; }
+		if (! defined $metricname) { next; }
+		if (! defined $v1) { $v1='NULL'; }
+		if (! defined $v2) { $v2='NULL'; }
+		if (! defined $v3) { $v3='NULL'; }
+		if (! defined $v4) { $v4='NULL'; }
 
-	my $stmt = qq(INSERT INTO metrics4 (time,mname,v1,v2,v3,v4)
-   VALUES ('$data_time', '$subtype', $v1,$v2,$v3,$v4));
-	my $rv = $dbh->do($stmt) or die $DBI::errstr;
+		#1999-01-08 04:05:06
+		my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+		$year += 1900;
+		$mon += 1;
+		my $data_time = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
 
-	print "OK insert -> $data_time,$subtype,$v1,$v2,$v3,$v4\n";
+print "....$ts, $data_time, $metricid, $metricname, $v1,$v2,$v3,$v4----\n";
+
+		eval {
+			my $stmt = qq(INSERT INTO metrics4 (time,metricid,metricname,v1,v2,v3,v4)
+   		VALUES ('$data_time', $metricid, '$metricname', $v1,$v2,$v3,$v4));
+			my $rv = $dbh->do($stmt) or die $DBI::errstr;
+   	};
+   	if ($@) {
+      	print "**NO INSERT** ($@)\n";
+   	}
+   	else {
+			print "OK insert -> $data_time,$metricid,$metricname,$v1,$v2,$v3,$v4\n";
+   	}
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+# INSERT (TEST)
+#-------------------------------------------------------------------------------------------
+elsif ($OPTS{'test'}) {
+
+   my $ts = time;
+   #1999-01-08 04:05:06
+   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+   $year += 1900;
+   $mon += 1;
+   my $data_time = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
+   my $subtype = 'test_metric';
+   my $v1=int(100*rand);
+   my $v2=int(100*rand);
+   my $v3=int(100*rand);
+   my $v4=int(100*rand);
+
+	eval {
+	   my $stmt = qq(INSERT INTO metrics4 (time,mname,v1,v2,v3,v4)
+   	VALUES ('$data_time', '$subtype', $v1,$v2,$v3,$v4));
+   	my $rv = $dbh->do($stmt) or die $DBI::errstr;
+	};
+	if ($@) {
+		print "**NO INSERT** ($@)\n";
+	}
+	else {
+   	print "OK insert -> $data_time,$subtype,$v1,$v2,$v3,$v4\n";
+	}
 }
 
 

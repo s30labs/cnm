@@ -55,7 +55,7 @@ my $dbh=undef;
 			$dbh = DBI->connect($dsn,"","");
 		}
 	   elsif ($$db{DRIVERNAME} eq 'Pg'){
-			$dbh = DBI->connect($dsn,$$db{USER},$$db{PASSWORD},{RaiseError => 1}) ;
+			$dbh = DBI->connect($dsn,$$db{USER},$$db{PASSWORD},{PrintError => 1,RaiseError => 1}) ;
 		}
 		else {
 			$dbh = DBI->connect($dsn,$$db{USER},$$db{PASSWORD},{PrintError => 1,RaiseError => 1,AutoCommit => 1}) ;
