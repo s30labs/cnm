@@ -328,8 +328,9 @@ my ($self,$dbh,$params)=@_;
    $self->err_str('OK');
    $self->err_num(0);
 
-
-   my ($data_value,$event_info,$last_ts) = ('U','UNK','U');
+   my %data_value=();
+   foreach my $f (@fields) { $data_value{$f} = 'U'; }
+   my ($event_info,$last_ts) = ('UNK','U');
 
    # Se obtiene el nombre de la tabla a partir del id.
    # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
@@ -338,7 +339,7 @@ my ($self,$dbh,$params)=@_;
       $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
       $self->err_str($event_info);
       $self->err_num(1);
-      return ($data_value,$event_info);
+      return (\%data_value,$event_info);
    }
 
    my $tabname = $res->[0];
@@ -354,11 +355,9 @@ my ($self,$dbh,$params)=@_;
    if ($self->err_num() != 0) {
       $self->log('warning',"ERROR dbCmd >> $SQL");
       $event_info = $self->err_str();
-      return ($data_value,$event_info);
+      return (\%data_value,$event_info);
    }
 
-	$data_value = 0;
-	my %data_value=();
 
    foreach my $l (@$res) {
 
@@ -383,10 +382,13 @@ $self->log('info',"line=$l->[3]");
  
       $event_info = $l->[3];
       $last_ts = $l->[2];
-      $self->log('info',"**DEBUG** RES data_value=$data_value");
 
 		if ($nf==0) { last; }
 	}
+
+   foreach my $field (@fields) {
+      $self->log('info',"**DEBUG** RES $field >> $data_value{$field}");
+   }
 
    return (\%data_value,$event_info,$last_ts);
 }
