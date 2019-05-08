@@ -1324,6 +1324,10 @@ my ($self,$dbh)=@_;
 	my $store=$self->store();
 	my $ts = $self->time_ref();
 
+   my $cid = $self->cid();
+   my $notif_dir = "$Crawler::MDATA_PATH/output/$cid/notif";
+   if (! -d $notif_dir) { mkdir $notif_dir; }
+
 	# $CFG_POST contiene los avisos y aplicaciones definidas
 	my $CFG_POST=$store->get_cfg_post_alert($dbh);
 
@@ -1410,6 +1414,10 @@ my ($self,$dbh)=@_;
 
 			# SE GENERA AVISO PARA SET --------------------------------------
 			if ( exists $CFG_POST->{$id}->{'aviso'}) { 
+
+            # Si hay CLR asociado registro marca de control
+            if ($CFG_POST->{$id}->{'type'}==1) { $self->set_app_notif_mark($notif_dir,$id); }
+
 				$self->log('info',"manage_app_notifications [$id] ($id_dev|$id_dev_alert):: ****AVISO**** (SET)");
 
 # rc = -1 	EN CURSO
@@ -1431,6 +1439,10 @@ my ($self,$dbh)=@_;
 	
 			# SE EJECUTA APP COMO TAREA PARA SET -----------------------------				
 			if ( exists $CFG_POST->{$id}->{'app'}) {
+
+            # Si hay CLR asociado registro marca de control
+            if ($CFG_POST->{$id}->{'type'}==1) { $self->set_app_notif_mark($notif_dir,$id); }
+
 	         my ($aname,$name)=($CFG_POST->{$id}->{'aname'},$CFG_POST->{$id}->{'name'});
 				$self->log('info',"manage_app_notifications [$id] ($id_dev|$id_dev_alert):: ****APP-TASK**** (SET) aname=$aname name=$name");
 				# Se almacena en cfg_task_configured 
@@ -1440,6 +1452,9 @@ my ($self,$dbh)=@_;
 
 			# SE EJECUTA APP INMEDIATAMENTE PARA SET --------------------------				
 			elsif ( exists $CFG_POST->{$id}->{'run'}) {
+
+            # Si hay CLR asociado registro marca de control
+            if ($CFG_POST->{$id}->{'type'}==1) { $self->set_app_notif_mark($notif_dir,$id); }
 
             #Solo proxy localhost.
             my $id_proxy=1;
@@ -1533,6 +1548,15 @@ my ($self,$dbh)=@_;
 
 			# SE GENERA AVISO PARA CLR --------------------------------------
 			if ( exists $CFG_POST->{$id}->{'aviso'}) {
+
+            # Solo se manda el CLR si se ha enviado el SET
+				my $file_set = "$notif_dir/$id";
+            if (! -f $file_set) { 
+					$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****AVISO**** (NO SE MANDA CLR) NO EXISTE $file_set");
+					next; 
+				}
+            unlink $file_set;
+
 				$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****AVISO**** (CLR)");
 
             my %response=( 'id_alert'=>$id_alert,  'type'=>'1',
@@ -1548,6 +1572,15 @@ my ($self,$dbh)=@_;
 
 			# SE EJECUTA APP PARA CLR --------------------------------------
          if ( exists $CFG_POST->{$id}->{'app'}) {
+
+            # Solo ejecuto en CLR si se ha enviado el SET
+            my $file_set = "$notif_dir/$id";
+            if (! -f $file_set) {
+               $self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****APP-TASK**** (NO SE MANDA CLR) NO EXISTE $file_set");
+               next;
+            }
+            unlink $file_set;
+
 	         my ($aname,$name)=($CFG_POST->{$id}->{'aname'},$CFG_POST->{$id}->{'name'});
 				$self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****APP-TASK**** (CLR) aname=$aname name=$name");
 
@@ -1558,6 +1591,15 @@ my ($self,$dbh)=@_;
 
 			# SE EJECUTA APP INMEDIATAMENTE PARA CLR --------------------------				
          elsif ( exists $CFG_POST->{$id}->{'run'}) {
+
+            # Solo ejecuto en CLR si se ha enviado el SET
+            my $file_set = "$notif_dir/$id";
+            if (! -f $file_set) {
+               $self->log('info',"manage_app_notifications [$id] do_cause=$do_cause ($id_dev|$id_dev_alert):: ****APP-RUN**** (NO SE MANDA CLR) NO EXISTE $file_set");
+               next;
+            }
+            unlink $file_set;
+
 
             #Solo proxy localhost.
             my $id_proxy=1;
@@ -1608,6 +1650,17 @@ my ($self,$dbh)=@_;
 
 }
 
+#----------------------------------------------------------------------------
+# set_app_notif_mark
+#----------------------------------------------------------------------------
+sub set_app_notif_mark {
+my ($self,$notif_dir,$id)=@_;
+
+   open M,'>>',"$notif_dir/$id"; #Equivale a `touch $notif_dir/$id`;
+   close M;
+   $self->log('info',"manage_app_notifications [$id] SET MARK FOR CLR ($notif_dir/$id)");
+
+}
 
 #----------------------------------------------------------------------------
 # set_wsize_mark
@@ -2095,11 +2148,12 @@ if ( ($type eq 'latency') && ($DATA_OUT->[0] == 0) ) {
 my $ev=$TASKS{$key}->{'ev'};
    $self->log('debug',"alert_processor::[DEBUG] CASO RARO E INDEFINIDO KEY=$key IP=$host_ip RC=$RC  EV=$ev");
 }
+
 #if ( ($type eq 'xagent')  ) {
 #my $ev=$TASKS{$key}->{'ev'};
-#   $self->log('debug',"alert_processor::[DEBUG] CASO XAGENT A ESTUDIAR***** KEY=$key IP=$host_ip RC=$RC  EV=$ev  DATA_OUT=$DATA_OUT->[0] || err_num=$err_num err_str=$err_str");
+#   $self->log('info',"alert_processor::[DEBUG] CASO XAGENT A ESTUDIAR***** KEY=$key IP=$host_ip RC=$RC  EV=$ev  DATA_OUT=$DATA_OUT->[0] || err_num=$err_num err_str=$err_str");
 #}
-#
+
          # La borro de alerts y paso a alerts_store si counter > 0
          if ($counter > 0) {
 				
