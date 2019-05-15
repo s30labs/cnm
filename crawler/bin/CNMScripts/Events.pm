@@ -191,7 +191,11 @@ my ($self,$dbh,$params)=@_;
 	foreach my $p (@pattern_line) {
 		my ($k,$op,$value) = split(/\|/,$p);
 		my $kuc = uc $k;
-		$patterns{$kuc} = { 'k'=>$k, 'op'=>$op, 'value'=>$value };
+		if (! exists $patterns{$kuc}) {
+			$patterns{$kuc} = [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ]; 
+		}
+		else { push @{$patterns{$kuc}}, { 'k'=>$k, 'op'=>$op, 'value'=>$value }; }
+
 #$self->log('info',"**DEBUG** CLAVE $kuc >> k=$k op=$op value=$value");
 	}
 
@@ -206,28 +210,35 @@ my ($self,$dbh,$params)=@_;
 		foreach my $k (keys %$data) {
 			my $kx = uc $k;
 
-#$self->log('info',"**DEBUG** CLAVE $kx - pattern=$pattern");
-
 			if (! exists $patterns{$kx}) { next; }
-			my $op = $patterns{$kx}->{'op'};
-			my $value = $patterns{$kx}->{'value'};
-#$self->log('info',"**DEBUG** op=$op value=$value");
+#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - pattern=$pattern");
 
-			#Operandos: ne, gt, lt, gte, lte
-			if (($op =~ /gte/i) && ($data->{$k} >= $value)) { $ok += 1; }
-			elsif (($op =~ /gt/i) && ($data->{$k} > $value)) { $ok += 1; }
-			elsif (($op =~ /lte/i) && ($data->{$k} <= $value)) { $ok += 1; }
-			elsif (($op =~ /lt/i) && ($data->{$k} < $value)) { $ok += 1; }
-			elsif ($op =~ /ne/i) {
-				if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} != $value)) { $ok += 1; }
-				elsif ($data->{$k} ne $value) { $ok += 1; }
-			}
-			elsif ($op =~ /eq/i) {
-            if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} == $value)) { $ok += 1; }
-            elsif ($data->{$k} eq $value) { $ok += 1; }
-			}
+			foreach my $h (@{$patterns{$kx}})  {
 
-			$self->log('info',"**DEBUG** CHECK $data->{$k} $op $value -> ok=$ok");
+				#my $op = $patterns{$kx}->{'op'};
+				#my $value = $patterns{$kx}->{'value'};
+
+            my $op = $h->{'op'};
+            my $value = $h->{'value'};
+
+				#Operandos: eqs, match, ne, gt, lt, gte, lte
+				if (($op =~ /eqs/i) && ($data->{$k} eq $value)) { $ok += 1; }
+				elsif (($op =~ /match/i) && ($data->{$k} =~/$value/)) { $ok += 1; }
+				elsif (($op =~ /gte/i) && ($data->{$k} >= $value)) { $ok += 1; }
+				elsif (($op =~ /gt/i) && ($data->{$k} > $value)) { $ok += 1; }
+				elsif (($op =~ /lte/i) && ($data->{$k} <= $value)) { $ok += 1; }
+				elsif (($op =~ /lt/i) && ($data->{$k} < $value)) { $ok += 1; }
+				elsif ($op =~ /ne/i) {
+					if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} != $value)) { $ok += 1; }
+					elsif ($data->{$k} ne $value) { $ok += 1; }
+				}
+				elsif ($op =~ /eq/i) {
+   	         if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} == $value)) { $ok += 1; }
+      	      elsif ($data->{$k} eq $value) { $ok += 1; }
+				}
+
+				$self->log('info',"**DEBUG** CHECK ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
+			}
 		}
 
 		if (($pattern_type eq 'AND') && ($ok == $npatterns)) { $event_counter += 1; }
