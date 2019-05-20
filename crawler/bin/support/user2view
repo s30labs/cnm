@@ -1,0 +1,101 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# user2view
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Data::Dumper;
+use ONMConfig;
+use Crawler::Store;
+use Encode qw(decode_utf8);
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+my ($rres,$sql,$HELP,$VIEW,$ID,$USER,$RECURSE)=([],'','','',0,'',0);
+my %PH=();
+my $USAGE = "Usage: $0 -view 'View name' -user login_name";
+my %ALLV=();
+
+#-------------------------------------------------------------------------------------------
+GetOptions( "help" => \$HELP, "h" => \$HELP, "view=s"=>\$VIEW, "user=s"=>\$USER, "recurse"=>\$RECURSE)
+  or die("$USAGE\n");
+
+if ($VIEW eq '') { die("$USAGE\n"); }
+my $VIEW8 = decode_utf8($VIEW, 1);
+if ($USER eq '') { die("$USAGE\n"); }
+
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+#-------------------------------------------------------------------------------------------
+$sql = "SELECT id_user from cfg_users WHERE login_name='$USER'";
+$rres = $store->get_from_db_cmd($dbh,$sql);
+my $IDU = $rres->[0][0];
+if (($IDU !~ /^\d+$/) || ($IDU==0)) {
+   die "**ERROR** $USER not defined\n";
+}
+
+$sql = "SELECT id_cfg_view,name,cid,cid_ip from cfg_views";
+$rres = $store->get_from_db_cmd($dbh,$sql);
+foreach my $v (@$rres) {
+   $ALLV{$v->[0]}={'name'=>$v->[1], 'cid'=>$v->[2], 'cid_ip'=>$v->[3]};
+   if ($v->[1]=~/$VIEW8/) { $ID=$v->[0]; }
+}
+print "VIEW:$VIEW ID=$ID\n";
+
+$sql = 'SELECT id_cfg_view,id_cfg_subview FROM cfg_views2views';
+$rres = $store->get_from_db_cmd($dbh,$sql);
+
+foreach my $v (@$rres) {
+   my $id_cfg_view=$v->[0];
+   my $id_cfg_subview=$v->[1];
+   if (exists $PH{$id_cfg_view}) { push @{$PH{$id_cfg_view}}, $id_cfg_subview; }
+   else { $PH{$id_cfg_view} = [$id_cfg_subview];  }
+}
+
+if ($ID==0) { die "**ERROR** View $VIEW not found ...\n"; }
+
+my @ALL=($ID);
+if ($RECURSE) { itera($PH{$ID}); }
+#print Dumper(\@ALL);
+
+my $n=scalar(@ALL);
+print "$n views found ...\n";
+
+foreach my $id (@ALL) {
+
+   my $cid=$ALLV{$id}->{'cid'};
+   my $cid_ip=$ALLV{$id}->{'cid_ip'};
+   print "Grant access to user $USER in $ALLV{$id}->{'name'} ...\n";
+   print "Grant access to user $USER ($IDU) in $ALLV{$id}->{'name'} ($id) ...\n";
+   $store->insert_to_db($dbh,'cfg_user2view',{'id_user'=>$IDU,'id_cfg_view'=>$id,'login_name'=>$USER,'cid'=>$cid,'cid_ip'=>$cid_ip});
+}
+
+#-------------------------------------------------------------------------------------------
+$store->close_db($dbh);
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub itera {
+my ($vector) = @_;
+   foreach my $id (@{$vector}) {
+      push @ALL,$id;
+      itera($PH{$id});
+   }
+}
+
+
