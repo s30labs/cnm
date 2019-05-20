@@ -1801,7 +1801,7 @@ my $rres;
 		if (!defined $table{id_device}) {
 			my $ip = (defined $data->{ip}) ? $data->{ip} : 'undef';
 			$self->log('warning',"store_alert::[WARN] Error IP=$ip (id_dev=undef)");
-			return (undef,undef);
+			return (undef,undef,undef);
 		}
 	}
 	else {$table{id_device} = $data->{id_device}; }
@@ -1845,7 +1845,7 @@ my $rres;
 
    if (! defined $data->{mname}) {
       $self->log('warning',"store_alert::[WARN] mname=UNDEF");
-      return (undef,undef);
+      return (undef,undef,undef);
    }
 	else { $table{mname} = $data->{mname}; }
 
@@ -1958,7 +1958,7 @@ my $rres;
 
 		if ($libSQL::err == 0) {
 	     	my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-      	return ($rres->[0][0],$rres->[0][1]);
+      	return ($rres->[0][0],$rres->[0][1],$table{counter});
    	}
       else {
          my $err=$libSQL::err;
@@ -1981,7 +1981,7 @@ my $rres;
 		if (($rv=~/\d+/) && ($rv>0)) {
 			$self->response('update');
          my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-         return ($rres->[0][0],$rres->[0][1]);
+         return ($rres->[0][0],$rres->[0][1],$table{counter});
       }
 		#Si el update no ha afectado ninguna fila (posibemente no existiera la fila)
 		#hago un insert
@@ -2009,7 +2009,7 @@ my $rres;
 	      if (($rv=~/\d+/) && ($rv>0)) {
 				$self->response('insert');
    	      my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-      	   return ($rres->[0][0],$rres->[0][1]);
+      	   return ($rres->[0][0],$rres->[0][1],$table{counter});
       	}
 			else {
 	         my $err=$libSQL::err;
@@ -2043,12 +2043,12 @@ my $rres;
 
       if (defined $rv) {
          my $rres=sqlSelectAll($dbh,$what,$TAB_ALERTS_NAME,$where);
-         return ($rres->[0][0],$rres->[0][1]);
+         return ($rres->[0][0],$rres->[0][1],$table{counter});
       }
    }
 
    $self->log('warning',"store_alert::[WARN] Error en Insert/Update alert MODE=$mode ID_DEV=$table{id_device} (RV=undef)");
-	return (undef,undef);
+	return (undef,undef,undef);
 
 }
 

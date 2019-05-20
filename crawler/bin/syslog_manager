@@ -157,7 +157,7 @@ $store->log('debug',"log2db::[DEBUG] LOGDATA= $log_data");
 
 				my $id_set=$1;
 				$store->log('notice',"log2db::[INFO] $monitor [SET-ALERT: IP=$ip/$full_name | $event_data]");
-      		my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ ip=>$ip, event_data=>$event_data }, $pre);
+      		my ($alert_id,$alert_date,$alert_counter)=$store->store_alert($dbh,$monitor,{ ip=>$ip, event_data=>$event_data }, $pre);
 
 				#Almaceno ID si la alerta se borra automaticamente
 				if (defined $id_set) {

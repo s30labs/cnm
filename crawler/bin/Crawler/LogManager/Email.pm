@@ -469,7 +469,7 @@ $self->log('info',"check_alert:: id_remote_alert=$id_remote_alert watch_eval_ext
       # store_mode: 0->Insert 1->Update
       if ( $action =~ /SET/i ) {
 
- 			my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'cid'=>$cid, 'name'=>$name, 'domain'=>$domain, 'subtype'=>$subtype, 'id_device'=>$id_dev, 'critic'=>$critic, 'date_last'=>$date_last }, 1);
+ 			my ($alert_id,$alert_date,$alert_counter)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'label'=>$label, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'cid'=>$cid, 'name'=>$name, 'domain'=>$domain, 'subtype'=>$subtype, 'id_device'=>$id_dev, 'critic'=>$critic, 'date_last'=>$date_last }, 1);
 			my $response = $store->response();
 
          ## Se actualizan las tablas del interfaz

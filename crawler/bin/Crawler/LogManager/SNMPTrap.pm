@@ -602,7 +602,7 @@ print Dumper($alert2expr);
       # Procesado de alertas. SET ---------------------------------------------------------------
       # store_mode: 0->Insert 1->Update
       if ( $action =~ /SET/i ) {
-         my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>10, 'id_metric'=>$id_metric, 'mode'=>$mode, 'name'=>$hname, 'domain'=>$hdomain, 'subtype'=>$subtype, 'date_last'=>$ts, 'critic'=>$critic, 'id_device'=>$id_device, 'cid'=>$cid }, 1);
+         my ($alert_id,$alert_date,$alert_counter)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>10, 'id_metric'=>$id_metric, 'mode'=>$mode, 'name'=>$hname, 'domain'=>$hdomain, 'subtype'=>$subtype, 'date_last'=>$ts, 'critic'=>$critic, 'id_device'=>$id_device, 'cid'=>$cid }, 1);
 
 			my $response = $store->response();
 
