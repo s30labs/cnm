@@ -157,7 +157,7 @@ my ($self,$task_cfg_file)=@_;
    	my $r=$imap->login($h->{'imap_user'},$h->{'imap_pwd'});
 
    	if (! defined $r) { 
-         $self->log('warning',"core-imap4:: **ERROR** EN LOGIN IMAP $h->{'imap_user'}/xxxxxxxx");
+         $self->log('warning',"core-imap4:: **ERROR** EN LOGIN IMAP $h->{'imap_user'}/xxxxxxxx | $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
          return \@RESULT;
       }
 

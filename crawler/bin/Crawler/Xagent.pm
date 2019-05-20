@@ -401,7 +401,7 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
          $nt += 1;
          my $tpdiffx=Time::HiRes::time()-$tp1;
          my $tpdiff=sprintf("%.3f", $tpdiffx);
-         $self->log('debug',"do_task::**PROFILE** [$nt|$NM|LAPSE=$tpdiff] TAREA=$task_id [@$rv] WATCH=$desc->{watch}" );
+         $self->log('debug',"do_task:: ++PROFILE++ [$nt|$NM|LAPSE=$tpdiff] TAREA=$task_id [@$rv] WATCH=$desc->{watch}" );
 
       }
 
@@ -648,7 +648,6 @@ $self->log('debug',"chk_metric::[DUMPER] proxies=$dump1");
    $desc{'esp'}=$rres->[0][18];
    $desc{'mode'}=$rres->[0][19];
 
-	
    $desc{'md5par'} = substr(md5_hex($desc{'params'}),0,8);
   	#10.2.254.222-snmp_metric_count_proc_multiple_devices-76e3f849-001.inetd
    my $task_id=$desc{host_ip}.'-'.$desc{'script'}.'-'.$desc{'md5par'}.'-'.$desc{'tag'};
@@ -690,7 +689,6 @@ $self->log('debug',"chk_metric::[DUMPER] proxies=$dump1");
 	$desc{'iid'}=$iid;
 
 #print "IP=$ip  MNAME=$mname  IID=$iid";
-$self->log('warning',"chk_metric::[**FML**] ++++++++ cfg=$desc{'cfg'} iid=$iid file=$file mname=$mname");
 
    #--------------------------------------------------------------------------------------
    my $log_level=$self->log_level();
@@ -698,15 +696,9 @@ $self->log('warning',"chk_metric::[**FML**] ++++++++ cfg=$desc{'cfg'} iid=$iid f
    $FXM->subtype($subtype);
    $self->fxm($FXM);
 
-
-
-
-
 	#----------------------------------------------------------------------
 	#----------------------------------------------------------------------
-
-
-$self->log('warning',"chk_metric::[**FML**] VALIDANDO [ip=$desc{host_ip} mname=$mname] [class=$desc{class} script=$desc{script} module=$desc{module} IID=$desc{'iid'} id_proxy=$desc{'id_proxy'} ip_proxy=$desc{'ip_proxy'} cfg=$desc{'cfg'}] file=$file DESCR=$desc{'descr'} items=$items params=$desc{params}");
+$self->log('warning',"chk_metric::[**FML**] VALIDANDO [ip=$desc{host_ip} mname=$mname] [class=$desc{class} script=$desc{script} module=$desc{module} IID=$desc{'iid'} id_proxy=$desc{'id_proxy'} ip_proxy=$desc{'ip_proxy'} cfg=$desc{'cfg'}] file=$file DESCR=$desc{'descr'} subtype=$desc{'subtype'} items=$items params=$desc{params}");
 
    push @$results, ['Metrica:',$desc{'descr'},''];
    push @$results, ['Valores monitorizados:', $items, ''];
