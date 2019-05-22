@@ -599,6 +599,97 @@ my ($self,$line)=@_;
 }
 
 
+#----------------------------------------------------------------------------
+# prepare_patterns
+# Compone el vector de patrones a partir del parametro especificado en pattern.
+# pattern puede ser una lista de condiciones separadas por _AND_ o _OR_
+# EJ: clase|eq|Q2_AND_TRANSCOLA|gt|10
+# Cada condicion es del tipo: TRANSCOLA|gt|10 o ERRORMSG|eq|"" -> key|operador|value
+# Los operadores soportados son: gt, gte, lt, lte, eq, ne
+# OUT: $patterns -> Hash con los patrones definidos. Indexado por campo de datos (uc)
+# Cada campo contienen un array con los posibles patrones.
+# 'kuc' => [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ]
+#----------------------------------------------------------------------------
+sub prepare_patterns {
+my ($self,$pattern)=@_;
+
+
+   my @pattern_line = ($pattern);
+   my $pattern_type = 'AND';
+   if ($pattern =~ /_AND_/) {
+      @pattern_line = split (/_AND_/,$pattern);
+   }
+   elsif ($pattern =~ /_OR_/) {
+      @pattern_line = split (/_OR_/,$pattern);
+      $pattern_type = 'OR';
+   }
+
+   my %patterns = ();
+   foreach my $p (@pattern_line) {
+      my ($k,$op,$value) = split(/\|/,$p);
+      my $kuc = uc $k;
+      if (! exists $patterns{$kuc}) {
+         $patterns{$kuc} = [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ];
+      }
+      else { push @{$patterns{$kuc}}, { 'k'=>$k, 'op'=>$op, 'value'=>$value }; }
+
+#$self->log('info',"**DEBUG** CLAVE $kuc >> k=$k op=$op value=$value");
+   }
+
+	return \%patterns;
+
+}
+
+
+#----------------------------------------------------------------------------
+# check_patterns
+# Valida si el hash k=>v resultado de decodificar la fila en json cumple los
+# patrones definidos
+# $data -> Hash con los datos de la fila
+# $patterns -> Hash con los patrones definidos. Indexado por campo de datos (uc)
+# Cada campo contienen un array con los posibles patrones.
+# 'kuc' => [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ]
+#----------------------------------------------------------------------------
+sub check_patterns {
+my ($self,$data,$patterns)=@_;
+
+
+   my $ok = 0;
+   foreach my $k (keys %$data) {
+
+      my $kx = uc $k;
+		# Si no hay patron definido para este campo, lo salto.
+      if (! exists $patterns->{$kx}) { next; }
+
+#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - pattern=$pattern");
+
+      foreach my $h (@{$patterns->{$kx}})  {
+
+         my $op = $h->{'op'};
+         my $value = $h->{'value'};
+
+         #Operandos: eqs, match, ne, gt, lt, gte, lte
+         if (($op =~ /eqs/i) && ($data->{$k} eq $value)) { $ok += 1; }
+         elsif (($op =~ /match/i) && ($data->{$k} =~/$value/)) { $ok += 1; }
+         elsif (($op =~ /gte/i) && ($data->{$k} >= $value)) { $ok += 1; }
+         elsif (($op =~ /gt/i) && ($data->{$k} > $value)) { $ok += 1; }
+         elsif (($op =~ /lte/i) && ($data->{$k} <= $value)) { $ok += 1; }
+         elsif (($op =~ /lt/i) && ($data->{$k} < $value)) { $ok += 1; }
+         elsif ($op =~ /ne/i) {
+            if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} != $value)) { $ok += 1; }
+            elsif ($data->{$k} ne $value) { $ok += 1; }
+         }
+         elsif ($op =~ /eq/i) {
+            if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} == $value)) { $ok += 1; }
+            elsif ($data->{$k} eq $value) { $ok += 1; }
+         }
+
+         $self->log('info',"check_patterns>> ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
+      }
+	}
+
+	return $ok;
+}
 
 1;
 __END__
