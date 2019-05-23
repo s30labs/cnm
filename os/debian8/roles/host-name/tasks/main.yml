@@ -13,7 +13,7 @@
   tags: host-name
 
 - name: Refresh hostname
-  command: hostnamectl set-hostname {{ hostname }}
+  command: hostnamectl --static set-hostname {{ hostname }}
   when: hostname is defined
   tags: host-name
 
