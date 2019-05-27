@@ -1,0 +1,151 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+cnm-get >> GET API endpoints
+(c) s30labs
+
+$fpth[$#fpth] [-d debug|info] [-v] [-alert|-device|-view]  [-fields="devicename,deviceip,cause"] [-page_size=500] [-page_number=1] [sort devicename] [-q "cause=my name&devicename=myhost"]
+$fpth[$#fpth] -h  : Help
+
+(1) Get all devices
+/opt/cnm/crawler/bin/ws/cnm-get -device
+(2) Get all alerts
+/opt/cnm/crawler/bin/ws/cnm-get -alert 
+(3) Get all views
+/opt/cnm/crawler/bin/ws/cnm-get -view
+(4) Get all metrics fro the specified view
+/opt/cnm/crawler/bin/ws/cnm-get -view -id 162
+
+-alert|-device|-view		GET alerts or devices
+-q						Filter query
+-page_size			Number of elements in response (default=100)
+-page_number		Page number
+-fields				Fields in response (comma separated list)
+-sort					Field/s to sort response
+USAGE
+
+# /opt/cnm/crawler/bin/ws/cnm-get -alert -fields="devicename,deviceip,cause" -q "severity=4"
+#cnm_page_size	Número de elementos por página. Por defecto devuelve 100 elementos
+#cnm_page	Número de página
+#cnm_fields	Campos que queremos que devuelva separados por comas
+#cnm_sort	Campo por el que queremos que ordene (ponerle un - en caso de querer ordenar de forma descendente por dicho campo)
+#En caso de querer ordenar por varios campos, dichos campos deben ir separados por comas
+
+#-------------------------------------------------------------------------------------------
+my ($host_ip,$log_level,$VERBOSE)=('localhost','info',0);
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','host=s','fields=s','q=s','alert', 'device', 'view', 'id=s',
+							'sort=s', 'page_size=s', 'page_number=s')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+#if (! $OPTS{'i'}) { die $USAGE;}
+if ((defined $OPTS{v}) || (defined $OPTS{verbose})) {
+   $VERBOSE=1;
+}
+if (defined $OPTS{d}) { $log_level=$OPTS{d}; }
+
+my $endpoint = '';
+if (defined $OPTS{alert}) { $endpoint = 'alerts.json'; }
+elsif (defined $OPTS{device}) { $endpoint = 'devices.json'; }
+elsif (defined $OPTS{view}) { 
+	if ((defined $OPTS{id}) && ($OPTS{id}=~/^\d+$/)) { $endpoint = 'views/'.$OPTS{id}.'/metrics.json'; }
+	else { $endpoint = 'views.json'; }
+}
+else { die $USAGE; }
+
+#-------------------------------------------------------------------------------------------
+my @query_string=();
+if (defined $OPTS{fields}) { push @query_string, 'cnm_fields='.$OPTS{fields}; }
+if (defined $OPTS{page_size}) { push @query_string, 'cnm_page_size='.$OPTS{page_size}; }
+if (defined $OPTS{page_number}) { push @query_string, 'cnm_page_number='.$OPTS{page_number}; }
+if (defined $OPTS{sort}) { push @query_string, 'cnm_sort='.$OPTS{sort}; }
+if (defined $OPTS{q}) { push @query_string , $OPTS{q}; }
+
+if (scalar(@query_string) > 0 ) { 
+	$endpoint .= '?'.join ('&',@query_string);
+}
+
+if (defined $OPTS{host}) { $host_ip = $OPTS{host}; } 
+
+#-------------------------------------------------------------------------------------------
+# Campos disponibles:
+# - name           => nombre
+# - domain         => dominio
+# - ip             => direccion ip
+# - type           => tipo de dispositivo
+# - snmpversion    => 0:sin SNMP | 1:version 1 | 2:version 2 | 3:version 3 (0 si no se indica)
+# - snmpcommunity  => comunidad snmp (versiones 1 y 2)
+# - snmpcredential => credencial snmp (version 3)
+# - entity         => 0:dispositivo físico | 1:servicio web (0 si no se indica)
+# - geo            => geolocalizacion en formato Google Maps
+# - critic         => 25:criticidad baja | 50:criticidad media | 75:criticidad alta | 100:criticidad mazima (50 si no se indica)
+# - correlated     => ID del dispositivo del que depende
+# - status         => 0:activo | 1:inactivo | 2:mantenimiento (0 si no se indica)
+# - profile        => perfil al que pertenece el dispositivo
+#
+# Campos obligatorios:
+# - name
+# - domain
+# - ip
+#
+# Campos globles:
+#cnm_page_size	=>	Número de elementos por página. Por defecto devuelve 100 elementos
+#cnm_page   	=>	Número de página
+#cnm_fields 	=>	Campos que queremos que devuelva separados por comas
+#cnm_sort   	=>	Campo por el que queremos que ordene (ponerle un - en caso de querer ordenar de forma descendente por dicho campo) En caso de querer ordenar por varios campos, dichos campos deben ir separados por comas
+#-------------------------------------------------------------------------------------------
+
+
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+if ($sid eq '') { 
+	if ($OPTS{v}) { print "**>> **ERROR** de autenticacion (sid nulo)\n"; }
+	print "0\n"; 
+	exit; 
+}
+if ($OPTS{v}) { print "**>> sid=$sid\n"; }
+if ($OPTS{v}) { print "**>> $endpoint\n"; }
+
+my $class='';
+my $response = $api->ws_get($class,$endpoint);
+my $nalerts=scalar(@$response);
+
+if (scalar(@$response)==0) { print "0\n"; }
+elsif (! defined $OPTS{fields}) { print Dumper($response); }
+else {
+	my @fields = split(',',$OPTS{fields});
+	foreach my $h (@$response) {
+		foreach my $field (@fields) {
+			print $h->{$field}."\t";
+		}
+		print "\n";
+	}
+}
+
+print "<001> Num Alerts = $nalerts\n";
+
+##'rc' => 0,
+##'id' => '2',
+##'rcstr' => ''
+#if ($response->{'rc'}!=0) {
+#	print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
+#	exit $response->{'rc'};
+#}
+#
+#if ($prov_metrics) {
+#	my $id_dev=$response->{'id'};
+##	`/opt/crawler/bin/prov_device_app_metrics  -c $cid  -i $id_dev`;
+#	`/opt/crawler/bin/plite -c $cid -r $id_dev -t 1`;
+##}

@@ -779,14 +779,17 @@ Array
 				'critic'     => '',
 				'type'       => '',
 				'date'       => '',
-				'name'       => '',
-				'domain'     => '',
-				'ip'         => '',
+				'devicename'       => '',
+				'devicedomain'     => '',
+				'deviceip'         => '',
 				'label'      => '',
 				'counter'    => '',
 				'event'      => '',
 				'cause'      => '',
 				'lastupdate' => '',
+				'subtype' => '',
+				'deviceid' => '',
+				'metricid' => '',
          );
 			// Contemplamos los campos de sistema que ha incluido el usuario en la búsqueda
          foreach($this->a_input_data as $key => $value){
@@ -829,6 +832,8 @@ Array
 			$comma = ',';
 			$data = array();
          $result = doQuery('get_user_fields',$data);
+			CNMUtils::debug_log(__FILE__, __LINE__, "RC={$result['rc']} RCSTR={$result['rcstr']} SQL={$result['query']}");
+
          foreach($result['obj'] as $r){
 				if(array_key_exists($r['descr'],$this->a_input_data)) $a_custom_fields[$r['descr']] = $this->a_input_data[$r['descr']];
 				else $a_custom_fields[$r['descr']] = '';
@@ -869,12 +874,14 @@ Array
 			// Campos de sistema de tipo texto que hay que meter entre comillas
 			$a_scape_fields = array(
 				'type',
-				'name',
-				'domain',
-				'ip',
+				'devicename',
+				'devicedomain',
+				'deviceip',
+				'cause',
 				'label',
 				'event',
 				'lastupdate',
+				'subtype',
 			);
 
 			// ////////////////////////////////////////////// //
@@ -882,7 +889,10 @@ Array
 			// ////////////////////////////////////////////// //
 			$cond = "( ''='' ";
 			$and = 'AND ';
+
+
 			foreach($a_system_fields as $key => $value){
+				CNMUtils::debug_log(__FILE__, __LINE__, "key=$key value=$value");
 				if (''==$value)      continue;
 				if ('profile'==$key) continue;
 				$cond.=$and;
@@ -894,6 +904,8 @@ Array
 					$a_value = split(',',$value);
 					$a_value = array_unique($a_value);	
 					foreach($a_value as $v){
+						CNMUtils::debug_log(__FILE__, __LINE__, "(a) a_value=$a_value");
+
 						$cond.=$or;
 	               if(in_array($key,$a_scape_fields)) $cond.=$key.$oper."'".$v."'";
 	               else $cond.=$key.$oper.$v;
@@ -903,6 +915,7 @@ Array
 				}
 				// status=0
 				else{
+					CNMUtils::debug_log(__FILE__, __LINE__, "(b) a_value=$a_value");
 					list($oper,$value) = $this->parsevalue($value);
 					if(in_array($key,$a_scape_fields)) $cond.=$key.$oper."'".$value."'";
 					else $cond.=$key.$oper.$value;
@@ -911,7 +924,12 @@ Array
 				$and = ' AND ';
 			}
 
+			// Si se especifica severidad=4 (alertas azules) solo tiene sentido con counter>0
+			if (array_key_exists('severity',$a_system_fields)) {
+				if ($a_system_fields['severity'] == 4) { $cond.= ' AND counter>0 '; }
+			}
 
+			CNMUtils::info_log(__FILE__, __LINE__, "cond=$cond");
 			// ///////////////////// //
 			// Calcular los perfiles //
 			// ///////////////////// //
@@ -982,6 +1000,8 @@ Array
             if (''==$value) continue;
             $cond.=$and;
             // customstatus=0,1
+				CNMUtils::debug_log(__FILE__, __LINE__, "custom_fields key=$key value=$value");
+
             if(strpos($value,',')!==false){
                $oper = '=';
                $or = '';
@@ -1062,10 +1082,16 @@ Array
 
          // Se borra la tabla temporal t1
          $result = doQuery('api_get_alerts_layout_delete_temp',$data);
+			CNMUtils::debug_log(__FILE__, __LINE__, "RC={$result['rc']} RCSTR={$result['rcstr']} SQL={$result['query']}");
+
          // Se crea la tabla temporal t1 con las alertas visibles
          $result = doQuery('api_get_alerts_layout_create_temp',$data);
+			CNMUtils::debug_log(__FILE__, __LINE__, "RC={$result['rc']} RCSTR={$result['rcstr']} SQL={$result['query']}");
+
          // Se obtienen las alertas
          $result = doQuery('api_get_alerts_layout_lista',$data);
+			CNMUtils::debug_log(__FILE__, __LINE__, "RC={$result['rc']} RCSTR={$result['rcstr']} SQL={$result['query']}");
+
 			foreach($result['obj'] as $r){
 				$a_row = array();
 				foreach($r as $k=>$v){

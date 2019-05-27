@@ -1,0 +1,232 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use Pod::Usage;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+CNM command line API Script - GET|SET|UPDATE|DELETE device
+(c) s30labs
+
+$fpth[$#fpth] [-host 1.1.1.1] -get -id id_dev [-data name,domain,ip,type]
+$fpth[$#fpth] [-host 1.1.1.1] -set [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+$fpth[$#fpth] [-host 1.1.1.1] -update -id id_dev [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+$fpth[$#fpth] [-host 1.1.1.1] -delete -id id_dev
+$fpth[$#fpth] [-debug] [-c cid] [-provision] [-host 1.1.1.1] -update|-set|-get|-delete [-id id_dev] [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+$fpth[$#fpth] [-h | -help]
+
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my $log_mode=3;
+my %OPTS = ();
+GetOptions (\%OPTS,'help','h','debug','v','cid=s','set','update','get','delete','provision','data=s','host=s','id=s') 
+or pod2usage(-exitval => 2, -input => \*DATA);
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { 
+	pod2usage(-exitval => 2, -input => \*DATA);
+}
+
+my ($host_ip,$log_level,$cid,$prov_metrics,$VERBOSE)=('localhost','info','default',0,0);
+if ($OPTS{'host'}) { $host_ip = $OPTS{'host'}; }
+if ($OPTS{'debug'}) { $log_level='debug'; }
+if ($OPTS{'v'}) { $VERBOSE=1; }
+if ($OPTS{'cid'}) { $cid = $OPTS{'cid'}; }
+if ($OPTS{'provision'}) { $prov_metrics = 1; }
+
+#--------------------------------------
+# data
+#--------------------------------------
+#// Campos disponibles:
+#// - name           => nombre
+#// - domain         => dominio
+#// - ip             => direccion ip
+#// - type           => tipo de dispositivo
+#// - snmpversion    => 0:sin SNMP | 1:version 1 | 2:version 2 | 3:version 3 (0 si no se indica)
+#// - snmpcommunity  => comunidad snmp (versiones 1 y 2)
+#// - snmpcredential => credencial snmp (version 3)
+#// - entity         => 0:dispositivo físico | 1:servicio web (0 si no se indica)
+#// - geo            => geolocalizacion en formato Google Maps
+#// - critic         => 25:criticidad baja | 50:criticidad media | 75:criticidad alta | 100:criticidad mazima (50 si no se indica)
+#// - correlated     => ID del dispositivo del que depende
+#// - status         => 0:activo | 1:inactivo | 2:mantenimiento (0 si no se indica)
+#// - profile        => perfil al que pertenece el dispositivo
+#//
+#// Campos obligatorios:
+#// - name
+#// - domain
+#// - ip
+#//
+
+
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+#print "sid=$sid\n";
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+if ($OPTS{'get'}) {
+
+	my $class='';
+	my $endpoint='devices.json';
+	my $response = $api->ws_get($class,$endpoint);
+
+	my %fields=();
+   if (defined $OPTS{data}) {
+		my @vx=split(',',$OPTS{data}); 
+		foreach my $k (@vx) { $fields{$k} = 1; }
+	}
+
+	if (scalar(keys %fields)==0) { print Dumper($response); }
+	elsif (scalar(@$response)==0) { print "0\n"; }
+	else {
+		foreach my $x (@$response) {
+   		foreach my $k (keys %fields) {
+      		print "$k : ".$x->{$k}."\t";
+   		}
+			print "\n";
+		}
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+if ($OPTS{'set'}) {
+
+	my %row=();
+	if (defined $OPTS{data}) {
+   	my @param_data=split(',',$OPTS{data});
+   	foreach my $p (@param_data) {
+      	my ($k,$v)=split('=',$p);
+      	$row{$k}=$v;
+   	}
+	}
+	else {
+		print "Faltan datos para dar de alta el dispositivo - Parametro data\n";
+      die $USAGE;
+   }
+
+	if (! exists $row{'name'}) {
+   	print "Faltan datos para dar de alta el dispositivo - No definido name\n";
+   	die $USAGE;
+	}
+	if (! exists $row{'domain'}) {
+   	print "Faltan datos para dar de alta el dispositivo - No definido domain\n";
+   	die $USAGE;
+	}
+	if (! exists $row{'ip'}) {
+   	print "Faltan datos para dar de alta el dispositivo - No definido ip\n";
+   	die $USAGE;
+	}
+
+
+
+	my $class='';
+	my $endpoint='devices.json';
+	my $response = $api->ws_post($class,$endpoint,\%row);
+
+	#'rc' => 0,
+	#'id' => '2',
+	#'rcstr' => ''
+	if ($response->{'rc'}!=0) {
+		print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
+		exit $response->{'rc'};
+	}
+
+	if ($prov_metrics) {
+		my $id_dev=$response->{'id'};
+		`/opt/crawler/bin/prov_device_app_metrics  -c $cid  -i $id_dev`;
+		`/opt/crawler/bin/plite -c $cid -r $id_dev -t 1`;
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+elsif ($OPTS{'update'}) {
+
+   my %row=();
+   if (defined $OPTS{data}) {
+      my @param_data=split(',',$OPTS{data});
+      foreach my $p (@param_data) {
+         my ($k,$v)=split('=',$p);
+         $row{$k}=$v;
+      }
+   }
+   else {
+      print "Faltan datos para actualizar el dispositivo - Parametro data\n";
+      die $USAGE;
+   }
+
+	if ((! $OPTS{'id'}) || ($OPTS{'id'} !~ /\d+/)) {
+      print "Faltan datos para actualizar el dispositivo - id_dev\n";
+      die $USAGE;
+   }
+
+   my $class='devices';
+   my $endpoint = $OPTS{'id'}.'.json';
+   my $response = $api->ws_put($class,$endpoint,\%row);
+
+   #'rc' => 0,
+   #'id' => '2',
+   #'rcstr' => ''
+   if ($response->{'rc'}!=0) {
+      print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
+      exit $response->{'rc'};
+   }
+
+   if ($prov_metrics) {
+      my $id_dev=$response->{'id'};
+      `/opt/crawler/bin/prov_device_app_metrics  -c $cid  -i $id_dev`;
+      `/opt/crawler/bin/plite -c $cid -r $id_dev -t 1`;
+   }
+
+}
+
+
+__DATA__
+#-----------------------------------------------------------------------
+=head1 NAME
+
+cnm-device - GET|SET|UPDATE|DELETE device
+
+=head1 SYNOPSIS
+
+cnm-device [-host 1.1.1.1] -get -id id_dev
+cnm-device [-host 1.1.1.1] -set [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+cnm-device [-host 1.1.1.1] -update -id id_dev [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+cnm-device [-host 1.1.1.1] -delete -id id_dev
+cnm-device [-debug] [-c cid] [-provision] [-host 1.1.1.1] -update|-set|-get|-delete [-id id_dev] [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+icnm-device [-h | -help]
+
+Options:
+
+-cid        cid. Is default by default.
+-provision  Genera Metricas
+-host       CNM Server IP address
+-data       Device fields separated by  ','.
+-h|-help    Help info
+
+=head1 OPTIONS
+
+
+
+=over 8
+
+
+=back
+
+=head1 DESCRIPTION
+
+  B<This program> will read the given input file(s) and do someting
+  useful with the contents thereof.
+
+=cut
+

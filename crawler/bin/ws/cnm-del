@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+#------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use CNMScripts::CNMAPI;
+use Data::Dumper;
+use JSON;
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $USAGE = <<USAGE;
+cnm-del >> GET API endpoints
+(c) s30labs
+
+$fpth[$#fpth] [-d debug|info] [-v] -metric -id=1234
+$fpth[$#fpth] -h  : Help
+
+/opt/cnm/crawler/bin/ws/cnm-del -metric -id=1234
+
+-metric  DELETE metric
+-id      Element Id
+USAGE
+
+
+#cnm_page_size	Número de elementos por página. Por defecto devuelve 100 elementos
+#cnm_page	Número de página
+#cnm_fields	Campos que queremos que devuelva separados por comas
+#cnm_sort	Campo por el que queremos que ordene (ponerle un - en caso de querer ordenar de forma descendente por dicho campo)
+#En caso de querer ordenar por varios campos, dichos campos deben ir separados por comas
+
+#-------------------------------------------------------------------------------------------
+my ($host_ip,$log_level,$VERBOSE)=('localhost','info',0);
+my %OPTS = ();
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','host=s','metric','id=s')
+            or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
+
+if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
+#if (! $OPTS{'i'}) { die $USAGE;}
+if ((defined $OPTS{v}) || (defined $OPTS{verbose})) {
+   $VERBOSE=1;
+}
+if (defined $OPTS{d}) { $log_level=$OPTS{d}; }
+
+my @IDS = ();
+my ($class,$endpoint) = ('','');
+if (defined $OPTS{metric}) { 
+	$class = 'metrics'; 
+	#if ((defined $OPTS{id}) && ($OPTS{id}=~/^\d+$/)) { $endpoint = $OPTS{id}.'.json'; }
+	if (defined $OPTS{id}) { 
+		my @vals = split (',',  $OPTS{id});
+		foreach my $x (@vals) {
+			if ($x=~/^\d+$/) { push @IDS, $x; }
+		}
+	}
+
+	else { die $USAGE; }
+}
+else { die $USAGE; }
+
+#-------------------------------------------------------------------------------------------
+if (defined $OPTS{host}) { $host_ip = $OPTS{host}; } 
+
+#-------------------------------------------------------------------------------------------
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my ($user,$pwd)=('admin','cnm123');
+my $sid = $api->ws_get_token($user,$pwd);
+if ($sid eq '') { 
+	if ($OPTS{v}) { print "**>> **ERROR** de autenticacion (sid nulo)\n"; }
+	print "0\n"; 
+	exit; 
+}
+if ($OPTS{v}) { print "**>> sid=$sid\n"; }
+
+foreach my $id (@IDS) {
+	$endpoint = $id.'.json';
+	if ($OPTS{v}) { print "**>> $endpoint\n"; }
+
+	my $response = $api->ws_del($class,$endpoint);
+
+#print Dumper($response);
+#$VAR1 = {
+#          'rcstr' => '',
+#          'rc' => 0
+#        };
+#
+
+	if ($response->{'rc'} == 0) { print "OK\n"; }
+	else { print "**ERROR** $response->{'rcstr'}\n"; }
+}
+
