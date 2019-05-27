@@ -89,7 +89,7 @@ class CNMUtils {
 		$lang_config_file = '/cfg/onm.lang';
 		if (file_exists($lang_config_file)) {
 			$x = trim(file_get_contents($lang_config_file));
-			list($a, $b) =  split("_", $x, 2);
+			list($a, $b) =  explode("_", $x, 2);
 			if ($a != '') { $lang = $a; }
 		}
 

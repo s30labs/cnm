@@ -216,7 +216,7 @@ Array
 					$oper = '=';
 					$or = '';
 					$cond.='(';
-					$a_value = split(',',$value);
+					$a_value = explode(',',$value);
 					$a_value = array_unique($a_value);	
 					foreach($a_value as $v){
 						$cond.=$or;
@@ -276,7 +276,7 @@ Array
 			if($a_system_fields['profile']!=''){
 				// $a_input_profile = array('Global');
 	         if(strpos($a_system_fields['profile'],',')!==false){
-					$a_value = split(',',$a_meta_fields['cnm_sort']);
+					$a_value = explode(',',$a_meta_fields['cnm_sort']);
 	            foreach($a_value as $v){
 						if(array_key_exists($v,$a_organizational_profile)){
 	               	$a_input_profile[] = $v;
@@ -313,7 +313,7 @@ Array
                $oper = '=';
                $or = '';
                $cond.='(';
-               $a_value = split(',',$value);
+               $a_value = explode(',',$value);
                $a_value = array_unique($a_value);          
                foreach($a_value as $v){
                   $cond.=$or;
@@ -341,7 +341,7 @@ Array
 			// name,-domain,+ip
          if(strpos($a_meta_fields['cnm_sort'],',')!==false){
 				$comma = '';
-            $a_value = split(',',$a_meta_fields['cnm_sort']);
+            $a_value = explode(',',$a_meta_fields['cnm_sort']);
             $a_value = array_unique($a_value);
             foreach($a_value as $v){
 					if(strpos($v,'-')!==false) $orderby.=$comma.str_replace('-','',$v).' ASC';
@@ -364,7 +364,7 @@ Array
 				$output_fields = '*';
 			}
 			else{
-				$a_cnm_fields = split(',',$a_meta_fields['cnm_fields']);
+				$a_cnm_fields = explode(',',$a_meta_fields['cnm_fields']);
 				$a_cnm_fields = array_unique($a_cnm_fields);
 				$comma = '';	
 				foreach($a_cnm_fields as $f){
@@ -570,7 +570,7 @@ Array
 					$oper = '=';
 					$or = '';
 					$cond.='(';
-					$a_value = split(',',$value);
+					$a_value = explode(',',$value);
 					$a_value = array_unique($a_value);	
 					foreach($a_value as $v){
 						$cond.=$or;
@@ -630,7 +630,7 @@ Array
 			if($a_system_fields['profile']!=''){
 				// $a_input_profile = array('Global');
 	         if(strpos($a_system_fields['profile'],',')!==false){
-					$a_value = split(',',$a_meta_fields['cnm_sort']);
+					$a_value = explode(',',$a_meta_fields['cnm_sort']);
 	            foreach($a_value as $v){
 						if(array_key_exists($v,$a_organizational_profile)){
 	               	$a_input_profile[] = $v;
@@ -665,7 +665,7 @@ Array
                $oper = '=';
                $or = '';
                $cond.='(';
-               $a_value = split(',',$value);
+               $a_value = explode(',',$value);
                $a_value = array_unique($a_value);          
                foreach($a_value as $v){
                   $cond.=$or;
@@ -693,7 +693,7 @@ Array
 			// name,-domain,+ip
          if(strpos($a_meta_fields['cnm_sort'],',')!==false){
 				$comma = '';
-            $a_value = split(',',$a_meta_fields['cnm_sort']);
+            $a_value = explode(',',$a_meta_fields['cnm_sort']);
             $a_value = array_unique($a_value);
             foreach($a_value as $v){
 					if(strpos($v,'-')!==false) $orderby.=$comma.str_replace('-','',$v).' ASC';
@@ -716,7 +716,7 @@ Array
 				$output_fields = '*';
 			}
 			else{
-				$a_cnm_fields = split(',',$a_meta_fields['cnm_fields']);
+				$a_cnm_fields = explode(',',$a_meta_fields['cnm_fields']);
 				$a_cnm_fields = array_unique($a_cnm_fields);
 				$comma = '';	
 				foreach($a_cnm_fields as $f){
@@ -901,7 +901,7 @@ Array
 					$oper = '=';
 					$or = '';
 					$cond.='(';
-					$a_value = split(',',$value);
+					$a_value = explode(',',$value);
 					$a_value = array_unique($a_value);	
 					foreach($a_value as $v){
 						CNMUtils::debug_log(__FILE__, __LINE__, "(a) a_value=$a_value");
@@ -969,7 +969,7 @@ Array
 			if($a_system_fields['profile']!=''){
 				// $a_input_profile = array('Global');
 	         if(strpos($a_system_fields['profile'],',')!==false){
-					$a_value = split(',',$a_meta_fields['cnm_sort']);
+					$a_value = explode(',',$a_meta_fields['cnm_sort']);
 	            foreach($a_value as $v){
 						if(array_key_exists($v,$a_organizational_profile)){
 	               	$a_input_profile[] = $v;
@@ -1006,7 +1006,7 @@ Array
                $oper = '=';
                $or = '';
                $cond.='(';
-               $a_value = split(',',$value);
+               $a_value = explode(',',$value);
                $a_value = array_unique($a_value);          
                foreach($a_value as $v){
                   $cond.=$or;
@@ -1034,7 +1034,7 @@ Array
 			// name,-domain,+ip
          if(strpos($a_meta_fields['cnm_sort'],',')!==false){
 				$comma = '';
-            $a_value = split(',',$a_meta_fields['cnm_sort']);
+            $a_value = explode(',',$a_meta_fields['cnm_sort']);
             $a_value = array_unique($a_value);
             foreach($a_value as $v){
 					if(strpos($v,'-')!==false) $orderby.=$comma.str_replace('-','',$v).' ASC';
@@ -1057,7 +1057,7 @@ Array
 				$output_fields = '*';
 			}
 			else{
-				$a_cnm_fields = split(',',$a_meta_fields['cnm_fields']);
+				$a_cnm_fields = explode(',',$a_meta_fields['cnm_fields']);
 				$a_cnm_fields = array_unique($a_cnm_fields);
 				$comma = '';	
 				foreach($a_cnm_fields as $f){
@@ -1185,7 +1185,7 @@ Array
                $oper = '=';
                $or = '';
                $cond.='(';
-               $a_value = split(',',$value);
+               $a_value = explode(',',$value);
                $a_value = array_unique($a_value);
                foreach($a_value as $v){
                   $cond.=$or;
@@ -1215,7 +1215,7 @@ Array
          // name,-domain,+ip
          if(strpos($a_meta_fields['cnm_sort'],',')!==false){
             $comma = '';
-            $a_value = split(',',$a_meta_fields['cnm_sort']);
+            $a_value = explode(',',$a_meta_fields['cnm_sort']);
             $a_value = array_unique($a_value);
             foreach($a_value as $v){
                if(strpos($v,'-')!==false) $orderby.=$comma.str_replace('-','',$v).' ASC';
@@ -1238,7 +1238,7 @@ Array
             $output_fields = '*';
          }
          else{
-            $a_cnm_fields = split(',',$a_meta_fields['cnm_fields']);
+            $a_cnm_fields = explode(',',$a_meta_fields['cnm_fields']);
             $a_cnm_fields = array_unique($a_cnm_fields);
             $comma = '';
             foreach($a_cnm_fields as $f){
@@ -1403,7 +1403,7 @@ Array
 					$oper = '=';
 					$or = '';
 					$cond.='(';
-					$a_value = split(',',$value);
+					$a_value = explode(',',$value);
 					$a_value = array_unique($a_value);	
 					foreach($a_value as $v){
 						$cond.=$or;
@@ -1463,7 +1463,7 @@ Array
 			if($a_system_fields['profile']!=''){
 				// $a_input_profile = array('Global');
 	         if(strpos($a_system_fields['profile'],',')!==false){
-					$a_value = split(',',$a_meta_fields['cnm_sort']);
+					$a_value = explode(',',$a_meta_fields['cnm_sort']);
 	            foreach($a_value as $v){
 						if(array_key_exists($v,$a_organizational_profile)){
 	               	$a_input_profile[] = $v;
@@ -1501,7 +1501,7 @@ Array
                $oper = '=';
                $or = '';
                $cond.='(';
-               $a_value = split(',',$value);
+               $a_value = explode(',',$value);
                $a_value = array_unique($a_value);          
                foreach($a_value as $v){
                   $cond.=$or;
@@ -1529,7 +1529,7 @@ Array
 			// name,-domain,+ip
          if(strpos($a_meta_fields['cnm_sort'],',')!==false){
 				$comma = '';
-            $a_value = split(',',$a_meta_fields['cnm_sort']);
+            $a_value = explode(',',$a_meta_fields['cnm_sort']);
             $a_value = array_unique($a_value);
             foreach($a_value as $v){
 					if(strpos($v,'-')!==false) $orderby.=$comma.str_replace('-','',$v).' ASC';
@@ -1552,7 +1552,7 @@ Array
 				$output_fields = '*';
 			}
 			else{
-				$a_cnm_fields = split(',',$a_meta_fields['cnm_fields']);
+				$a_cnm_fields = explode(',',$a_meta_fields['cnm_fields']);
 				$a_cnm_fields = array_unique($a_cnm_fields);
 				$comma = '';	
 				foreach($a_cnm_fields as $f){
