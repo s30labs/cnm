@@ -1011,6 +1011,7 @@ $DBScheme = array(
 		'label_report_typea'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Disponibilidad'",
 		'label_report_typeb'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Degradación'",
 		'label_report_typec'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Continuidad'",
+		'graph_w_size' => "varchar(255) CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL DEFAULT '{\"width\":700,\"height\":350,\"x\":5,\"y\":5,\"maximized\":false}'",
 
 		'PRIMARY KEY  (`name`,`cid`)'=>'',
 		'KEY `id_cfg_view_cid_cid_ip` (`id_cfg_view`,`cid`,`cid_ip`)'=>''
@@ -1106,6 +1107,7 @@ $DBScheme = array(
 		'wsize' => "int(11) NOT NULL default '0'",
 		'dyn' => "int(11) NOT NULL default '0'", // Indica si su ip es dinamica (0:estatica|1:dinamica)
 		'asset_container' => "int(11) NOT NULL default '0'", // Indica si es un contenedor de metricas de assets (0: No|1:Si)
+		'graph_w_size' => "varchar(255) CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL DEFAULT '{\"width\":700,\"height\":350,\"x\":5,\"y\":5,\"maximized\":false}'",
 		'PRIMARY KEY  (`ip`,`host_idx`)'=>'',
 		'KEY `id_dev` (`id_dev`)'=>''
    ),
