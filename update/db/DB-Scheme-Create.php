@@ -801,6 +801,7 @@ $DBScheme = array(
 		'type'=>"int(11) NOT NULL default '0'",
 		'type_app'=>"int(11) NOT NULL default '0'",
 		'type_run'=>"int(11) NOT NULL default '0'",
+		'type_mwatch'=>"int(11) NOT NULL default '0'",
 		'id_notification_type'=>"int(11) NOT NULL default '0'",
 		'name'=>"varchar(155) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'destino'=>"varchar(250) character set utf8 collate utf8_spanish_ci default NULL",
