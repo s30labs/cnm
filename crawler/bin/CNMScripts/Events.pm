@@ -115,7 +115,9 @@ my ($self,$dbh,$params)=@_;
       $self->log('warning',"ERROR dbCmd >> $SQL");
    }
 
-	$self->log('debug',"**DEBUG** RES >> $event_counter | $event_info | $last_ts");
+	# $event_info ocupa mucho
+	#$self->log('debug',"**DEBUG** RES >> $event_counter | $event_info | $last_ts");
+	$self->log('debug',"**DEBUG** RES >> $event_counter | pattern=$pattern | $last_ts");
 
    return ($event_counter,$event_info,$last_ts);
 }
@@ -205,7 +207,7 @@ my ($self,$dbh,$params)=@_;
 
 		my $data = $self->json2h($l->[3]);
 
-		$self->log('info',"**DEBUG** RES $l->[3]");
+		#$self->log('info',"**DEBUG** RES $l->[3]");
 		my $ok = 0;
 		foreach my $k (keys %$data) {
 			my $kx = uc $k;
@@ -237,7 +239,7 @@ my ($self,$dbh,$params)=@_;
       	      elsif ($data->{$k} eq $value) { $ok += 1; }
 				}
 
-				$self->log('info',"**DEBUG** CHECK ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
+				#$self->log('info',"**DEBUG** CHECK ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
 			}
 		}
 
@@ -336,6 +338,12 @@ my ($self,$dbh,$params)=@_;
    my $lapse = $params->{'lapse'} || 60;
    $lapse *= 60;
    my $pattern = $params->{'pattern'} || '';
+
+
+	my $pat = $self->prepare_patterns($pattern);
+	
+
+
    $self->err_str('OK');
    $self->err_num(0);
 
@@ -373,8 +381,8 @@ my ($self,$dbh,$params)=@_;
    foreach my $l (@$res) {
 
 		#Si hay pattern definido, el dato lo debe cumplir
-$self->log('info',"pattern=$pattern");
-$self->log('info',"line=$l->[3]");
+#$self->log('info',"pattern=$pattern");
+#$self->log('info',"line=$l->[3]");
 
 		if (($pattern ne '') && ($l->[3] !~ /$pattern/)) { next; }
 
@@ -388,9 +396,6 @@ $self->log('info',"line=$l->[3]");
 			}
 		}
 		
-		#if (! exists $data->{$field}) {next;}
-		#$data_value = $data->{$field};
- 
       $event_info = $l->[3];
       $last_ts = $l->[2];
 
@@ -405,7 +410,7 @@ $self->log('info',"line=$l->[3]");
 }
 
 #----------------------------------------------------------------------------
-# get_application_data_sum
+# get_application_data_ext
 # Returns ($data_value,$event_info,$last_ts)
 # a.  $data_value -> Suma de los valores del dato contenido en el 
 #		campo field de las filas que cumplen el patron $params->{'pattern'} 
@@ -416,7 +421,7 @@ $self->log('info',"line=$l->[3]");
 # c.  $last_ts -> Ultimo valor de ts (date) almacenado que cumple el patron
 #     $params->{'pattern'} durante la ventana now-$params->{'lapse'}
 #----------------------------------------------------------------------------
-sub get_application_data_sum {
+sub get_application_data_ext {
 my ($self,$dbh,$params)=@_;
 
 
@@ -429,9 +434,11 @@ my ($self,$dbh,$params)=@_;
    my $lapse = $params->{'lapse'} || 60;
    $lapse *= 60;
    my $pattern = $params->{'pattern'} || '';
+	my $pat = $self->prepare_patterns($pattern);
    # Se pueden especificar varios patrones separados por "|"
 	# "|" es la barra para la regex.
-	my $num_patterns = split (/\|/, $pattern);
+	#my $num_patterns = split (/\|/, $pattern);
+
 
    $self->err_str('OK');
    $self->err_num(0);
@@ -468,43 +475,43 @@ my ($self,$dbh,$params)=@_;
 
    foreach my $l (@$res) {
 
-      #Si hay pattern definido, el dato lo debe cumplir
-#$self->log('debug',"pattern=$pattern");
-#$self->log('debug',"line=$l->[3]");
+		my $data = $self->json2h($l->[3]);
+		my $num_ok = $self->check_patterns($data,$pat->{'patterns'});
 
-      if (($pattern ne '') && ($l->[3] !~ /$pattern/)) { next; }
+		my $all_patterns_ok = 0;
+      if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $all_patterns_ok = 1; }
+		elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $all_patterns_ok = 1; }
 
-		 $num_patterns--;
-$self->log('debug',"**pattern OK** /$pattern/  line=$l->[3]");
-      my $nf = $num_fields;
-      my $data = $self->json2h($l->[3]);
+		#$self->log('info',"pattern_type=$pat->{'pattern_type'}  >> all_patterns_ok=$all_patterns_ok");
 
-      foreach my $field (@fields) {
-#$self->log('debug',"********************pattern OK***************** $pattern | field=$field | $data->{$field}----");
-         if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) {
-				$self->log('info',"pattern=/$pattern/ OK field=$field >> SUMO $data->{$field} >> data_value $data_value{$field}");
-            $data_value{$field} += $data->{$field};
-            $nf--;
-         }
-      }
+		if (! $all_patterns_ok) { next; }
 
-
-#print Dumper($data);
-
-#		if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) { 
-#			$self->log('info',"SUMO data_value $data_value{$field}");
-#			$data_value{$field} += $data->{$field}; 
-#		}
+		# OPER = sum >> SUMA DE DATOS
+		if ($params->{'oper'} =~ /sum/i) {
+	      foreach my $field (@fields) {
+   	      if ((exists $data->{$field}) && ($data->{$field}=~/^\d+$/)) {
+      	      #$self->log('info',"field=$field >> SUMO $data->{$field} >> data_value $data_value{$field}");
+         	   $data_value{$field} += $data->{$field};
+         	}
+      	}
+		}
+		# OPER = value >> Devuelve el valor del/os campo/s especificados
+		else {
+      	foreach my $field (@fields) {
+         	if (exists $data->{$field}) {
+      	      #$self->log('info',"field=$field >> VALUE $data->{$field} >> data_value $data_value{$field}");
+            	$data_value{$field} = $data->{$field};
+         	}
+      	}
+		}
 
       $event_info = $l->[3];
       $last_ts = $l->[2];
-
-		if (($nf==0) && ($num_patterns==0)) { last; }
    }
 
-	foreach my $field (@fields) {
-		$self->log('info',"**DEBUG** RES $field >> $data_value{$field}");
-	}
+#	foreach my $field (@fields) {
+#		$self->log('info',"**DEBUG** RES $field >> $data_value{$field}");
+#	}
 
    return (\%data_value,$event_info,$last_ts);
 }
@@ -623,6 +630,12 @@ my ($self,$pattern)=@_;
       @pattern_line = split (/_OR_/,$pattern);
       $pattern_type = 'OR';
    }
+	#legacy
+	elsif ($pattern =~ /"(.+?)"\:"(.+?)"/) {
+		my $pnew = "$1|eqs|$2";
+		$self->log('info',"prepare_patterns >> legacy >> $pattern --> $pnew");		
+		@pattern_line = ($pnew);
+	}
 
    my %patterns = ();
    foreach my $p (@pattern_line) {
@@ -636,7 +649,11 @@ my ($self,$pattern)=@_;
 #$self->log('info',"**DEBUG** CLAVE $kuc >> k=$k op=$op value=$value");
    }
 
-	return \%patterns;
+	my %result = ();
+	$result{'pattern_type'} = $pattern_type;
+	$result{'npatterns'} = scalar(keys %patterns);
+	$result{'patterns'} = \%patterns;
+	return (\%result);
 
 }
 
@@ -684,7 +701,7 @@ my ($self,$data,$patterns)=@_;
             elsif ($data->{$k} eq $value) { $ok += 1; }
          }
 
-         $self->log('info',"check_patterns>> ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
+         #$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
       }
 	}
 
