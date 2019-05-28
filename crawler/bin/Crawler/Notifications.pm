@@ -1350,6 +1350,7 @@ my ($self,$dbh)=@_;
 
 
 	# Se obtienen los monitores que tienen diferentes severidades
+	# EJ: 's_esp_cpu_avg_mibhost-174e4020' => 'v1>85:v1>75:' (critical:major:minor)
 	my $WATCH_MULTI = $store->get_cfg_watch_multi_severity($dbh);
 
 	#----------------------------------------------------------------------------
@@ -1414,6 +1415,30 @@ my ($self,$dbh)=@_;
 
 			# SE GENERA AVISO PARA SET --------------------------------------
 			if ( exists $CFG_POST->{$id}->{'aviso'}) { 
+
+
+				# Si es un monitor de multiples severidades y se ha enviado aviso de una severidad, no se envian mas avisos hasta que se borre
+				#my $algun_flag_para_esto=1;
+				if (($do_cause==1) && (exists $WATCH_MULTI->{$monitor}) && ($WATCH_MULTI->{$monitor}->{'type_mwatch'}==1)) {
+				#if (($do_cause==1) && ($algun_flag_para_esto)) {
+				#	if (exists $WATCH_MULTI->{$monitor}) {
+
+						my $idw = 'mwatch-'.$id_dev.'-'.$monitor;
+						my $file_watch = "$notif_dir/$idw";
+						my $dests = $self->get_mwatch_mark($notif_dir,$idw);
+						my $dest = $CFG_POST->{$id}->{'dest'};
+						if (exists $dests->{$dest}) { 
+							$self->log('info',"manage_app_notifications [$idw] **SALTO AVISO**** (ENVIADO CON OTRA SEVERIDAD A $dest) $file_watch");
+							next;
+						}
+						else {
+							$self->set_mwatch_mark($notif_dir,$idw,$id,$dest);
+						}
+					#}
+				}
+				#-----------------------------------------------------
+
+
 
             # Si hay CLR asociado registro marca de control
             if ($CFG_POST->{$id}->{'type'}==1) { $self->set_app_notif_mark($notif_dir,$id); }
@@ -1648,6 +1673,51 @@ my ($self,$dbh)=@_;
       $store->store_alert2response($dbh, \%response);
 	}
 
+}
+
+#----------------------------------------------------------------------------
+# set_mwatch_mark
+# idwatch tiene el formato: 'mwatch-'.$id_dev.'-'.$monitor
+#----------------------------------------------------------------------------
+sub set_mwatch_mark {
+my ($self,$notif_dir,$idwatch,$idnotif,$dest)=@_;
+
+	my $dests = $self->get_mwatch_mark($notif_dir,$idwatch);
+	if (exists $dests->{$dest}) { return; }
+
+   open M,'>',"$notif_dir/$idwatch"; 
+	foreach my $dest (sort keys %$dests) {
+		print M join(';',$dest,$dests->{$dest}),"\n";
+	}
+	print M join(';',$dest,$idnotif),"\n";
+   close M;
+   $self->log('info',"manage_app_notifications [$idwatch] SET MARK FOR CLR ($notif_dir/$idwatch) $dest >> $idnotif");
+
+}
+
+#----------------------------------------------------------------------------
+# get_mwatch_mark
+# idwatch tiene el formato: 'mwatch-'.$id_dev.'-'.$monitor
+# El contenido del fichero es del tipo:
+# cnmsupport@s30labs.com;100-14-cnmsupport@s30labs.com;cnmsupport@s30labs.com
+# info@s30labs.com;100-14-imo@areas.com;info@s30labs.com
+#----------------------------------------------------------------------------
+sub get_mwatch_mark {
+my ($self,$notif_dir,$idwatch)=@_;
+
+   my %dests=();
+   my $file_watch="$notif_dir/$idwatch";
+   if (-f $file_watch) {
+      #Leo el fichero para ver el aviso concreto
+      open (F,"<$file_watch");
+      while (<F>) {
+         chomp;
+         my ($dest,$idf)=split(';',$_);
+         $dests{$dest}=$idf;
+      }
+      close F;
+   }
+   return \%dests;
 }
 
 #----------------------------------------------------------------------------
@@ -1937,6 +2007,9 @@ my ($self)=@_;
 	my $log_data;
 	my $tnow=time();
 			
+   # Se obtienen los monitores que tienen diferentes severidades
+   # EJ: 's_esp_cpu_avg_mibhost-174e4020' => 'v1>85:v1>75:' (critical:major:minor)
+   my $WATCH_MULTI = $store->get_cfg_watch_multi_severity($dbh);
 	
 	#----------------------------------------------------------------------------
    # Se obtienen los resultados
@@ -2137,7 +2210,7 @@ my ($self)=@_;
          $log_data="CHILDRES: $key ESTUDIAR ERROR err_num=$err_num ".$TASKS{$key}->{'cause'}." ($task_info) DATA_OUT=@$DATA_OUT (RC=$RC EV=$ev) err_str=$err_str";
          $TASKS{$key}->{'result'} = 'UNK';
       }
-
+		
 
       #---------------------------------------------------------------
       # Alerta a eliminar (No existe la condicion de alerta)
@@ -2170,6 +2243,23 @@ my $ev=$TASKS{$key}->{'ev'};
 
 	         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
    	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>'', 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
+
+            # Si es un monitor de multiples severidades tengo que borrar el fichero de marca.
+            # Basta con chequear que exista el fichero.
+            #my $algun_flag_para_esto=1;
+				#if ($algun_flag_para_esto) {
+			
+				my $monitor = $TASKS{$key}->{'watch'};	
+				if ((exists $WATCH_MULTI->{$monitor}) && ($WATCH_MULTI->{$monitor}->{'type_mwatch'}==1)) {
+					my $idw = 'mwatch-'.$id_dev.'-'.$monitor;
+					my $cid=$self->cid();
+					my $file_watch = "$Crawler::MDATA_PATH/output/$cid/notif/$idw";
+               $self->log('info',"manage_app_notifications [$idw] ++CLEAR FILE++ CHECK file_watch=$file_watch");
+               if (-f $file_watch) {
+                  my $rx = unlink $file_watch;
+                  $self->log('info',"alert_processor [$idw] ++CLEAR FILE++ UNLINK ($rx) $file_watch");
+               }
+				}
 
          }
          else {
@@ -3174,7 +3264,7 @@ $self->log('info',"mail_alert_processor:: id_remote_alert=$id_remote_alert watch
   			# store_mode: 0->Insert 1->Update
   			if ( $action =~ /SET/i ) {
 	         $self->log('notice',"mail_alert_processor::[INFO] $monitor [SET-ALERT: IP=$ip/$name/$from | EV=$ev | MSG=$msg]");
-  	       	my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype  }, 1);
+  	       	my ($alert_id,$alert_date,$alert_counter)=$store->store_alert($dbh,$monitor,{ 'ip'=>$ip, 'mname'=>$mname, 'severity'=>$severity, 'event_data'=>$msg, 'cause'=>$cause, 'type'=>$type, 'id_alert_type'=>20, 'id_metric'=>$id_metric, 'mode'=>$mode, 'subtype'=>$subtype  }, 1);
      		}
 
      		# Procesado de alertas. CLEAR -------------------------------------------------------------
@@ -3690,7 +3780,7 @@ my ($self,$desc,$mode)=@_;
  	if (! $monitor) { $M{'id_alert_type'} = 0; }
    else { $M{'id_alert_type'} = $store->get_alert_type($dbh,$monitor); }
 	
-   my ($alert_id,$alert_date)=$store->store_alert($dbh,$monitor,\%M,$mode);
+   my ($alert_id,$alert_date,$alert_counter)=$store->store_alert($dbh,$monitor,\%M,$mode);
 	if (! defined $alert_id) { 
 		$alert_id='U'; 
    	return $alert_id;
@@ -3698,14 +3788,17 @@ my ($self,$desc,$mode)=@_;
 
 	if ($mode !=0) {
 
-      #Se actualiza notif_alert_set (notificationsd evalua si hay que enviar aviso)	
-      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
-
-   	$self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
+      # Se actualiza notif_alert_set para posible respuesta a alertas
+		# Solo se hace si $alert_counter>0 (store_alert ha hecho el paso de 0 a 1)
+		# wsize puede definir ounter con valores de -5, -10 en dispositivos con baja/muy baja sensibilidad.
+		if ($alert_counter>0) {
+	      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
+		}
+   	$self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date alert_counter=$alert_counter");
 
 	}
 	else {
-   	$self->log('info',"set_alert_fast:: **PASS** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date");
+   	$self->log('info',"set_alert_fast:: **PASS** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date alert_counter=$alert_counter");
 	}
 
    return $alert_id;

@@ -6873,11 +6873,12 @@ my ($self,$dbh)=@_;
    if (! defined $dbh) { return undef; }
 
    my %data=();
-   my $rres=sqlSelectAll($dbh, 'c.monitor, a.expr, a.severity', 'cfg_notifications c, alert_type a', 'c.monitor=a.monitor' );
+   my $rres=sqlSelectAll($dbh, 'c.monitor, c.type_mwatch, a.expr, a.severity', 'cfg_notifications c, alert_type a', 'c.monitor=a.monitor' );
 
    foreach my $l (@$rres) { 
-		if ($l->[1]!~/\:/) { next; }
-		$data{$l->[0]} = $l->[1];
+		#| s_esp_cpu_avg_mibhost-174e4020 | 0 | v1>85:v1>75: | 1 |
+		if ($l->[2]!~/\:/) { next; }
+		$data{$l->[0]} = { 'type_mwatch' => $l->[1], 'expr'=>$l->[2] };
 	}
 
 	return \%data;
