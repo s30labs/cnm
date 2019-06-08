@@ -810,6 +810,7 @@ $DBScheme = array(
 		'severity'=>"int(11) NOT NULL default '1'",
       'wsize' => "int(11) NOT NULL default '0'",
       'template'=>"text character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'title_template'=>"text character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'PRIMARY KEY  (`monitor`,`id_notification_type`,`name`,`severity`)'=>'',
 		'KEY `id_cfg_notification` (`id_cfg_notification`)'=>''
    ),
