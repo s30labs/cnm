@@ -4137,6 +4137,55 @@ __URL__
 }
 
 #----------------------------------------------------------------------------
+sub compose_notification_subject  {
+my ($self,$mode,$a,$notif_info)=@_;
+
+	my $subject = '';
+	my $cfg = $self->cfg();
+
+   my $id_dev_alert=$a->[aDEVICE];    #id del device
+   my $device=$a->[aALERT_DEV_NAME].'.'.$a->[aALERT_DEV_DOMAIN];
+   my $ip=$a->[aALERT_DEV_IP];
+   my $alert_cause=$a->[aALERT_CAUSE]; # alert cause
+   my $id_alert=$a->[aID_ALERT];       # id de la alerta
+   my $event_data=$a->[aEVENT_DATA] || '';   # Datos del evento
+   if ($event_data ne '') { $event_data=~s/ \| /\n/g; }
+   my $ack = $a->[aACK];               # ack
+   my $id_ticket = $a->[aID_TICKET];   # id ticket
+   my $severity = $a->[aSEVERITY];     # severity
+   my $date_str = $self->time2date($a->[aDATE]);   # alert date
+   my $id_metric = $a->[aID_METRIC];   # id de la metrica
+   my $alert_type = $a->[aALERT_TYPE]; # alert type
+   my $notif = $a->[aNOTIF];           # notif flag
+   my $mname = $a->[aMNAME];           # metric name
+   my $watch = $a->[aWATCH];           # watch
+   my $type = $a->[aTYPE];             # type
+   my $counter = $a->[aCOUNTER];       # alert counter
+
+   # ------------------------------------------------------------
+	if ($notif_info->{'title_template'} ne '') { 
+
+	   $subject = 'CNM [SET] ';
+   	if ($mode ne 'set') { $subject = 'CNM [CLEAR] '; }
+
+		$subject .= $notif_info->{'title_template'}; 
+		$subject =~ s/__ALERT_CAUSE__/$alert_cause/g;
+		$subject =~s/__DEVICE__/$device/g;
+		$subject =~s/__IP__/$ip/g;
+	}
+	else {
+
+	   my $set_clr='GENERADA ALERTA';
+   	if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
+
+	   my $msg_full = $notif_info->{'nname'}.' '."[$device - $ip]".' **'.$set_clr.'**';
+   	$subject = $cfg->{notif_subject}->[0].' '.$msg_full;
+	}
+	return $subject;
+
+}
+
+#----------------------------------------------------------------------------
 sub set_aviso   {
 my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
 
@@ -4153,20 +4202,21 @@ my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
    my $id_alert=$a->[aID_ALERT];
 
    my $transport=$self->transport();
+   my $cfg = $self->cfg();
 
 	my $set_clr='GENERADA ALERTA';
 	if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
 
    my $msg_full = "$notif_descr [$device - $ip]".' **'.$set_clr.'**';
-   my $cfg = $self->cfg();
-   my $SUBJECT = $cfg->{notif_subject}->[0].' '.$msg_full;
-   $transport->subject($SUBJECT);
 
    my $url='';
    foreach my $u (@{$cfg->{'www_server_url'}}) {
       $url .= $u.'/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n";
    }
    if ($url eq '') { $url='https://'.$self->cid_ip().'/onm/mod_alertas_dashboard_simple.php?id='.$a->[aID_ALERT]."\n"; }
+
+   my $SUBJECT = $self->compose_notification_subject($mode,$a,$notif_info);
+   $transport->subject($SUBJECT);
 
 	$self->log('info',"set_aviso:: id_dev=$id_dev, notif_type=$notif_type, notif_descr=$notif_descr, dest=$dest, id_cfg_notif=$id_cfg_notif, url=$url");
 
