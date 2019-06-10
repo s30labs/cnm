@@ -589,6 +589,20 @@ my ($self,$dbh,$params)=@_;
 }
 
 
+#----------------------------------------------------------------------------
+sub eval_current_date {
+my ($self,$param,$pattern)=@_;
+
+	my $current_date='';
+	if (defined $param->{'current_date'}) {
+		if ($param->{'current_date'} =~ /aaaa-mm-dd/i) { $current_date = `date '+%Y-%m-%d'`; }
+
+		chomp $current_date;
+		$pattern =~ s/__CURRENT_DATE__/$current_date/;
+	}
+
+	return $pattern;
+}
 
 #----------------------------------------------------------------------------
 sub json2h {
