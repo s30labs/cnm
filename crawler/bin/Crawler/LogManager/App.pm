@@ -452,6 +452,9 @@ my $pid;
 		foreach my $k (keys %{$h->{'tasks'}}) {
 
 			if (! -f $h->{'tasks'}->{$k}->{'cfg'}) {
+				# Antes de convertirse en demonio se muestra el error
+				# Otra opcion es die.
+				print "***ERROR*** NO EXISTE FICHERO $h->{'tasks'}->{$k}->{'cfg'}\n";
 				$self->log('warning',"run::[WARN] NO EXISTE FICHERO $h->{'tasks'}->{$k}->{'cfg'}");
    	      next;
 	      }
