@@ -45,6 +45,7 @@ my ($self,$dbh,$params)=@_;
    my $lapse = $params->{'lapse'} || 60;
 	$lapse *= 60;
 	my $pattern = $params->{'pattern'} || '';
+	my $operator = (exists $params->{'operator'}) ? $params->{'operator'} : '';
 	$self->err_str('OK');
 	$self->err_num(0);
 
@@ -74,11 +75,15 @@ my ($self,$dbh,$params)=@_;
 #	}
 
    my $SQL="SELECT count(*) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__";
+	if ($operator eq 'not') { 
+		$SQL="SELECT count(*) FROM __TABLE__ WHERE line not like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__";
+	}
+
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__PATTERN__/$pattern/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-	$self->log('debug',"**DEBUG** dbCmd >> $SQL");
+	$self->log('debug',"**DEBUG** dbCmd >> $SQL -- pattern=$pattern/");
 
    $res = $self->dbCmd($dbh,$SQL);
 	if ($self->err_num() == 0) { $event_counter = $res->[0]; }
@@ -90,6 +95,10 @@ my ($self,$dbh,$params)=@_;
 
 
 	$SQL="SELECT substr(line,1,5000) FROM __TABLE__ WHERE line like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
+   if ($operator eq 'not') {
+		$SQL="SELECT substr(line,1,5000) FROM __TABLE__ WHERE line not like '%__PATTERN__%' AND ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc LIMIT 1";
+	}
+
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__PATTERN__/$pattern/;
    $SQL =~ s/__LAPSE__/$lapse/;
@@ -590,6 +599,9 @@ my ($self,$dbh,$params)=@_;
 
 
 #----------------------------------------------------------------------------
+# Un string usado como parametro como pattern puede incluir variables.
+# Una de ellas es __CURRENT_DATE__ que se debe sustituir por su valor correspondiente.
+#----------------------------------------------------------------------------
 sub eval_current_date {
 my ($self,$param,$pattern)=@_;
 
@@ -602,6 +614,20 @@ my ($self,$param,$pattern)=@_;
 	}
 
 	return $pattern;
+}
+
+#----------------------------------------------------------------------------
+# Un string usado como parametro como pattern puede incluir operadores que hay queidentificar. 
+#----------------------------------------------------------------------------
+sub eval_operator {
+my ($self,$pattern)=@_;
+
+	my $operator = '';
+	if ($pattern=~/\[cnm_op\:not\](.+)$/i) {
+   	$operator = 'not';
+   	$pattern = $1;
+	}
+	return ($pattern,$operator);
 }
 
 #----------------------------------------------------------------------------
