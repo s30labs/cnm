@@ -18,15 +18,20 @@
 - name: Install plugins
   shell: /opt/cnm-sp/{{ item }}/install > /tmp/sp-{{ item }}.log 2>&1
   with_items:
-    - apache-mod_status
-    - api-device
-    - api-inventory
-    - dns-check
     - ENT_00318_APC
     - ENT_02021_UCDAVIS
     - ENT_21796_HWGROUP
     - ENT_25506_H3C
     - ENT_34225_CNM
+    - apache-mod_status
+    - api-device
+    - api-inventory
+    - dns-check
+    - db-mssqlCmd
+    - event-counter
+    - event-data
+    - event-status
+    - file-server
     - icmp-dual
     - ipmi-sensors
     - ssh-linuxOS
@@ -43,6 +48,5 @@
     - wmi-services
     - t
   tags: cnm-sp
-
 
 ...
