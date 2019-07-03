@@ -1,0 +1,146 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-check-blue-alerts
+# Checks/Fixes blue alerts
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use JSON;
+use Data::Dumper;
+use Crawler::Store;
+use ONMConfig;
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hlwr",\%opts);
+
+#if ((!$opts{l}) && (!$opts{w})) { my $USAGE = usage(); die $USAGE;}
+
+my $LIST = (defined $opts{l}) ? 1 : 0;
+my $WORKSET = (defined $opts{w}) ? 1 : 0;
+my $REMOVE= (defined $opts{r}) ? 1 : 0;
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+
+#-----------------------------------------------------------------------
+my $LOG_LEVEL='info';
+my $LOG_MODE=2;
+my $FILE_CONF='/cfg/onm.conf';
+my $rcfgbase=conf_base($FILE_CONF);
+
+my $db_server=$rcfgbase->{'db_server'}->[0];
+my $db_name=$rcfgbase->{'db_name'}->[0];
+my $db_user=$rcfgbase->{'db_user'}->[0];
+my $db_pwd=$rcfgbase->{'db_pwd'}->[0];
+my $HOST=$rcfgbase->{'host_name'}->[0];
+
+my $STORE_PATH=$rcfgbase->{'store_path'}->[0];
+my $txml_path=$rcfgbase->{'txml_path'}->[0];
+
+
+
+#-----------------------------------------------------------------------
+my $STORE=Crawler::Store->new( store_path=>$STORE_PATH,
+                               db_server=>$db_server,
+                               db_name=>$db_name,
+                               db_user=>$db_user,
+                               db_pwd=>$db_pwd,
+                               log_level=>$LOG_LEVEL, log_mode=>$LOG_MODE );
+my $dbh=$STORE->open_db();
+
+
+#-------------------------------------------------------------------------------------------
+# A. GET BLUE ALERTS
+#-------------------------------------------------------------------------------------------
+my @x = `/opt/cnm/crawler/bin/ws/cnm-get -alert -fields="deviceid,devicename,deviceip,subtype,type,metricid,counter,cause" -q "severity=4"`;
+my @blue_alerts=();
+foreach my $l (@x) {
+	chomp $l;
+	my ($id_dev,$name,$ip,$subtype,$type,$id_metric,$counter,$cause) = split (/\t/,$l);
+	if ($id_dev !~ /^\d+$/) { next; }
+	push @blue_alerts, { 'id_dev'=>$id_dev, 'name'=>$name, 'ip'=>$ip, 'subtype'=>$subtype, 'type'=>$type, 'id_metric'=>$id_metric, 'counter'=>$counter, 'cause'=>$cause, 'ok'=>1};
+}
+
+#-------------------------------------------------------------------------------------------
+# B. VALIDATE METRIC
+#-------------------------------------------------------------------------------------------
+my $j=0;
+foreach my $h (@blue_alerts) {
+
+	my $ip = $h->{'ip'};
+	my $type = $h->{'type'};
+	my $subtype = $h->{'subtype'};   #convert mname/subtype
+	print "$j\tCHECK $ip  $type  $subtype  ";
+	my $res = `/var/www/cgi-bin/onm/validate_metric  'ip=$ip&mname=$subtype&type=$type&m=json'`;
+	my $json = JSON->new();
+	my $hres = $json->decode($res);
+	#print Dumper ($hres);
+	my $ok=1;
+	foreach my $a (@$hres) {
+		if (($a->[0]=~/Datos dispositivo/) && ($a->[1]=~/SIN DATOS DEL DISPOSITIVO/)) { 
+			$ok=0;
+			$blue_alerts[$j]->{'ok'}=0;
+		}
+	}
+	if ($ok) { print " >>> RESPONSE OK\n"; }
+	else {  print " >>> SIN DATOS DEL DISPOSITIVO\n"; }
+	$j+=1;
+}
+
+#-------------------------------------------------------------------------------------------
+# C. REPAIR
+#-------------------------------------------------------------------------------------------
+foreach my $h (@blue_alerts) {
+
+   my $id_dev = $h->{'id_dev'};
+   my $id_metric = $h->{'id_metric'};
+   my $ip = $h->{'ip'};
+   my $type = $h->{'type'};
+   my $subtype = $h->{'subtype'};
+
+	# En este caso hay que eliminar metrica
+	if ($h->{'ok'} == 0) {
+
+		my $cmd="/opt/cnm/crawler/bin/ws/cnm-del -metric -id $id_metric";
+		print "**ELIMINAR METRICA $subtype en $ip  >> $cmd\n"; 
+		next;
+	}
+	
+	# Si ha habido cambio de iid hay que volver a provisionar
+	if ($h->{'type'} eq 'snmp') {
+
+		my $cmd = "/opt/cnm/crawler/bin/plite -r $id_dev -t 1 -m 1.300.$type.$subtype -c default";
+		print "**REGENERAR METRICA $subtype en $ip  >> $cmd\n";
+
+	}
+
+}
+
+#print Dumper (\@blue_alerts);
+
+
+
+
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+   my $legend = check_version();
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+$legend
+Revisa el estado de los ficheros de datos
+
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -l  : Lista ficheros a revisar
+$fpth[$#fpth] -w  : Regenera datos para polling
+$fpth[$#fpth] -r  : Elimina los ficheros antiguos
+
+USAGE
+
+   return $USAGE;
+
+}
+
