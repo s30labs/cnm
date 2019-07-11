@@ -19,4 +19,5 @@ date > /tmp/rclocal.log
 /opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1
 date >> /tmp/rclocal.log
 
+test -f /etc/cnm-custom-start.sh && /etc/cnm-custom-start.sh
 exit 0
