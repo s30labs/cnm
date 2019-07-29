@@ -2268,7 +2268,7 @@ my $ev=$TASKS{$key}->{'ev'};
             $CLR0 +=1;
             $TASKS{$key}->{'result'}='DEL';
          }
-         $log_data="CHILDRES $key SUPRIMO ALERTA ".$TASKS{$key}->{'cause'}." ($task_info) DATA_OUT=@$DATA_OUT (counter=$counter)";
+         $log_data="CHILDRES $key SUPRIMO ALERTA [".$TASKS{$key}->{'result'}.'] '.$TASKS{$key}->{'cause'}." ($task_info) DATA_OUT=@$DATA_OUT (counter=$counter)";
       }
 		$self->log('info',"alert_processor:: $log_data");
    }
@@ -4107,6 +4107,7 @@ __URL__
 	my $counter = $a->[aCOUNTER];			# alert counter
 
 	# ------------------------------------------------------------
+	$txt =~s/__EMPTY__//g;
 	$txt =~s/__SET_CLR_ALERT__/$set_clr/g;
 	$txt =~s/__ALERT_CAUSE__/$alert_cause/g;
 	$txt =~s/__DEVICE__/$device/g;
