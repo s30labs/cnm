@@ -195,6 +195,7 @@ my ($self,$task_cfg_file)=@_;
 		#if ($VERBOSE) { print Dumper (\@lines); }
 
 		unlink "$CSCRIPT_PATH_IN_HOST/$CSCRIPT_NAME";
+		unlink "$CSCRIPT_PATH_IN_HOST/$CSQL_NAME";
 
 		#-------------------------------------------------------------------------------------------
 		# DATA Parser
