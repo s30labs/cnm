@@ -27,7 +27,7 @@ USAGE
 #-------------------------------------------------------------------------------------------
 my ($VERBOSE,$CONDITION,$log_mode,$class,$endpoint) = (0,'',3,'','');
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s', 'view=s', 'lapse=s', 'pg')
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s', 'view=s', 'lapse=s', 'pg', 'csv')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
@@ -60,11 +60,14 @@ my $ofields = join (',', @fields);
 #// Para obtener una metrica concreta:
 #// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/2332.json"
 
+# select items,LENGTH(items)-LENGTH(REPLACE(items, '|', '')) + 1 from cfg_monitor_agent WHERE description  like 'P0%';
 
 my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
 my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
-#print "sid=$sid\n";
+if ($VERBOSE) {
+	print "sid=$sid\n";
+}
 
 my $response = $api->ws_get($class,$endpoint);
 
@@ -101,6 +104,7 @@ else {
 			push @fx,$desc->{$f};
 		}
 		$IDs{$id}->{'fields'} = join (',',@fx);
+		$IDs{$id}->{'deviceid'} = $desc->{'deviceid'};
 		$IDs{$id}->{'metricname'} = $desc->{'metricname'};
 		$IDs{$id}->{'metricitems'} = $desc->{'metricitems'};
 		if ($VERBOSE) { print "\n"; }
@@ -108,6 +112,7 @@ else {
 }
 
 my @CSV=();
+my %METRIC_INFO=();
 my @HEADINGS=();
 $class='metrics';
 my $items = [];
@@ -121,21 +126,66 @@ foreach my $id (sort keys %IDs) {
 	$response = $api->ws_get($class,$endpoint);
 	if ($VERBOSE) { print Dumper($response); }
 
+	if (! exists $response->{'flot'}->{'label'}) {
+		print "**SIN DATOS** endpoint=$endpoint\n";
+		next;
+	}
+
 	$items=$response->{'flot'}->{'label'};
 	my $nitems=scalar(@$items);
+	my @vcols=();
+	for my $i (0..$nitems-1) {
+		my $j=$i+1;
+   	my $vx='v'.$j;
+		push @vcols,$vx;
+	}	
+	my $vcols_header = join(',',@vcols);
 
-	push @HEADINGS,'Time,metricid,'.$ofields.','.join(',',@$items);
+	#push @HEADINGS,'Time,metricid,deviceid,'.$ofields.','.join(',',@$items);
+	push @HEADINGS,'Time,metricid,deviceid,'.$vcols_header;
 	foreach my $hv (@{$response->{'flot'}->{'data'}}) {
+	   my %line=();
+     	$line{'metricid'} = $id;
+      $line{'ts'} = $hv->{'t'};
+      $line{'deviceid'} = $IDs{$id}->{'deviceid'};
+      $line{'nitems'} = $nitems;
+      $line{'metricname'} = $IDs{$id}->{'metricname'};
+      $line{'vcols_header'} = $vcols_header;
+		#$line{'item'} = $items->[$i];
+
+		my @vcols_data=();
 		for my $i (0..$nitems-1) {
-	      my %line=();
-   	   $line{'metricid'} = $id;
-      	$line{'ts'} = $hv->{'t'};
-      	$line{'metricname'} = $IDs{$id}->{'metricname'};
-			$line{'item'} = $items->[$i];
-			$line{'value'} = $hv->{'v'}->[$i];
-			push @CSV, \%line;
+			my $vdb = ($hv->{'v'}->[$i] =~ /\d+/) ? $hv->{'v'}->[$i] : 'NULL';
+			push @vcols_data,$vdb;
 		}
+
+		my @metric_items=split(/\|/,$IDs{$id}->{'metricitems'});
+		my $key=$line{'metricid'};
+		if (! exists $METRIC_INFO{$key}) {
+			$METRIC_INFO{$key} = {'label'=>$line{'metricname'}, 'metricid'=>$line{'metricid'}, 'deviceid'=>$line{'deviceid'}, 'nitems'=>$nitems};
+			my $i=1;
+			my $item_values=join(',',map "'$_'", @metric_items);
+
+			my @metric_items_header=();
+			foreach my $item (@metric_items) {
+				my $itemx='item'.$i;
+				push @metric_items_header,$itemx;
+				$i++;
+			}
+			$METRIC_INFO{$key}->{'item_values'} = $item_values;
+			$METRIC_INFO{$key}->{'item_headers'} = join(',',@metric_items_header);
+			$METRIC_INFO{$key}->{'metric_items'} = \@metric_items;
+		}
+		$line{'vcols'}=join(',',@vcols_data);
+		$line{'vcols_data'}=\@vcols_data;
+		push @CSV, \%line;
+
+
 	}
+}
+
+if ($VERBOSE) { 
+	print Dumper(\%METRIC_INFO),"\n"; 
 }
 
 #                      'label' => [
@@ -169,7 +219,7 @@ if ($OPTS{'csv'}) {
 		print "$h\n";
 	}
 	foreach my $h (@CSV) {
-		print $h->{'t'}.','.$h->{'metricid'}.','.$h->{'fields'}.','.$h->{'vx'}."\n";
+		print $h->{'ts'}.','.$h->{'metricid'}.','.$h->{'deviceid'}.','.$h->{'vcols'}."\n";
 	}
 }
 
@@ -193,45 +243,78 @@ if ($OPTS{'pg'}) {
 
 	foreach my $l (@CSV) {
 
-		my ($metricid,$metricvalue,$value);
+		my ($metricid,$deviceid,$metricvalue,$table,$vcols,$vcols_header);
       if ($l->{'ts'} !~ /^\d+$/) { next; }
 
       if ((! defined $l->{'metricid'}) || ($l->{'metricid'} !~ /^\d+$/)) { next; }
-      if (! defined $l->{'metricname'}) { next; }
-      if (! defined $l->{'item'}) { next; }
-		$metricid = $l->{'metricid'};
-		$metricvalue = join (' - ', $l->{'metricname'}, $l->{'item'});
-		$value = ($l->{'value'} =~ /\d+/) ? $l->{'value'} : 'NULL';
+      if ((! defined $l->{'deviceid'}) || ($l->{'deviceid'} !~ /^\d+$/)) { next; }
+      if ((! defined $l->{'nitems'}) || ($l->{'nitems'} !~ /^\d+$/)) { next; }
 
-#          {
-#            'item' => 'Number of Files',
-#            'metricid' => '45422',
-#            'metricname' => 'P02-SP0007-KPI0002 - BPI rejected files (prawwbpias01.areascloud.com)',
-#            'v' => '4.5000000000e+01',
-#            't' => 1555877100
-#          },
-
-
-
+      $metricid = $l->{'metricid'};
+      $deviceid = $l->{'deviceid'};
+		$table = 'metrics';
       #1999-01-08 04:05:06
       my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($l->{'ts'});
       $year += 1900;
       $mon += 1;
       my $data_time = sprintf("%04d-%02d-%02d %02d:%02d:%02d",$year,$mon,$mday,$hour,$min,$sec);
 
-#print "....$ts, $data_time, $metricid, $metricname, $item, $value----\n";
+		my $itemid=0;
+		foreach  my $vx (@{$l->{'vcols_data'}}) {
 
-      eval {
-         my $stmt = qq(INSERT INTO metrics_app (time,metricid,metricvalue,value)
-         VALUES ('$data_time', $metricid, '$metricvalue', $value));
-         my $rv = $dbh->do($stmt) or die $DBI::errstr;
-      };
-      if ($@) {
-         print "**NO INSERT** ($@)\n";
-      }
-      else {
-         print "OK insert -> $data_time,$metricid,$metricvalue,$value\n";
-      }
-   }
+	      eval {
+   	      my $stmt = qq(INSERT INTO $table (time,metricid,deviceid,itemid,value)
+      	   VALUES ('$data_time', $metricid, $deviceid, $itemid, $vx));
+
+if ($VERBOSE) { print "$stmt\n"; }
+
+
+         	my $rv = $dbh->do($stmt) or die $DBI::errstr;
+      	};
+      	if ($@) {
+         	print "**NO INSERT** ($@)\n";
+      	}
+      	else {
+         	print "OK insert -> $data_time,$metricid,$deviceid,$itemid,$vx\n";
+      	}
+
+			$itemid+=1;
+		}
+	}
+
+		
+   foreach my $k (sort keys %METRIC_INFO) {
+
+		my $label = $METRIC_INFO{$k}->{'label'};
+		my $metricid = $METRIC_INFO{$k}->{'metricid'};
+		my $deviceid = $METRIC_INFO{$k}->{'deviceid'};
+		#my $item_headers = $METRIC_INFO{$k}->{'item_headers'};
+		#my $item_values = $METRIC_INFO{$k}->{'item_values'};
+		my $table = 'metric_info';
+
+
+		for my $itemid (0..$METRIC_INFO{$k}->{'nitems'}-1) {
+
+			my $item = $METRIC_INFO{$k}->{'metric_items'}->[$itemid];
+
+   	   eval {
+      	   my $stmt = qq(INSERT INTO $table (metricid,deviceid,label,itemid,item)
+         	VALUES ($metricid, $deviceid, '$label', $itemid, '$item')
+				ON CONFLICT (deviceid, metricid, itemid) DO UPDATE
+					SET label='$label', item='$item');
+
+print "$stmt\n";
+
+	         my $rv = $dbh->do($stmt) or die $DBI::errstr;
+   	   };
+      	if ($@) {
+         	print "**NO INSERT** ($@)\n";
+	      }
+   	   else {
+      	   print "OK insert -> $metricid, $deviceid, $label, $itemid, $item\n";
+      	}
+		}
+	}
+
 }
 
