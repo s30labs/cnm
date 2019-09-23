@@ -204,6 +204,7 @@ my ($self,$task_cfg_file)=@_;
 	      $line{'Subject'} = $HEAD{'Subject'};
    	   $line{'From'} = $HEAD{'From'};
       	$line{'From'} =~ s/.+?<(.+)>/$1/;
+      	$line{'From'} =~ s/<(.+)>/$1/;	# Por si acaso el From solo tiene <email> (sin nombre)
 	      $line{'Date'} = $HEAD{'Date'};
    	   $line{'ts'} = $ts; # Necesario para que cambie el hash md5 que identifica el mensaje
       	$self->log('debug',"core-imap4:: LEIDO MSG $i|$nm (size=$msize leido=$seen) >> From=$line{'From'} | Subject=$line{'Subject'}");
@@ -317,6 +318,7 @@ my ($self,$task_cfg_file,$file_msg)=@_;
    $line{'Subject'} = $HEAD{'Subject'};
    $line{'From'} = $HEAD{'From'};
    $line{'From'} =~ s/.+?<(.+)>/$1/;
+   $line{'From'} =~ s/<(.+)>/$1/;	# Por si acaso el From solo tiene <email> (sin nombre)
    $line{'Date'} = $HEAD{'Date'};
    $line{'ts'} = $ts; # Necesario para que cambie el hash md5 que identifica el mensaje
    $self->log('debug',"core-imap4:: LEIDO MSG ($file_msg) >> From=$line{'From'} | Subject=$line{'Subject'}");
