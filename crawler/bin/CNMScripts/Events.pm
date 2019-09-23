@@ -146,18 +146,29 @@ sub get_application_events_json {
 my ($self,$dbh,$params)=@_;
 
 
+	my $event_counter = 0;
    my $id_app = $params->{'id_app'};
+   #my $field = $params->{'field'};
+   # Se pueden especificar varios campos separados por "|"
+   my @fields = split(/\|/, $params->{'field'});
+   my $num_fields = scalar(@fields);
+
    my $lapse = $params->{'lapse'} || 60;
    $lapse *= 60;
    my $pattern = $params->{'pattern'} || '';
+   my $pat = $self->prepare_patterns($pattern);
+   # Se pueden especificar varios patrones separados por "|"
+   # "|" es la barra para la regex.
+   #my $num_patterns = split (/\|/, $pattern);
+
+
    $self->err_str('OK');
    $self->err_num(0);
 
+   my ($event_info,$last_ts) = ('U','UNK','U');
 
-   my ($event_counter,$event_info,$last_ts) = ('U','UNK','U');
-
-	# Se obtiene el nombre de la tabla a partir del id. 
-	# 333333001009 -> logp_333333001009_icgTPVSessions_from_db
+   # Se obtiene el nombre de la tabla a partir del id.
+   # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
    my $res = $self->dbCmd($dbh,"SELECT tabname FROM device2log WHERE tabname LIKE '%$id_app%'");
    if ($res->[0] !~ /log/) {
       $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
@@ -167,101 +178,45 @@ my ($self,$dbh,$params)=@_;
    }
 
    my $tabname = $res->[0];
-
-	#EJ: my $SQL="SELECT id_log,hash,ts,line FROM logp_333333001009_icgTPVSessions_from_db WHERE ts>unix_timestamp(now())-3600;";
-	my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
+   #EJ: my $SQL="SELECT id_log,hash,ts,line FROM logp_333333001009_icgTPVSessions_from_db WHERE ts>unix_timestamp(now())-3600;";
+   my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
+   $self->log('info',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbSelectAll($dbh,$SQL);
-   if ($self->err_num() != 0) { 
+   if ($self->err_num() != 0) {
       $self->log('warning',"ERROR dbCmd >> $SQL");
       $event_info = $self->err_str();
       return ($event_counter,$event_info);
    }
 
-	# pattern puede ser una lista de condiciones separadas por _AND_ o _OR_
-	# EJ: clase|eq|Q2_AND_TRANSCOLA|gt|10
-	# Cada condicion es del tipo: TRANSCOLA|gt|10 o ERRORMSG|eq|"" -> key|operador|value
-	# Los operadores soportados son: gt, gte, lt, lte, eq, ne
-	$event_counter = 0;
+   foreach my $l (@$res) {
 
-	my @pattern_line = ($pattern);
-	my $pattern_type = 'AND';
-	if ($pattern =~ /_AND_/) {
-		@pattern_line = split (/_AND_/,$pattern);
-	}
-	elsif ($pattern =~ /_OR_/) {
-      @pattern_line = split (/_OR_/,$pattern);
-		$pattern_type = 'OR';
+      my $data = $self->json2h($l->[3]);
+      my $num_ok = $self->check_patterns($data,$pat->{'patterns'});
+
+      my $all_patterns_ok = 0;
+      if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $event_counter += 1; }
+      elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $event_counter += 1;  }
+
+
+      if ($event_counter == 1) {
+         $event_info = $l->[3];
+         $last_ts = $l->[2];
+      }
    }
 
-	my %patterns = ();
-	foreach my $p (@pattern_line) {
-		my ($k,$op,$value) = split(/\|/,$p);
-		my $kuc = uc $k;
-		if (! exists $patterns{$kuc}) {
-			$patterns{$kuc} = [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ]; 
-		}
-		else { push @{$patterns{$kuc}}, { 'k'=>$k, 'op'=>$op, 'value'=>$value }; }
-
-#$self->log('info',"**DEBUG** CLAVE $kuc >> k=$k op=$op value=$value");
-	}
-
-	my $npatterns = scalar(keys %patterns);
-
-	foreach my $l (@$res) {
-
-		my $data = $self->json2h($l->[3]);
-
-		#$self->log('info',"**DEBUG** RES $l->[3]");
-		my $ok = 0;
-		foreach my $k (keys %$data) {
-			my $kx = uc $k;
-
-			if (! exists $patterns{$kx}) { next; }
-#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - pattern=$pattern");
-
-			foreach my $h (@{$patterns{$kx}})  {
-
-				#my $op = $patterns{$kx}->{'op'};
-				#my $value = $patterns{$kx}->{'value'};
-
-            my $op = $h->{'op'};
-            my $value = $h->{'value'};
-
-				#Operandos: eqs, match, ne, gt, lt, gte, lte
-				if (($op =~ /eqs/i) && ($data->{$k} eq $value)) { $ok += 1; }
-				elsif (($op =~ /match/i) && ($data->{$k} =~/$value/)) { $ok += 1; }
-				elsif (($op =~ /gte/i) && ($data->{$k} >= $value)) { $ok += 1; }
-				elsif (($op =~ /gt/i) && ($data->{$k} > $value)) { $ok += 1; }
-				elsif (($op =~ /lte/i) && ($data->{$k} <= $value)) { $ok += 1; }
-				elsif (($op =~ /lt/i) && ($data->{$k} < $value)) { $ok += 1; }
-				elsif ($op =~ /ne/i) {
-					if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} != $value)) { $ok += 1; }
-					elsif ($data->{$k} ne $value) { $ok += 1; }
-				}
-				elsif ($op =~ /eq/i) {
-   	         if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} == $value)) { $ok += 1; }
-      	      elsif ($data->{$k} eq $value) { $ok += 1; }
-				}
-
-				#$self->log('info',"**DEBUG** CHECK ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
-			}
-		}
-
-		if (($pattern_type eq 'AND') && ($ok == $npatterns)) { $event_counter += 1; }
-		elsif (($pattern_type eq 'OR') && ($ok>0)) { $event_counter += 1; }
-
-		if ($event_counter == 1) {
-			$event_info = $l->[3];
-			$last_ts = $l->[2];
-		}
-	}
    return ($event_counter,$event_info,$last_ts);
 }
+
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+
 
 #----------------------------------------------------------------------------
 # get_last_status_event
@@ -312,8 +267,10 @@ my ($self,$dbh,$params,$status_map)=@_;
 
 	foreach my $l (@$status_map) {
 		my $pat = $l->{'pattern'};
+		$self->log('debug',"**DEBUG** COMPARE PATTERN $last_stored <> $pat");
 		if ($last_stored =~ /$pat/) { 
 			$status = $l->{'value'}; 
+			$self->log('debug',"**DEBUG** PATTERN OK >> $pat");
 			last;
 		}
 	}
@@ -454,7 +411,7 @@ my ($self,$dbh,$params)=@_;
 
    my %data_value=();
 	foreach my $f (@fields) { $data_value{$f}=0; }
-   my ($event_info,$last_ts) = ('U','UNK','U');
+   my ($event_info,$last_ts) = ('UNK','U');
 
    # Se obtiene el nombre de la tabla a partir del id.
    # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
@@ -463,7 +420,8 @@ my ($self,$dbh,$params)=@_;
       $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
       $self->err_str($event_info);
       $self->err_num(1);
-      return (\%data_value,$event_info);
+      #return (\%data_value,$event_info);
+		return (\%data_value,$event_info,$last_ts);
    }
 
    my $tabname = $res->[0];
@@ -479,7 +437,8 @@ my ($self,$dbh,$params)=@_;
    if ($self->err_num() != 0) {
       $self->log('warning',"ERROR dbCmd >> $SQL");
       $event_info = $self->err_str();
-      return (\%data_value,$event_info);
+      #return (\%data_value,$event_info);
+		return (\%data_value,$event_info,$last_ts);
    }
 
    foreach my $l (@$res) {
@@ -491,7 +450,9 @@ my ($self,$dbh,$params)=@_;
       if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $all_patterns_ok = 1; }
 		elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $all_patterns_ok = 1; }
 
-		#$self->log('info',"pattern_type=$pat->{'pattern_type'}  >> all_patterns_ok=$all_patterns_ok");
+if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
+		$self->log('info',"FMLFML $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
+}
 
 		if (! $all_patterns_ok) { next; }
 
@@ -680,6 +641,8 @@ my ($self,$pattern)=@_;
    my %patterns = ();
    foreach my $p (@pattern_line) {
       my ($k,$op,$value) = split(/\|/,$p);
+		if (!defined $value) { $value=''; }
+
       my $kuc = uc $k;
       if (! exists $patterns{$kuc}) {
          $patterns{$kuc} = [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ];
@@ -692,6 +655,7 @@ my ($self,$pattern)=@_;
 	my %result = ();
 	$result{'pattern_type'} = $pattern_type;
 	$result{'npatterns'} = scalar(keys %patterns);
+#$self->log('info',"**DEBUG** NPATTERNS = $result{'npatterns'}");
 	$result{'patterns'} = \%patterns;
 	return (\%result);
 
@@ -723,15 +687,33 @@ my ($self,$data,$patterns)=@_;
       foreach my $h (@{$patterns->{$kx}})  {
 
          my $op = $h->{'op'};
-         my $value = $h->{'value'};
+         my $value = (exists $h->{'value'}) ?  $h->{'value'} : '';
 
-         #Operandos: eqs, match, ne, gt, lt, gte, lte
-         if (($op =~ /eqs/i) && ($data->{$k} eq $value)) { $ok += 1; }
-         elsif (($op =~ /match/i) && ($data->{$k} =~/$value/)) { $ok += 1; }
-         elsif (($op =~ /gte/i) && ($data->{$k} >= $value)) { $ok += 1; }
-         elsif (($op =~ /gt/i) && ($data->{$k} > $value)) { $ok += 1; }
-         elsif (($op =~ /lte/i) && ($data->{$k} <= $value)) { $ok += 1; }
-         elsif (($op =~ /lt/i) && ($data->{$k} < $value)) { $ok += 1; }
+			#Operando: exists
+         if (($op =~ /exists/i) && ($kx eq (uc $h->{'k'}))) { $ok += 1; }
+
+         #Operandos string y numericos: eqs, match, ne, gt, lt, gte, lte
+         elsif ($op =~ /eqs/i) { 
+				if ($data->{$k} eq $value) { $ok += 1; }
+			}
+			elsif ($op =~ /nomatch/i) {
+				if ($data->{$k} !~/$value/) { $ok += 1; }
+			}
+         elsif ($op =~ /match/i) { 
+				if ($data->{$k} =~/$value/) { $ok += 1; }
+			}
+         elsif ($op =~ /gte/i) {
+				if ($data->{$k} >= $value) { $ok += 1; }
+			}
+         elsif ($op =~ /gt/i) {
+				if ($data->{$k} > $value) { $ok += 1; }
+			}
+         elsif ($op =~ /lte/i) {
+				if ($data->{$k} <= $value) { $ok += 1; }
+			}
+         elsif ($op =~ /lt/i) {
+				if ($data->{$k} < $value) { $ok += 1; }
+			}
          elsif ($op =~ /ne/i) {
             if (($data->{$k}=~/^\d+(?:\.\d+)?$/) && ($data->{$k} != $value)) { $ok += 1; }
             elsif ($data->{$k} ne $value) { $ok += 1; }
@@ -741,7 +723,7 @@ my ($self,$data,$patterns)=@_;
             elsif ($data->{$k} eq $value) { $ok += 1; }
          }
 
-         #$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$op--$value-- -> ok=$ok");
+      	#$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
       }
 	}
 
