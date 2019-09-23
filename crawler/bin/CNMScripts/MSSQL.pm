@@ -13,6 +13,7 @@ use JSON;
 use Time::Local;
 use IO::CaptureOutput qw/capture/;
 use Data::Dumper;
+use Encode qw(encode_utf8);
 
 my $VERSION = '1.00';
 
@@ -166,8 +167,11 @@ my ($self,$ip)=@_;
    $self->err_num(0);
 	my ($rc,$stdout,$stderr)=(1,'','');
 
+	my $database_option = '';
+	if ($self->db() ne '') { $database_option = ' -d '.$self->db();}
+
 	#my $CMD="docker run microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S $ip -d $db -U $user -P $pwd -Q \"$sqlcmd\"";
-	my $CMD=$self->cmd().' '.$self->host().' -U '.$self->user().' -P '.$self->pwd.' -Q "SELECT @@VERSION"';
+	my $CMD=$self->cmd().' '.$self->host().' -U '.$self->user().' -P '.$self->pwd.''.$database_option.' -Q "SELECT @@VERSION"';
 
 	capture sub { $rc=system($CMD); } => \$stdout, \$stderr;
 
@@ -203,16 +207,27 @@ my ($self,$sql,$params)=@_;
       return;
    }
 
+	my $separator_option = '';
 	my $sqlcmd = 'SET NOCOUNT ON;'.$sql;
 	if ((defined $params) && (ref($params) eq 'HASH')) {
-		if (exists ($params->{'json'})) { $sqlcmd .= ' FOR JSON AUTO'; }
+		if ( (exists $params->{'json'}) && ($params->{'json'} eq '1') ) { $sqlcmd .= ' FOR JSON AUTO'; }
+		else { 
+			$separator_option = " -s '|' "; 
+			if (exists $params->{'separator'}) { $separator_option = " -s '".$params->{'separator'}."' "; }
+		}
 	}
 
    my ($rc,$stdout,$stderr)=(0,'','');
    $self->err_str('[OK]');
    $self->err_num(0);
 
-   my $cmdc = $self->cmd().' '.$host.' -U '.$self->user().' -P '.$self->pwd.' -Q "'.$sqlcmd.'"';
+	my $fields = [];
+	if ((exists $params->{'fields'}) && (ref($params->{'fields'}) eq 'ARRAY')) { $fields = $params->{'fields'}; }
+
+   my $database_option = '';
+   if ($self->db() ne '') { $database_option = ' -d '.$self->db();}
+
+   my $cmdc = $self->cmd().' '.$host.' -U '.$self->user().' -P '.$self->pwd.' '.$database_option.' '.$separator_option.' -Q "'.$sqlcmd.'"';
    $self->log('info',"sqlcmd_run >> $cmdc");
 
 	capture sub { $rc=system($cmdc); } => \$stdout, \$stderr;
@@ -226,18 +241,43 @@ my ($self,$sql,$params)=@_;
       $self->err_num(10);
       $self->log('error',"sqlcmd_run >> **ERROR** stderr=$stderr (cmdc=$cmdc)");
    }
-	else {
-		$stdout=~s/\r//g;
-		$stdout=~s/\n//g;
 
-		$data = eval { decode_json($stdout) };
+	elsif ($params->{'json'} eq '1') {
+
+      $stdout=~s/\r//g;
+  	   $stdout=~s/\n//g;
+
+		my $json = JSON->new();
+		my $stdout_utf8 = encode_utf8($stdout);
+		$stdout_utf8=~s/\x{0}//g;
+		eval {
+			$data = $json->decode($stdout_utf8);
+#print Dumper($data),"\n";
+		};
+
 		if ($@) {
 			$data=[];
 			my $err_full="$stdout - $@";
 			$self->err_str($err_full);
 	      $self->err_num(11);
-   	   $self->log('error',"sqlcmd_run >> **ERROR JSON** $err_full (cmdc=$cmdc)");
+  		   $self->log('error',"sqlcmd_run >> **ERROR JSON** $err_full (cmdc=$cmdc)");
 		}
+	}
+	else {
+		my @lines = split (/\n/, $stdout);
+		my @result=();
+		foreach my $l (@lines) {
+			$l=~s/\r//g;		
+			$self->log('debug',"sqlcmd_run >> NO JSON LINE >> $l");
+			my %x = ();
+			my @c = split(/\|/,$l);
+			my $i=0;
+			foreach my $f (@$fields) { 
+				$x{$f}=$c[$i]; 
+				$i++;
+			}
+			push @$data,\%x;		
+		}		
 	}
 
    $self->host_status($host,$self->err_num());
