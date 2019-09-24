@@ -167,7 +167,7 @@ use constant ACTIVE  => 1;
 use constant TERMINATED  => 2;
 use constant DONE  => 3;
 
-my $MAX_TASK_ACTIVE_PER_CPU=4;
+my $MAX_TASK_ACTIVE_PER_CPU=2;
 my $MAX_TASK_TIMEOUT=10;
 
 #----------------------------------------------------------------------------
