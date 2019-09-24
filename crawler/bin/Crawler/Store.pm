@@ -576,7 +576,7 @@ $self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE $rrd -> $dx");
 	#----------------------------------------------------------
 	my $data=join(':',$t,@$values);
 	my	$r = $self->update_rrd($rrd,$data);
-$self->log('info',"put_rrd_data::[DEBUG ID=$task_id] UPDATE NORMAL ($lapse) $rrd -> $data");
+$self->log('debug',"put_rrd_data::[DEBUG ID=$task_id] UPDATE NORMAL ($lapse) $rrd -> $data");
 
 	#----------------------------------------------------------
    if ($r) {
@@ -3000,22 +3000,25 @@ $self->log('debug',"analize_views_ruleset::RULESET=$kk");
 
    #-----------------------------------------------
    # Se  actualiza el estado en cfg_views
-
+	my $cview=0;
    foreach my $id (keys %VIEWS2ALERTS) {
       my %table=();
 		if (ref ($VIEWS2ALERTS{$id}) ne "HASH") {next; }
 
       $table{'severity'}=$VIEWS2ALERTS{$id}->{'severity'};
-      $table{'red'}=$VIEWS2ALERTS{$id}->{'v1'};
-      $table{'orange'}=$VIEWS2ALERTS{$id}->{'v2'};
-      $table{'yellow'}=$VIEWS2ALERTS{$id}->{'v3'};
-      $table{'blue'}=$VIEWS2ALERTS{$id}->{'v4'};
+      $table{'red'} = $VIEWS2ALERTS{$id}->{'v1'} || 0;
+      $table{'orange'}=$VIEWS2ALERTS{$id}->{'v2'} || 0;
+      $table{'yellow'}=$VIEWS2ALERTS{$id}->{'v3'} || 0;
+      $table{'blue'}=$VIEWS2ALERTS{$id}->{'v4'} || 0;
 
       sqlUpdate($dbh,'cfg_views',\%table,"id_cfg_view=$id and cid=\'$cid\' and cid_ip=\'$cid_ip\'");
+		$cview++;
 
-		$self->log('info',"analize_views_ruleset:: UPDATEDB id_cfg_view=$id severity=$table{'severity'} red=$table{'red'} orange=$table{'orange'} yellow=$table{'yellow'} blue=$table{'blue'} cid=$cid cid_ip=$cid_ip ($libSQL::errstr)");
+		$self->log('debug',"analize_views_ruleset:: UPDATEDB id_cfg_view=$id severity=$table{'severity'} red=$table{'red'} orange=$table{'orange'} yellow=$table{'yellow'} blue=$table{'blue'} cid=$cid cid_ip=$cid_ip ($libSQL::errstr)");
    }
 
+	$self->log('info',"analize_views_ruleset:: UPDATEDB TOTAL=$cview vistas");
+	
    return (\%VIEWS2ALERTS);
 }
 
@@ -4016,6 +4019,10 @@ my $condition="a.id_remote_alert=b.id_remote_alert and b.target=d.ip and a.type=
    $self->error($libSQL::err);
    $self->errorstr($libSQL::errstr);
    $self->lastcmd($libSQL::cmd);
+
+   if ($libSQL::err) {
+      $self->manage_db_error($dbh,"get_cfg_syslog_remote_alerts ($libSQL::errstr)");
+   }
 
    my %syslog2alert=();
    foreach my $i (@$rres) {
