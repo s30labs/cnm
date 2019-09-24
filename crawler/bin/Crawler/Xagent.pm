@@ -710,7 +710,7 @@ $self->log('warning',"chk_metric::[**FML**] VALIDANDO [ip=$desc{host_ip} mname=$
    }
    $self->data_out($rv);
 
-$self->log('warning',"chk_metric::[**FML**] VALIDADO [rv=@$rv] ev=@$ev");
+$self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$mname] [rv=@$rv] ev=@$ev");
 
 #FML. REVISAR !!! (rc,rcstr ...)
 
@@ -1269,6 +1269,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 				}
 				else {
 					my ($prefix,$parsed_line)=('','');
+					#([+-]?([0-9]*[.])?[0-9]+)
 	            if ($l =~ /^<(.*?)>.*?\=\s*(.*?)\s*$/) { 
 						($prefix,$parsed_line)=($1,$2);  
 						if ($parsed_line eq '') { $parsed_line='U'; }
@@ -1396,6 +1397,7 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 	            my @data=();
 					# <104.CNM-DEVEL> connectionState = 1 
 					#if ($line=~/<(\S+)\.(\S+)>.*?=\s*(\d+\.*\d*)\s*$/) {
+					#([+-]?([0-9]*[.])?[0-9]+)
 					if ($line=~/^<(\S+?)\.(.+?)>.*?=\s*(\d+\.*\d*)\s*$/) {
             	   my ($rtag,$iid,$v) = ($1,$2,$3);
                	push @data, $v;
@@ -1408,7 +1410,7 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 						my $key = $task_id_base .'-'.$rtag.'.'.$iid;
    	   	      $XAGENT_CACHE_DATA{$key}=[$rc, $rcstr, \@data];
 
-      	   	   $self->log('info',"core_xagent_get::[INFO ID=$task_id] cfg=2 CACHEFILL KEY=$key ----- iid=$iid DATA=@data");
+      	   	   $self->log('debug',"core_xagent_get::[INFO ID=$task_id] cfg=2 CACHEFILL KEY=$key ----- iid=$iid DATA=@data");
 					}
        	  	}
 			}
