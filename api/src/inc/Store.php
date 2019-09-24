@@ -5231,6 +5231,7 @@ function aux_do($do,$hip,$a_params,$a_header=array()){
          // 'header'  => 'Content-type: application/x-www-form-urlencoded',
          'header'  => $header,
          'content' => $postdata,
+			'timeout' => 300,
       ),
       "ssl"=>array(
          "verify_peer"=>false,
