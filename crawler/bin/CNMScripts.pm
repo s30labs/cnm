@@ -1279,13 +1279,14 @@ my ($self,$level,$file)=@_;
 
 #----------------------------------------------------------------------------
 sub set_store_status {
-my ($self,$level,$data)=@_;
+my ($self,$level,$data,$filename)=@_;
 
    my $store_dir = $self->store_dir() .'/'.$self->store_id();
    if ($level) { $store_dir.='/'.$level; }
    if (! -d $store_dir) {  `/bin/mkdir -p $store_dir`;  }
 
-	open (F,">$store_dir/status");
+	my $file_status = (defined $filename) ? "$store_dir/$filename" : "$store_dir/status";
+   open (F,">$file_status");
 	while (my ($k,$v) = each %$data) {
 		print F "$k=$v\n";
 	}
@@ -1299,11 +1300,12 @@ my ($self,$level,$data)=@_;
 
 #----------------------------------------------------------------------------
 sub get_store_status {
-my ($self,$level)=@_;
+my ($self,$level,$filename)=@_;
 
    my $store_dir = $self->store_dir() .'/'.$self->store_id();
    if ($level) { $store_dir.='/'.$level; }
-	my $file = "$store_dir/status";
+
+	my $file = (defined $filename) ? "$store_dir/$filename" : "$store_dir/status";
 	if (! -f $file) { return {}; }
 
 	my %data=();
