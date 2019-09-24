@@ -2466,7 +2466,7 @@ my ($self,$watch,$rvalues,$rrd,$vardata)=@_;
 
 #DBG--
 my $kk=join(' : ',@$rvalues);
-$self->log('info',"mod_alert:watch_eval::[DEBUG ID=$task_id] **EXPR=$watch VAL=$kk**");
+$self->log('debug',"mod_alert:watch_eval::[DEBUG ID=$task_id] **EXPR=$watch VAL=$kk**");
 #DBG--
 
 
