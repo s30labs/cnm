@@ -248,7 +248,13 @@ my ($self)=@_;
 				$self->err_str("**ERROR** in stat de $remote_dir/$filename: ($!)");
 			}
    	   else {
-      	   $item{'type'} = $tab[6];
+      	   $item{'hlinks'} = $tab[3];
+				# Si el numero de hard links es mayor de 1 es un directorio
+				# Si es 1 es un fichero.
+				if ($item{'hlinks'}>1) { $item{'type'}='f' }
+				else { $item{'type'}='f' }  
+      	   #$item{'type'} = $tab[6];
+
       	   $item{'size'} = $tab[7];
          	$item{'atime'} = $tab[11];
          	$item{'atime_str'} = localtime($tab[11]);
