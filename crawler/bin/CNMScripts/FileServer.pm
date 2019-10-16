@@ -251,7 +251,7 @@ my ($self)=@_;
       	   $item{'hlinks'} = $tab[3];
 				# Si el numero de hard links es mayor de 1 es un directorio
 				# Si es 1 es un fichero.
-				if ($item{'hlinks'}>1) { $item{'type'}='f' }
+				if ($item{'hlinks'}>1) { $item{'type'}='d' }
 				else { $item{'type'}='f' }  
       	   #$item{'type'} = $tab[6];
 
