@@ -54,6 +54,7 @@ $linux_metric_db_mssqlCmd::SCRIPT_NAME = 'linux_metric_db_mssqlCmd.pl';
 		'p06' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-tag', '__PARAM_DESCR__' => 'Tag', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p07' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-label', '__PARAM_DESCR__' => 'Metrica', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 		'p08' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-db', '__PARAM_DESCR__' => 'Base de Datos', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
+		'p09' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-cols', '__PARAM_DESCR__' => 'Columns (FOR AUTO JSON not supported)', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_db_mssqlCmd::SCRIPT_NAME },
 
 		},
 
@@ -73,6 +74,7 @@ The parameters are:
  -sqlcmd     : SQL Sentence
  -tag        : Tag associated with the metric
  -label      : Label associated with the metric
+ -cols       : Columns of the query. Separated by ;
  -v/-verbose : Verbose output (debug)
  -h/-help    : Help
 

@@ -246,6 +246,36 @@ Es válida para sistemas Windows.',
       }
    },
 
+   #------------------------------------------------------------------------
+   {
+      #defSUBTYPE=xagt_004505
+      '__SUBTYPE__'=> 'xagt_004505', '__CLASS__'=> 'proxy-linux',
+      '__DESCRIPTION__'=> 'WMI - USO DE CPU',
+      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> '194',   '__ESP__'=> 'o1',
+      '__IPTAB__'=> '1', '__ITEMS__'=> 'PercentProcessorTime',   '__VLABEL__'=> 'Perc',
+      '__MODE__'=> 'GAUGE',   '__MTYPE__'=> 'STD_AREA',
+      '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+      '__PARAMS_DESCR__'=> '',
+      '__SCRIPT__'=> $linux_metric_wmi_perfOS::SCRIPT_NAME,    '__SEVERITY__'=> '1',   '__CFG__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__MYRANGE__'=>'wmi-check,[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+
+      # ----------------------------
+      '__METRIC_PARAMS__' => {
+
+         'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+      },
+      # ----------------------------
+      '__TIP__'  => {
+         '__DESCR_TIP__' => 'Métrica que monitoriz e�l porcentaje de tiempo en que el procesador esta ejecutando un hilo. Es un indicador de la actividad del procesador. Se obtiene a partir del atributo <strong>PercentProcessorTime</strong> de la clase WMI <strong>Win32_PerfFormattedData_PerfOS_System</strong>.
+Es válida para sistemas Windows.',
+      }
+   },
+
+#Percentage of time that the processor is executing a non-idle thread. This property was designed as a primary indicator of processor activity. It is calculated by measuring the time that the processor spends executing the thread of the idle process in each sample interval and subtracting that value from 100%. Each processor has an idle thread which consumes cycles when no other threads are ready to run. It can be viewed as the percentage of the sample interval spent doing useful work. This property displays the average percentage of busy time observed during the sample interval. It is calculated by monitoring the time the service was inactive, and then subtracing that value from 100%.
+
 );
 
 
