@@ -1203,6 +1203,8 @@ my ($self)=@_;
       exit 0;
    }
 
+	$self->log_tmark();
+
 	#----------------------------------------------------
 	#my $wait = $tnext - time;
 	my $wait = ($self->time_ref() + $self->lapse()) - time;
@@ -1213,12 +1215,6 @@ my ($self)=@_;
    else {
       $self->log('info',"do_task::[INFO] -W- [WAIT=$wait|SET=$SET|CLR=$CLR|CLR0=$CLR0|SKIP=$SKIP|AVISOS=$AVISOS]");
       sleep $wait;
-   }
-
-   #----------------------------------------------------
-   if ($Crawler::TERMINATE == 1) {
-      $self->log('info',"do_task::[INFO] ***SIGTERM*** Terminamos recibida signal ...");
-      exit 0;
    }
 
 }
@@ -3408,12 +3404,13 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
          my $ns=scalar(@serialized);
          $num_checks+=$ns;
 
+			$self->log_tmark();
 			$self->log('warning',"task_loop::[ERROR] En fork: $!") unless defined (my $child = fork());
 			#Child
          if ($child == 0) {
 
 			  	$self->log('info',"task_loop:: ===>> START_CHILD PID=$$ NUM_CHECKS=$ns [$num_checks|$TOTAL_TASKS]");
-				
+								
 				eval {
 					my $store=$self->store();	
 					my $dbh=$store->dbh();

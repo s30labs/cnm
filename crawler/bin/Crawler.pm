@@ -3066,20 +3066,23 @@ my ($self) = @_;
       my $l=<F>;
       chomp $l;
       close(F);
-      #25490;1296852992;2011/02/04 21:56:32
+		#8597;1574498769;2019/11/23 09:46:09;1574507157;2019/11/23 12:05:57
 		#($pid, $ts0, $tsf0, $ts, $tsf)
       my @c=split(';', $l);
 		$ts0=$c[1];
 		$tsf0=$c[2];
 	}
 
-	open (F,">$file");
-	print F "$$;$ts0;$tsf0;$ts;$tsf\n";
-	close(F);
-
-	$self->log('debug', "log_tmark[$$]:: file=$file --> $$;$ts0;$tsf0;$ts;$tsf");
-
-	return $ts0;
+   my $rc = open (F,">$file");
+   if ($rc) {
+      print F "$$;$ts0;$tsf0;$ts;$tsf\n";
+      close(F);
+      $self->log('debug', "log_tmark[$$]:: file=$file --> $$;$ts0;$tsf0;$ts;$tsf");
+   }
+   else {
+      $self->log('info', "log_tmark[$$]:: file=$file **WRITE ERROR** $! ($$;$ts0;$tsf0;$ts;$tsf)");
+   }
+   return $ts0;
 }
 
 
@@ -3115,6 +3118,7 @@ my ($self, $vector) = @_;
 		# Para proc_time >= 3600 -> $max_time = 1.1*proc_time
 		my $max_time = $offset*$proc_time; #60, 300 ..
 		if ($proc =~ /actionsd/) { $max_time = 7200; }
+		elsif (($proc =~ /notificationsd/) && ($proc_time<=60)) { $max_time = 600; }
 		elsif (($proc_time > 300) && ($proc_time < 3600)) { $max_time = 2*$proc_time; }
 		elsif ($proc_time >= 3600) { $max_time = 1.1*$proc_time; }
 
@@ -3145,6 +3149,18 @@ my ($self, $vector) = @_;
 			unlink $file;
 		}
 	}
+}
+
+#-------------------------------------------------------------------------------------------
+# start_crawler
+#-------------------------------------------------------------------------------------------
+sub start_crawler {
+my ($self,$idx)=@_;
+my $rc;
+
+   my $MAX_OPEN_FILES=8192;
+   $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $idx");
+   $self->log('notice',"start_crawler::[INFO] Starting crawler $idx ... (RC=$rc)");
 }
 
 #----------------------------------------------------------------------------

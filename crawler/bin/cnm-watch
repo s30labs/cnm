@@ -621,6 +621,18 @@ foreach my $n (sort keys %$dyn_vector) {
 }
 $store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
 
+#-------------------------------------------------------------------------------------------
+#docker remove stopped containers -> docker rm $(docker ps -a -q)
+#-------------------------------------------------------------------------------------------
+my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
+foreach my $id (@cids) {
+        chomp $id;
+        my $cmd = "docker rm $id 2>&1";
+        my $r = `$cmd`;
+        $r =~ s/\r/ /g;
+        $r =~ s/\n/ /g;
+        $store->log('info',"DOCKER: $cmd ($r)");
+}
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
@@ -943,17 +955,17 @@ my $rc=0;
    foreach my $i (sort keys %mapping) {
       my $pid=$mapping{$i};
 		if (! defined $ps{$i}) { 
-			start_one($i); 
+			my $newpid = start_one($i);
 			$rc=1;
-			$store->log('notice',"watchdog::[INFO] START-ONE IDX=$i no existe");
+			$store->log('notice',"watchdog::[INFO] START-ONE IDX=$i no existe (NEW PID = $newpid)");
 		}
 		elsif ($ps{$i} != $pid) {
 			#$rc=system ("/bin/kill -9 $ps{$i}");
 			$rc=kill 9, $pid;
 			#restart_one($i);
-			start_one($i);
+			my $newpid = start_one($i);
 			$rc=1;
-			$store->log('notice',"watchdog::[INFO] RESTART-ONE IDX=$i (KILL $pid) BBDD=> PID=$pid | PS => PID=$ps{$i}");
+			$store->log('notice',"watchdog::[INFO] RESTART-ONE IDX=$i (KILL $pid) BBDD=> PID=$pid | PS => PID=$ps{$i} (NEW PID = $newpid)");
 		}
 		else { $store->log('debug',"watchdog::[DEBUG] IDX=$i BBDD=> PID=$pid | PS => PID=$ps{$i}"); }
 	}
@@ -1006,7 +1018,6 @@ my $rc;
 }
 
 
-
 #-------------------------------------------------------------------------------------------
 # start_one
 #-------------------------------------------------------------------------------------------
@@ -1014,10 +1025,26 @@ sub start_one {
 my ($idx)=@_;
 my $rc;
 
+   my $new_pid=0;
    $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $idx");
    $store->log('notice',"start::[INFO] (RC=$rc) (s -> $idx)");
+   my $wait_time=5;
+   while ($wait_time>0) {
+      my @res = `/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler.$idx | /bin/grep -v grep`;
+      if (scalar @res > 0) {
+         chomp $res[0];
+         $res[0]=~s/^\s+//;
+         my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$res[0]);
+         $new_pid=$pid;
+      }
+      sleep 1;
+      $wait_time--;
+   }
+
    #$store->reset_crawler_changes($dbh,$idx);
-	if ($opts{v}) { print "Starting crawler.$idx ...\n"; }
+   if ($opts{v}) { print "Starting crawler.$idx [PID=$new_pid]\n"; }
+
+   return $new_pid;
 }
 
 #-------------------------------------------------------------------------------------------

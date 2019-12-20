@@ -281,7 +281,8 @@ my ($self,$ts,$range,$sanity_lapse)=@_;
    my $ts0=$self->log_tmark();
    if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-      $self->log('info',"do_task::[INFO] SANITY");
+		$self->start_crawler($range);
+      $self->log('info',"do_task::[INFO] SANITY START");
       exit(0);
    }
 
@@ -302,7 +303,8 @@ my $ok=0;
    $self->fxm($FXM);
 
    $self->init_tmark();
-   my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
+   #my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(43200)); #+12h
 
    #Ajustes de real_lapse
    my $real_lapse = $self->real_lapse($lapse);
@@ -446,6 +448,8 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
          $self->log('info',"do_task::[INFO] ***SIGTERM*** Terminamos recibida signal ...");
          exit 0;
       }
+
+		$self->log_tmark();
       my $wait = $tnext - time;
       if ($wait < 0) {
 			$self->log('warning',"do_task::[WARN] *S* xagent.$lapse|$real_lapse|IDX=$range|NM=$NM|NU=$NU|WAIT=$wait");
