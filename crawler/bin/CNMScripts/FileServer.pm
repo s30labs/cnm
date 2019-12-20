@@ -284,6 +284,28 @@ my ($self,$filetx,$filerx)=@_;
       my $rcstr = $sftp->error;
       $self->err_str($rcstr);
    }
+	elsif ($proto=~/smb/i) {
+
+		my $smb = $self->remote();
+		my $remote_dir = $self->remote_dir();
+		my $remote_file = ($remote_dir !~ /\/$/) ? "$remote_dir/$filerx" : $remote_dir.$filerx;
+		if (open (L, "<$filetx")) {
+
+			my $fw = $smb->open(">smb://$remote_file", 0666) or print "**ERROR** writing to $remote_file ($!)\n";
+
+			while (<L>) {
+
+				$smb->write($fw, $_); 
+			}
+
+			$smb->close($fw);
+			close L;
+		}
+		else {
+
+			$self->log('warning',"**ERROR** opening $remote_file ($!)");
+		}
+	}
 
    return $ok;
 }
@@ -304,6 +326,25 @@ my ($self,$from,$to)=@_;
       my $rcstr = $sftp->error;
       $self->err_str($rcstr);
    }
+   elsif ($proto=~/smb/i) {
+
+      my $smb = $self->remote();
+      my $remote_dir = $self->remote_dir();
+
+      my $remote_file = ($remote_dir !~ /\/$/) ? "$remote_dir/$from" : $remote_dir.$from;
+
+		my $fr = $smb->open("<smb://$remote_file", 0666);
+		open (G, ">$to");
+
+		while (defined(my $l= $smb->read($fr,1024))) {
+
+			print G $l; 
+		}
+
+		$smb->close();
+		close G;
+
+	}
 
    return $ok;
 }
@@ -350,12 +391,6 @@ my ($self)=@_;
 }
 
 
-
-
-
-
-#----------------------------------------------------------------------------
-#----------------------------------------------------------------------------
 
 1;
 __END__

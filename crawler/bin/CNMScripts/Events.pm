@@ -146,7 +146,7 @@ sub get_application_events_json {
 my ($self,$dbh,$params)=@_;
 
 
-	my $event_counter = 0;
+#	my $event_counter = 0;
    my $id_app = $params->{'id_app'};
    #my $field = $params->{'field'};
    # Se pueden especificar varios campos separados por "|"
@@ -161,11 +161,10 @@ my ($self,$dbh,$params)=@_;
    # "|" es la barra para la regex.
    #my $num_patterns = split (/\|/, $pattern);
 
-
    $self->err_str('OK');
    $self->err_num(0);
 
-   my ($event_info,$last_ts) = ('U','UNK','U');
+   my ($event_counter,$event_info,$last_ts) = (0,'UNK','U');
 
    # Se obtiene el nombre de la tabla a partir del id.
    # 333333001009 -> logp_333333001009_icgTPVSessions_from_db
@@ -174,7 +173,7 @@ my ($self,$dbh,$params)=@_;
       $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
       $self->err_str($event_info);
       $self->err_num(1);
-      return ($event_counter,$event_info);
+      return ($event_counter,$event_info,$last_ts);
    }
 
    my $tabname = $res->[0];
@@ -189,7 +188,7 @@ my ($self,$dbh,$params)=@_;
    if ($self->err_num() != 0) {
       $self->log('warning',"ERROR dbCmd >> $SQL");
       $event_info = $self->err_str();
-      return ($event_counter,$event_info);
+      return ($event_counter,$event_info,$last_ts);
    }
 
    foreach my $l (@$res) {
@@ -201,6 +200,7 @@ my ($self,$dbh,$params)=@_;
       if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $event_counter += 1; }
       elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $event_counter += 1;  }
 
+#$self->log('info',"**DEBUGXX* pattern_type=$pat->{'pattern_type'} >> $num_ok vs $pat->{'npatterns'} event_counter=$event_counter****");
 
       if ($event_counter == 1) {
          $event_info = $l->[3];
@@ -454,6 +454,7 @@ if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
 		$self->log('info',"FMLFML $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
 }
 
+
 		if (! $all_patterns_ok) { next; }
 
 		# OPER = sum >> SUMA DE DATOS
@@ -654,7 +655,8 @@ my ($self,$pattern)=@_;
 
 	my %result = ();
 	$result{'pattern_type'} = $pattern_type;
-	$result{'npatterns'} = scalar(keys %patterns);
+	#$result{'npatterns'} = scalar(keys %patterns);
+	$result{'npatterns'} = scalar(@pattern_line);
 #$self->log('info',"**DEBUG** NPATTERNS = $result{'npatterns'}");
 	$result{'patterns'} = \%patterns;
 	return (\%result);
@@ -676,18 +678,19 @@ my ($self,$data,$patterns)=@_;
 
 
    my $ok = 0;
+	# Recorro todas las claves del hash de datos
    foreach my $k (keys %$data) {
 
       my $kx = uc $k;
-		# Si no hay patron definido para este campo, lo salto.
+		# Si el patron no es una de las claves definidas para este campo, lo salto.
       if (! exists $patterns->{$kx}) { next; }
-
-#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - pattern=$pattern");
 
       foreach my $h (@{$patterns->{$kx}})  {
 
          my $op = $h->{'op'};
          my $value = (exists $h->{'value'}) ?  $h->{'value'} : '';
+
+#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - $data->{$k} $op $value **");
 
 			#Operando: exists
          if (($op =~ /exists/i) && ($kx eq (uc $h->{'k'}))) { $ok += 1; }
@@ -723,7 +726,7 @@ my ($self,$data,$patterns)=@_;
             elsif ($data->{$k} eq $value) { $ok += 1; }
          }
 
-      	#$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
+#      	$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
       }
 	}
 
