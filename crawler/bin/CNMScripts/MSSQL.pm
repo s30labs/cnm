@@ -171,7 +171,7 @@ my ($self,$ip)=@_;
 	if ($self->db() ne '') { $database_option = ' -d '.$self->db();}
 
 	#my $CMD="docker run microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S $ip -d $db -U $user -P $pwd -Q \"$sqlcmd\"";
-	my $CMD=$self->cmd().' '.$self->host().' -U '.$self->user().' -P '.$self->pwd.''.$database_option.' -Q "SELECT @@VERSION"';
+	my $CMD=$self->cmd().' '.$self->host().','.$self->port().' -U '.$self->user().' -P '.$self->pwd.''.$database_option.' -Q "SELECT @@VERSION"';
 
 	capture sub { $rc=system($CMD); } => \$stdout, \$stderr;
 
@@ -200,6 +200,7 @@ my ($self,$sql,$params)=@_;
 
    #$|=1;
    my $host = $self->host();
+   my $port = $self->port();
    my $status = $self->host_status($host);
 
    if ($status > 0) {
@@ -227,7 +228,7 @@ my ($self,$sql,$params)=@_;
    my $database_option = '';
    if ($self->db() ne '') { $database_option = ' -d '.$self->db();}
 
-   my $cmdc = $self->cmd().' '.$host.' -U '.$self->user().' -P '.$self->pwd.' '.$database_option.' '.$separator_option.' -Q "'.$sqlcmd.'"';
+   my $cmdc = $self->cmd().' '.$host.','.$port.' -U '.$self->user().' -P '.$self->pwd.' '.$database_option.' '.$separator_option.' -Q "'.$sqlcmd.'"';
    $self->log('info',"sqlcmd_run >> $cmdc");
 
 	capture sub { $rc=system($cmdc); } => \$stdout, \$stderr;
@@ -273,7 +274,9 @@ my ($self,$sql,$params)=@_;
 			my @c = split(/\|/,$l);
 			my $i=0;
 			foreach my $f (@$fields) { 
-				$x{$f}=$c[$i]; 
+				$x{'label'} = $f;
+				$x{'value'} = $c[$i];
+				#$x{$f}=$c[$i]; 
 				$i++;
 			}
 			push @$data,\%x;		
