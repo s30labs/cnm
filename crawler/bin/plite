@@ -11,8 +11,11 @@ use ProvisionLite;
 use Data::Dumper;
 
 #-------------------------------------------------------------------------------------------
+BEGIN { $ENV{'MIBS'}='ALL'; }
+
+#-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hr:t:m:f:d:c:x:o:",\%opts);
+getopts("hfr:t:m:d:c:x:o:",\%opts);
 if ($opts{h}) { my $USAGE = usage(); die $USAGE; }
 my $log_level= (defined $opts{d}) ? $opts{d} : 'debug';
 my $log_mode=3;
@@ -22,7 +25,7 @@ my $ID_DEVS=0;
 if (! $opts{r}) { my $USAGE = usage(); die $USAGE;}
 
 
-
+my $FAST = ($opts{f}) ? 1 : 0;
 my $MODE=0;
 if ($opts{t}) { $MODE=$opts{t}; }
 if (exists $opts{o}) {  $MODE=5; }
@@ -113,7 +116,7 @@ foreach my $cid (keys %$params) {
 		# atype >> 0
 		# cmd >> 
 		if ($MODE==0) {
-			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>0, 'cid'=>$cid});
+			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>0, 'cid'=>$cid, 'fast'=>$FAST});
 		}
 				# ----------------------------------------------------------------------------------
 		# descr >> GENERAR METRICAS DESDE ASISTENTE
@@ -148,7 +151,7 @@ foreach my $cid (keys %$params) {
 
 				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
 
-      		$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>1, 'cid'=>$cid, 'default'=>$opts{m} });
+      		$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>1, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST});
 
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.300.snmp.disk_mibhost' });
@@ -192,7 +195,7 @@ foreach my $cid (keys %$params) {
 
 				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
 	
-				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'cid'=>$cid, 'default'=>$opts{m} });
+				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST});
 
 
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>2, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
@@ -204,7 +207,7 @@ foreach my $cid (keys %$params) {
 		# ----------------------------------------------------------------------------------
 		# Reseteo metricas (se borra plantilla y metricas en curso y se generan desde asistente)
 		elsif ($MODE==3) {
-			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>3, 'cid'=>$cid});
+			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>3, 'cid'=>$cid, 'fast'=>$FAST});
 		}
 
 		# ----------------------------------------------------------------------------------
@@ -219,7 +222,7 @@ foreach my $cid (keys %$params) {
 
 			if (! exists $opts{r}) { my $USAGE = usage(); die $USAGE;}
 			#$provision->prov_do_set_device_metric({'file'=>'inventario-186799294.csv', 'init'=>4});
-			my %params=('file'=>$opts{r}, 'init'=>4, 'cid'=>$cid);
+			my %params=('file'=>$opts{r}, 'init'=>4, 'cid'=>$cid, 'fast'=>$FAST);
 			if (exists $opts{m}) { $params{'default'} = $opts{m}; }
 			$provision->prov_do_set_device_metric(\%params);
 		}
@@ -234,7 +237,7 @@ foreach my $cid (keys %$params) {
          foreach my $id_dev (@DEVICES) {
 
 		   	# Clona asistente y plantilla
-				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'id_dev_src'=>$opts{o}, 'init'=>5, 'cid'=>$cid });
+				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'id_dev_src'=>$opts{o}, 'init'=>5, 'cid'=>$cid, 'fast'=>$FAST});
 			}
 
       }
@@ -261,33 +264,39 @@ sub usage {
    my @fname = split ('\.',$fpth[$#fpth],10);
    my $USAGE = <<USAGE;
 $legend
-
 Provision de metricas y aplicaciones
 
-$fpth[$#fpth] -r [id_dev|ip|type|all] : Rango de elementoa a provisionar
+OPCIONES:
 
-$fpth[$#fpth] -t [0|1|2|3]: Tipo  (por defecto es 0)
+-r [id_dev|ip|type|all] : Rango de elementos a provisionar
 
-0: Desde plantilla -> Genera Metricas
-1: Desde asistente -> Genera Metricas
-2: Desde asistente -> Genera Plantilla
-3: Desde asistente -> Genera Metricas (Se resetean las metricas)
-4: Desde inventario .csv
-5: Desde otro dispositivo que sirve como referencia -> Genera asistente, plantilla y metricas.
+-t [0|1|2|3|4|5|10|11]: Tipo  (por defecto es 0)
+
+  0:  Desde plantilla -> Genera Metricas
+  1:  Desde asistente -> Genera Metricas
+  2:  Desde asistente -> Genera Plantilla
+  3:  Desde asistente -> Genera Metricas (Se resetean las metricas)
+  4:  Desde inventario .csv
+  5:  Desde otro dispositivo que sirve como referencia -> Genera asistente, plantilla y metricas
+  10: Solo se da de alta el dispositivo. Se genera asistente y aplicaciones
+  11: Solo se da de alta el dispositivo. No se genera asistente y aplicaciones
+
+-f : Fast. No calcula las apps del dispositivo ni la plantilla.
  
-$fpth[$#fpth] -o id_dev origen (solo para el caso 5)
+-o id_dev origen (solo para el caso 5)
 
-$fpth[$#fpth] -m [1.300.snmp.disk_mibhost]: Metricas (opcional y solo para caso 1 y 2)
+-m [1.300.snmp.disk_mibhost]: Metricas (opcional y solo para caso 1 y 2)
 
-1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if,1.300.snmp.errors_mibii_if,1.300.snmp.proc_cnt_mibhost,1.300.snmp.users_cnt_mibhost,1.300.snmp.ip_pkts_discard,1.300.snmp.tcp_estab,1.300.snmp.tcp_ap,1.300.snmp.udp_pkts
-(bloques separados por ,)
+  1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if,1.300.snmp.errors_mibii_if,1.300.snmp.proc_cnt_mibhost,1.300.snmp.users_cnt_mibhost,1.300.snmp.ip_pkts_discard,1.300.snmp.tcp_estab,1.300.snmp.tcp_ap,1.300.snmp.udp_pkts
+  (bloques separados por ,)
 
-$fpth[$#fpth] -r file.csv : Nombre del fichero csv (solo para el caso 4)
-Debe estar en la ruta: /var/www/html/onm/tmp/
+-r file.csv : Nombre del fichero csv (solo para el caso 4)
+  Debe estar en la ruta: /var/www/html/onm/tmp/
 
-$fpth[$#fpth] -d [debug|info] : Fija el nivel de depuracion
+-d [debug|info] : Fija el nivel de depuracion
 
 -c cid
+
 -x hidx
 
 $fpth[$#fpth] -h  : Ayuda

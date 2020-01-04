@@ -1084,9 +1084,13 @@ my $store_flag=1;
       #--------------------------------------------------------------------------------
       if ( $in->{'init'}==11 ) { next; }
 
+      # Se recalculan las aplicaciones y metricas del asistente (si no se especifica el parametro fast)
+      #--------------------------------------------------------------------------------
+      my $recalculate = ((exists $in->{'fast'}) && ($in->{'fast'}>0))? 0 : 1;
+      if ($recalculate) {
 print "======================================prov_device_app_metrics===========================\n";
-		# Se recalculan las aplicaciones y metricas del asistente
-		$self->prov_device_app_metrics($ID_DEV);
+         $self->prov_device_app_metrics($ID_DEV);
+      }
 
 		#--------------------------------------------------------------------------------
       # init=10 ==> 	Solo se da de alta el dispositivo.
@@ -1526,6 +1530,17 @@ print "------------------------------\n";
 				$STORE->delete_from_db($dbh,'prov_template_metrics2iid',$where);
 				my $txt=join(' ; ', @aux1);
 				$self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS (ID_DEV=$ID_DEV) Se eliminan:  $txt (WHERE=$where)");
+
+            my $where1="id_dev=$ID_DEV and name in (".join(',', @aux0).")";
+            my $rres=$STORE->get_from_db($dbh,'id_metric','metrics',$where1);
+            my @idm=();
+            foreach my $l (@$rres) {
+               push @idm,$l->[0];
+            }
+            my $idmetrics=join(',', @idm);
+
+            $self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS **ELIMINARMETRICA** ($idmetrics) (WHERE=$where)");
+
 				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>'OK', 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED});
 			}
 
@@ -3666,7 +3681,7 @@ $self->log('debug',"prov_device_app_metrics_latency::[DEBUG] port_list=@$port_li
 sub check_icmp_base {
 my ($self,$host)=@_;
 
-	my $p = Net::Ping->new( "icmp", 1, 64 );
+	my $p = Net::Ping->new( "icmp", 2, 64 );
 	if ( $p->ping($host) ) { return 1; }
 	else {return 0; }
 }
