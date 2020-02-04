@@ -91,6 +91,7 @@ foreach my $h (@blue_alerts) {
 #-------------------------------------------------------------------------------------------
 # C. REPAIR
 #-------------------------------------------------------------------------------------------
+my %MOD_METRICS=();
 foreach my $h (@blue_alerts) {
 
    my $id_dev = $h->{'id_dev'};
@@ -110,11 +111,22 @@ foreach my $h (@blue_alerts) {
 	# Si ha habido cambio de iid hay que volver a provisionar
 	if ($h->{'type'} eq 'snmp') {
 
-		my $cmd = "/opt/cnm/crawler/bin/plite -r $id_dev -t 1 -m 1.300.$type.$subtype -c default";
-		print "**REGENERAR METRICA $subtype en $ip  >> $cmd\n";
+      my $metric_info = "1.300.$type.$subtype";
+      my $cmd = "/opt/cnm/crawler/bin/plite -r $id_dev -t 1 -m $metric_info -c default";
+      print "**REGENERAR METRICA $subtype en $ip  >> $cmd\n";
+
+      if (! exists $MOD_METRICS{$metric_info}) { $MOD_METRICS{$metric_info} = [$id_dev]; }
+      else { push @{$MOD_METRICS{$metric_info}}, $id_dev; }
 
 	}
 
+}
+
+print '='x80,"\n";
+foreach my $metric_info (sort keys %MOD_METRICS) {
+   my $ids = join (',', @{$MOD_METRICS{$metric_info}});
+   my $cmd = "/opt/cnm/crawler/bin/plite -r $ids -t 1 -m $metric_info -c default";
+   print "**REGENERAR METRICAS $metric_info  >> $cmd\n";
 }
 
 #print Dumper (\@blue_alerts);
