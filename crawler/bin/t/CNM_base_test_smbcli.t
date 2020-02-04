@@ -33,10 +33,13 @@ my $USAGE = <<USAGE;
 CNM_base_test_smbcli.t v1.0 (c) s30labs
 
 $fpth[$#fpth] -check host001
+$fpth[$#fpth] -check host001 -write filexxx
 $fpth[$#fpth] -help|-h
 
--check    : Host credentials in file CNM_base_test_smbcli.json
--help|-h  : Help
+-check    	: Host credentials in file CNM_base_test_smbcli.json
+-write file : Writes a file in the directory configured in JSON file
+-del   file : Removes the file specified. It must be in the directory configured in JSON file
+-help|-h    : Help
 USAGE
 
 #------------------------------------------------------------------------------
@@ -52,7 +55,7 @@ if (! -f $cfg_file) {
 
 #------------------------------------------------------------------------------
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','check=s')
+GetOptions (\%OPTS,  'h','help','v','verbose','check=s','write=s','del=s')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
@@ -85,30 +88,44 @@ foreach my $dir (@$DIRS) {
 	my $samba_dir = 'smb://'.$HOST.'/'.$dir;
 print "DIR=$samba_dir\n";
 
-   my $fd = $smb->opendir($samba_dir);
-	if (! $fd) { print "**ERROR** $!\n"; }
+	if ($OPTS{'write'}) {
+		my $ftest = "$samba_dir/$OPTS{'write'}";
+
+		my $fw = $smb->open(">$ftest", 0666) 
+ 		 or print "**ERROR** AL ESCRIBIR EN $ftest", $!, "\n";
+	}
+   elsif ($OPTS{'del'}) {
+      my $ftest = "$samba_dir/$OPTS{'del'}";
+
+      my $fw = $smb->unlink($ftest)
+       or print "**ERROR** AL ELIMINAR $ftest", $!, "\n";
+   }
+
+	else {
+	   my $fd = $smb->opendir($samba_dir);
+		if (! $fd) { print "**ERROR** $!\n"; }
 
 #print Dumper($fd),"\n";
 
-   foreach my $item ($smb->readdir($fd)) {
+	   foreach my $item ($smb->readdir($fd)) {
 
-      if (($item eq '.') || ($item eq '..')) { next; }
+   	   if (($item eq '.') || ($item eq '..')) { next; }
 
-      my ($size,$tmod,$traw)=('-','-','-');
-      my @tab = $smb->stat("smb://$HOST/$dir/$item");
-      my $info='';
-      if ($#tab == 0) { $info="**ERROR** in stat: ($!)"; }
-      else {
-         $size = $tab[7];
-         $traw = $tab[11];
-         $tmod = localtime($tab[11]);
-         #for (10..12) {$tab[$_] = localtime($tab[$_]);}
-         #$info=join(', ',@tab);
-      }
+      	my ($size,$tmod,$traw)=('-','-','-');
+		   my @tab = $smb->stat("smb://$HOST/$dir/$item");
+      	my $info='';
+	      if ($#tab == 0) { $info="**ERROR** in stat: ($!)"; }
+   	   else {
+      	   $size = $tab[7];
+         	$traw = $tab[11];
+	         $tmod = localtime($tab[11]);
+   	      #for (10..12) {$tab[$_] = localtime($tab[$_]);}
+      	   #$info=join(', ',@tab);
+      	}
 
-      print "$dir\t$size\t$tmod ($traw)\t$item\n";
-   }
-   #close($fd);
+      	print "$dir\t$size\t$tmod ($traw)\t$item\n";
+   	}
+	}
 }
 
 ## Read a file
