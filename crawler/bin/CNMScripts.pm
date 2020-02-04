@@ -56,6 +56,12 @@ $VERSION = '1.00';
 @CNMScripts::RESULTS=();
 
 #----------------------------------------------------------------------------
+use constant LOG_NONE => 0;
+use constant LOG_SYSLOG => 1;
+use constant LOG_STDOUT => 2;
+use constant LOG_BOTH => 3;
+
+#----------------------------------------------------------------------------
 # Constructor
 #----------------------------------------------------------------------------
 sub new {
@@ -80,6 +86,7 @@ bless {
          _err_str =>$arg{err_str} || '[OK]',
          _err_num =>$arg{err_num} || 0,
 			_nologinit => $arg{nologinit} || 1,
+			_log_mode => $arg{log_mode} || LOG_SYSLOG,
 			_timeout => $arg{timeout} || 25,
 
          _store_dir =>$arg{store_dir} || '/opt/data/app-data/scripts',
@@ -209,6 +216,19 @@ my ($self,$nologinit) = @_;
    }
    else {
       return $self->{_nologinit};
+   }
+}
+
+#----------------------------------------------------------------------------
+# log_mode
+#----------------------------------------------------------------------------
+sub log_mode {
+my ($self,$mode) = @_;
+   if (defined $mode) {
+      $self->{_log_mode}=$mode;
+   }
+   else {
+      return $self->{_log_mode};
    }
 }
 
@@ -673,6 +693,10 @@ sub log_die {
 sub log  {
 my ($self,$level,@arg) = @_;
 
+   #Valido el modo de 'logging'--------------------------------
+   my $mode=$self->log_mode();
+   if ($mode == LOG_NONE) {return;}
+
 	#alert, crit, debug, emerg, err, error (deprecated synonym for err), info, notice, panic (deprecated synonym for emerg), warning, warn (deprecated synonym for warning)
    if ( ($level ne 'debug') && ($level ne 'notice') && ($level ne 'warning') && ($level ne 'crit') && ($level ne 'debug'))  {$level='info';}
    my $msg = join('',@arg) || "Logging ...";
@@ -686,7 +710,8 @@ my ($self,$level,@arg) = @_;
 	$msg =~ s/[^[:ascii:]]/_/g;
 
 	chomp $msg;
-	syslog($level,'%s',$msg);
+   if ( $mode & 1) { syslog($level,'%s',$msg); }
+   if ( $mode & 2) { print "$msg"; }
 
 }
 
