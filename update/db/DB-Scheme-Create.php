@@ -1482,7 +1482,7 @@ $DBScheme = array(
 	//credentials
    'credentials'=>array( //Tabla credentials
       'id_credential'=>"int(11) NOT NULL auto_increment",
-      'name'=>"varchar(32) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'name'=>"varchar(80) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'descr'=>"varchar(100) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'type'=>"varchar(25) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'user'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
