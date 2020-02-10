@@ -48,10 +48,11 @@ demo-notif NOTIFICATION-TYPE
 
          if (preg_match("/\:\:= \{/",$line)) {
            $indesc=0;
-           CNMUtils::debug_log(__FILE__, __LINE__, "cmd_out=$line----");
+           CNMUtils::info_log(__FILE__, __LINE__, "cmd_out=$line----");
 
             if (preg_match("/\s+(\S+Table)\(/",$line,$match)) { $range=$mib.'::'.$match[1]; }
             else { $range=''; }
+           CNMUtils::info_log(__FILE__, __LINE__, "cmd_out=$line----");
 				
 				if (preg_match("/enterprises\(1\)\s+(\S+)\(\d+\)/",$line,$match)) { $enterprise=strtoupper($match[1]); }
          }
@@ -61,12 +62,12 @@ demo-notif NOTIFICATION-TYPE
       //OJO: Elimino la comilla simple de desc. Puede tener impacto al insertar en BBDD
       $desc_parsed=preg_replace("/'/","", $desc);
 
-CNMUtils::debug_log(__FILE__, __LINE__, "oid_trans=$oid_translate");
-CNMUtils::debug_log(__FILE__, __LINE__, "MIB=$mib");
-CNMUtils::debug_log(__FILE__, __LINE__, "TYPE=$type");
-CNMUtils::debug_log(__FILE__, __LINE__, "DESC=$desc_parsed");
-CNMUtils::debug_log(__FILE__, __LINE__, "RANGE=$range");
-CNMUtils::debug_log(__FILE__, __LINE__, "ENTERPRISE=$enterprise");
+CNMUtils::info_log(__FILE__, __LINE__, "oid_trans=$oid_translate");
+CNMUtils::info_log(__FILE__, __LINE__, "MIB=$mib");
+CNMUtils::info_log(__FILE__, __LINE__, "TYPE=$type");
+CNMUtils::info_log(__FILE__, __LINE__, "DESC=$desc_parsed");
+CNMUtils::info_log(__FILE__, __LINE__, "RANGE=$range");
+CNMUtils::info_log(__FILE__, __LINE__, "ENTERPRISE=$enterprise");
 /*
       array(
          'id_ref' => 'squid_cache_memory',   'tip_type' =>'cfg' , 'url' => '',
