@@ -109,7 +109,16 @@ my ($self)=@_;
   	 	my $use_ssl = (exists $h->{'imap_secure'}) ? $h->{'imap_secure'} : 0;
    	my $mailbox = (exists $h->{'imap_mailbox'}) ? $h->{'imap_mailbox'} : 'INBOX';
 
-   	my $imap = new Net::IMAP::Simple($h->{'imap_host'}, Timeout=>$timeout , ResvPort=>$port, use_ssl=>$use_ssl);
+      my $imap=undef;
+      eval {
+         $imap = new Net::IMAP::Simple($h->{'imap_host'}, Timeout=>$timeout , ResvPort=>$port, use_ssl=>$use_ssl);
+
+$self->log('info',"bulk_processor:: **START 3 ($imap)** ");
+      };
+      if ($@) {
+         $self->log('info',"bulk_processor::[**ERROR**] en conexion IMAP ($@)");
+         next;
+      }
 
    	if (!defined $imap) { 
 			$self->log('info',"bulk_processor::[**ERROR**] en conexion IMAP Host=$h->{'imap_host'} Port=$port use_ssl=$use_ssl");

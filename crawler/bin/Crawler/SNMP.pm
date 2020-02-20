@@ -3017,15 +3017,125 @@ my $oid=$desc->{oid};
 sub snmp_walk  {
 my ($self,$desc)=@_;
 
-	my $host=$desc->{host_ip};
-	my $oid=$desc->{oid};
-	
-   my $cmd="/usr/local/bin/snmpwalk -Cc -v 1 -c public $host $oid";
-   my $r=`$cmd`;
+   my ($rc,$rcstr) = (0,'');
+   $self->err_str($rcstr);
+   $self->err_num($rc);
 
-   $self->log('debug',"snmp_walk::[DEBUG] CMD=$cmd");
-   if (defined $r) { $self->log('debug',"snmp_walk::[DEBUG] RES=$r");}
-   else { $self->log('warning',"snmp_walk::[WARN] RES=UNDEF");}
+   my $host=$desc->{'host_ip'};
+   my $oid=$desc->{'oid'};
+   my $version=$desc->{'version'} || '1';
+   if ($version=~/2/) { $version='2c'; }
+   my $community=$desc->{'community'} || 'public';
+
+   #------------------------
+   my @cols=();
+   my $dir_cache = '/opt/data/cache/mib_tables';
+   if (! -d  $dir_cache) { make_path($dir_cache); }
+   my $fcache = $dir_cache .'/'. $oid;
+   if ((-f $fcache) && ((-s $fcache)>0)) {
+      open (F,"<$fcache");
+      while (<F>) {
+         chomp;
+         push @cols, $_;
+      }
+      close F;
+   }
+   else {
+
+      my @lines = `/usr/local/bin/snmptranslate -Tp -OS $oid`;
+      open (F,">$fcache");
+      foreach my $l (@lines) {
+         chomp $l;
+         if ($l =~ /\+\-\-\s+\S{4}\s+\S+\s+(\S+)\(\d+\)$/) {
+            push @cols,$1;
+            print F "$1\n";
+         }
+      }
+      close F;
+   }
+
+   if (scalar(@cols)==0) {
+      $rc=1;
+      $rcstr="NO EXISTE OID $oid";
+      $self->err_str($rcstr);
+      $self->err_num($rc);
+
+      $self->log('info',"snmp_walk::[INFO **NO EXISTE OID** oid=$oid**");
+      return [];
+   }
+
+   my @varlist=map([$_], @cols);
+   # Hay que validar los resultados porque aunque el agente remoto responda a getnext
+   # puede responder la primera vez con un oid diferente.
+   # %validate se usa para confirmar que responde a lo que se le pregunta
+   my %validate=();
+   my $first_col='';
+   foreach my $x (@varlist) {
+      $validate{$x->[0]}=0;
+      if ($first_col eq '') { $first_col=$x->[0]; }
+   }
+   #----------------------------
+
+   my $cmd="/usr/local/bin/snmpwalk -Cc -v $version -c $community $host $oid";
+   my @r=`$cmd`;
+   my $num_rows = scalar(@r);
+   $self->log('debug',"snmp_walk::[DEBUG] ROWS=$num_rows [$cmd]");
+
+   #Raw mode
+   my %walk=();
+   foreach my $l (@r) {
+      chomp $l;
+#print "$l\n";
+      #CPQIDA-MIB::cpqDaPhyDrvFailureCode.31.1 = INTEGER: 0
+      if ($l =~ /^(\S+)\s*\=\s*(\w+\:)\s*(.+)$/) {
+         my ($full_oid,$type,$value,$mib,$oid,$iid)=($1,$2,$3,'','','');
+         if ($full_oid =~ /(\S+)\:\:(\w+)\.(.+)/) { ($mib,$oid,$iid)=($1,$2,$3); }
+         $walk{$oid}->{$iid}=$value;
+         $validate{$oid}=1;
+      }
+   }
+
+   # Hash by IID
+   my %walk_by_iid = ();
+   my @oids = sort keys %walk;
+   my @iids = sort keys %{$walk{$first_col}};
+   my @line = ();
+   foreach my $iid (@iids) {
+      $walk_by_iid{$iid}={};
+      foreach my $oid (@oids) {
+         $walk_by_iid{$iid}->{$oid} = $walk{$oid}->{$iid};
+      }
+   }
+
+#DEBUG FML
+$self->log('info',"snmp_walk::[DEBUG] ROWS=$num_rows [$cmd] >> --$first_col--");
+
+
+   # Table print
+   #my @oids = sort keys %walk;
+   #my @iids = sort keys %{$walk{$oids[0]}};
+   #my @all_lines = ();
+   #foreach my $iid (@iids) {
+   #   my @line = ($iid);
+   #   foreach my $oid (@oids) {
+   #      push @line, $walk{$oid}->{$iid};
+   #   }
+   #   push @all_lines, \@line;
+   #}
+   # return \@all_lines;
+
+   return \%walk_by_iid;
+
+#	my $host=$desc->{host_ip};
+#	my $oid=$desc->{oid};
+#	
+#   my $cmd="/usr/local/bin/snmpwalk -Cc -v 1 -c public $host $oid";
+#   my $r=`$cmd`;
+
+#   $self->log('debug',"snmp_walk::[DEBUG] CMD=$cmd");
+#   if (defined $r) { $self->log('debug',"snmp_walk::[DEBUG] RES=$r");}
+#   else { $self->log('warning',"snmp_walk::[WARN] RES=UNDEF");}
+
 }
 
 

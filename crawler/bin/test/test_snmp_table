@@ -3,6 +3,7 @@ use lib "/opt/crawler/bin";
 use strict;
 use Getopt::Std;
 use Crawler::SNMP;
+use Data::Dumper;
 
 print_time();
 my %SNMPCFG=();
@@ -10,13 +11,37 @@ my $snmp=Crawler::SNMP->new(log_level=>'debug');
 # -v version [-c comunity] [-u sec_name -l sec_level -a auth_proto -A auth_pass -x priv_proto -X priv_pass] -n host
 $snmp->get_command_options(\%SNMPCFG);
 
+
+#   SNMP::initMib();
+#   SNMP::loadModules('ALL');
+
+
+my $get_iid='NETWORK-APPLIANCE-MIB::netportNode|NETWORK-APPLIANCE-MIB::netportPort|NETWORK-APPLIANCE-MIB::netportRole';
+#my @varlist=map([$_],split(/\|/,$get_iid));
+my @varlist=split(/\|/,$get_iid);
+
+foreach my $oid (@varlist) {
+	my $type = $snmp->get_oid_type($oid);
+	print "$oid\t$type\n";
+print Dumper($type),"\n";
+}
+exit;
+
+
+# UseSprintValue => 1
+
 $snmp->retries(1);
 $snmp->timeout(5000000);
 
 print_time();
 
-$SNMPCFG{'oid'} =  'ifName_ifHCInOctets_ifHCOutOctets';
-$SNMPCFG{'last'} = 'ifHCOutMulticastPkts';
+#$SNMPCFG{'oid'} =  'ifName_ifHCInOctets_ifHCOutOctets';
+#$SNMPCFG{'last'} = 'ifHCOutMulticastPkts';
+
+$SNMPCFG{'oid'} =  'netportLinkState';
+$SNMPCFG{'last'} = 'netportMac';
+$SNMPCFG{'UseEnums'} = 1;
+
 
 #$SNMPCFG{'oid'} =  'ifDescr_ifType_ifSpeed';
 #$SNMPCFG{'last'} = 'ifAdminStatus';
