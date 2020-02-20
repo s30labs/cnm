@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 #
 # rc.local
 #
@@ -15,6 +15,7 @@
 #mysqlcheck -u onm -p$x --auto-repair onm > /tmp/rclocal.log 2>&1
 #mysqlcheck -u onm -p$x --auto-repair cnm >> /tmp/rclocal.log 2>&1
 
+if [[ ! $(pgrep cnm-watch) ]]; then rm -f /opt/crawler/bin/watch.lock >/dev/null 2>&1; fi
 date > /tmp/rclocal.log
 /opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1
 date >> /tmp/rclocal.log
