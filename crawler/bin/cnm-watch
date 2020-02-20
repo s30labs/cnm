@@ -149,8 +149,59 @@ if (exists $role_info->{'ROLE'}) {
                   'actionsd'=>1, 'trap_manager'=>1, 'mail_manager'=>1 );
 
    }
-
 }
+
+
+#-------------------------------------------------------------------------------------------
+# Se chequea el punto de montaje de mdata
+# Si no esta montado, se monta y se hace un workset de todos los cids definidos
+# Si esta montado no se hace nada
+#-------------------------------------------------------------------------------------------
+my $is_mounted=$store->check_mounted_df($Crawler::MDATA_PATH,'tmpfs');
+$store->log('debug',"cnm-watch:: is_mounted=$is_mounted ($Crawler::MDATA_PATH)");
+my $do_workset=0;
+if (! $is_mounted) {
+   $store->log('notice',"cnm-watch::[WARN] NOT MOUNTED $Crawler::MDATA_PATH");
+   system("/bin/mkdir -p $Crawler::MDATA_PATH");
+   system("/bin/mount -t tmpfs -o size=128m tmpfs $Crawler::MDATA_PATH");
+
+   $do_workset=1;
+}
+elsif (! -d "$Crawler::MDATA_PATH/input/idx") { $do_workset=1; }
+else {
+
+   my @aux=();
+   if (-d "$Crawler::MDATA_PATH/input/idx") {
+      opendir (DIR,"$Crawler::MDATA_PATH/input/idx");
+      foreach my $f (readdir(DIR)) {
+         if ($f =~ /0(\d+)\.info/) { push @aux,$1; }
+      }
+      closedir(DIR);
+      if (scalar(@aux) == 0) { $do_workset=1; }
+   }
+}
+
+# Si se especifica como opcion, se hace el workset.
+if ($opts{w}) { $do_workset=1; }
+
+if (! -d "$Crawler::MDATA_PATH/input") { mkdir "$Crawler::MDATA_PATH/input"; }
+if (! -d "$Crawler::MDATA_PATH/output") { mkdir "$Crawler::MDATA_PATH/output"; }
+if (! -d "$Crawler::MDATA_PATH/cache") { mkdir "$Crawler::MDATA_PATH/cache"; chmod 0777, "$Crawler::MDATA_PATH/cache"; }
+if (! -d "$Crawler::MDATA_PATH/lang") {
+   mkdir "$Crawler::MDATA_PATH/lang";
+   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/lang");
+}
+if (! -f "$Crawler::MDATA_PATH/lang/es.lang") {
+   system ("/bin/touch $Crawler::MDATA_PATH/lang/es.lang");
+   system ("/bin/chown www-data:www-data $Crawler::MDATA_PATH/lang/es.lang");
+   system ("chmod 644 $Crawler::MDATA_PATH/lang/es.lang");
+}
+
+if (! -d "$Crawler::MDATA_PATH/scripts") {
+   mkdir "$Crawler::MDATA_PATH/scripts";
+   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/scripts");
+}
+
 
 #--------------------------------------------------------------------------------------
 my %LOAD_VALUES=();
@@ -372,56 +423,6 @@ if ($ACTIVE) {
 $store->chk_tmark_files(0);
 
 #-------------------------------------------------------------------------------------------
-# Se chequea el punto de montaje de mdata
-# Si no esta montado, se monta y se hace un workset de todos los cids definidos
-# Si esta montado no se hace nada
-
-my $is_mounted=$store->check_mounted_df($Crawler::MDATA_PATH,'tmpfs');
-$store->log('debug',"cnm-watch:: is_mounted=$is_mounted ($Crawler::MDATA_PATH)");
-my $do_workset=0;
-if (! $is_mounted) {
-   $store->log('notice',"cnm-watch::[WARN] NOT MOUNTED $Crawler::MDATA_PATH");
-   system("/bin/mkdir -p $Crawler::MDATA_PATH");
-   system("/bin/mount -t tmpfs -o size=128m tmpfs $Crawler::MDATA_PATH");
-
-   $do_workset=1;
-}
-elsif (! -d "$Crawler::MDATA_PATH/input/idx") { $do_workset=1; }
-else {
-
-   my @aux=();
-   if (-d "$Crawler::MDATA_PATH/input/idx") {
-      opendir (DIR,"$Crawler::MDATA_PATH/input/idx");
-      foreach my $f (readdir(DIR)) {
-         if ($f =~ /0(\d+)\.info/) { push @aux,$1; }
-      }
-      closedir(DIR);
-		if (scalar(@aux) == 0) { $do_workset=1; }
-   }
-}
-
-# Si se especifica como opcion, se hace el workset.
-if ($opts{w}) { $do_workset=1; }
-
-if (! -d "$Crawler::MDATA_PATH/input") { mkdir "$Crawler::MDATA_PATH/input"; }
-if (! -d "$Crawler::MDATA_PATH/output") { mkdir "$Crawler::MDATA_PATH/output"; }
-if (! -d "$Crawler::MDATA_PATH/cache") { mkdir "$Crawler::MDATA_PATH/cache"; chmod 0777, "$Crawler::MDATA_PATH/cache"; }
-if (! -d "$Crawler::MDATA_PATH/lang") { 
-	mkdir "$Crawler::MDATA_PATH/lang"; 
-   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/lang");
-}
-if (! -f "$Crawler::MDATA_PATH/lang/es.lang") {
-	system ("/bin/touch $Crawler::MDATA_PATH/lang/es.lang");
-   system ("/bin/chown www-data:www-data $Crawler::MDATA_PATH/lang/es.lang");
-	system ("chmod 644 $Crawler::MDATA_PATH/lang/es.lang");
-}
-
-if (! -d "$Crawler::MDATA_PATH/scripts") {
-   mkdir "$Crawler::MDATA_PATH/scripts";
-   system ("/bin/chown -R www-data:www-data $Crawler::MDATA_PATH/scripts");
-}
-
-#-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # Se contemplan los diferentes cids definidos
 my $dbh=$store->open_db();
@@ -624,15 +625,49 @@ $store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
 #-------------------------------------------------------------------------------------------
 #docker remove stopped containers -> docker rm $(docker ps -a -q)
 #-------------------------------------------------------------------------------------------
-my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
-foreach my $id (@cids) {
-        chomp $id;
-        my $cmd = "docker rm $id 2>&1";
-        my $r = `$cmd`;
-        $r =~ s/\r/ /g;
-        $r =~ s/\n/ /g;
-        $store->log('info',"DOCKER: $cmd ($r)");
+#my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
+#foreach my $id (@cids) {
+#        chomp $id;
+#        my $cmd = "docker rm $id 2>&1";
+#        my $r = `$cmd`;
+#        $r =~ s/\r/ /g;
+#        $r =~ s/\n/ /g;
+#        $store->log('info',"DOCKER (Removal In Progress): $cmd ($r)");
+#}
+#
+
+#45 minutes ago      Created
+#About an hour ago   Created
+# For debugging purposes.
+#CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS                  PORTS               NAMES
+#4c55ab20bc88        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   3 seconds ago       Created                                     goofy_lamarr
+#ee3341ccb8e7        saphana                 "bash -c /mnt/sql/33…"   3 seconds ago       Up Less than a second                       quizzical_joliot
+
+my $do_prune=0;
+my @lines = `docker ps -a`;
+foreach my $lx (@lines) {
+	chomp $lx;
+	if (($lx=~/Removal In Progress/) || ($lx=~/minute.*?\s+.*?Created/)){		
+		#if ($lx=~/^(\S+)\s+/) {
+			my @p = split (/\s/,$lx);
+			my $id = $p[0];
+			my $cmd = "docker rm --force $id 2>&1";
+			my $r = `$cmd`;
+			$store->log('info',"DOCKER RM >> $cmd >> $lx");
+		#}
+		#$store->log('info',"DOCKER PRUNE CANDIDATE >> $lx");
+		#$do_prune=1;
+	}
 }
+
+#if ($do_prune) {
+#	my $cmd = "docker container prune --force --filter \"until=45s\" 2>&1";
+#	my @rx=`$cmd`;
+#	foreach my $l (@rx) {
+#		chomp $l;
+#		$store->log('info',"DOCKER PRUNE >> $l");
+#	}
+#}
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
@@ -839,6 +874,10 @@ my ($bsdtime,$etime,$cmd)=@_;
 sub watchdog {
 my $rc=0;
 
+	my $num_cores = `grep -c processor /proc/cpuinfo`;
+	chomp $num_cores;
+	if ($num_cores !~ /\d+/) { $num_cores=2; }
+
 	my @r=`/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler | /bin/grep -v grep`;
 	my %ps=();
 	my @ps_extra=();
@@ -954,10 +993,17 @@ my $rc=0;
 	#	my $pid=$rv->{$i};
    foreach my $i (sort keys %mapping) {
       my $pid=$mapping{$i};
+
+      my $current_load = get_current_load();
+      if ($current_load>$num_cores) {
+         $store->log('notice',"watchdog::[INFO] CURRENT LOAD=$current_load (>$num_cores) ***POR CARGA SALTO IDX=$i***");
+         next;
+      }
+
 		if (! defined $ps{$i}) { 
 			my $newpid = start_one($i);
 			$rc=1;
-			$store->log('notice',"watchdog::[INFO] START-ONE IDX=$i no existe (NEW PID = $newpid)");
+			$store->log('notice',"watchdog::[INFO] START-ONE IDX=$i no existe (NEW PID = $newpid) load=$current_load");
 		}
 		elsif ($ps{$i} != $pid) {
 			#$rc=system ("/bin/kill -9 $ps{$i}");
@@ -965,9 +1011,9 @@ my $rc=0;
 			#restart_one($i);
 			my $newpid = start_one($i);
 			$rc=1;
-			$store->log('notice',"watchdog::[INFO] RESTART-ONE IDX=$i (KILL $pid) BBDD=> PID=$pid | PS => PID=$ps{$i} (NEW PID = $newpid)");
+			$store->log('notice',"watchdog::[INFO] RESTART-ONE IDX=$i (KILL $pid) BBDD=> PID=$pid | PS => PID=$ps{$i} (NEW PID = $newpid) load=$current_load");
 		}
-		else { $store->log('debug',"watchdog::[DEBUG] IDX=$i BBDD=> PID=$pid | PS => PID=$ps{$i}"); }
+		else { $store->log('debug',"watchdog::[DEBUG] IDX=$i BBDD=> PID=$pid | PS => PID=$ps{$i} load=$current_load"); }
 	}
 
 	foreach my $pid (@ps_extra) {
@@ -1087,6 +1133,17 @@ sub check_os {
       if ($version eq '8.0') { $os='deb8'; }
    }
    return $os;
+}
+
+#-------------------------------------------------------------------------------------------
+# 17:16:48 up  6:03,  3 users,  load average: 4.40, 19.53, 27.08
+#-------------------------------------------------------------------------------------------
+sub get_current_load {
+
+   my $cload = 0;
+   my $x = `uptime`;
+   if ($x =~ /load average\: (\S+),/) { $cload = $1; }
+   return $cload;
 }
 
 #-------------------------------------------------------------------------------------------
