@@ -25,8 +25,8 @@
   template: src=onm.if.j2 dest=/cfg/onm.if
   tags: cnm-cfg
 
-- name: Set /cfg/onm.role
-  copy: src=onm.role.default dest=/cfg/onm.role owner=root group=www-data mode=0775
+- name: Set /cfg/onm.role if not exists
+  copy: src=onm.role.default dest=/cfg/onm.role owner=root group=www-data mode=0775 force=no
   tags: cnm-cfg
 
 - name: Check /cfg/key
