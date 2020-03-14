@@ -1,6 +1,7 @@
 #!/usr/bin/php -q
 <?php
 require_once('/usr/share/pear/DB.php');
+require_once('/update/db/DB-Scheme-Lib.php');
 
 // Funciones adicionales
 $in         = fopen("php://stdin","r");
@@ -437,8 +438,11 @@ function local_iface(){
 function _DB(){
 	global $dbc;
    // $dsn = array('phptype'=>'mysql','username'=>'root','password'=>'s30labs1234','hostspec'=>'localhost','database'=>'cnm');
+
+	$cred = get_db_credentials();
    $dsn = array('phptype'=>'mysql','username'=>'onm','hostspec'=>'localhost','database'=>'cnm');
-	$dsn['password'] = get_db_credentials();
+	$dsn['password'] = $cred["CNM_DB_PASSWORD"];
+	$dsn['hostspec'] = $cred["CNM_DB_SERVER"];
 	$dbc = @DB::Connect($dsn,TRUE);
 	if (@PEAR::isError($dbc)){
 		echo "PROBLEMAS AL CONECTARSE A LA BBDD\n";
@@ -588,7 +592,7 @@ function quit(){
 	exit(0);
 }
 //------------------------------------------------------------------------------------
-function get_db_credentials(){
+/*function get_db_credentials(){
 
    $FILE_CFG='/cfg/onm.conf';
    $fp = fopen ($FILE_CFG,"r");
@@ -606,4 +610,6 @@ function get_db_credentials(){
    return $pwd;
 
 }
+*/
+
 ?>

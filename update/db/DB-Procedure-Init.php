@@ -162,7 +162,7 @@ CREATE PROCEDURE sp_cnms_get_snmp_credential(IN pIP VARCHAR(30))
    //---------------------------------------
    // Copia tabla1 en tabla2 haciendo un delete+insert
    //---------------------------------------
-   'sp_logp_table1_to_table2'=>'
+   'sp_table1_to_table2'=>'
 
 CREATE PROCEDURE sp_table1_to_table2 (IN table1 VARCHAR(80), IN table2 VARCHAR(80))
 

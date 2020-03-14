@@ -4,7 +4,7 @@ ini_set('memory_limit','1024M');
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
 require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA LEER DATOS DE CONFIGURACION DE CNM
-require_once('/var/www/html/onm/inc/Store.php');
+require_once('/update/db/DB-Scheme-Lib.php');
 require_once '/var/www/html/onm/inc/progress_bar/Manager.php';
 require_once '/var/www/html/onm/inc/progress_bar/Registry.php';
 
@@ -19,28 +19,26 @@ CREATE TABLE `oid_tree` (
 )
 */
 
-	connectDB();
+	my_connectDB();
 	updateOID();
 
-	function connectDB(){
+	function my_connectDB(){
 
 		// Variable que contendra la conexion con la BBDD una vez realizada
 		global $enlace;
 
-		// RUTA DEL FICHERO DE CONFIGURACION DE CNM
-		$cfg_file='/cfg/onm.conf';
-		// HASH CON LOS DATOS NECESARIOS PARA USAR LA BBDD
-		$db_data=array('DB_NAME'=>'','DB_USER'=>'','DB_PWD'=>'','DB_SERVER'=>'');
-		
-		// RELLENAMOS LOS DATOS DEL HASH ANTERIOR
-	   read_cfg_file($cfg_file,$db_data);
+		$cred = get_db_credentials();
+//print_r($cred);
+
 	   $data = array(
 	      'phptype'  => 'mysql',
-	      'username' => $db_data['DB_USER'],
-	      'password' => $db_data['DB_PWD'],
-	      'hostspec' => $db_data['DB_SERVER'],
-	      'database' => $db_data['DB_NAME'],
+	      'username' => 'onm',
+	      'password' => $cred["CNM_DB_PASSWORD"],
+	      'hostspec' => $cred["CNM_DB_SERVER"],
+	      'database' => 'onm',
 	   );
+
+
 	   // NOS CONECTAMOS A LA BBDD
 	   $enlace = @DB::Connect($data,TRUE);
 	   if (@PEAR::isError($enlace)) {

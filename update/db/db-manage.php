@@ -451,12 +451,13 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 
 	$plug_name = basename($plug_dir);
 	print "INSTALANDO PLUGIN:\t$plug_name\t";
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
    $a_client = _cnms($db_params); 
@@ -496,12 +497,13 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 function d_clear_plugin_base($plugin_id=''){
 	if($plugin_id=='') return;
 	
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
    $a_client = _cnms($db_params);
@@ -527,12 +529,14 @@ function d_clear_plugin_base($plugin_id=''){
  * Descr: Actualiza el campo id_refn de la tabla tips
 */
 function d_update_tips(){
+
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
    $a_client = _cnms($db_params);
@@ -564,12 +568,14 @@ function d_install_file(){
 global $DBScheme,$DBData,$DBModData,$DBExcepcion,$force;
 	
 	print "INSTALANDO DATOS DESDE FICHERO ...\n";
+
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
    $a_client = _cnms($db_params);
@@ -622,12 +628,13 @@ global $DBData;
 
 	print "DESISTALANDO PLUGIN:\t$plug_name ...\n";
 
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
    $a_client = _cnms($db_params);
@@ -657,13 +664,13 @@ function d_update_table(){
 
 
 	print "ACTUALIZANDO TABLAS ...\n";
-
+	$cred = get_db_credentials();
    $db_params=array(
       'phptype'  => 'mysql',
       'username' => 'onm',
-      'hostspec' => 'localhost',
+      'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
    );
 
    // Se actualizan las bases de datos de los clientes
@@ -692,12 +699,13 @@ function d_update_table(){
 */
 function d_update_charset(){
 
+	$cred = get_db_credentials();
    $db_params=array(
       'phptype'  => 'mysql',
       'username' => 'onm',
-      'hostspec' => 'localhost',
+      'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
    );
 	print "Update charset cnm ... ";
    table_charset_latin1($db_params);
@@ -728,12 +736,13 @@ function d_update_charset(){
 function d_update_db($rev,$force=false){
 global $DBSchemeCNM,$DBExcepcionCNM,$DBDataCNM,$DBModDataCNM,$DBProcedureCNM,$DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure;
 
+	$cred = get_db_credentials();
    $db_params=array(
       'phptype'  => 'mysql',
       'username' => 'onm',
-      'hostspec' => 'localhost',
+      'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASSWORD"],
    );
 	print "Creando bbdd cnm ... ";
    _create_cnm_database($db_params);
@@ -774,12 +783,13 @@ function d_drop_table($tables){
 
 	print "ELIMINANDO TABLAS ...\n";
 
+	$cred = get_db_credentials();
    $db_params=array(
 		'phptype'  => 'mysql',
 		'username' => 'onm',
-		'hostspec' => 'localhost',
+		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => get_db_credentials(),
+		'password' => $cred["CNM_DB_PASWORD"],
 	);
 
 
