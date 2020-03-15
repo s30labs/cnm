@@ -419,9 +419,11 @@ function cnm(){
 }
 //------------------------------------------------------------------------------------
 function local_ip(){
-   // $local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
-   $iface = local_iface();
-   $local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+	else {
+	   $iface = local_iface();
+   	$local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	}
    return $local_ip;
 }
 

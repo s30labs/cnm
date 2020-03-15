@@ -25,7 +25,7 @@
 
 
       $CFG_MONITOR_APPS[]=array(
-         'type' => 'snmp', 'subtype'=>'JUNIPER', 'itil_type'=>'',  'name'=>'INFORMACION DEL EQUIPO',
+         'type' => 'snmp', 'subtype'=>'JUNIPER', 'itil_type'=>'1',  'name'=>'INFORMACION DEL EQUIPO',
          'descr' => 'Muestra informacion basica sobre el equipo',
          'cmd' => '/opt/crawler/bin/libexec/snmptable -f 02636_JUNIPER-get_info.xml -w xml  ',
          'params' => '[-n;IP;]',        'iptab'=>'1',	'ready'=>1,

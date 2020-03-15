@@ -386,8 +386,11 @@ global $enlace;
 	// Invocamos los procedimientos que nos interesen
 	// $queryProcedure = "CALL $procedure('','')";
 	$procedure = 'sp_alerts_read';
-	$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
-	
+
+	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+	else {
+		$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	}
 	$queryProcedure = "CALL $procedure('default','$local_ip')";
 	$resultQueryProcedure=$enlace->query($queryProcedure);
 	if (@PEAR::isError($resultQueryProcedure)) {
@@ -1815,9 +1818,11 @@ global $enlace;
    $iface = 'eth0';
    $file = '/cfg/onm.if';
    if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
-   $local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+	else {
+   	$local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	}
 
-	#$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
 	// $result=$enlace->query("SELECT hidx,cid,descr,db1_name,db1_server,db1_pwd,db1_user,db2_name,db2_server,db2_pwd,db2_user FROM cfg_cnms WHERE host_ip='$local_ip'");
 	$result=$enlace->query("SELECT * FROM cfg_cnms WHERE host_ip='$local_ip'");
    if (@PEAR::isError($result)) {
