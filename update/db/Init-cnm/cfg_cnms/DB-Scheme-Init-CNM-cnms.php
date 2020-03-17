@@ -7,7 +7,13 @@ else {
 	$ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
 }
 $name = chop(`/bin/hostname`);
-$pwd = chop(`cat /cfg/onm.conf | grep DB_PWD|cut -d "=" -f2 | tr -d ' '`);
+if (getenv("CNM_DB_SERVER") !== false) { $name = getenv("CNM_DB_SERVER"); }
+
+if (getenv("CNM_DB_PASSWORD") !== false) { $pwd = getenv("CNM_DB_PASSWORD"); }
+else {
+	$pwd = chop(`cat /cfg/onm.conf | grep DB_PWD|cut -d "=" -f2 | tr -d ' '`);
+}
+
 /*
 // OLD
 $CFG_CNMS = array(
@@ -50,4 +56,5 @@ $CFG_CNMS = array(
       'id_client' => '1',
    ),
 );
+
 ?>
