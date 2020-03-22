@@ -1,0 +1,69 @@
+#! /bin/sh -e
+### BEGIN INIT INFO
+# Provides:           snmpd
+# Required-Start:     $network $local_fs
+# Required-Stop:      $network $local_fs
+# Default-Start:      2 3 4 5
+# Default-Stop:       0 6
+# Short-Description:  SNMP agents
+# Description:        NET SNMP (Simple Network Management Protocol) Agents
+### END INIT INFO
+#
+# Author:    Jochen Friedrich <jochen@scram.de>
+#
+set -e
+
+test -x /usr/sbin/snmpd || exit 0
+
+# Defaults
+export MIBDIRS=/usr/share/snmp/mibs:/opt/data/app-data/mibs_private:/opt/data/mibs000:/opt/data/mibs002
+
+SNMPDRUN=yes
+SNMPDOPTS='-Lsd -Lf /dev/null -p /var/run/snmpd.pid'
+
+# Reads config file (will override defaults above)
+[ -r /etc/default/snmpd ] && . /etc/default/snmpd
+
+# Cd to / before starting any daemons.
+cd /
+
+case "$1" in
+  start)
+    echo -n "Starting network management services:"
+    if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
+	start-stop-daemon --quiet --start --exec /usr/sbin/snmpd \
+	    -- $SNMPDOPTS
+	echo -n " snmpd"
+    fi
+    echo "."
+    ;;
+  stop)
+    echo -n "Stopping network management services:"
+    start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmpd
+    echo -n " snmpd"
+    echo "."
+    ;;
+  restart)
+    echo -n "Restarting network management services:"
+    start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmpd
+    if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
+		start-stop-daemon --quiet --start --exec /usr/sbin/snmpd -- $SNMPDOPTS
+		echo -n " snmpd"
+    fi
+    echo "."
+    ;;
+  reload|force-reload)
+    echo -n "Reloading network management services:"
+    if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
+        start-stop-daemon --quiet --stop --signal 1 \
+	    --pidfile /var/run/snmpd.pid --exec /usr/sbin/snmpd
+	echo -n " snmpd"
+    fi
+    echo "."
+    ;;
+  *)
+    echo "Usage: /etc/init.d/snmpd {start|stop|restart|reload|force-reload}"
+    exit 1
+esac
+
+exit 0

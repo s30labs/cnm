@@ -1,0 +1,162 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+#- include_vars: /cfg/cnm_vars.yml
+
+#- name: Verify repository
+#  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+#  tags: net-snmp
+  
+- name: Install packages
+  apt: name={{item}} state=installed force=yes
+  with_items:
+   - gcc
+   - make
+   - autoconf
+   - libperl-dev
+  tags: net-snmp
+
+- name: Create /tmp/src/net-snmp/net-snmp-5.8
+  file: path=/tmp/src/net-snmp/net-snmp-5.8 state=directory owner=root group=root mode=0640
+  tags: net-snmp
+
+- name: Extract from source
+  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/src/net-snmp/net-snmp-5.8.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.35
+  tags: net-snmp
+
+- name: Configure
+  command: ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" chdir=/tmp/src/net-snmp/net-snmp-5.8  creates=/opt/snmp/lib/libnetsnmpagent.so.35
+  tags: net-snmp
+
+- name: Make
+  command: make chdir=/tmp/src/net-snmp/net-snmp-5.8  creates=/opt/snmp/lib/libnetsnmpagent.so.35
+  tags: net-snmp
+
+- name: Make install
+  command: make install chdir=/tmp/src/net-snmp/net-snmp-5.8  creates=/opt/snmp/lib/libnetsnmpagent.so.35
+  tags: net-snmp
+
+- name: Create directory /etc/snmp
+  file: path=/etc/snmp state=directory owner=root group=root mode=0755
+  tags: net-snmp
+
+- name: Create directory /opt/snmp/etc/snmp
+  file: path=/opt/snmp/etc/snmp state=directory owner=root group=root mode=0755
+  tags: net-snmp
+
+- name: Config files [/etc/snmp/snmp.conf]
+  copy: src=snmp.conf dest=/etc/snmp/snmp.conf owner=root group=root mode=0644
+  tags: net-snmp
+
+- name: Config files [/etc/snmp/snmpd.conf]
+  template: src=snmpd.conf.j2 dest=/etc/snmp/snmpd.conf
+  tags: net-snmp
+
+- name: Verify links  /opt/snmp -> /etc/snmp
+  file: path="/opt/snmp/etc/snmp/{{ item }}" src="/etc/snmp/{{ item }}" state=link owner=root group=root mode=0640
+  with_items:
+    - snmpd.conf
+  tags: net-snmp
+
+- name: Verify links  /opt/snmp -> /etc/snmp
+  file: path="/opt/snmp/etc/snmp/{{ item }}" src="/etc/snmp/{{ item }}" state=link owner=root group=root mode=0644
+  with_items:
+    - snmp.conf
+  tags: net-snmp
+
+- name: Config files [/etc/default/snmpd]
+  copy: src=snmpd dest=/etc/default/snmpd owner=root group=root mode=0640
+  tags: net-snmp
+
+- name: Check /opt/snmp/share/snmp/mibs
+  stat: path=/opt/snmp/share/snmp/mibs
+  register: mibs1
+  tags: net-snmp
+
+- name: Move if dir /opt/snmp/share/snmp/mibs /opt/snmp/share/snmp/mibs.orig
+  command: mv /opt/snmp/share/snmp/mibs /opt/snmp/share/snmp/mibs.orig
+  when: mibs1.stat.isdir
+  tags: net-snmp
+
+- name: Config MIB dir /opt/snmp/share/snmp/mibs
+  file: path=/opt/snmp/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0755
+  tags: net-snmp
+
+- name: Check /usr/share/snmp/mibs
+  stat: path=/usr/share/snmp/mibs
+  register: mibs1
+  tags: net-snmp
+
+- name: Move if dir /usr/share/snmp/mibs /usr/share/snmp/mibs.orig
+  command: mv /usr/share/snmp/mibs /usr/share/snmp/mibs.orig
+  when: mibs1.stat.isdir
+  tags: net-snmp
+
+- name: Config MIB dirs /usr/share/snmp/mibs
+  file: path=/usr/share/snmp/mibs src=/opt/cnm-mibs state=link owner=root group=root mode=0755
+  tags: net-snmp
+
+
+- name: Verify links (client utulities)
+  file: path="/usr/bin/{{ item }}" src="/opt/snmp/bin/{{ item }}" state=link owner=root group=root mode=0755
+  with_items:
+    - snmpnetstat
+    - snmpconf
+    - snmpvacm
+    - snmpusm
+    - snmpgetnext
+    - snmpbulkwalk
+    - snmpwalk
+    - snmptranslate
+    - snmptest
+    - snmptable
+    - snmpstatus
+    - snmpset
+    - snmpget
+    - snmpdf
+    - snmpdelta
+    - snmpbulkget
+    - snmpinform
+    - snmptrap
+  tags: net-snmp
+
+- name: Verify links (client utulities)
+  file: path="/usr/local/bin/{{ item }}" src="/opt/snmp/bin/{{ item }}" state=link owner=root group=root mode=0755
+  with_items:
+    - snmpwalk
+    - snmptranslate
+    - snmpget
+  tags: net-snmp
+
+
+
+- name: Verify links (daemons)
+  file: path="/usr/sbin/{{ item }}" src="/opt/snmp/sbin/{{ item }}" state=link owner=root group=root mode=0755
+  with_items:
+    - snmpd
+  tags: net-snmp
+
+
+#- name: SNMP.pm (gettable)
+#  copy: src=SNMP.pm dest=/usr/local/lib/x86_64-linux-gnu/perl/5.20.2/SNMP.pm  owner=root group=root mode=0644
+#  tags: net-snmp
+
+- name: Start up scripts
+  copy: src="{{ item }}.init" dest="/etc/init.d/{{ item }}"  owner=root group=root mode=0755
+  with_items:
+    - snmpd
+  tags: net-snmp
+
+- name: enable snmpd
+  command: systemctl enable snmpd
+  tags: net-snmp
+
+#  notify:
+#   - restart snmpd
+
+- name: restart snmpd
+  command: /etc/init.d/snmpd restart
+  #command: systemctl restart snmpd
+  tags: net-snmp
+
+
+...
