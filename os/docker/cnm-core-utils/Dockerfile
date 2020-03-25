@@ -23,8 +23,8 @@ RUN  apt-get update && apt-get install -y ansible git perl gcc make autoconf lib
 	libnet-openssh-perl \
 	librrds-perl \
         && rm -rf /var/lib/apt/lists/* \
-	&& cd /opt && git clone https://github.com/s30labs/cnm-mibs.git \
-	&& git clone https://github.com/s30labs/cnm-extras.git \
+	&& cd /opt && git clone https://github.com/s30labs/cnm-extras.git \
+	&& git clone https://github.com/s30labs/cnm-mibs.git \
 	&& git clone https://github.com/s30labs/cnm.git
 
 #COPY ./cnm-mibs* /opt/cnm-mibs/
@@ -33,7 +33,7 @@ RUN  apt-get update && apt-get install -y ansible git perl gcc make autoconf lib
 #COPY ./cnm-extras/src/net-snmp/net-snmp-5.*  /opt/cnm-extras/src/net-snmp/
 ##COPY ./cnm-extras/perl_modules*  /opt/cnm-extras/perl_modules/
 
-RUN  mkdir -p /tmp/src/net-snmp/net-snmp-5.8 \
+RUN  mkdir -p /tmp/src/net-snmp \
 	&& tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/src/net-snmp/net-snmp-5.8.tar.gz \
 	&& cd /tmp/src/net-snmp/net-snmp-5.8 \
 	&& ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" \
