@@ -9,6 +9,10 @@ package CNMScripts::WWW;
 use strict;
 use LWP::UserAgent;
 use Data::Dumper;
+use Net::Curl::Easy qw(:constants);
+use bytes;
+use HTML::LinkExtor;
+use Time::HiRes qw(gettimeofday tv_interval);
 
 my $VERSION = '1.00';
 #-------------------------------------------------------------------------------------------
@@ -29,6 +33,8 @@ my ($class,%arg) =@_;
    $self->{_err_num} = $arg{er_num} || 0;
    $self->{_err_str} = $arg{err_str} || '';
 
+   $self->{_url} = $arg{url} || '';
+   $self->{_file_html} = $arg{file_html} || '';
    return $self;
 }
 
@@ -137,6 +143,27 @@ my ($self,$endpoint) = @_;
    else { return $self->{_endpoint}; }
 }
 
+#----------------------------------------------------------------------------
+# url
+#----------------------------------------------------------------------------
+sub url {
+my ($self,$url) = @_;
+   if (defined $url) {
+      $self->{_url}=$url;
+   }
+   else { return $self->{_url}; }
+}
+
+#----------------------------------------------------------------------------
+# file_html
+#----------------------------------------------------------------------------
+sub file_html {
+my ($self,$file_html) = @_;
+   if (defined $file_html) {
+      $self->{_file_html}=$file_html;
+   }
+   else { return $self->{_file_html}; }
+}
 
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
@@ -148,7 +175,7 @@ my ($self,$endpoint) = @_;
 # GET HTTP
 #----------------------------------------------------------------------------
 sub get  {
-my ($self,,$params)=@_;
+my ($self,$params)=@_;
 
    $self->err_num(0);
    $self->err_str('');
@@ -229,6 +256,93 @@ my ($self,,$params)=@_;
 
    return $results;
 
+}
+
+#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+# mon_http_base
+# Se usa Net::Curl::Easy
+#----------------------------------------------------------------------------
+# Para validar:
+#curl --output /tmp/kk --silent --write-out '%{http_code};%{time_appconnect};%{time_connect};%{time_namelookup};%{time_pretransfer};%{time_starttransfer};%{time_total}\n' http://www.s30labs.com
+#----------------------------------------------------------------------------
+sub mon_http_base {
+my ($self,$desc)=@_;
+
+   $self->err_num(0);
+   $self->err_str('');
+
+   my %results=( 'elapsed'=>'U', 'size'=>'U', 'pattern'=>'U', 'rctype'=>'U', 'nlinks'=>'U');
+   my $url=$desc->{'url'};
+   my $url_mod=$url;
+
+	my $VERBOSE=$desc->{'verbose'};
+
+   my $t0 = [gettimeofday];
+   my $elapsed = tv_interval ( $t0, [gettimeofday]);
+   my $elapsed3 = sprintf("%.6f", $elapsed);
+   $results{'elapsed'}=$elapsed3;
+
+   my $easy = Net::Curl::Easy->new( { body => '', headers => '' } );
+   my ($referer,$content,$status,$rc,$rcstr)=(undef,'','200 OK',0,0);
+   eval {
+
+      $easy->setopt( CURLOPT_URL, $url_mod);
+      $easy->setopt( CURLOPT_VERBOSE, $VERBOSE );
+      $easy->setopt( CURLOPT_WRITEHEADER, \$easy->{headers} );
+      $easy->setopt( CURLOPT_FILE, \$easy->{body} );
+
+#    $easy->setopt( CURLOPT_TIMEOUT, 300 );
+    $easy->setopt( CURLOPT_CONNECTTIMEOUT, 10 );
+#    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
+#    $easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
+#    $easy->setopt( CURLOPT_ENCODING, 'gzip,deflate' ) if $has_zlib;
+#    $easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
+#    $easy->setopt( CURLOPT_COOKIEFILE, '' );
+#    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
+
+      $self->log('debug',"GET url=$url_mod");
+
+      $easy->perform();
+
+   };
+
+   if ($@) {
+      print STDERR "**ERROR** EN GET url=$url ($@)\n";
+      $self->log('info',"**ERROR** EN GET url=$url ($@)");
+	   $self->err_num(1);
+   	$self->err_str($@);
+
+      return \%results;
+   }
+
+   $elapsed = tv_interval ( $t0, [gettimeofday]);
+   $elapsed3 = sprintf("%.6f", $elapsed);
+   $results{'elapsed'}=$elapsed3;
+
+   $content = $easy->{'body'};
+   my $count=0;
+   if ($desc->{'pattern'}) {
+      while ($content =~ /$desc->{'pattern'}/g) { $count++ }
+      $results{'pattern'} = $count;
+   }
+   else { $results{'pattern'} = 0; }
+
+   $results{'size'} = bytes::length($content);
+
+   if ($easy->{'headers'} =~/HTTP\/\d+\.\d+ (\d+) (.+?)\r\n/g) {
+      $results{'rc'} = $1;
+      $results{'rcstr'} = $2;
+      chomp $results{'rcstr'};
+      $results{'rctype'} = int ($results{'rc'}/100);
+   }
+
+   my $parser = HTML::LinkExtor->new();
+   $parser->parse($content);
+   my @links = $parser->links();
+   $results{'nlinks'} = scalar(@links);
+
+   return \%results;
 }
 
 
