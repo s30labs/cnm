@@ -386,8 +386,11 @@ global $enlace;
 	// Invocamos los procedimientos que nos interesen
 	// $queryProcedure = "CALL $procedure('','')";
 	$procedure = 'sp_alerts_read';
-	$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
-	
+
+	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+	else {
+		$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	}
 	$queryProcedure = "CALL $procedure('default','$local_ip')";
 	$resultQueryProcedure=$enlace->query($queryProcedure);
 	if (@PEAR::isError($resultQueryProcedure)) {
@@ -1815,9 +1818,11 @@ global $enlace;
    $iface = 'eth0';
    $file = '/cfg/onm.if';
    if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
-   $local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+	else {
+   	$local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+	}
 
-	#$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
 	// $result=$enlace->query("SELECT hidx,cid,descr,db1_name,db1_server,db1_pwd,db1_user,db2_name,db2_server,db2_pwd,db2_user FROM cfg_cnms WHERE host_ip='$local_ip'");
 	$result=$enlace->query("SELECT * FROM cfg_cnms WHERE host_ip='$local_ip'");
    if (@PEAR::isError($result)) {
@@ -1834,14 +1839,17 @@ global $enlace;
          DB_PWD = pwd
          DB_TYPE = mysql
 	      */
+
+/*
          $fileCfg = '/cfg/'.$r['db1_name'].'.conf';
          $aData = array('DB_SERVER'=>'', 'DB_USER'=>'', 'DB_PWD'=>'', 'DB_TYPE'=>'');
          $rcstrReadFile=read_cfg_file($fileCfg,$aData);
-/*
-			// OLD
-			$a_client[]=$r; 
-*/
 			$a_client[]=array('hidx'=>$r['hidx'],'db1_user'=>$aData['DB_USER'],'db1_pwd'=>$aData['DB_PWD'],'db1_server'=>$aData['DB_SERVER'],'db1_name'=>$r['db1_name'],'cid'=>$r['cid'],'descr'=>$r['descr']); 
+*/
+
+			$cred = get_db_credentials();
+
+			$a_client[]=array('hidx'=>$r['hidx'],'db1_user'=>'onm','db1_pwd'=>$cred['CNM_DB_PASSWORD'],'db1_server'=>$cred['CNM_DB_SERVER'],'db1_name'=>$r['db1_name'],'cid'=>$r['cid'],'descr'=>$r['descr']); 
 		}
    }
 
@@ -1936,22 +1944,52 @@ function include_dir($dir){
 //------------------------------------------------------------------------------------
 function get_db_credentials(){
 
+	// Same credentials for onm and cnm databases
+	// User onm for both databases
+	// Same host for both databases
+	$credentials = array (
+		"CNM_DB_SERVER" => "",
+		"CNM_DB_PORT" => "3306",
+		"CNM_DB_PASSWORD" => "",
+	);
+
 	$FILE_CFG='/cfg/onm.conf';
-   $fp = fopen ($FILE_CFG,"r");
-	$pwd='';
-   while (!feof($fp)) {
-      $line = fgets($fp, 1024);
-      if(strpos($line,'=')!==false){
-         list($name,$value) = explode('=',$line);
-         $name  = trim($name);
-         $value = trim($value);
-			if ($name=='DB_PWD') { $pwd=$value; break; }
-      }
+
+	if ((getenv("CNM_DB_SERVER") !== false) &&
+		 (getenv("CNM_DB_PASSWORD") !== false) ) {
+	
+		_debug("DBPARAMS from ENV",__LINE__,'INF','get_db_credentials');
+
+		$credentials["CNM_DB_SERVER"] = getenv("CNM_DB_SERVER");
+		$credentials["CNM_DB_PASSWORD"] = getenv("CNM_DB_PASSWORD");
 	}
-   fclose($fp);
-	return $pwd;
+	elseif (file_exists($FILE_CFG)) {
+	
+		_debug("DBPARAMS from FILE",__LINE__,'INF','get_db_credentials');
+
+   	$fp = fopen ($FILE_CFG,"r");
+		$pwd='';
+   	while (!feof($fp)) {
+      	$line = fgets($fp, 1024);
+	      if(strpos($line,'=')!==false){
+   	      list($name,$value) = explode('=',$line);
+      	   $name  = trim($name);
+         	$value = trim($value);
+				if ($name=='DB_SERVER') { 
+					$credentials["CNM_DB_SERVER"] = $value;
+				}
+            elseif ($name=='DB_PWD') {
+               $credentials["CNM_DB_PASSWORD"] = $value;
+            }
+      	}
+		}
+   	fclose($fp);
+	}
+
+	return $credentials;
 
 }
+
 function read_cfg_file($file,&$data){
    $rcstr='';
    $lines = file($file);
