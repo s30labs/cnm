@@ -272,7 +272,8 @@ my ($self,$desc)=@_;
    $self->err_num(0);
    $self->err_str('');
 
-   my %results=( 'elapsed'=>'U', 'size'=>'U', 'pattern'=>'U', 'rctype'=>'U', 'nlinks'=>'U');
+	my $timeout= $self->timeout();
+   my %results=( 'elapsed'=>'U', 'size'=>0, 'pattern'=>0, 'rctype'=>0, 'nlinks'=>0, 'rc'=>0);
    my $url=$desc->{'url'};
    my $url_mod=$url;
 
@@ -283,25 +284,26 @@ my ($self,$desc)=@_;
    my $elapsed3 = sprintf("%.6f", $elapsed);
    $results{'elapsed'}=$elapsed3;
 
-   my $easy = Net::Curl::Easy->new( { body => '', headers => '' } );
+   my $easy = Net::Curl::Easy->new( { body => '', headers => '', all_headers=>[]} );
    my ($referer,$content,$status,$rc,$rcstr)=(undef,'','200 OK',0,0);
    eval {
 
       $easy->setopt( CURLOPT_URL, $url_mod);
       $easy->setopt( CURLOPT_VERBOSE, $VERBOSE );
       $easy->setopt( CURLOPT_WRITEHEADER, \$easy->{headers} );
+		$easy->setopt( CURLOPT_HEADERFUNCTION, \&cb_header );
       $easy->setopt( CURLOPT_FILE, \$easy->{body} );
 
 #    $easy->setopt( CURLOPT_TIMEOUT, 300 );
-    $easy->setopt( CURLOPT_CONNECTTIMEOUT, 10 );
+    $easy->setopt( CURLOPT_CONNECTTIMEOUT, $timeout );
 #    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
-#    $easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
+    $easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
 #    $easy->setopt( CURLOPT_ENCODING, 'gzip,deflate' ) if $has_zlib;
 #    $easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
 #    $easy->setopt( CURLOPT_COOKIEFILE, '' );
 #    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
 
-      $self->log('debug',"GET url=$url_mod");
+      $self->log('info',"**LOC** GET url=$url_mod");
 
       $easy->perform();
 
@@ -315,6 +317,8 @@ my ($self,$desc)=@_;
 
       return \%results;
    }
+
+	#if ($VERBOSE) { print Dumper($easy->{all_headers}); }
 
    $elapsed = tv_interval ( $t0, [gettimeofday]);
    $elapsed3 = sprintf("%.6f", $elapsed);
@@ -330,13 +334,23 @@ my ($self,$desc)=@_;
 
    $results{'size'} = bytes::length($content);
 
-   if ($easy->{'headers'} =~/HTTP\/\d+\.\d+ (\d+) (.+?)\r\n/g) {
-      $results{'rc'} = $1;
-      $results{'rcstr'} = $2;
-      chomp $results{'rcstr'};
-      $results{'rctype'} = int ($results{'rc'}/100);
-   }
+#   if ($easy->{'headers'} =~/HTTP\/\d+\.\d+ (\d+) (.+?)\r\n/g) {
+#      $results{'rc'} = $1;
+#      $results{'rcstr'} = $2;
+#      chomp $results{'rcstr'};
+#      $results{'rctype'} = int ($results{'rc'}/100);
+#   }
 
+	# Iterate over all headers to get return code. 
+	# In case of redirection stores last one.
+	foreach my $h (@{$easy->{all_headers}}) {
+		chomp $h;
+		if ($h=~/HTTP\/\d+\.\d+ (\d+) (.+?)/g) {
+			$results{'rc'} = $1;
+	      $results{'rcstr'} = $2;
+			$results{'rctype'} = int ($results{'rc'}/100);
+		}
+	}
    my $parser = HTML::LinkExtor->new();
    $parser->parse($content);
    my @links = $parser->links();
@@ -345,6 +359,14 @@ my ($self,$desc)=@_;
    return \%results;
 }
 
+
+sub cb_header {
+my ( $easy, $data, $uservar ) = @_;
+	
+	push @{$easy->{all_headers}},$data; 
+   $$uservar .= $data;
+   return length $data;
+}
 
 1;
 
