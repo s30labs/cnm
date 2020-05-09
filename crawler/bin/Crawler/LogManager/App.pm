@@ -313,7 +313,7 @@ my ($self,$lapse)=@_;
       $self->log('info',"do_task::[INFO] ***DEBUG CRONTAB*** next_cron_time=$next_cron_time tnow=$tnow wait_for_cron=$wait_for_cron | wait_for_lapse=$wait_for_lapse lapse=$lapse");
 	}
 	else {
-		$self->log('info',"do_task::[INFO] ***DEBUG*** wait_for_lapse=$wait_for_lapse lapse=$lapse");
+		$self->log('debug',"do_task::[INFO] ***DEBUG*** wait_for_lapse=$wait_for_lapse lapse=$lapse");
    }
 
    #----------------------------------------------------
@@ -559,7 +559,7 @@ my ($self,$lapse,$task)=@_;
       			foreach my $ev (@$lines) {
 
 						$i++;
-						$self->log('info',"do_task:: CHECK ALERT [$i|$total] >> $ev->{'ip'} >> $ev->{'source_line'}");
+						$self->log('debug',"do_task:: CHECK ALERT [$i|$total] >> $ev->{'ip'} >> $ev->{'source_line'}");
 
    	      		# Gestiono la posible alerta
       	   		$self->check_alert($ev);
@@ -734,10 +734,23 @@ $self->log('debug',"get_app_data:: app=$xx");
 		# Se obtiene toda la info necesaria del host
 		my $app = $self->get_app_host_info($app_id,$h->{$app_id}->{'host'});
 
-      if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
-			$app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
-			my $logfile_temp = $app_flush{$app_id}.'_temp';
-         $store->clear_app_data($dbh,$logfile_temp,$app_id);
+#      if ( (exists $h->{$app_id}->{'capture_mode'}) && ($h->{$app_id}->{'capture_mode'} eq 'flush') ) {
+#			$app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
+#			my $logfile_temp = $app_flush{$app_id}.'_temp';
+#         $store->clear_app_data($dbh,$logfile_temp,$app_id);
+#      }
+
+      if (exists $h->{$app_id}->{'capture_mode'}) {
+			if ($h->{$app_id}->{'capture_mode'} eq 'flush') {
+	         $app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
+   	      my $logfile_temp = $app_flush{$app_id}.'_temp';
+      	   $store->clear_app_data($dbh,$logfile_temp,$app_id);
+			}
+			elsif ($h->{$app_id}->{'capture_mode'} eq 'buffer') {
+				my $capture_offset = (exists $h->{$app_id}->{'capture_offset'}) ? $h->{$app_id}->{'capture_offset'} : 172800; 
+				my $logfile = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
+				$store->clear_app_data_buffer($dbh,$logfile,$app_id,$capture_offset);
+         }
       }
    }
 
@@ -879,17 +892,20 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 #   $self->dbh($dbh);
 #   #--------------------------------------------
 
-
+	
    #--------------------------------------------
    # 4. PREPARE LINES csv -> hash
    #--------------------------------------------
    #timestamp,app-id,app-name,json info hash
    #timestamp,app-id,app-name,json info hash:::md5_line
    my @lines=();
+   my @lines_to_db=();
+	my $logfile='';
+	my $app_id;
 	my ($cnt_ok,$cnt_nok) = (0,0);
 	my $cnt_tot = scalar (@$data);
    foreach my $l (@$data) {
-		
+			
       chomp $l;
       my %MSG = ();
       $MSG{'name'} = $app->{'host_name'};
@@ -926,7 +942,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
       }
 
 
-		my $app_id = '000000000000';
+		$app_id = '000000000000';
 		if (! exists $MSG{'app_id'}) {
 			$self->log('info',"**NO EXISTE APP_ID** $l");
 		}
@@ -941,6 +957,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 			$self->log('debug',"app_parser:: ts=$MSG{'ts'} app_id=$MSG{'app_id'} app_name=$MSG{'app_name'} source_line=$MSG{'source_line'} md5=$MSG{'md5'}");
 		}
 
+		
 		#-------------------
 	   $MSG{'msg_custom'}='';
    	my @msgdata=();
@@ -953,6 +970,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    	if (! $@) {
       	my $i=2;
       	foreach my $k (sort keys %$msg_fields) {
+				if (!defined $msg_fields->{$k}) { $msg_fields->{$k}=''; }
          	push @msgdata,$k.'::'.$msg_fields->{$k};
 	         push @vdata, $msg_fields->{$k};
    	      $vardata{$k} = $msg_fields->{$k};
@@ -963,7 +981,7 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    	$MSG{'vardata'} = \%vardata;
    	$MSG{'msg'} = join ('|',@msgdata);
 
-	   my $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
+	   $logfile = (defined $app->{'source'}) ? $app->{'source'} : 'log-app';
 	
    	if (exists $MSG{'app_name'}) { $logfile = $MSG{'app_name'}.'-'.$logfile; }
 
@@ -976,21 +994,43 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 		# Si es modo de captura flush -> Se inserta en tabla temp
 		if (exists $app_flush{$app_id}) { $logfile .= '_temp'; }
 
-   	# Almaceno en la tabla de log correspondiente
-   	my ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$MSG{'ip'},$MSG{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$MSG{'source_line'}, 'md5'=>$MSG{'md5'}}]);
+		# Si la captura es con comandos internos (core-imap o core-sap) los el resultado puede ser de diferentes tablas
+		# por lo que las inserciones se hacen linea a linea.  
+		# En los otros casos se pueden hacer en bloque porque son de la misma tabla.
+		# Probablemente se tendria que definir outro campo del json para indicar esto. 
+		my ($table,$cnt_lines) = ('',0);
+		if (($cmd eq 'core-imap') || ($cmd eq 'core-sap')) {
+	      # Almaceno en la tabla de log correspondiente
+         ($table,$cnt_lines) = $store->set_log_rx_lines($dbh,$MSG{'ip'},$MSG{'id_dev'},$logfile,$app_id,[{'ts'=>$t, 'line'=>$MSG{'source_line'}, 'md5'=>$MSG{'md5'}}]);
 
-   	if ($cnt_lines == 0) {
-			$cnt_nok += 1;
-      	$self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] SKIPPED - event exists no alert checking [$app_id] logfile=$logfile");
-   	}
-   	else {
-			$cnt_ok += 1;
-      	$self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}, $MSG{'id_dev'}");
-
+	      if ($cnt_lines == 0) {
+   	      $cnt_nok += 1;
+      	   $self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] SKIPPED - event exists no alert checking [$app_id] logfile=$logfile");
+      	}
+      	else {
+         	$cnt_ok += 1;
+	         $self->log('debug',"check_event:: STORE LOG [$cnt_ok|$cnt_nok|$cnt_tot] [$app_id] source=$app->{'source'} | logfile=$logfile ($table) date=>$t, code=>1, msg=>$MSG{'msg'}, name=>$MSG{'name'}, domain=>$MSG{'domain'}, ip=>$MSG{'ip'}, $MSG{'id_dev'}");
+	         $self->log('info',"check_event:: INSERTLINES $MSG{'source_line'}");
+				push @lines, \%MSG;
+   	   }
+      }
+		else {
+			# Almaceno en un array para hacer luego insercion en bloque. (ts, line, hash)
+			push @lines_to_db,{'ts'=>$t, 'line'=>$MSG{'source_line'}, 'hash'=>$MSG{'md5'}};
 			push @lines, \%MSG;
 		}
-
    }
+
+	if (($cmd ne 'core-imap') && ($cmd ne 'core-sap')) {
+		my ($table,$cnt_lines) = $store->set_log_rx_lines_bulk($dbh,$app->{'host_ip'},$app->{'id_dev'},$logfile,$app_id,\@lines_to_db);
+   	if ($cnt_lines == 0) {
+   		$self->log('debug',"check_event:: STORE LOG SKIPPED NO DATA $app_id logfile=$logfile");
+   	}
+   	else {
+      	$self->log('debug',"check_event:: STORE LOG $app_id cnt_lines=$cnt_lines source=$app->{'source'} | logfile=$logfile ($table)");
+		}
+	}
+
 
    foreach my $aid (keys %app_flush) { 
 		#logp_tmp -> logp
@@ -1000,7 +1040,6 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
 
 		$store->flush_app_data($dbh,$aid,$app_flush{$aid});
 	}
-
 
    return \@lines;
 }
@@ -1061,7 +1100,7 @@ my ($self,$event)=@_;
       return;
    }
    else {
-      $self->log('info',"check_alert:: DEFINIDAS $num_alerts ALERTAS REMOTAS POR SYSLOG");
+      $self->log('debug',"check_alert:: DEFINIDAS $num_alerts ALERTAS REMOTAS POR SYSLOG");
       foreach my $evd  (keys %$event2alert) {
          my $ips = join ' : ', sort keys %{$event2alert->{$evd}};
          $self->log('debug',"check_alert:: SYSLOG_ALERTS $evd >> $ips");
@@ -1128,7 +1167,7 @@ $self->log('debug',"check_alert:: id_remote_alert=$id_remote_alert VDATA=$kk");
 
       #my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,\@vals);
       my $condition_ok=$self->watch_eval_ext($alert2expr->{$id_remote_alert},$expr_logic,$event->{'vdata'});
-      $self->log('info',"check_alert:: ALERTA $id_remote_alert - $ev ($action) ASOCIADA A $ip >> WATCH_EVAL_EXT=$condition_ok");
+      $self->log('debug',"check_alert:: ALERTA $id_remote_alert - $ev ($action) ASOCIADA A $ip >> WATCH_EVAL_EXT=$condition_ok");
 
       if (! $condition_ok) {next; }
 
@@ -1182,6 +1221,7 @@ $self->log('debug',"check_alert:: id_remote_alert=$id_remote_alert VDATA=$kk");
             my $cond = 'subtype="'.$set_subtype.'" && hiid="'.$set_hiid.'"';
             my $rv=$store->get_from_db($dbh,'id_remote_alert','cfg_remote_alerts',$cond);
             $id_metric_clr=$rv->[0][0];
+				$self->log('info',"check_alert::[INFO] match_set_clear >> id_metric_clr=$id_metric_clr  SELECT id_remote_alert FROM cfg_remote_alerts WHERE $cond");
          }
 
 
