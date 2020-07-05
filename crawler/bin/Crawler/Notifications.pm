@@ -4447,14 +4447,14 @@ $self->log('info',"chk_integrity::  RANGO OK NUM=$num_ok  cid=$cid");
 $self->log('debug',"chk_integrity::  RANGO OK ($range) cid=$cid");
 
 		#  SELECT a.ip,a.severity,a.type,a.id_device,a.mname' FROM alerts a WHERE a.cid='default' and id_alert not in ();
-  		$res=$store->get_from_db( $dbh, 'a.ip,a.severity,a.type,a.id_device,a.mname', 'alerts a', "a.cid=\'$cid\' and id_alert not in ($range)");
+		$res=$store->get_from_db( $dbh, 'a.ip,a.severity,a.type,a.id_device,a.mname', 'alerts a', "a.cid=\'$cid\' AND a.id_alert NOT IN ($range) AND a.type NOT IN (\'snmp-trap\',\'email\',\'syslog\',\'api\')");
 		#Nombre de los ficheros: ip.sev.type.id_dev.mname
 		my @mdata_files=();
 		foreach my $v (@$res) { push @mdata_files, join('.',@$v);  }
 
-		$c2=$store->delete_from_db($dbh,$table,"cid=\'$cid\' and id_alert not in ($range)");
+		$c2=$store->delete_from_db($dbh,$table,"cid=\'$cid\' AND id_alert not in ($range) AND type NOT IN (\'snmp-trap\',\'email\',\'syslog\',\'api\')");
 		if ($c2>0) {
-			$self->log('info',"chk_integrity:: METRICAS ELIMINADAS($c2)  >> **DEL** id_alert not in ($range) cid=$cid");
+			$self->log('info',"chk_integrity:: METRICAS ELIMINADAS($c2)  >> **DEL** id_alert NOT IN ($range) AND type NOT IN (snmp-trap,email,syslog,api) cid=$cid");
 	      foreach my $f (@mdata_files) {
   			   my $falert="$Crawler::MDATA_PATH/output/$cid/a/$f";
      	   	my $rc=unlink($falert);
