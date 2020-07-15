@@ -20,12 +20,13 @@ $ENT_06876_VMWARE::ENTERPRISE_PREFIX='06876';
 
 	'VMINFO' => {
 
-      'col_filters' => '#text_filter.#text_filter.#text_filter.#numeric_filter.#select_filter.#numeric_filter.#select_filter',
-      'col_widths' => '25.30.25.20.20.20.20',
-      'col_sorting' => 'str.str.str.int.int.int.int',
+      'col_filters' => '#text_filter.#text_filter.#text_filter.#numeric_filter.#select_filter.#numeric_filter.#select_filter.#text_filter',
+      'col_widths' => '20.30.25.15.15.15.15.20',
+      'col_sorting' => 'str.str.str.int.int.int.int.str',
 
-		'oid_cols' => 'vmDisplayName_vmConfigFile_vmGuestOS_vmMemSize_vmState_vmVMID_vmGuestState',
-		'oid_last' => 'VMWARE-VMINFO-MIB::vmTable',
+      'oid_cols' => 'vmwVmDisplayName_vmwVmConfigFile_vmwVmGuestOS_vmwVmMemSize_vmwVmState_vmwVmGuestState_vmwVmCpus_vmwVmUUID',
+		'oid_last' => 'VMWARE-VMINFO-MIB::vmwVmTable',
+
 		'name' => 'MAQUINAS VIRTUALES CONFIGURADAS EN EL SISTEMA',
 		'descr' => 'Muestra las maquinas virtuales configuradas en el sistema',
 		'xml_file' => '06876-VMWARE-VMINFO-MIB.xml',
@@ -33,7 +34,7 @@ $ENT_06876_VMWARE::ENTERPRISE_PREFIX='06876';
 		'ipparam' => '[-n;IP;]',
 		'subtype'=>'VMWARE',
 		'aname'=>'app_vmware_vminfo_table',
-		'range' => 'VMWARE-VMINFO-MIB::vmTable',
+		'range' => 'VMWARE-VMINFO-MIB::vmwVmTable',
 		'enterprise' => '06876',  #5 CIFRAS !!!!
 		'cmd' => '/opt/crawler/bin/libexec/snmptable -f 06876-VMWARE-VMINFO-MIB.xml -w xml ',
 		'itil_type' => 1,		'apptype'=>'VIRTUAL.VMWARE',
@@ -103,16 +104,16 @@ $ENT_06876_VMWARE::ENTERPRISE_PREFIX='06876';
 	{	'name'=> 'USO DE DISCO EN VM',  'oid'=>'kbRead|kbWritten', 'subtype'=>'vmware_disk_util_kb', 'class'=>'VMWARE', 'range'=>'VMWARE-RESOURCES-MIB::vmwHBATable', 'get_iid'=>'hbaName', 'itil_type' => 1, 'apptype'=>'VIRTUAL.VMWARE' },
 	{	'name'=> 'USO DE RED EN VM',  'oid'=>'kbTx|kbRx', 'subtype'=>'vmware_net_util_kb', 'class'=>'VMWARE', 'range'=>'VMWARE-RESOURCES-MIB::vmwNetTable', 'get_iid'=>'netName', 'itil_type' => 1, 'apptype'=>'VIRTUAL.VMWARE' },
 
-	{	'name'=> 'MEMORIA CONFIGURADA EN VM',  'oid'=>'vmMemSize', 'subtype'=>'vmware_mem_cfg', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmTable', 'get_iid'=>'vmDisplayName', 'itil_type' => 1, 'apptype'=>'VIRTUAL.VMWARE' },
-   {  'name'=> 'ESTADO DE VM',  'oid'=>'vmGuestState', 'subtype'=>'vmware_vm_status', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmTable', 'get_iid'=>'vmDisplayName', 'itil_type'=>1,
+	{	'name'=> 'MEMORIA CONFIGURADA EN VM',  'oid'=>'vmwVmMemSize', 'subtype'=>'vmware_mem_cfg', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmwVmTable', 'get_iid'=>'vmwVmDisplayName', 'itil_type' => 1, 'apptype'=>'VIRTUAL.VMWARE' },
+   {  'name'=> 'ESTADO DE VM',  'oid'=>'vmwVmGuestState', 'subtype'=>'vmware_vm_status', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmwVmTable', 'get_iid'=>'vmwVmDisplayName', 'itil_type'=>1,
 'esp'=>'MAPS("running")(1,0)|MAPS("notRunning")(0,1)', 'mtype'=>'STD_SOLID', 'items'=>'running|notRunning', 'apptype'=>'VIRTUAL.VMWARE'
 },
 
-   {  'name'=> 'ESTADO GLOBAL DE TODAS LAS VM',  'oid'=>'vmGuestState', 'subtype'=>'vmware_vm_glob_status', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmTable', 'get_iid'=>'vmDisplayName', 'itil_type'=>1,
+   {  'name'=> 'ESTADO GLOBAL DE TODAS LAS VM',  'oid'=>'vmwVmGuestState', 'subtype'=>'vmware_vm_glob_status', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmwVmTable', 'get_iid'=>'vmwVmDisplayName', 'itil_type'=>1,
 'esp'=>'TABLE(MATCH)("running")|TABLE(MATCH)("notRunning")', 'items'=>'running|notRunning', 'apptype'=>'VIRTUAL.VMWARE'
 },
 
-   {  'name'=> 'MEMORIA GLOBAL DE TODAS LAS VM',  'oid'=>'vmGuestState|vmMemSize', 'subtype'=>'vmware_vm_glob_mem', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmTable', 'get_iid'=>'vmDisplayName', 'itil_type'=>1,
+   {  'name'=> 'MEMORIA GLOBAL DE TODAS LAS VM',  'oid'=>'vmwVmGuestState|vmwVmMemSize', 'subtype'=>'vmware_vm_glob_mem', 'class'=>'VMWARE', 'range'=>'VMWARE-VMINFO-MIB::vmwVmTable', 'get_iid'=>'vmwVmDisplayName', 'itil_type'=>1,
 'esp'=>'TABLE(SUM)("running")|TABLE(SUM)("notRunning")', 'items'=>'running|notRunning', 'apptype'=>'VIRTUAL.VMWARE'
 },
 

@@ -1,5 +1,5 @@
 package linux_metric_www_base;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_www_base -p www-base
+# /opt/cnm/designer/gconf-proxy -m linux_metric_www_base -p www-base
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
@@ -45,8 +45,9 @@ $linux_metric_www_base::SCRIPT_NAME = 'linux_metric_www_base.pl';
 	# ----------------------------
 	'__SCRIPT_PARAMS__' => {
 
-		'p01' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '2', '__PARAM_PREFIX__' => '-ip', '__PARAM_DESCR__' => 'IP', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
-		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'PATRON', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+		'p01' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '2', '__PARAM_PREFIX__' => '-ip', '__PARAM_DESCR__' => 'IP Address', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-u', '__PARAM_DESCR__' => 'URL', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'Pattern', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		},
 
 	# ----------------------------
@@ -113,47 +114,47 @@ Sus parámetros de ejecución son:
 # __DESCRIPTION__ (xagt_(md5(descr.paramx))).
 @linux_metric_www_base::METRICS = (
 
-	#------------------------------------------------------------------------
-	{ 
-		#defSUBTYPE=xagt_004620
-		'__SUBTYPE__'=> 'xagt_004620', '__CLASS__'=> 'proxy-linux', '__LAPSE__'=> '300',
-		'__DESCRIPTION__'=> 'TEXTO SCRIPT EN PAGINA WEB',
-		'__APPTYPE__'=> 'IPSERV.WWW', 	'__ITIL_TYPE__'=> '1', 	'__TAG__'=> '003', 	'__ESP__'=> 'o1',
-		'__IPTAB__'=> '1', '__ITEMS__'=> 'Number of Ocurrences', 	'__VLABEL__'=> 'Num',
-		'__MODE__'=> 'GAUGE', 	'__MTYPE__'=> 'STD_AREA',	
-		'__NPARAMS__'=> '2', 	'__PARAMS__'=> '[-ip;IP;;2]:[-pattern;PATRON;script;1]', 	
-		'__PARAMS_DESCR__'=> '',
-		'__SCRIPT__'=> $linux_metric_www_base::SCRIPT_NAME, 	'__SEVERITY__'=> '1', 	'__CFG__'=> '2',
-		'__GET_IID__'=> '0', 	'__PROXY_TYPE__'=> 'linux', 	'__INCLUDE__'=> '0',
-		'__MYRANGE__'=>'www-check,[-ip;IP;;2]',
-
-		# ----------------------------
-	   '__METRIC_PARAMS__' => {
-
-   	   'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
-   	   'p02' => { '__ENABLE__' => '1', '__VALUE__' => 'script', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
-
-      },
-		# ----------------------------
-	   '__TIP__'  => {
-   	   '__DESCR_TIP__' => 'Métrica que monitoriza el numero de veces que existe la cadena "script" en la url especificada',
-   	},
-
-#+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
-#| id_alert_type | cause                            | monitor                    | expr      | params | severity | mname           | type   | subtype         | wsize | class              |
-#+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
-#|            18 | EXCESO DE EVENTOS                | s_xagt_647cba-d30a2710     | v1>1000   | NULL   |        2 | xagt_647cba     | xagent | xagt_647cba     |     0 | proxy-linux        |
-
-
-      # ----------------------------
-#      '__MONITORS__' => {
+#	#------------------------------------------------------------------------
+#	{ 
+#		#defSUBTYPE=xagt_004620
+#		'__SUBTYPE__'=> 'xagt_004620', '__CLASS__'=> 'proxy-linux', '__LAPSE__'=> '300',
+#		'__DESCRIPTION__'=> 'TEXTO SCRIPT EN PAGINA WEB',
+#		'__APPTYPE__'=> 'IPSERV.WWW', 	'__ITIL_TYPE__'=> '1', 	'__TAG__'=> '003', 	'__ESP__'=> 'o1',
+#		'__IPTAB__'=> '1', '__ITEMS__'=> 'Number of Ocurrences', 	'__VLABEL__'=> 'Num',
+#		'__MODE__'=> 'GAUGE', 	'__MTYPE__'=> 'STD_AREA',	
+#		'__NPARAMS__'=> '2', 	'__PARAMS__'=> '[-ip;IP;;2]:[-pattern;PATRON;script;1]', 	
+#		'__PARAMS_DESCR__'=> '',
+#		'__SCRIPT__'=> $linux_metric_www_base::SCRIPT_NAME, 	'__SEVERITY__'=> '1', 	'__CFG__'=> '2',
+#		'__GET_IID__'=> '0', 	'__PROXY_TYPE__'=> 'linux', 	'__INCLUDE__'=> '0',
+#		'__MYRANGE__'=>'www-check,[-ip;IP;;2]',
 #
-#         'm01' => { '__MONITOR__' => 's_xagt_004600-bf8b6871', '__CAUSE__' => 'TIEMPO DE CARGA EXCESIVO', '__EXPR__' => 'v1>5',  '__HIDE__' => '0', '__PARAMS__' => '', '__SEVERITY__' => '2', '__MNAME__' => 'xagt_004600', '__SUBTYPE__' => 'xagt_004600', '__WSIZE__' => '0', '__CLASS__' => 'proxy-linux', '__DESCR_TIP__' => 'Monitor para la métrica "WEB PAGE LOAD TIME" que genera una alerta de severidad NARANJA cuando se cumple la expresión: v1>5 siendo v1 el tiempo de carga de la pagina.'  },
+#		# ----------------------------
+#	   '__METRIC_PARAMS__' => {
+#
+#   	   'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+#   	   'p02' => { '__ENABLE__' => '1', '__VALUE__' => 'script', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+#
 #      },
-
-
-	},
-
+#		# ----------------------------
+#	   '__TIP__'  => {
+#   	   '__DESCR_TIP__' => 'Métrica que monitoriza el numero de veces que existe la cadena "script" en la url especificada',
+#   	},
+#
+##+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
+##| id_alert_type | cause                            | monitor                    | expr      | params | severity | mname           | type   | subtype         | wsize | class              |
+##+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
+##|            18 | EXCESO DE EVENTOS                | s_xagt_647cba-d30a2710     | v1>1000   | NULL   |        2 | xagt_647cba     | xagent | xagt_647cba     |     0 | proxy-linux        |
+#
+#
+#      # ----------------------------
+##      '__MONITORS__' => {
+##
+##         'm01' => { '__MONITOR__' => 's_xagt_004600-bf8b6871', '__CAUSE__' => 'TIEMPO DE CARGA EXCESIVO', '__EXPR__' => 'v1>5',  '__HIDE__' => '0', '__PARAMS__' => '', '__SEVERITY__' => '2', '__MNAME__' => 'xagt_004600', '__SUBTYPE__' => 'xagt_004600', '__WSIZE__' => '0', '__CLASS__' => 'proxy-linux', '__DESCR_TIP__' => 'Monitor para la métrica "WEB PAGE LOAD TIME" que genera una alerta de severidad NARANJA cuando se cumple la expresión: v1>5 siendo v1 el tiempo de carga de la pagina.'  },
+##      },
+#
+#
+#	},
+#
 
 );
 
