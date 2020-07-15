@@ -35,12 +35,13 @@
 #deb [arch=amd64] https://download.docker.com/linux/debian jessie stable
 
 - name: Se asigna repositorio
-  apt_repository: repo="deb https://download.docker.com/linux/debian jessie stable" state=present
+  apt_repository: repo="deb https://download.docker.com/linux/debian jessie stable" state=present update_cache=yes
   tags: cnm-docker
 
 - name: Install docker package
-#  apt: name=docker-ce=17.12.0~ce-0~debian state=installed force=yes
-  apt: name=docker-ce=18.06.3~ce~3-0~debian state=installed force=yes
+# apt: name=docker-ce=17.12.0~ce-0~debian state=installed force=yes
+#  apt: name=docker-ce=18.06.3~ce~3-0~debian state=installed force=yes
+  apt: name=docker-ce=18.06.1~ce~3-0~debian state=installed force=yes
   tags: cnm-docker
 
 ...
