@@ -17,11 +17,13 @@ my $log_level='debug';
 #-------------------------------------------------------------------------------------------
 #my $expr='v1 =~/picor/';
 my $expr='v1 contains(picor)';
+$expr = 'v1<100 || v3>600';
 #my $expr='v1<9';
 my @values=();
-push @values,'El picor del pelo';
-push @values,1;
-push @values,1;
+#push @values,'El picor del pelo';
+#push @values,1;
+push @values,102;
+push @values,101;
 my $file='0000000002/mib2_ent_phy_parts-STD.rrd';
 
 my $crawler=Crawler->new('log_level'=>$log_level);

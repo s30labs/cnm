@@ -3,12 +3,19 @@
 use SNMP;
 use Data::Dumper;
 
-my $HOST='10.168.54.254';
-my $COMMUNITY='sabai';
+my $HOST='192.168.117.38' || $ARGV[0];
+my $COMMUNITY='public' || $ARGV[1];
 my $V=2;
+my $OID='IF-MIB::ifTable';
+#-----------------------------
+my $timeout=2000000;
+my $retries=5;
+my $remote_port='161';
 
 
-my $s = new SNMP::Session(DestHost => $HOST, Community => $COMMUNITY, Version=>$V, Timeout=>'5000000', Retries=>'5' );
+SNMP::initMib();
+SNMP::loadModules('ALL');
 
- 
-print Dumper($s->gettable('ifTable'));
+my $s = new SNMP::Session(DestHost => $HOST, Community => $COMMUNITY, Version=>$V, Timeout=>$timeout, Retries=>$retries, RemotePort => $remote_port, UseSprintValue => 1 );
+
+print Dumper($s->gettable($OID, 'nogetbulk' => 1, noindexes => 1));

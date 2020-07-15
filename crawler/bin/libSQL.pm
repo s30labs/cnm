@@ -340,7 +340,8 @@ sub sqlCmd_fast
 my($dbh,$rvalues,$sql)=@_;
 my $rc=1;
 
-	$libSQL::cmd=$sql;
+	$libSQL::cmd = $sql;
+	$libSQL::cmd =~ s/\n//g;
 
 eval {
 
