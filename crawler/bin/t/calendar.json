@@ -1,0 +1,23 @@
+{ 
+	"maintenance":[
+
+	  {"name":"inmonth-01", "month":"1", "mday":"2,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-02", "month":"2", "mday":"3,25", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-03", "month":"3", "mday":"2,26", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-04", "month":"4", "mday":"2,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-05", "month":"5", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-06", "month":"6", "mday":"2,25", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-07", "month":"7", "mday":"1,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-08", "month":"8", "mday":"3,26", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-09", "month":"9", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-10", "month":"10", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-11", "month":"11", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-12", "month":"12", "mday":"1,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+
+	  {"name":"inday-year-0", "month_start":"1", "month_end":"1", "mday_start":"2", "mday_end":"2", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inday-day_period-1", "hhmm_start":"02h00m", "hhmm_end":"06h00m", "weekday":"*" },
+	  {"name":"inday-2", "hhmm_start":"19h00m", "hhmm_end":"20h00m", "weekday":"TUE,WED,THU,FRY,SAT" },
+	  {"name":"inday-3", "hhmm_start":"17h45m", "hhmm_end":"18h45m", "weekday":"SUN" },
+	  {"name":"inday-4", "hhmm_start":"17h45m", "hhmm_end":"19h00m", "weekday":"MON" }
+	]
+}

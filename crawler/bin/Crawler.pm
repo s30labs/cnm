@@ -2890,6 +2890,19 @@ my ($self,$parents)=@_;
 # Retorno: 0->Se ha bloqueado 1->No se ha bloqueado. Estaba ya activo.
 #----------------------------------------------------------------------------
 #----------------------------------------------------------------------------
+sub update_lock {
+my ($self,$lock_file)=@_;
+
+   if (-f  $lock_file) {
+      system("echo $$ > $lock_file");
+      #DBG--
+      $self->log('debug',"update_lock:: bloqueo actualizad ($$) ");
+      #/DBG--
+   }
+   return(0);
+}
+
+#----------------------------------------------------------------------------
 sub init_lock {
 my ($self,$lock_file,$max_lock_seconds,$kill)=@_;
 
@@ -3308,6 +3321,132 @@ my ($self, $path)=@_;
 }
 
 #----------------------------------------------------------------------------
+# check_calendar
+#my $CAL1= {
+#
+#   'exclude' => [
+#
+#      {'name'=>'rule-year-0', 'month_start'=>'5', 'mday_start'=>'1', 'hhmm_start'=>'0h0m', 'month_end'=>'5', 'mday_end'=>'3', 'hhmm_end'=>'0h0m' },
+#
+#      {'name'=>'rule-month-0', 'mday_start'=>'25', 'hhmm_start'=>'18h30m', 'mday_end'=>'25', 'hhmm_end'=>'20h38m' },
+#
+#      {'name'=>'rule-day-1', 'hhmm_start'=>'18h30m', 'hhmm_end'=>'20h38m','weekday'=>'*' },
+#      {'name'=>'rule-day-2', 'hhmm_start'=>'0h30m', 'hhmm_end'=>'7h30m','weekday'=>'LUN' },
+#
+#   ]
+#};
+#----------------------------------------------------------------------------
+sub check_calendar {
+my ($self,$calendar,$ts) = @_;
+
+	my $hhmm_start_window = 2; #Starts 2 min  before the configured hour+min time. 
+
+   if (! defined $ts) { $ts = time(); }
+
+	#$wday --> 0=Sunday 1=Monday
+   my %weekdays = ('SUN'=>'0', 'MON'=>1, 'TUE'=>2, 'WED'=>3, 'THU'=>4, 'FRI'=>5, 'SAT'=>'6');
+
+   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+   $year += 1900;
+   $mon += 1;
+   #my $date = ($opts{'date'}) ? $opts{'date'} : sprintf("%04d%02d%02d",$year,$mon,$mday);
+   my $hm_now = $hour*60+$min;
+   my $weekday_now = $wday;
+   my $INRANGE=0;
+
+
+#     {"name":"inmonth-12", "month":"12", "mday":"1,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+#
+#     {"name":"inday-year-0", "month_start":"1", "month_end":"1", "mday_start":"2", "mday_end":"2", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+#     {"name":"inday-day_period-1", "hhmm_start":"02h00m", "hhmm_end":"06h00m", "weekday":"*" },
+#     {"name":"inday-2", "hhmm_start":"19h00m", "hhmm_end":"20h00m", "weekday":"TUE,WED,THU,FRY,SAT" },
+#     {"name":"inday-3", "hhmm_start":"17h45m", "hhmm_end":"18h45m", "weekday":"SUN" },
+
+   # Section year
+   foreach my $h (@{$calendar}) {
+
+		my $rule_name = $h->{'name'};
+		$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> START");
+
+      my ($month,$mday,$month_start,$month_end,$mday_start,$mday_end,$hhmm_start,$hhmm_end,$weekday);
+      #----------------------------------------------
+      if ((exists $h->{'month_start'}) && (exists $h->{'month_end'})) {
+         if ($mon<$h->{'month_start'}) {next; }
+         if ($mon>$h->{'month_end'}) {next; }
+      }
+      elsif (exists $h->{'month'}) {
+         my @mx = split (',',$h->{'month'});
+         my $month_ok=0;
+         foreach my $m (@mx) {
+            if ($m == $mon) { 
+					$month_ok=1; 
+					$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> month ok ($m)");
+					last; 
+				}
+         }
+         if ($month_ok==0) { next; }
+      }
+      #----------------------------------------------
+      if ((exists $h->{'mday_start'}) && (exists $h->{'mday_end'})) {
+         if ($mon<$h->{'mday_start'}) {next; }
+         if ($mon>$h->{'mday_end'}) {next; }
+      }
+      elsif (exists $h->{'mday'}) {
+         my @dx = split (',',$h->{'mday'});
+         my $mday_ok=0;
+         foreach my $d (@dx) {
+            if ($d == $mday) { 
+					$mday_ok=1; 
+					$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> mday ok ($d)");
+					last; 
+				}
+         }
+         if ($mday_ok==0) { next; }
+      }
+
+      #----------------------------------------------
+      my $weekday_ok = 0;
+      if (exists $h->{'weekday'}) {
+         if ($h->{'weekday'} eq '*') { $weekday_ok = 1; }
+         else {
+            my @d = split (',',$h->{'weekday'});
+            foreach my $wd (@d) {
+					$self->log('debug',"check_calendar:: wd=$wd wday=$wday ($weekdays{$wd})");
+               if ((exists $weekdays{$wd}) && ($weekdays{$wd} == $wday)) {
+                  $weekday_ok = 1;
+						$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> weekday ok ($wd)");
+                  last;
+               }
+            }
+         }
+      }
+      else { $weekday_ok = 1; }
+
+      if (! $weekday_ok) { next; }
+
+
+      #----------------------------------------------
+
+      #----------------------------------------------
+		#{"name":"daily-batch", "hhmm_start":"02h00m", "hhmm_end":"06h00m", "weekday":"*" },
+      if ($h->{'hhmm_start'} =~ /(\d+)h(\d+)m/) { $hhmm_start = $1*60+$2; }
+      if ($h->{'hhmm_end'} =~ /(\d+)h(\d+)m/) { $hhmm_end = $1*60+$2; }
+
+		#Starts before the hour+min settings a value of $hhmm_start_window segs.
+		$hhmm_start -= $hhmm_start_window;
+
+      if (($hm_now>=$hhmm_start) && ($hm_now<$hhmm_end)) {
+         $INRANGE=1;
+			$self->log('debug',"check_calendar:: CHECK RULE **OK** $rule_name >> INRANGE >> hm_now|hhmm_start|hhmm_end ($hm_now|$hhmm_start|$hhmm_end)");
+         last;
+      }
+   }
+
+   return $INRANGE;
+
+}
+
+#----------------------------------------------------------------------------
 # check_if_link
 #root@cnm:~# mii-tool
 #eth0: negotiated 1000baseT-FD flow-control, link ok
@@ -3413,6 +3552,89 @@ my ($self,$txt)=@_;
 	return $tag;
 
 }
+
+
+#----------------------------------------------------------------------------
+sub wait_for_docker  {
+my ($self,$filter,$action)=@_;
+
+   my $in_wait=1;
+	if ((! defined $filter) || ($filter eq '')) { $filter = 'status=created'; }
+	my $max_level = ($filter=~/status=created/) ? 2 : 1;
+   while ($in_wait) {
+
+#root@cnm-areas:/opt/cnm/crawler/bin# docker ps -f status=created
+#CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS              PORTS               NAMES
+#ad77440ffb23        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   3 seconds ago       Created                                 crawler.6005.13
+#5ddc19eea04e        saphana                 "bash -c /mnt/sql/79…"   6 seconds ago       Created                                 crawler.6001.3133
+#8da5f8cbae1b        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   6 seconds ago       Created                                 333333001009
+#6455692a4b67        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   7 seconds ago       Created                                 notificationsd.010.3102
+	
+		my $cmd = "docker ps -f $filter";
+		$self->log('info',"wait_for_docker:: DOCKER CHECK ($max_level) >> $cmd");
+		my @lines = `$cmd`;
+		my $counter = 0;
+		my $error = 0;
+		my %containers = ();
+		foreach my $l (@lines) {
+			chomp $l;
+			if ($l=~/CONTAINER ID/) { next; }
+			#if ($l !~ /Created/) {
+			#	$self->log('info',"wait_for_docker:: REVISAR >> $l");
+			#	$error = 1;
+			#	next;
+			#}
+			my ($c,$t)=('',0);
+			if ($l =~ /^(\w{12})\s+/) { 
+				$c=$1;
+				if ($l =~ /(\d+) second[s]* ago/) { $t=$1; }
+				elsif ($l =~ /minute[s]* ago/) { $t=60; }
+				elsif ($l =~ /hour[s]* ago/) { $t=3600; }
+				#else { $t=0; }
+
+				$containers{$c}=$t;
+				$self->log('info',"wait_for_docker:: DOCKER DEBUG >> [$c|$t] $l");
+			}
+			$counter += 1;
+		}
+
+      if ($counter < $max_level) { $in_wait=0; }
+      else {
+
+			if ((defined $action) && ($action eq 'prune')) {
+   			#my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
+   			#$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE (filter=$filter) $cmd");
+   			#my @rx=`$cmd`;
+   			#foreach my $l (@rx) {
+      		#	chomp $l;
+      		#	$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE >> $l");
+   			#}
+				foreach my $cid (keys %containers) {
+					if ($containers{$cid} < 10) { 
+						$self->log('info',"wait_for_docker:: SALTO $cid T=$containers{$cid}");
+						next; 
+					}
+
+					$cmd = "docker rm --force $cid 2>&1";
+					$self->log('info',"wait_for_docker:: DOCKEREXEC RM (pre) $cid");
+					my @rx=`$cmd`;
+					foreach my $l (@rx) {
+						chomp $l;
+						$self->log('info',"wait_for_docker:: DOCKEREXEC RM (post) $cid >> $l");
+					}
+					sleep 1;
+				}
+			}
+
+			else {
+         	$self->log('info',"wait_for_docker:: DOCKERWAIT Containers=$counter ($filter) (error=$error)");
+         	sleep 10;
+			}
+      }
+
+   }
+}
+
 
 1;
 __END__

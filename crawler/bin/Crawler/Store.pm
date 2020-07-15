@@ -9401,6 +9401,37 @@ my ($self,$dbh,$logfile,$source)=@_;
 }
 
 #----------------------------------------------------------------------------
+# clear_app_data_buffer
+# Elimina de la BBDD los datos antiguos en tablas definidas como buffer.
+# El objetivo es controlar su crecimiento.
+# Tablas logp_xxxxx (logp_333333001008_icg_from_db)
+#----------------------------------------------------------------------------
+sub clear_app_data_buffer  {
+my ($self,$dbh,$logfile,$source,$offset)=@_;
+
+   # ------------------------------------------------------
+   #ej: logp_333333001020_idocs_03_errors_from_sap
+   $logfile=~s/\-/_/g;
+   my $table = 'logp_'.$source.'_'.$logfile;
+	if ((!defined $offset) || ($offset !~ /^\d+$/) || ($offset<86400)) {
+		$offset = 86400;
+	}
+	my $tdiff = time()-$offset;
+   my $where = "ts<$tdiff";
+
+   if (! defined $dbh) { return undef; }
+
+   my $rres=sqlDelete($dbh, $table, $where);
+
+   $self->log('debug',"delete_from_buffer_table::[DEBUG] $libSQL::cmd");
+   if ($libSQL::err) {
+      $self->manage_db_error($dbh,"clear_app_data_buffer");
+   }
+   return;
+
+}
+
+#----------------------------------------------------------------------------
 # flush_app_data
 # Mueve los datos de la tabla temporal de la app logp_xxxxx_temp a la tabla final logp_xxxx
 #----------------------------------------------------------------------------
@@ -9539,6 +9570,7 @@ $self->log('info',"*****DEBUG*****$libSQL::cmd******");
    return ($table,$cnt_lines);
 }
 
+
 #----------------------------------------------------------------------------
 # set_log_rx_lines_bulk
 #----------------------------------------------------------------------------
@@ -9571,23 +9603,60 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
       if ((exists $l->{'hash'}) && ($l->{'hash'}=~/\w{16}/)) {
          $md5 = $l->{'hash'};
 		}
+		else {
+         $md5 = md5_hex(encode_utf8($l->{'line'}));
+			$md5 = substr $md5,0,16;
+		}
 		push @dblines, [$l->{'ts'}, $l->{'line'}, $md5, $l->{'ts'}, $l->{'line'}, $md5];
 
-$self->log('info',"set_log_rx_lines_bulk: LINE $l->{'ts'}, $l->{'line'}, $md5");
+$self->log('debug',"set_log_rx_lines_bulk: LINE $l->{'ts'}, $l->{'line'}, $md5");
 
 	}
+	my $cnt_lines=scalar(@dblines);
 	
 	my $rv=sqlCmd_fast($dbh,\@dblines,$sql);
    $self->error($libSQL::err);
    $self->errorstr($libSQL::errstr);
    $self->lastcmd($libSQL::cmd);
+
+   #Si no existe la tabla (1146), se crea
+   if ($libSQL::err == 1146) {
+
+   	# id_dev,id_credential,logfile,tabname,todb,status,parser
+      # todb indica si se recibe o es log_pull
+      #----------------------------------------------------------------------------
+      my %d=('id_dev'=>$id_dev,'id_credential'=>0,'logfile'=>$logfile,'tabname'=>$table,'todb'=>1,'status'=>0,'app_id'=>$source);
+      if ($source ne 'syslog') { $d{'id_credential'}=1; }
+
+      $self->init_device2log($dbh,\%d);
+      $self->error($libSQL::err);
+      $self->errorstr($libSQL::errstr);
+      $self->lastcmd($libSQL::cmd);
+
+      my $rv = $self->create_log_table($dbh,$table,$ip);
+      if ($rv != 0) {
+         $self->error($libSQL::err);
+         $self->errorstr($libSQL::errstr);
+         $self->lastcmd($libSQL::cmd);
+         last;
+      }
+
+	   $rv=sqlCmd_fast($dbh,\@dblines,$sql);
+   	$self->error($libSQL::err);
+   	$self->errorstr($libSQL::errstr);
+   	$self->lastcmd($libSQL::cmd);
+
+	}
+
    if ($libSQL::err != 0) {
-      $self->log('info',"set_log_rx_lines_bulk:**ERROR** ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+      $self->log('info',"set_log_rx_lines_bulk:**ERROR** ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd) cnt_lines=$cnt_lines");
    }
    else {
-      $self->log('info',"set_log_rx_lines_bulk:[INFO] ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd)");
+      $self->log('debug',"set_log_rx_lines_bulk:[INFO] ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd) cnt_lines=$cnt_lines");
    }
 
+
+	return ($table,$cnt_lines);
 }
 
 #----------------------------------------------------------------------------
@@ -9893,15 +9962,35 @@ my ($self,$dbh) = @_;
 
 
 
+#----------------------------------------------------------------------------
+# Funcion: get_maintenance_calendars
+# Descripcion: Returns a hash with the calendar files deined in a device custom field
+#----------------------------------------------------------------------------
+sub get_maintenance_calendars {
+my ($self,$dbh,$params)=@_;
 
+	my %calendar_files = ();
+	my $custom_field = $params->{'custom_field'};
+	my $rres = $self->get_from_db_cmd($dbh,"SELECT id FROM devices_custom_types WHERE descr = '$custom_field'");
 
+	if (!defined $rres->[0][0]) { 
+		$self->log('info',"custom_field $custom_field not found");
+		return \%calendar_files;
+	}
 
+	my $field = 'columna'.$rres->[0][0];
+	$rres = $self->get_from_db_cmd($dbh,"SELECT d.id_dev,d.name,d.domain,c.columna2  FROM devices d, devices_custom_data c WHERE d.id_dev=c.id_dev AND c.columna2 !='-'");
+	foreach my $r (@$rres) {
+   	my $id_dev = $r->[0];
+   	my $name = $r->[1];
+   	if ($r->[2] ne '') { $name .= '.'.$r->[2]; }
+   	my $file_path = join('/',$params->{'dir_base'},$r->[3]);
 
+		$calendar_files{$id_dev} = {'name'=>$name, 'file'=>$file_path};
+	}
+	return \%calendar_files;
 
-
-
-
-
+}
 
 
 #----------------------------------------------------------------------------

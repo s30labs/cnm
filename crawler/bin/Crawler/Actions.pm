@@ -962,6 +962,9 @@ $self->log('info',"task2action::[**FML**] SELECT $what FROM $table WHERE $where"
 		my %action=();
 		$action{'status'}=STAT_READY;
 
+      # SE SALTA LAS TAREAS DE TIPO CALENDARIO HASTA QUE SE PROCESEN CORRECTAMENTE !!!
+      if ($l->[3] eq 'CAL') { next; }
+
       $conf{'id_cfg_task_configured'}=$l->[0];
       $conf{'name'}=$l->[1];
       $conf{'descr'}=$l->[2];
@@ -984,8 +987,6 @@ $self->log('info',"task2action::[**FML**] SELECT $what FROM $table WHERE $where"
 		my $cnm_role_in_db=$l->[19];
 		my $cnm_user=($l->[20]) ? $l->[20] : 'cnmcore';
 
-		$self->log('info',"task2action::[DEBUG] TAREA CONFIGURADA ID=$conf{'id_cfg_task_configured'} N=$conf{'name'} PARAMS=$conf{params} atype=$conf{'atype'} subtype=$conf{'subtype'} task=$conf{'task'} iptab=$iptab role_in_db=$cnm_role_in_db cnm_role=$cnm_role cnm_user=$cnm_user");
-
 		#Si la tarea es unica y ya se ha pasado a qactions (done=1) la salto si exec vale 0
 		if ( ($conf{'frec'} eq 'U') && ($conf{'done'}==1) && ($conf{'exec'}==0) ) {
 			$self->log('debug',"task2action::[DEBUG] Salto tarea (U+DONE SIN EXEC) $conf{'name'} ($conf{'descr'})");
@@ -997,6 +998,8 @@ $self->log('info',"task2action::[**FML**] SELECT $what FROM $table WHERE $where"
 			$self->log('debug',"task2action::[DEBUG] Salto tarea (CNM ROLE=$cnm_role)  $conf{'name'} ($conf{'descr'})");
 			next;
 		}
+
+		$self->log('info',"task2action::[DEBUG] TAREA CONFIGURADA ID=$conf{'id_cfg_task_configured'} N=$conf{'name'} PARAMS=$conf{params} atype=$conf{'atype'} subtype=$conf{'subtype'} task=$conf{'task'} iptab=$iptab role_in_db=$cnm_role_in_db cnm_role=$cnm_role cnm_user=$cnm_user");
 
 		if ($iptab) {
 
@@ -1696,6 +1699,59 @@ my ($self,$dbh,$id_qactions)=@_;
 #	$self->log('debug',"set_run_status::[DEBUG] (rv=$rv) cmd=$libSQL::cmd DBH=$dbh");
 }
 
+
+#----------------------------------------------------------------------------
+# task_files_maintenance
+# Elimina ficheros de tareas obsoletos
+#----------------------------------------------------------------------------
+sub task_files_maintenance  {
+my ($self,$dbh)=@_;
+
+	my $tnow = time();
+	my $store=$self->store();
+   my $rres=$store->get_from_db($dbh,'subtype,frec,cron,atype','cfg_task_configured','');
+	foreach my $h (@$rres) {
+		my ($subtype,$frec,$cron,$atype) = ($h->[0],$h->[1],$h->[2],$h->[3]);
+		my $dir_path = '/var/www/html/onm/files/tasks/'.$subtype;
+		if (! -d $dir_path) { next; }		
+
+		# U:Unica | D:Diario | S:Semanal | M:Mensual | C:Crontab
+		my $max_lapse=864000; #10 dias
+		if ($frec eq 'C') {
+			if ($cron=~/^\*/) {$max_lapse=43200; } #12 horas
+			else { $max_lapse=86400; } #24 horas
+		}
+		elsif ($frec eq 'D') { $max_lapse=864000; } #10 dias
+		elsif ($frec eq 'S') { $max_lapse=3456000; } #40 dias 
+		elsif ($frec eq 'M') { $max_lapse=7776000; } #3 meses
+
+		my $rc = opendir(DIR, $dir_path);
+		if (! $rc) {
+			$self->log('info',"task_files_maintenance:: ERROR al abrir directorio $dir_path ($!)");
+			next;
+		}		
+	
+  	   $self->log('debug',"task_files_maintenance:: CHECK $dir_path ($frec) ($cron) max_lapse=$max_lapse atype=$atype");
+
+		while (my $file = readdir DIR) {
+    		next if $file =~ /^[.]/;
+
+			my $file_path = $dir_path.'/'.$file;
+			my $tdif = $tnow - (stat($file_path))[9];
+			print "******$tdif*******\n";		
+	
+	      if ($tdif>$max_lapse) {
+   	      my $rc=unlink $file_path;
+      	   $self->log('info',"task_files_maintenance:: UNLINK file $file_path ($tdif) rc=$rc");
+         	next;
+      	}
+		}
+
+		closedir DIR;
+	}
+}
+
+
 #----------------------------------------------------------------------------
 # _get_results_filepath
 # Obtiene el fichero con la ruta completa donde almacenar los resultados
@@ -1759,6 +1815,10 @@ my ($self,$dbdata)=@_;
 sub _start_external_cmd  {
 my ($self,$script,$params,$dbdata,$f,$tag,$dbh)=@_;
 
+	#Si en la salida del comando hay una linea que contenga la clave CNM_AUDIT_SUMMARY
+	#CNM_AUDIT_SUMMARY = Texto ....
+	#El "Texto ..." se incluye en el resultado de la auditoria.
+	my $CNM_AUDIT_SUMMARY='';
 	my $action=$dbdata->{'action'};
 	my $format=$dbdata->{'format'};
 	my $id_qactions=$dbdata->{'id_qactions'};
