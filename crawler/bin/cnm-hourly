@@ -50,15 +50,15 @@ my $dbh=$store->open_db();
 #-------------------------------------------------------------------------------------------
 #docker remove stopped containers -> docker rm $(docker ps -a -q)
 #-------------------------------------------------------------------------------------------
-my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
-foreach my $id (@cids) {
-	chomp $id;
-	$cmd = "docker rm $id 2>&1";
-	my $r = `$cmd`;
-	$r =~ s/\r/ /g;
-	$r =~ s/\n/ /g;
-	$store->log('info',"DOCKER: $cmd ($r)");
-}
+#my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
+#foreach my $id (@cids) {
+#	chomp $id;
+#	$cmd = "docker rm $id 2>&1";
+#	my $r = `$cmd`;
+#	$r =~ s/\r/ /g;
+#	$r =~ s/\n/ /g;
+#	$store->log('info',"DOCKER: $cmd ($r)");
+#}
 
 #-------------------------------------------------------------------------------------------
 my $file_local='/opt/cnm-local/cnm-hourly';
