@@ -16,9 +16,10 @@
 #mysqlcheck -u onm -p$x --auto-repair cnm >> /tmp/rclocal.log 2>&1
 
 if [[ ! $(pgrep cnm-watch) ]]; then rm -f /opt/crawler/bin/watch.lock >/dev/null 2>&1; fi
-date > /tmp/rclocal.log
-/opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1
+echo -n "Starting rc.local >> " > /tmp/rclocal.log
 date >> /tmp/rclocal.log
+/opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1 &
 
-test -f /etc/cnm-custom-start.sh && /etc/cnm-custom-start.sh
+#test -f /etc/cnm-custom-start.sh && /etc/cnm-custom-start.sh
+
 exit 0
