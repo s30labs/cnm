@@ -1,7 +1,7 @@
 <mibtable>
 
-   <oid_cols>vmDisplayName_vmConfigFile_vmGuestOS_vmMemSize_vmState_vmVMID_vmGuestState</oid_cols>
-	<oid_last>VMWARE-VMINFO-MIB::vmTable</oid_last>
+   <oid_cols>vmwVmDisplayName_vmwVmConfigFile_vmwVmGuestOS_vmwVmMemSize_vmwVmState_vmwVmGuestState_vmwVmCpus_vmwVmUUID</oid_cols>
+	<oid_last>VMWARE-VMINFO-MIB::vmwVmTable</oid_last>
 	<UseEnums>1</UseEnums>
    <mode>table</mode>
    <tune>none</tune>
@@ -11,9 +11,9 @@
 
       <col>
          <id>0</id>
-         <width>25%</width>
+         <width>20%</width>
          <bold>2</bold>
-         <name_col>vmDisplayName</name_col>
+         <name_col>vmwVmDisplayName</name_col>
          <sort>str</sort>
          <align>left</align>
          <filter>#text_filter</filter>
@@ -23,7 +23,7 @@
          <id>1</id>
          <width>30%</width>
          <bold>2</bold>
-         <name_col>vmConfigFile</name_col>
+         <name_col>vmwVmConfigFile</name_col>
          <sort>str</sort>
          <align>left</align>
          <filter>#text_filter</filter>
@@ -33,7 +33,7 @@
          <id>2</id>
          <width>25%</width>
          <bold>2</bold>
-         <name_col>vmGuestOS</name_col>
+         <name_col>vmwVmGuestOS</name_col>
          <sort>str</sort>
          <align>left</align>
          <filter>#text_filter</filter>
@@ -41,9 +41,9 @@
 
       <col>
          <id>3</id>
-         <width>20%</width>
+         <width>15%</width>
          <bold>2</bold>
-         <name_col>vmMemSize</name_col>
+         <name_col>vmwVmMemSize</name_col>
          <sort>int</sort>
          <align>left</align>
          <filter>#numeric_filter</filter>
@@ -51,9 +51,9 @@
 
       <col>
          <id>4</id>
-         <width>20%</width>
+         <width>15%</width>
          <bold>2</bold>
-         <name_col>vmState</name_col>
+         <name_col>vmwVmState</name_col>
          <sort>int</sort>
          <align>left</align>
          <filter>#select_filter</filter>
@@ -61,9 +61,9 @@
 
       <col>
          <id>5</id>
-         <width>20%</width>
+         <width>15%</width>
          <bold>2</bold>
-         <name_col>vmVMID</name_col>
+         <name_col>vmwVmGuestState</name_col>
          <sort>int</sort>
          <align>left</align>
          <filter>#numeric_filter</filter>
@@ -71,11 +71,21 @@
 
       <col>
          <id>6</id>
-         <width>20%</width>
+         <width>15%</width>
          <bold>2</bold>
-         <name_col>vmGuestState</name_col>
+         <name_col>vmwVmCpus</name_col>
          <sort>int</sort>
          <align>left</align>
          <filter>#select_filter</filter>
+      </col>
+
+      <col>
+         <id>7</id>
+         <width>20%</width>
+         <bold>2</bold>
+         <name_col>vmwVmUUID</name_col>
+         <sort>str</sort>
+         <align>left</align>
+         <filter>#text_filter</filter>
       </col>
 </mibtable>
