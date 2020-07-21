@@ -27,11 +27,11 @@ USAGE
 #-------------------------------------------------------------------------------------------
 my $log_mode=3;
 my %OPTS = ();
-GetOptions (\%OPTS,'help','h','debug','v','cid=s','set','update','get','delete','provision','data=s','host=s','id=s') 
-or pod2usage(-exitval => 2, -input => \*DATA);
+GetOptions (\%OPTS,'help','h','debug','v','cid=s','set','update','get','delete','provision','data=s','host=s','id=s','format=s') 
+or pod2usage(-exitval => 2, -verbose=>10, -input => \*DATA);
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { 
-	pod2usage(-exitval => 2, -input => \*DATA);
+	pod2usage(-exitval => 2, -verbose=>10, -input => \*DATA);
 }
 
 my ($host_ip,$log_level,$cid,$prov_metrics,$VERBOSE)=('localhost','info','default',0,0);
@@ -77,24 +77,63 @@ if ($OPTS{'get'}) {
 
 	my $class='';
 	my $endpoint='devices.json';
+	if ((exists $OPTS{'id'}) && ($OPTS{'id'}=~/^\d+$/)) {
+	   $class='devices';
+   	$endpoint = $OPTS{'id'}.'.json';
+	}
+
 	my $response = $api->ws_get($class,$endpoint);
 
 	my %fields=();
+	my @vfields=();
    if (defined $OPTS{data}) {
-		my @vx=split(',',$OPTS{data}); 
-		foreach my $k (@vx) { $fields{$k} = 1; }
+		@vfields=split(',',$OPTS{data}); 
+		foreach my $k (@vfields) { $fields{$k} = 1; }
+	}
+	else {
+		@vfields = qw(id name domain ip type status critic metrics yellowalerts orangealerts redalerts bluealerts snmpversion snmpcommunity snmpsysdesc snmpsysoid snmpsyslocation snmpsysclass network mac profile entity geo);
 	}
 
-	if (scalar(keys %fields)==0) { print Dumper($response); }
-	elsif (scalar(@$response)==0) { print "0\n"; }
-	else {
+
+
+#	if (scalar(keys %fields)==0) { print Dumper($response); }
+#	elsif (scalar(@$response)==0) { print "0\n"; }
+#	else {
+#		foreach my $x (@$response) {
+#   		foreach my $k (keys %fields) {
+#      		print "$k : ".$x->{$k}."\t";
+#   		}
+#			print "\n";
+#		}
+#	}
+
+	if (scalar(@$response)==0) { print "***SIN DATOS***\n"; }
+	elsif (! exists $OPTS{'format'}) {
 		foreach my $x (@$response) {
-   		foreach my $k (keys %fields) {
-      		print "$k : ".$x->{$k}."\t";
-   		}
-			print "\n";
-		}
+         foreach my $k (@vfields) {
+            print "$k : ".$x->{$k}."\t";
+         }
+         print "\n";
+      }
 	}
+	elsif ($OPTS{'format'} eq 'csv') {
+print Dumper(\@vfields),"\n";
+
+		my $header = join (';', @vfields);
+		print "$header\n";
+      foreach my $x (@$response) {
+			my @res=();
+         foreach my $k (@vfields) {
+				push @res,$x->{$k};
+         }
+         print join(';',@res) . "\n";
+      }
+	}
+	elsif ($OPTS{'format'} eq 'json') {
+		my $json = JSON->new();
+		print $json->encode($response),"\n";
+	}
+	else { print Dumper($response),"\n"; }
 }
 
 #-------------------------------------------------------------------------------------------
@@ -200,22 +239,28 @@ cnm-device - GET|SET|UPDATE|DELETE device
 =head1 SYNOPSIS
 
 cnm-device [-host 1.1.1.1] -get -id id_dev
+
 cnm-device [-host 1.1.1.1] -set [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+
 cnm-device [-host 1.1.1.1] -update -id id_dev [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+
 cnm-device [-host 1.1.1.1] -delete -id id_dev
+
 cnm-device [-debug] [-c cid] [-provision] [-host 1.1.1.1] -update|-set|-get|-delete [-id id_dev] [-data name=a,domain=b,ip=c,status=d ....] [-provision]
+
 icnm-device [-h | -help]
-
-Options:
-
--cid        cid. Is default by default.
--provision  Genera Metricas
--host       CNM Server IP address
--data       Device fields separated by  ','.
--h|-help    Help info
 
 =head1 OPTIONS
 
+-cid        cid. Is default by default.
+
+-provision  Genera Metricas
+
+-host       CNM Server IP address
+
+-data       Device fields separated by  ','.
+
+-h|-help    Help info
 
 
 =over 8
@@ -225,8 +270,6 @@ Options:
 
 =head1 DESCRIPTION
 
-  B<This program> will read the given input file(s) and do someting
-  useful with the contents thereof.
 
 =cut
 

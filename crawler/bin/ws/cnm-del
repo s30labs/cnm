@@ -15,9 +15,11 @@ cnm-del >> GET API endpoints
 (c) s30labs
 
 $fpth[$#fpth] [-d debug|info] [-v] -metric -id=1234
+$fpth[$#fpth] [-d debug|info] [-v] -alert -id=1234
 $fpth[$#fpth] -h  : Help
 
 /opt/cnm/crawler/bin/ws/cnm-del -metric -id=1234
+/opt/cnm/crawler/bin/ws/cnm-del -alert -id=1234
 
 -metric  DELETE metric
 -id      Element Id
@@ -31,9 +33,9 @@ USAGE
 #En caso de querer ordenar por varios campos, dichos campos deben ir separados por comas
 
 #-------------------------------------------------------------------------------------------
-my ($host_ip,$log_level,$VERBOSE)=('localhost','info',0);
+my ($host_ip,$log_level,$log_mode,$VERBOSE)=('localhost','info',1,0);
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','d=s','host=s','metric','id=s')
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','host=s','metric','alert','id=s','q=s')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
@@ -43,36 +45,98 @@ if ((defined $OPTS{v}) || (defined $OPTS{verbose})) {
 }
 if (defined $OPTS{d}) { $log_level=$OPTS{d}; }
 
-my @IDS = ();
-my ($class,$endpoint) = ('','');
-if (defined $OPTS{metric}) { 
-	$class = 'metrics'; 
-	#if ((defined $OPTS{id}) && ($OPTS{id}=~/^\d+$/)) { $endpoint = $OPTS{id}.'.json'; }
-	if (defined $OPTS{id}) { 
-		my @vals = split (',',  $OPTS{id});
-		foreach my $x (@vals) {
-			if ($x=~/^\d+$/) { push @IDS, $x; }
-		}
-	}
-
-	else { die $USAGE; }
+if ((!defined $OPTS{id}) && (!defined $OPTS{q})) {
+	 die $USAGE; 
 }
-else { die $USAGE; }
 
 #-------------------------------------------------------------------------------------------
-if (defined $OPTS{host}) { $host_ip = $OPTS{host}; } 
+if (defined $OPTS{host}) { $host_ip = $OPTS{host}; }
 
+$log_level='debug';
+$log_mode=1;
 #-------------------------------------------------------------------------------------------
-my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
+my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level, 'log_mode'=>$log_mode );
 my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
-if ($sid eq '') { 
-	if ($OPTS{v}) { print "**>> **ERROR** de autenticacion (sid nulo)\n"; }
-	print "0\n"; 
-	exit; 
+if ($sid eq '') {
+   if ($OPTS{v}) { print "**>> **ERROR** de autenticacion (sid nulo)\n"; }
+   print "0\n";
+   exit;
 }
-if ($OPTS{v}) { print "**>> sid=$sid\n"; }
+if ($VERBOSE) { print "**>> sid=$sid\n"; }
 
+#-------------------------------------------------------------------------------------------
+my @IDS = ();
+my @query_string=();
+my ($class,$endpoint) = ('','');
+#-------------------------------------------------------------------------------------------
+# QUERY CASE
+#-------------------------------------------------------------------------------------------
+
+if (defined $OPTS{q}) {
+	if (defined $OPTS{metric}) { 
+		$class = 'metrics';
+		$endpoint = 'info.json'; 
+# BUG: La consulta de metricas no soporta cnm_fields,cnm_page_size
+#		push @query_string, 'cnm_fields=id';
+#		push @query_string, 'cnm_page_size=500';
+
+		#push @query_string, 'cnm_page_number=';
+		#push @query_string, 'cnm_sort=';
+		push @query_string , $OPTS{q};
+	}
+	elsif (defined $OPTS{alert}) { 
+		$endpoint = 'alerts.json'; 
+      push @query_string, 'cnm_fields=id,devicename,deviceip,cause,date';
+      push @query_string, 'cnm_page_size=500';
+      #push @query_string, 'cnm_page_number=';
+      #push @query_string, 'cnm_sort=';
+      push @query_string , $OPTS{q};
+	}
+
+	if (scalar(@query_string) > 0 ) {
+   	$endpoint .= '?'.join ('&',@query_string);
+	}
+
+	#$class='';
+	my $response = $api->ws_get($class,$endpoint);
+	#my $nalerts=scalar(@$response);
+	if ($VERBOSE) { print Dumper($response); }
+
+	foreach my $h (@$response) {
+		push @IDS,$h->{'id'};
+	}
+
+}
+
+
+#-------------------------------------------------------------------------------------------
+# ID CASE
+#-------------------------------------------------------------------------------------------
+#--------------------------------------------------
+# If the ids are specified is possible to clear these ids
+# If not, a query should be specified in order to get the ids (@IDS)
+elsif (defined $OPTS{id}) {
+   my @vals = split (',',  $OPTS{id});
+   foreach my $x (@vals) {
+      if ($x=~/^\d+$/) { push @IDS, $x; }
+   }
+}
+
+else {
+	die $USAGE;
+}
+
+	
+if ($VERBOSE) { print Dumper(\@IDS); }
+
+#--------------------------------------------------
+if (defined $OPTS{metric}) { $class = 'metrics'; }
+elsif (defined $OPTS{alert}) { $class = 'alerts'; }
+else { die $USAGE; }
+
+
+#--------------------------------------------------
 foreach my $id (@IDS) {
 	$endpoint = $id.'.json';
 	if ($OPTS{v}) { print "**>> $endpoint\n"; }

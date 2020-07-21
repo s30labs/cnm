@@ -11,32 +11,51 @@ use JSON;
 my @fpth = split ('/',$0,10);
 my @fname = split ('\.',$fpth[$#fpth],10);
 my $USAGE = <<USAGE;
-API Scripts - Add Device (POST)
+API Scripts - api-get-metric_data
 (c) s30labs
 
-$fpth[$#fpth] [-d debug|info] [-c cid] [-m] [-view id] -i 'metricname=WEB PAGE LOAD TIME%'  [-o metricid,metricname ...]
+(1) Get data from all metrics in a view (lapse=today)
+/opt/cnm/crawler/bin/ws/api-get-metric_data -view 127 -o 'metricname'
+(2) Get data from all metrics in query (lapse=today)
+/opt/cnm/crawler/bin/ws/api-get-metric_data -q 'metricname=P01-SP0004%' -o 'metricname'
+
+$fpth[$#fpth] [-d debug|info] [-c cid] [-view id] [-lapse today] -q 'metricname=WEB PAGE LOAD TIME%'  [-o metricid,metricname ...]
 $fpth[$#fpth] -h  : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
-my $log_mode=3;
+my ($VERBOSE,$CONDITION,$log_mode,$class,$endpoint) = (0,'',3,'','');
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','m','d=s','c=s','a=s','i=s','o=s', 'view=s')
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s','o=s', 'view=s', 'lapse=s')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
-if (! $OPTS{'i'}) { die $USAGE;}
+if ((! $OPTS{'q'}) && (! $OPTS{'view'})) { die $USAGE;}
+if ( ($OPTS{'verbose'}) || ($OPTS{'v'}) ) { $VERBOSE=1; }
 
-my $CONDITION=$OPTS{'i'};
+# Data from metrics query
+if ($OPTS{'q'}) { 
+	$CONDITION = $OPTS{'q'}; 
+	$class='metrics';
+	$endpoint='info.json?'.$CONDITION;
+}
+# Data from metrics in specified view
+elsif ($OPTS{'view'}) {
+	$class='';
+	#views/127/metrics.json
+	$endpoint='views/'.$OPTS{'view'}.'/metrics.json';
+}
+
 
 my $host_ip='localhost';
 my $log_level= (defined $OPTS{d}) ? $OPTS{d} : 'info';
 my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
-my $prov_metrics = (defined $OPTS{m}) ? 1 : 0;
+my $lapse = (defined $OPTS{lapse}) ? $OPTS{lapse} : 'today';
 
 my @fields=();
 if (defined $OPTS{o}) { @fields=split(',',$OPTS{o}); }
-
+my $ofields = $OPTS{o};
+;
 #// Para obtener todos las metricas:
 #// curl -ki -H "Authorization: 5cbe57d976f99dc436f82653ce6d1314" "https://localhost/onm/api/1.0/metrics/info.json"
 #// Para obtener una metrica concreta:
@@ -48,8 +67,6 @@ my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
 #print "sid=$sid\n";
 
-my $class='metrics';
-my $endpoint='info.json?'.$CONDITION;
 my $response = $api->ws_get($class,$endpoint);
 
 #            'devicetype' => 'Servidor',
@@ -80,27 +97,34 @@ else {
 		my $id = $desc->{'metricid'};
 		my @fx=();
 		foreach my $f (@fields) {
-			print $desc->{$f}."\t";
+			if ($VERBOSE) { print $desc->{$f}."\t"; }
 			$IDs{$id}->{$f} = $desc->{$f};	
 			push @fx,$desc->{$f};
 		}
 		$IDs{$id}->{'fields'} = join (',',@fx);
-		print "\n";
+		if ($VERBOSE) { print "\n"; }
 	}
 }
 
 my @CSV=();
+my @HEADINGS=();
 $class='metrics';
 my $items = [];
+
 foreach my $id (sort keys %IDs) {
-	$endpoint='data/'.$id.'.json?lapse=week_0';
+	#$endpoint='data/'.$id.'.json?lapse=week_0';
+	$endpoint='data/'.$id.'.json?lapse='.$lapse;
+
+	if ($VERBOSE) { print "endpoint=$endpoint\n"; }
 
 	$response = $api->ws_get($class,$endpoint);
-	#print Dumper($response);
+	if ($VERBOSE) { print Dumper($response); }
 
-	$items=$response->{$id}->{'label'};
+	$items=$response->{'flot'}->{'label'};
 	my $nitems=scalar(@$items);
-	foreach my $hv (@{$response->{$id}->{'data'}}) {
+
+	push @HEADINGS,'Time,metricid,'.$ofields.','.join(',',@$items);
+	foreach my $hv (@{$response->{'flot'}->{'data'}}) {
 		my %line=();
 		$line{'metricid'} = $id;
 		$line{'t'} = $hv->{'t'};
@@ -114,13 +138,23 @@ foreach my $id (sort keys %IDs) {
 }
 
 #print Dumper(\@CSV);
-my $ofields = join(',',@fields);
-print 'Time,'.$ofields.','.join(',',@$items)."\n";
+#my $ofields = join(',',@fields);
+#print 'Time,metricid,'.$ofields.','.join(',',@$items)."\n";
+foreach my $h (@HEADINGS) {
+	print "$h\n";
+}
 foreach my $h (@CSV) {
-	print $h->{'t'}.','.$h->{'fields'}.','.$h->{'metricid'}.','.$h->{'vx'}."\n";
+	print $h->{'t'}.','.$h->{'metricid'}.','.$h->{'fields'}.','.$h->{'vx'}."\n";
 }
 
-
+#$VAR1 = {
+#          'vx' => '0',
+#          'metricid' => '47377',
+#          'fields' => '47377,P03-SP0007-KPI0001 - SAVIA transactions to regenerate (app-savia.local)',
+#          't' => 1555698299,
+#          'Num. Alertas' => '0'
+#        };
+#
 
 
 #$VAR1 = {
