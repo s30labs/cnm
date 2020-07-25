@@ -85,6 +85,7 @@
 	Header edit Set-Cookie ^(.*)$ $1;HttpOnly;Secure
 
    SSLEngine on
+	SSLProtocol -all +TLSv1.2
 	{{ SSLCertificateKeyFile }}
 	{{ SSLCertificateFile }}
 	{{ SSLCertificateChainFile }}
