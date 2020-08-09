@@ -25,7 +25,7 @@ my ($class,%arg) =@_;
 
 
    my $self=$class->SUPER::new(%arg);
-   $self->{_cmd} = $arg{cmd} || "docker run  cgatay/freetds /bin/bash -c \"/usr/bin/tsql -H __HOST__ -p __PORT__ -D __DDBB__ -U __USER__ -P __PWD__ <<EOS
+   $self->{_cmd} = $arg{cmd} || "docker run  core/freetds /bin/bash -c \"/usr/bin/tsql -H __HOST__ -p __PORT__ -D __DDBB__ -U __USER__ -P __PWD__ <<EOS
 __SQL_QUERY__
 GO
 exit
