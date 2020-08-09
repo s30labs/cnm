@@ -22,9 +22,23 @@ sub new {
 my ($class,%arg) =@_;
 
    my $self=$class->SUPER::new(%arg);
-   #$self->{_store_limit} = $arg{store_limit} || 10;
+	# Si 1 termina de iterar con el primer valor que cumple
+	# Como se itera id_log desc ==> Es el mas reciente
+   $self->{_newest} = $arg{newest} || 0;
 
    return $self;
+}
+
+
+#----------------------------------------------------------------------------
+# newest
+#----------------------------------------------------------------------------
+sub newest {
+my ($self,$newest) = @_;
+   if (defined $newest) {
+      $self->{_newest}=$newest;
+   }
+   else { return $self->{_newest}; }
 }
 
 #----------------------------------------------------------------------------
@@ -191,20 +205,26 @@ my ($self,$dbh,$params)=@_;
       return ($event_counter,$event_info,$last_ts);
    }
 
+	# Como la consulta es id_log desc e itera sobre todo el vector de datos
+	# el valor que considera es el ultimo, o sea el mas antiguo, excepto si newest=1
+	my $newest = $self->newest();
    foreach my $l (@$res) {
 
       my $data = $self->json2h($l->[3]);
-      my $num_ok = $self->check_patterns($data,$pat->{'patterns'});
+      my $num_ok = $self->check_patterns($data,$pat->{'patterns'},$id_app);
 
       my $all_patterns_ok = 0;
       if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $event_counter += 1; }
       elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $event_counter += 1;  }
 
+#if ($id_app eq '333333001003') {
 #$self->log('info',"**DEBUGXX* pattern_type=$pat->{'pattern_type'} >> $num_ok vs $pat->{'npatterns'} event_counter=$event_counter****");
+#}
 
       if ($event_counter == 1) {
          $event_info = $l->[3];
          $last_ts = $l->[2];
+			if ($newest) { last; }
       }
    }
 
@@ -427,11 +447,17 @@ my ($self,$dbh,$params)=@_;
    my $tabname = $res->[0];
 
    #EJ: my $SQL="SELECT id_log,hash,ts,line FROM logp_333333001009_icgTPVSessions_from_db WHERE ts>unix_timestamp(now())-3600;";
-   my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
-   $SQL =~ s/__TABLE__/$tabname/;
-   $SQL =~ s/__LAPSE__/$lapse/;
+   #my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>unix_timestamp(now())-__LAPSE__ ORDER BY id_log desc;";
+   #$SQL =~ s/__TABLE__/$tabname/;
+   #$SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+	my $tquery = time() - $lapse;
+	my $SQL="SELECT id_log,hash,ts,line FROM __TABLE__ WHERE ts>__TQUERY__ ORDER BY id_log desc;";
+   $SQL =~ s/__TABLE__/$tabname/;
+   $SQL =~ s/__TQUERY__/$tquery/;
+
+
+   $self->log('info',"**DEBUG** dbCmd >> $SQL | now-$lapse");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
@@ -444,7 +470,7 @@ my ($self,$dbh,$params)=@_;
    foreach my $l (@$res) {
 
 		my $data = $self->json2h($l->[3]);
-		my $num_ok = $self->check_patterns($data,$pat->{'patterns'});
+		my $num_ok = $self->check_patterns($data,$pat->{'patterns'},$id_app);
 
 		my $all_patterns_ok = 0;
       if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $all_patterns_ok = 1; }
@@ -454,8 +480,12 @@ if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
 		$self->log('info',"FMLFML $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
 }
 
-
 		if (! $all_patterns_ok) { next; }
+
+#if ($id_app eq '333333001003') {
+#	$self->log('info',"**DEBUG** FML1003 line=$l->[3]");
+#	$self->log('info',"**DEBUG** FML1003 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
+#}
 
 		# OPER = sum >> SUMA DE DATOS
 		if ($params->{'oper'} =~ /sum/i) {
@@ -635,7 +665,7 @@ my ($self,$pattern)=@_;
 	#legacy
 	elsif ($pattern =~ /"(.+?)"\:"(.+?)"/) {
 		my $pnew = "$1|eqs|$2";
-		$self->log('info',"prepare_patterns >> legacy >> $pattern --> $pnew");		
+		$self->log('debug',"prepare_patterns >> legacy >> $pattern --> $pnew");		
 		@pattern_line = ($pnew);
 	}
 
@@ -657,7 +687,8 @@ my ($self,$pattern)=@_;
 	$result{'pattern_type'} = $pattern_type;
 	#$result{'npatterns'} = scalar(keys %patterns);
 	$result{'npatterns'} = scalar(@pattern_line);
-#$self->log('info',"**DEBUG** NPATTERNS = $result{'npatterns'}");
+
+	$self->log('debug',"prepare_patterns>> NPATTERNS = $result{'npatterns'}");
 	$result{'patterns'} = \%patterns;
 	return (\%result);
 
@@ -674,28 +705,41 @@ my ($self,$pattern)=@_;
 # 'kuc' => [ { 'k'=>$k, 'op'=>$op, 'value'=>$value } ]
 #----------------------------------------------------------------------------
 sub check_patterns {
-my ($self,$data,$patterns)=@_;
+my ($self,$data,$patterns,$id_app)=@_;
 
+#if ($id_app eq '333333001003') {
+#	foreach my $k (keys %$patterns) {
+#		foreach my $h (@{$patterns->{$k}})  {
+#			$self->log('info',"**FMLPATTERN** $h->{'k'} $h->{'op'} $h->{'value'} **");
+#		}
+#	}
+#}
 
    my $ok = 0;
 	# Recorro todas las claves del hash de datos
-   foreach my $k (keys %$data) {
+   foreach my $k (sort keys %$data) {
 
       my $kx = uc $k;
 		# Si el patron no es una de las claves definidas para este campo, lo salto.
       if (! exists $patterns->{$kx}) { next; }
+
+#if ($id_app eq '333333001003') {
+#$self->log('info',"**DEBUG** CHECK-CAMPO=$kx **");
+#}
 
       foreach my $h (@{$patterns->{$kx}})  {
 
          my $op = $h->{'op'};
          my $value = (exists $h->{'value'}) ?  $h->{'value'} : '';
 
-#$self->log('info',"**DEBUG** CHECK-CLAVE $kx - $data->{$k} $op $value **");
+#if ($id_app eq '333333001003') {
+#$self->log('info',"**DEBUG** CHECK-CLAVE CAMPO=$kx VALOR=$data->{$k} $op $value **");
+#}
 
 			#Operando: exists
          if (($op =~ /exists/i) && ($kx eq (uc $h->{'k'}))) { $ok += 1; }
 
-         #Operandos string y numericos: eqs, match, ne, gt, lt, gte, lte
+         #Operandos string y numericos: eqs, nomatch, match, ne, eq, gt, lt, gte, lte
          elsif ($op =~ /eqs/i) { 
 				if ($data->{$k} eq $value) { $ok += 1; }
 			}
@@ -726,7 +770,12 @@ my ($self,$data,$patterns)=@_;
             elsif ($data->{$k} eq $value) { $ok += 1; }
          }
 
-#      	$self->log('info',"check_patterns>> ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
+#if ($id_app eq '333333001003') {
+#      	$self->log('info',"check_patterns>> $data->{'BEGIN'} $data->{'APP'} ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
+#}
+			if ($ok>0) {
+      		$self->log('debug',"check_patterns>> [clave=$kx|valor=$data->{$k}]  EXPR=$h->{'k'}--$op--$value-- ok=$ok");
+			}
       }
 	}
 
