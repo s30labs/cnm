@@ -10,6 +10,7 @@ use lib '/opt/crawler/bin';
 use strict;
 use vars qw($VERSION);
 use DBI;
+use RRDs;
 use IO::Socket;
 use NetAddr::IP;
 use File::Basename;
@@ -56,6 +57,10 @@ $VERSION = '1.00';
 @CNMScripts::RESULTS=();
 
 #----------------------------------------------------------------------------
+my %LOG_PRIORITY = ( 'debug' => 0, 'info' => 1, 'notice' => 2, 'warning' => 3,
+   						'error' => 4, 'crit' =>5, 'alert' => 6, 'emerg' => 7 );
+
+#----------------------------------------------------------------------------
 use constant LOG_NONE => 0;
 use constant LOG_SYSLOG => 1;
 use constant LOG_STDOUT => 2;
@@ -87,6 +92,7 @@ bless {
          _err_num =>$arg{err_num} || 0,
 			_nologinit => $arg{nologinit} || 1,
 			_log_mode => $arg{log_mode} || LOG_SYSLOG,
+			_log_level => $arg{log_level} || 'info',
 			_timeout => $arg{timeout} || 25,
 
          _store_dir =>$arg{store_dir} || '/opt/data/app-data/scripts',
@@ -229,6 +235,19 @@ my ($self,$mode) = @_;
    }
    else {
       return $self->{_log_mode};
+   }
+}
+
+#----------------------------------------------------------------------------
+# log_level
+#----------------------------------------------------------------------------
+sub log_level {
+my ($self,$level) = @_;
+   if (defined $level) {
+      $self->{_log_level}=$level;
+   }
+   else {
+      return $self->{_log_level};
    }
 }
 
@@ -696,6 +715,11 @@ my ($self,$level,@arg) = @_;
    #Valido el modo de 'logging'--------------------------------
    my $mode=$self->log_mode();
    if ($mode == LOG_NONE) {return;}
+
+   #Valido el nivel de 'logging' configurado ------------------
+   my $level_cfg=$self->log_level();
+#syslog($level,'%s',"level=$level level_cfg=$level_cfg mode=$mode ++++");
+   if ( $LOG_PRIORITY{$level} < $LOG_PRIORITY{$level_cfg} ) {return;}
 
 	#alert, crit, debug, emerg, err, error (deprecated synonym for err), info, notice, panic (deprecated synonym for emerg), warning, warn (deprecated synonym for warning)
    if ( ($level ne 'debug') && ($level ne 'notice') && ($level ne 'warning') && ($level ne 'crit') && ($level ne 'debug'))  {$level='info';}
@@ -1385,8 +1409,111 @@ my ($self,$data) = @_;
 
 }
 
+=item B<$script-E<gt>endpoint()>
+
+ Obtiene datos de un fichero RRD
+=cut
+
+#-----------------------------------------------------------------------------------
+sub fetch_avg_rrd  {
+my ($self,$rrd,$lapse)=@_;
+my $rc=undef;
+
+	my ($start,$end) = ('-31d','-30d');
+	if ($lapse =~ /(\d+)d/) {
+		my $s = $1+1;
+		$start = '-'.$s.'d';
+		$end = '-'.$1.'d';
+	}
+
+#/opt/rrdtool/bin/rrdtool fetch /opt/data/rrd/elements/0000000237/custom_89dccce8-H2.rrd AVERAGE -s -31d -e -30d
+	my $cmd = "/opt/rrdtool/bin/rrdtool fetch $rrd AVERAGE -s $start -e $end";
+	print "$cmd\n";
+   $self->log('debug',"fetch_avg_rrd::[DEBUG] FETCH CMD=$cmd");
+
+	my @lines = `$cmd`;
+	my $total = 0;
+	my @avg = ();
+	my @sum = ();
+	foreach my $l (@lines) {
+		chomp $l;
+		if ($l=~/value/) {
+			$l=~s/^\s+(value.*)$/$1/;
+			my @vals = split(/\s+/,$l);
+			foreach my $v (@vals) { push @sum,0; }
+			next;
+		}
+		#1579459500: 8.0000000000e+00
+		my @data = split(/\s+/,$l);
+		shift @data;
+		my $i=0;
+		foreach my $v (@data) { 
+			if ($v=~/nan/) { next; }
+			$sum[$i]+=$v;
+			$i++;
+		}
+		$total+=1;
+#print "$l\n";
+	}
+
+	my $i=0;
+	foreach my $v (@sum) { $avg[$i] = $v/$total; }
+	$self->log('debug',"fetch_avg_rrd::[DEBUG] FETCH TOTAL=$total AVGs=@avg");
+   return \@avg;
+}
 
 
+=item B<$script-E<gt>endpoint()>
+
+ Obtiene datos de un fichero RRD
+=cut
+
+#-----------------------------------------------------------------------------------
+sub wait_for_docker  {
+my ($self)=@_;
+
+	my $in_wait=1;
+
+	my $ppid = getppid();
+	my $ppname = `cat /proc/$ppid/cmdline | tr "\\0" " "`;
+
+	while ($in_wait) {
+		my @lines = `docker ps -a --filter "status=created"`;
+
+      my $counter = 0;
+      my $error = 0;
+      my %containers = ();
+      foreach my $l (@lines) {
+         chomp $l;
+         if ($l=~/CONTAINER ID/) { next; }
+         #if ($l !~ /Created/) {
+         #  $self->log('info',"wait_for_docker:: REVISAR >> $l");
+         #  $error = 1;
+         #  next;
+         #}
+         my ($c,$t)=('',0);
+         if ($l =~ /^(\w{12})\s+/) {
+            $c=$1;
+            if ($l =~ /(\d+) second[s]* ago/) { $t=$1; }
+            elsif ($l =~ /minute[s]* ago/) { $t=60; }
+            elsif ($l =~ /hour[s]* ago/) { $t=3600; }
+            #else { $t=0; }
+
+            $containers{$c}=$t;
+            $self->log('debug',"wait_for_docker:: DOCKER DEBUG >> [$c|$t] $l");
+         }
+         $counter += 1;
+      }
+
+      if ($counter < 2) { $in_wait=0; }
+
+		#if ($cnt<2 ) { $in_wait=0; }
+		else { 
+			$self->log('info',"wait_for_docker:: DOCKERWAIT [$ppname] Containers blocking = $counter");
+			sleep 10; 
+		}	
+	}
+}
 
 
 #----------------------------------------------------------------------------
@@ -1514,6 +1641,36 @@ my ($self,$ip)=@_;
 	}
 
    return $local;
+}
+
+
+#----------------------------------------------------------------------------
+# Obtiene el indice del menor valor del array mayor que cero pasado como parametro
+sub mingt0 {
+my ($self,$v) = @_;
+
+   my $min_idx=0;
+   for my $i (0..scalar(@$v)-1) {
+      if ($v->[$i]==0) {next;}
+      if ($v->[$min_idx]==0) { $min_idx=$i; }
+      elsif ($v->[$i] < $v->[$min_idx]) { $min_idx=$i; }
+   }
+   return $min_idx;
+}
+
+#----------------------------------------------------------------------------
+# Obtiene el indice del mayor valor del array pasado como parametro
+sub max_index {
+my ($self,$v) = @_;
+
+   my $max_idx=0;
+   for my $i (0..scalar(@$v)-1) {
+		if ($v->[$i] !~ /^\d+$/) {next;}
+     # if ($v->[$i]==0) {next;}
+      if ($v->[$max_idx] !~ /^\d+$/) { $max_idx=$i; }
+     	if ($v->[$i] > $v->[$max_idx]) { $max_idx=$i; }
+   }
+   return $max_idx;
 }
 
 1;
