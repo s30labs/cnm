@@ -376,9 +376,7 @@ my  $self = shift;
 
 	}
 
-
    foreach my $h (@$runner) {
-
 		if (! $h->{'range'}) { next; }
 		if (($range_param ne 'all') && ($range_param ne $h->{'range'})) {
 print "range_param=$range_param -> SALTO $h->{'range'} ----\n";
@@ -387,6 +385,24 @@ next; }
 		my $rc=kill 9, $app_running{$h->{'range'}};
 		$self->log('notice',"stop:: crawler $h->{'range'} [RC=$rc]");
    }
+}
+
+
+#----------------------------------------------------------------------------
+sub stop_runner {
+my  $self = shift;
+
+   my @r=`/bin/ps -eo pid,bsdtime,etime,cmd | /bin/grep crawler-app-runner | /bin/grep -v grep`;
+   foreach my $v (@r) {
+      chomp $v;
+      $v=~s/^\s+//;
+      my ($pid,$bsdtime,$etime,$cmd)=split (/\s+/,$v);
+		#[crawler-app-runner.10000.runner.15]
+      if ($cmd=~/crawler-app-runner\.(\d+)\.runner\.(\d+)/) { 
+	      my $rc=kill 9, $pid;
+   	   $self->log('notice',"stop:: crawler-app-runner PID=$pid $cmd [RC=$rc]");
+   	}
+	}
 
 }
 
@@ -497,6 +513,63 @@ my $pid;
    }
 }
 
+
+
+#----------------------------------------------------------------------------
+# run_all
+#----------------------------------------------------------------------------
+sub run_all {
+my ($self) = @_;
+
+   my $store=$self->create_store();
+   my $dbh=$store->open_db();
+   $self->dbh($dbh);
+   my $cfg=$self->cfg();
+
+   my $file_runner = $self->config_path();
+   my $log_level=$self->log_level();
+   my $spath=$self->store_path();
+   my $dpath=$self->data_path();
+
+#print Dumper($runner);
+#'runner' = [
+#          {
+#            'lapse' => '300',
+#            'tasks' => {
+#                            '333333000xxx' => {
+#                                                'cfg' => '/cfg/crawler-app/app-333333000xxx-mail-imap4.json',
+#                                                'tag' => 'mail-imap4'
+#                                              }
+#                          },
+#            'range' => '8000',
+#            'type' => 'app'
+#          }
+#        ];
+
+
+	my ($type,$range,$lapse) = ('runner', 10000, 15);
+
+  	my $pid=$self->procreate($type,$range,$lapse);
+
+   print "\t>>>START : crawler-app.$range.$type.$lapse\n";
+
+  	# child do the task
+   if ($pid == 0) {
+  		$self->start_flag(1);
+
+      my $app=Crawler::LogManager::App->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$range, log_level=>$log_level, 'cfg'=>$cfg, 'config_path'=>$file_runner,  'daemon'=>1 );
+
+      # Necesario. No basta con ponerlo en el constructor
+      $app->daemon(1);
+      #$app->crontab($crontab);
+      $app->config_path($file_runner);
+      #$app->tasks(\@tasks);
+      #$app->tasks_cfg(\@tasks_cfg);
+      $app->do_task_all($lapse,$range);
+   }
+}
+
+
 #----------------------------------------------------------------------------
 # do_task
 #----------------------------------------------------------------------------
@@ -583,6 +656,181 @@ my ($self,$lapse,$task)=@_;
       }
    }
 }
+
+
+#----------------------------------------------------------------------------
+# do_task_all
+#----------------------------------------------------------------------------
+sub do_task_all  {
+my ($self,$lapse,$task)=@_;
+
+   $SIG{CHLD}=sub {
+      while ((my $rc = waitpid(-1, &WNOHANG)) > 0) {
+         $self->log('info',"do_task_all:: **end child** PID=$rc ($?)");
+      }
+   };
+
+   $self->log('info',"do_task_all::START [lapse=$lapse]");
+   my $cid=$self->cid();
+   my $cid_ip=$self->cid_ip();
+   my $dbh=$self->dbh();
+
+   #$self->init_objects();
+
+   my $cfg = $self->cfg();
+   #my $app = $self->app();
+   my $tasks = $self->tasks();
+
+   my $ok=1;
+   my $RELOAD_FILE='/var/www/html/onm/tmp/syslog.reload';
+   $self->check_configuration();
+   my $log_level=$self->log_level();
+
+#   my $file_runner = $self->config_path();
+#   my $x=$self->get_json_config($file_runner);
+#   my $runner = $x->[0]->{'runner'};
+#
+#my $kk = Dumper($runner);
+#$kk =~ s/\n/ /g;
+#$self->log('warning',"do_task_all::[DEBUG] file_runner=$file_runner---");
+#$self->log('warning',"do_task_all::[DEBUG] runner=$kk---");
+
+	my %LAST_RUN=();
+
+   while (1) {
+		
+      eval {
+			
+         my $t=time;
+         $self->time_ref($t);
+
+		   my $file_runner = $self->config_path();
+   		my $x=$self->get_json_config($file_runner);
+   		my $runner = $x->[0]->{'runner'};
+
+         # Reviso si hay que recargar la tabla de syslog -> alertas --------------------------------
+         my $reload_file=$self->reload_file();
+         if (-f $reload_file) {
+            $self->check_configuration();
+         }
+
+
+         my $store=$self->store();
+         ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
+         if (! $ok) {
+				sleep 10;
+				next;
+			}
+
+			$self->log_tmark();
+      	foreach my $h (@$runner) {
+
+         	# Para que se ejecute el atributo 'run' debe ser 1.
+         	if ((! exists $h->{'run'}) || ( $h->{'run'} != 1)) { next; }
+
+         	my $range = $h->{'range'};
+         	my $lapse = $h->{'lapse'};
+         	my $type = $h->{'type'};
+
+         	if ( (! $type) || (! $range) || (! $lapse)) {
+            	$self->log('warning',"do_task_all::[WARN] NO definido tipo|rango|lapse");
+            	next;
+         	}
+
+				my $time_to_run=0;
+         	my $crontab = (exists $h->{'crontab'}) ? $h->{'crontab'} : '';
+				if ((! exists $LAST_RUN{$range}) || ( ($t-$LAST_RUN{$range})>=$lapse) ) {
+					$time_to_run=1;
+            	$LAST_RUN{$range} = $t;
+				}
+
+				if (!$time_to_run) { next; }
+								
+				#-----------------------------					
+            my $child=fork;
+            if ($child==0) {
+					
+					$0="crawler-app-runner-$range.$type.$lapse";	
+					my $t1=time();			
+               my $child_dbh=$store->fork_db($dbh);
+					$self->dbh($child_dbh);
+
+     				# Itera sobre las tareas de cada runner
+					# "tasks" : {
+					#    "333333001002" : {
+					#       "cfg" : "/cfg/crawler-app/app-333333001002-get-oracle-metrics.json",
+					#       "tag" : "oracle"
+					#    }
+					# },
+					my $i=0;
+					my $num_tasks=scalar(keys %{$h->{'tasks'}});
+     				foreach my $k (sort keys %{$h->{'tasks'}}) {
+
+						$i+=1;
+        				if (! -f $h->{'tasks'}->{$k}->{'cfg'}) {
+           				$self->log('warning',"do_task_all::[WARN] NO EXISTE FICHERO $h->{'tasks'}->{$k}->{'cfg'}");
+           				next;
+        				}
+
+						if ((exists $h->{'tasks'}->{$k}->{'run'}) && ($h->{'tasks'}->{$k}->{'run'}==0)) {
+							$self->log('info',"do_task_all:: SALTO TAREA (RUN=0) $h->{'tasks'}->{$k}->{'cfg'}");
+                       next;
+                    }
+
+        				my $x=$self->get_json_config($h->{'tasks'}->{$k}->{'cfg'});
+        				my $app = $x->[0];
+     					my $task_cfg_file = $h->{'tasks'}->{$k}->{'cfg'};
+
+           			$self->log('info',"do_task_all:: CHILD_TASK $range.$type.$lapse [$i|$num_tasks] CFG_FILE=$task_cfg_file------");
+
+         	      $self->app($app);
+  	         	   my $lines = $self->get_app_data($task_cfg_file);
+
+        	      	my $i=0;
+           	   	my $total=scalar(@$lines);
+
+            	   foreach my $ev (@$lines) {
+
+  	            	   $i++;
+     	            	$self->log('debug',"do_task_all:: CHECK ALERT [$i|$total] >> $ev->{'ip'} >> $ev->{'source_line'}");
+
+         	         # Gestiono la posible alerta
+  	         	      $self->check_alert($ev);
+     	         	}
+        	   	}
+					my $lapse_child = time()-$t1;
+					my $lapse_extra = $lapse-$lapse_child;
+					my $lapse_msg = "[$lapse_child|$lapse] >> EXTRA=$lapse_extra";
+					if ($lapse_extra<0) { $lapse_msg .= ' **LOW SAMPLING**'; }
+					$self->log('info',"do_task_all:: CHILD_END $range.$type.$lapse LAPSE_TASKS=$lapse_child");
+					sleep 1;
+               exit;
+            }
+				else {
+					$self->log('info',"do_task_all:: START_CHILD $child >> $range.$type.$lapse");
+					sleep 1;
+				}
+			}
+							
+      	# ----------------------------------------------------------------------
+         # Gestion de tiempo
+         if ($self->daemon() ==  0) {
+            $self->log('info',"do_task::**TERMINATE daemon=0**");
+            exit;
+         }
+         $self->idle_time($lapse);
+      };
+		
+      if ($@) {
+         my $kk=ref($dbh);
+         $self->log('warning',"do_task::EXCEPTION (dbh=>$kk) $@");
+         $self->idle_time();
+      }
+   }
+}
+
+
+
 
 
 #----------------------------------------------------------------------------

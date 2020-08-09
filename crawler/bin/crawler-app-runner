@@ -1,0 +1,104 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# crawler-app-runner
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler;
+use Crawler::LogManager::App;
+#use Crawler::LogManager::AppNew;
+
+#-------------------------------------------------------------------------------------------
+my $VERSION='1.0';
+my $STORE_PATH='/opt/data/rrd/';
+my $FILE_CONF='/cfg/onm.conf';
+my $log_mode = 1; # 2 => stdout
+
+#-------------------------------------------------------------------------------------------
+my $USER='root';
+my $GROUP='root';
+my $NPROC=2;
+my $FILE_XML='1';
+my $RANGE=undef;
+
+#-------------------------------------------------------------------------------------------
+my $ip=my_ip();
+my $cid='default';
+my $rcfgbase=conf_base($FILE_CONF);
+my $host_idx=$rcfgbase->{'host_idx'}->[0];
+my $host=$rcfgbase->{'host_name'}->[0];
+my $data_path=$rcfgbase->{'data_path'}->[0];
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("hxlskrc:d:f:",\%opts);
+my $range = (defined $opts{c}) ? $opts{c} : 'all';
+my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+
+my $crawler;
+
+if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{s}) { 
+	# Crea el objeto Crawler arranca los procesos necesarios y los registra ------------
+	
+	$crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler-app-runner", store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, cid=>$cid, cid_ip=>$ip, data_path=>$data_path, 'log_mode'=>$log_mode );
+
+	#if ($opts{f}) { $crawler->config_path($opts{f}); }
+	$crawler->config_path('/cfg/crawler-app-runner-all.json');
+	$crawler->daemon(1);
+	my $pid=$crawler->run_all();
+
+}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{k}) {
+   # Termina los procesos crawler registrados ------------------------------------------
+	$crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler", range=>$range, store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, data_path=>$data_path );
+   $crawler->stop_runner();
+}
+#-------------------------------------------------------------------------------------------
+elsif ($opts{r}) {
+   $crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler-app-runner", store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, cid=>$cid, cid_ip=>$ip, data_path=>$data_path, 'log_mode'=>$log_mode );
+
+	$crawler->stop_runner();
+	sleep 1;
+
+   #if ($opts{f}) { $crawler->config_path($opts{f}); }
+   $crawler->config_path('/cfg/crawler-app-runner-all.json');
+   $crawler->daemon(1);
+   my $pid=$crawler->run_all();
+
+}
+
+#-------------------------------------------------------------------------------------------
+else { my $USAGE = usage(); die $USAGE;}
+
+
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub usage {
+
+	my $legend = check_version();
+
+	my @fpth = split ('/',$0,10);
+	my @fname = split ('\.',$fpth[$#fpth],10);
+	my $USAGE = <<USAGE;
+$legend
+Demonio recolector de datos.
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -f  : Directory for json config files or single json config file
+$fpth[$#fpth] -s  : Start
+$fpth[$#fpth] -k  : Stop
+$fpth[$#fpth] -r  : Restart
+
+USAGE
+
+	return $USAGE;
+
+}
