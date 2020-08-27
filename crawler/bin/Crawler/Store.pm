@@ -921,7 +921,7 @@ my $new_id_dev;
    }
 
 	$rres=sqlSelectAll($dbh,'id_dev',$TAB_DEVICES_NAME,$condition);
-   $self->log('debug',"store_device::[DEBUG] Insert device $table{name} [ID=$rres->[0][0]] (RV=$rv) (condition=$condition)");
+   $self->log('debug',"store_device::[DEBUG] Insert device [ID=$rres->[0][0]] (RV=$rv) (condition=$condition)");
 	$new_id_dev=$rres->[0][0];
    return $new_id_dev;
 
