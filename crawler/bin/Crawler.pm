@@ -163,6 +163,7 @@ bless {
          _fxm =>$arg{fxm} || '',
          _time_ref =>$arg{time_ref} || { 'time'=>$t, 'time_str'=>$tstr},
          _num_cpus =>$arg{num_cpus} || $num_cpus,
+         _lang =>$arg{lang} || {},
       }, $class;
 
 }
@@ -705,6 +706,17 @@ my ($self,$num_cpus) = @_;
       $self->{_num_cpus}=$num_cpus;
    }
    else { return $self->{_num_cpus}; }
+}
+
+#----------------------------------------------------------------------------
+# lang
+#----------------------------------------------------------------------------
+sub lang {
+my ($self,$lang) = @_;
+   if (defined $lang) {
+      $self->{_lang}=$lang;
+   }
+   else { return $self->{_lang}; }
 }
 
 
@@ -3368,7 +3380,7 @@ my ($self,$calendar,$ts) = @_;
 		my $rule_name = $h->{'name'};
 		$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> START");
 
-      my ($month,$mday,$month_start,$month_end,$mday_start,$mday_end,$hhmm_start,$hhmm_end,$weekday);
+      my ($month,$mdayx,$month_start,$month_end,$mday_start,$mday_end,$hhmm_start,$hhmm_end,$weekday);
       #----------------------------------------------
       if ((exists $h->{'month_start'}) && (exists $h->{'month_end'})) {
          if ($mon<$h->{'month_start'}) {next; }
@@ -3395,6 +3407,7 @@ my ($self,$calendar,$ts) = @_;
          my @dx = split (',',$h->{'mday'});
          my $mday_ok=0;
          foreach my $d (@dx) {
+				$self->log('debug',"check_calendar:: CHECK RULE d=$d mday=$mday");
             if ($d == $mday) { 
 					$mday_ok=1; 
 					$self->log('debug',"check_calendar:: CHECK RULE $rule_name >> mday ok ($d)");
@@ -3588,14 +3601,16 @@ my ($self,$filter,$action)=@_;
 			if ($l =~ /^(\w{12})\s+/) { 
 				$c=$1;
 				if ($l =~ /(\d+) second[s]* ago/) { $t=$1; }
-				elsif ($l =~ /minute[s]* ago/) { $t=60; }
+				elsif ($l =~ /(\d+) minutes ago/) { $t=$1*60; }
+				elsif ($l =~ /About a minute ago/) { $t=60; }
+				#elsif ($l =~ /minute[s]* ago/) { $t=60; }
 				elsif ($l =~ /hour[s]* ago/) { $t=3600; }
 				#else { $t=0; }
 
 				$containers{$c}=$t;
 				$self->log('info',"wait_for_docker:: DOCKER DEBUG >> [$c|$t] $l");
 			}
-			$counter += 1;
+			if ($t>=60) { 	$counter += 1; }
 		}
 
       if ($counter < $max_level) { $in_wait=0; }
@@ -3610,11 +3625,18 @@ my ($self,$filter,$action)=@_;
       		#	$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE >> $l");
    			#}
 				foreach my $cid (keys %containers) {
-					if ($containers{$cid} < 10) { 
+					if ($containers{$cid} < 30) { 
 						$self->log('info',"wait_for_docker:: SALTO $cid T=$containers{$cid}");
 						next; 
 					}
 
+					if ($filter=~/status=created/) {
+						$cmd = "/sbin/init 6";
+						$self->log('info',"wait_for_docker:: **RESTART DOCKER** $cid T=$containers{$cid}");
+						system($cmd);
+						sleep 5;
+					}
+	
 					$cmd = "docker rm --force $cid 2>&1";
 					$self->log('info',"wait_for_docker:: DOCKEREXEC RM (pre) $cid");
 					my @rx=`$cmd`;
