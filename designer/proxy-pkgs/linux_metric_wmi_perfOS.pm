@@ -1,6 +1,8 @@
 package linux_metric_wmi_perfOS;
 
 #---------------------------------------------------------------------------
+# /opt/cnm/designer/gconf-proxy -m linux_metric_wmi_perfOS -p wmi-perfOS
+
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
 @EXPORT_OK = qw( $CFG %SCRIPT @METRICS);
@@ -275,6 +277,90 @@ Es válida para sistemas Windows.',
    },
 
 #Percentage of time that the processor is executing a non-idle thread. This property was designed as a primary indicator of processor activity. It is calculated by measuring the time that the processor spends executing the thread of the idle process in each sample interval and subtracting that value from 100%. Each processor has an idle thread which consumes cycles when no other threads are ready to run. It can be viewed as the percentage of the sample interval spent doing useful work. This property displays the average percentage of busy time observed during the sample interval. It is calculated by monitoring the time the service was inactive, and then subtracing that value from 100%.
+
+   #------------------------------------------------------------------------
+   {
+      #defSUBTYPE=xagt_004506
+      '__SUBTYPE__'=> 'xagt_004506', '__CLASS__'=> 'proxy-linux',
+      '__DESCRIPTION__'=> 'WMI - PAGINACION DE MEMORIA',
+      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> '115|111',   '__ESP__'=> 'o1|o2',
+      '__IPTAB__'=> '1', '__ITEMS__'=> 'PagesPersec|PageFaultsPersec',   '__VLABEL__'=> 'Num',
+      '__MODE__'=> 'GAUGE',   '__MTYPE__'=> 'STD_AREA',
+      '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+      '__PARAMS_DESCR__'=> '',
+      '__SCRIPT__'=> $linux_metric_wmi_perfOS::SCRIPT_NAME,    '__SEVERITY__'=> '1',   '__CFG__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__MYRANGE__'=>'wmi-check,[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+
+      # ----------------------------
+      '__METRIC_PARAMS__' => {
+
+         'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+      },
+      # ----------------------------
+      '__TIP__'  => {
+         '__DESCR_TIP__' => 'Pages/sec is the rate at which pages are read from or written to disk to resolve hard page faults. This counter is a primary indicator of the kinds of faults that cause system-wide delays and Page Faults/sec is the average number of pages faulted per second. It is measured in number of pages faulted per second because only one page is faulted in each fault operation, hence this is also equal to the number of page fault operations. Captured from <strong>PagesPersec, PageFaultsPersec</strong> counters of the WMI class<strong>Win32_PerfFormattedData_PerfOS_System</strong>.
+This metric is valid only on Windows Systems.',
+      }
+   },
+
+   #------------------------------------------------------------------------
+   {
+      #defSUBTYPE=xagt_004507
+      '__SUBTYPE__'=> 'xagt_004507', '__CLASS__'=> 'proxy-linux',
+      '__DESCRIPTION__'=> 'WMI - USO DE C:\PAGEFILE.SYS',
+      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> '240.C:\pagefile.sys|241.C:\pagefile.sys|242.C:\pagefile.sys',   '__ESP__'=> 'o1|o2|o3',
+      '__IPTAB__'=> '1', '__ITEMS__'=> 'AllocatedBaseSize (MB)|CurrentUsage (MB)|PeakUsage (MB)',   '__VLABEL__'=> 'Num',
+      '__MODE__'=> 'GAUGE',   '__MTYPE__'=> 'STD_AREA',
+      '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+      '__PARAMS_DESCR__'=> '',
+      '__SCRIPT__'=> $linux_metric_wmi_perfOS::SCRIPT_NAME,    '__SEVERITY__'=> '1',   '__CFG__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__MYRANGE__'=>'wmi-check,[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+
+      # ----------------------------
+      '__METRIC_PARAMS__' => {
+
+         'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+      },
+      # ----------------------------
+      '__TIP__'  => {
+         '__DESCR_TIP__' => 'AllocatedBaseSize is the actual amount of disk space allocated for use with the page file, CurrentUsage is the amount of disk space currently used by the page file and PeakUsage is the highest use page file. All three are measured in MBytes and captured from <strong>AllocatedBaseSize, CurrentUsage, PeakUsage</strong> counters of the WMI class<strong>Win32_PageFileUsage</strong>.
+This metric is valid only on Windows Systems.',
+      }
+   },
+
+   #------------------------------------------------------------------------
+   {
+      #defSUBTYPE=xagt_004508
+      '__SUBTYPE__'=> 'xagt_004508', '__CLASS__'=> 'proxy-linux',
+      '__DESCRIPTION__'=> 'WMI - USO DE MEMORIA',
+      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> '230|101',   '__ESP__'=> 'o1|o2',
+      '__IPTAB__'=> '1', '__ITEMS__'=> 'MemoryCapacity (Bytes)|AvailableBytes (Bytes)',   '__VLABEL__'=> 'Num',
+      '__MODE__'=> 'GAUGE',   '__MTYPE__'=> 'STD_AREA',
+      '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+      '__PARAMS_DESCR__'=> '',
+      '__SCRIPT__'=> $linux_metric_wmi_perfOS::SCRIPT_NAME,    '__SEVERITY__'=> '1',   '__CFG__'=> '1',
+      '__GET_IID__'=> '0',    '__PROXY_TYPE__'=> 'linux',   '__INCLUDE__'=> '1',
+      '__MYRANGE__'=>'wmi-check,[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
+
+      # ----------------------------
+      '__METRIC_PARAMS__' => {
+
+         'p01' => { '__ENABLE__' => '1', '__VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+         'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_perfOS::SCRIPT_NAME },
+      },
+      # ----------------------------
+      '__TIP__'  => {
+         '__DESCR_TIP__' => 'AvailableBytes is the amount of physical memory, in bytes, immediately available for allocation to a process or for system use. It is equal to the sum of memory assigned to the standby (cached), free and zero page lists, is captured from <strong>AvailableBytes</strong> counters of the WMI class <strong>Win32_PerfFormattedData_PerfOS_Memory</strong>. MemoryCapacity is the physical memory size in bytes is captured from <strong>AvailableBytes</strong> counters of the WMI class <strong>Win32_PhysicalMemory</strong>.
+This metric is valid only on Windows Systems.',
+      }
+   },
 
 );
 
