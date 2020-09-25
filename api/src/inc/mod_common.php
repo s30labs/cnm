@@ -1785,8 +1785,11 @@ Condición de búsqueda');
          $tabla->addCol(array(),'','monitorsevred');
          $tabla->addCol(array(),'','monitorsevorange');
          $tabla->addCol(array(),'','monitorsevyellow');
+
+         $tabla->addCol(array(),'','file');
       }
 
+		CNMUtils::info_log(__FILE__, __LINE__, "****FML**** mode=$mode");
 		///////////
 		// Datos //
 		///////////
@@ -1809,11 +1812,13 @@ Condición de búsqueda');
       // Se borra la tabla temporal t1
 		$data = array();
       $result = doQuery('get_all_metrics_delete_temp',$data);
+		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_delete_temp >> SQL={$result['query']}");
 
 
       // Se crea la tabla temporal con las métricas y los datos visibles
 		$data = array('__ID_CFG_OP__'=>$_SESSION['ORGPRO'],'__CID__'=>$cid);
       $result = doQuery('get_all_metrics_create_temp1',$data);
+		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_create_temp1 >> SQL={$result['query']}");
 
 		// Se actualizan los campos severityred,severityorange y severityyellow
       $cond = " ";
@@ -1834,6 +1839,8 @@ Condición de búsqueda');
 
 		$data = array();
 		$result = doQuery('get_all_metrics_create_lista_all',$data);
+		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_create_lista_all >> SQL={$result['query']}");
+
 		foreach($result['obj'] as $r){
 			if($r['expr']!=''){
 
@@ -1903,13 +1910,16 @@ Condición de búsqueda');
       // Se obtienen las métricas
 		$data  = array('__POSSTART__'=>$posStart,'__COUNT__'=>$count,'__CONDITION__'=>$cond,'__ORDERBY__'=>$order);
       $result = doQuery('get_all_metrics_create_lista',$data);
+		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_create_lista >> SQL={$result['query']}");
+
       foreach ($result['obj'] as $r){
          $row_user = array();
          $row_meta = array('id'=>$r['metricid']);
 
+		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_create_lista >> metricitems={$r['metricitems']}");
          // API
          if($mode==3){
-            $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow']);
+            $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow'],$r['file']);
             if(!empty($array_user_fields)){
                foreach ($array_user_fields as $field) $row_data[]=$r[$field];
             }
@@ -1963,6 +1973,8 @@ Condición de búsqueda');
          $tabla->addCol(array(),'','viewname');
          $tabla->addCol(array(),'','viewid');
          $tabla->addCol(array(),'','viewtype');
+
+         $tabla->addCol(array(),'','file');
       }
 
 		///////////
@@ -2078,7 +2090,7 @@ Condición de búsqueda');
 
         	// API
          if($mode==3){
-  	         $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow'],$r['viewname'],$r['viewid'],$r['viewtype']);
+  	         $row_data = array($r['metricid'],$r['metricname'],$r['metrictype'],$r['metricitems'],$r['metricstatus'],$r['metricmname'],$r['metricsubtype'],$r['metriclevel1'],$r['metriclevel2'],$r['devicename'],$r['devicedomain'],$r['devicestatus'],$r['devicetype'],$r['deviceid'],$r['deviceip'],$r['monitorid'],$r['monitorname'],$r['monitorsevred'],$r['monitorsevorange'],$r['monitorsevyellow'],$r['viewname'],$r['viewid'],$r['viewtype'],$r['file']);
      	      //foreach ($array_user_fields as $field) $row_data[]=$r[$field];
         	   $tabla->addRow($row_meta,$row_data,$row_user);
         	}
