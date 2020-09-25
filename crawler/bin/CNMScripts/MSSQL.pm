@@ -26,7 +26,7 @@ my ($class,%arg) =@_;
 
 
    my $self=$class->SUPER::new(%arg);
-   $self->{_cmd} = $arg{cmd} || "docker run --rm --stop-timeout __TIMEOUT__ microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S ";
+   $self->{_cmd} = $arg{cmd} || "docker run --rm --stop-timeout __TIMEOUT__ __CONTAINER_NAME__ microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S ";
    $self->{_host} = $arg{host} || '';
    $self->{_port} = $arg{port} || '1433';
    $self->{_user} = $arg{user} || '';
@@ -34,6 +34,7 @@ my ($class,%arg) =@_;
    $self->{_db} = $arg{db} || '';
    $self->{_sqlcmd} = $arg{sqlcmd} || 'SELECT @@VERSION';
    $self->{_host_status} = $arg{host_status} || {};
+   $self->{_container} = $arg{container} || '';
 
    return $self;
 }
@@ -47,7 +48,7 @@ my ($self,$cmd) = @_;
       $self->{_cmd}=$cmd;
    }
    else { 
-		my $timeout = $self->{_timeout} || 30;
+		my $timeout = $self->{_timeout} || 1;
 		$self->{_cmd} =~ s/__TIMEOUT__/$timeout/;
 		return $self->{_cmd}; 
 	}
@@ -140,6 +141,17 @@ my ($self,$host,$status) = @_;
 
 
 #----------------------------------------------------------------------------
+# container
+#----------------------------------------------------------------------------
+sub container {
+my ($self,$container) = @_;
+   if (defined $container) {
+      $self->{_container}=$container;
+   }
+   else { return $self->{_container}; }
+}
+
+#----------------------------------------------------------------------------
 # check_remote_port
 #----------------------------------------------------------------------------
 sub check_remote_port {
@@ -172,7 +184,12 @@ my ($self,$ip)=@_;
 
 	#my $CMD="docker run microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -y 0 -l 2 -S $ip -d $db -U $user -P $pwd -Q \"$sqlcmd\"";
 	my $CMD=$self->cmd().' '.$self->host().','.$self->port().' -U '.$self->user().' -P '.$self->pwd.''.$database_option.' -Q "SELECT @@VERSION"';
+	my $container_name=$self->container();
+	if ($container_name eq '') { $CMD =~ s/__CONTAINER_NAME__//; }
+	else { $CMD =~ s/__CONTAINER_NAME__/--name $container_name/; }
 
+	$self->wait_for_docker();
+	$self->log('info',"DOCKERRUN >> microsoft/mssql-tools");
 	capture sub { $rc=system($CMD); } => \$stdout, \$stderr;
 
    if ($stderr ne '') {
@@ -229,7 +246,14 @@ my ($self,$sql,$params)=@_;
    if ($self->db() ne '') { $database_option = ' -d '.$self->db();}
 
    my $cmdc = $self->cmd().' '.$host.','.$port.' -U '.$self->user().' -P '.$self->pwd.' '.$database_option.' '.$separator_option.' -Q "'.$sqlcmd.'"';
-   $self->log('info',"sqlcmd_run >> $cmdc");
+
+   my $container_name=$self->container();
+   if ($container_name eq '') { $cmdc =~ s/__CONTAINER_NAME__//; }
+   else { $cmdc =~ s/__CONTAINER_NAME__/--name $container_name/; }
+
+	$self->wait_for_docker();
+	$self->log('info',"DOCKERRUN [$container_name] >> microsoft/mssql-tools");
+   $self->log('info',"sqlcmd_run [$container_name] >> $cmdc");
 
 	capture sub { $rc=system($cmdc); } => \$stdout, \$stderr;
 
