@@ -1456,6 +1456,8 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 #	}
 
 
+	my $params = $self->get_metric_params(\%desc);
+
 	my $data_out='';
 	my $skip_watch=0;
 	my $fpath='/opt/data/rrd/elements/'.$file;
@@ -1484,6 +1486,13 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 
 				my @d=split(/\:\@\:/, $r);
 				my $iid=shift(@d);
+				if ((exists $params->{'iid_mode'}) && ($params->{'iid_mode'} =~ /ascii/i)) {
+					my @parsed_iid = map { $_>=32 ? $_ : 32 } split(/\./,$iid);
+					$iid = pack("C*", @parsed_iid);
+				}
+
+				$self->log('debug',"chk_metric:: Datos dispositivo iid=$iid >> @d");
+
    			push @$results, ["Datos dispositivo [iid=$iid]:","@d",''];
 			}	
 		}
@@ -1508,13 +1517,31 @@ $self->log('info',"chk_metric::[FML] **rvd8 = @rvd8**rvd= @$rvd");
 
       if ( (!defined $rvd) || (! exists $rvd->[0]) ) {
          $rvd = ['U'];
-         $self->log('warning',"chk_metric::[WARN] **$desc{host_ip}:$mname MODE=COUNTER RV=UNDEF/SIN DATOS F=$file**");
+         $self->log('warning',"chk_metric::[WARN] **$desc{host_ip}:$mname MODE=COUNTER RV=UNDEF/SIN DATOS EN RRD FILE=$file**");
          $data_out = "sin datos OID $desc{oid} ($rcstr)";
          $desc{oid}=~ s/[_|\|]/  /g;  # Es estetico, pero al no haber espacios se descontrola el ancho de los eventos
          if ($strange) { $self->event_data(["sin datos OID $desc{oid} ($rcstr) (C) **REVISAR METRICA**"]); }
          else { $self->event_data(["sin datos OID $desc{oid} ($rcstr) (C)"]); }
          $rc=1;
-         push @$results, ['Datos dispositivo:', "@$rv"];
+#$self->log('warning',"chk_metric:: **FMLL**************************");
+
+         foreach my $r (@$rv) {
+
+            my @d=split(/\:\@\:/, $r);
+            my $iid=shift(@d);
+            if ((exists $params->{'iid_mode'}) && ($params->{'iid_mode'} =~ /ascii/i)) {
+               my @parsed_iid = map { $_>=32 ? $_ : 32 } split(/\./,$iid);
+               $iid = pack("C*", @parsed_iid);
+            }
+
+            $self->log('debug',"chk_metric:: Datos dispositivo iid=$iid >> @d");
+
+            push @$results, ["Datos dispositivo [iid=$iid]:","@d",''];
+         }
+
+
+
+         #push @$results, ['Datos dispositivo:', "@$rv"];
          push @$results, ['Datos diferenciales:', "No hay datos almacenados para calcular diferencias"];
       }
 #DBG--
@@ -1718,14 +1745,17 @@ my ($self,$desc,$key)=@_;
 				next;
 				
 			}
+
+         if ($iid_mode eq 'ascii') {
+            my $k1=$self->key2ascii($k);
+            $self->log('debug',"fill_cache::[DEBUG ID=$task_id] ***key2ascii**** KEY1=$k1 FROM KEY=$k");
+            $k=$k1;
+         }
+
 #DBG--
          $self->log('debug',"fill_cache::[DEBUG ID=$task_id] CACHESET NVAL=$n KEY=$k VAL=@v**");
 #/DBG--
-         if ($iid_mode eq 'ascii') {
-            my $k1=$self->key2ascii($k);
-            $self->log('debug',"fill_cache::[DEBUG ID=$task_id] ***key2ascii**** KEY1=$k1");
-            $k=$k1;
-         }
+
          $SNMP_CACHE{$k}=[$rc, $rcstr, \@v];
       }
    }
@@ -1741,6 +1771,36 @@ my ($self,$desc,$key)=@_;
 
 }
 
+
+#----------------------------------------------------------------------------
+# Funcion: get_metric_params
+# Descripcion: Obtiene un hash con los parametros de la metrica, que se almacenan
+# con formato JSON en el campo params. (context, remote_port, iid_mode)
+#----------------------------------------------------------------------------
+sub get_metric_params {
+my ($self,$desc) = @_;
+
+   my %params=();
+   if ((defined $desc->{'params'}) && ($desc->{'params'} ne '')) {
+
+      #[{"key":"iid_mode","value":"ascii"}]
+      my $vparams=[];
+      eval { $vparams = decode_json($desc->{'params'}); };
+      if ($@) {
+         $self->log('warning',"get_metric_params:: **ERROR** en decode_json de params >> $desc->{'params'} ($@)");
+      }
+      foreach my $l (@$vparams) {
+         if ($l->{'key'} =~/context/) { $params{'context'} = $l->{'value'}; }
+         elsif ($l->{'key'} =~/remote_port/) { $params{'remote_port'} = $l->{'value'}; }
+         elsif ($l->{'key'} =~/iid_mode/) { $params{'iid_mode'} = $l->{'value'}; }
+      }
+   }
+	my $params_found = join(", ", map { "$_=$params{$_}" } keys %params);
+   $self->log('info',"get_metric_params:: params_found >> $params_found");
+	return \%params;
+}
+
+
 #----------------------------------------------------------------------------
 # Funcion: key2ascii
 # Descripcion:
@@ -1750,6 +1810,11 @@ my ($self,$key) = @_;
 
    my ($p1,$p2) = ('','');
    if ($key =~ /(\d+\.\d+\.\d+\.\d+\.custom_\w{8}\-)([\d+|\.+]+)/) {
+      $p1=$1;
+      $p2=$2;
+   }
+#192.168.117.114.netscaler_vsvr_health-21.76.66.45.82.68.87.101.98.95.104.116.116.112.114.101.100.105.114.95.53.53
+	elsif ($key =~ /(\d+\.\d+\.\d+\.\d+\.[\w+|\_+|]+\-)([\d+|\.+]+)/) {
       $p1=$1;
       $p2=$2;
    }
@@ -1763,6 +1828,9 @@ my ($self,$key) = @_;
       if ($d<32) { $txt .= '.'; next; }
       $txt .= chr($d);
    }
+
+$self->log('debug',"key2ascii:: p1=$p1 p2=$p2  (@c) txt=$txt");
+
    my @words = split(/\./,$txt);
    my $p2n= join('.',  @words);
    return $p1.$p2n;
@@ -2229,6 +2297,16 @@ my $values;
 		my $rcstr=$self->err_str();
 
 $self->log('debug',"mod_snmp_walk::[DEBUG ID=$task_id] CACHESET KEY=$key RC=$rc RCSTR=$rcstr RES=@$res ext_function=$desc->{ext_function}**");
+
+
+
+#		my @res_values=();
+#     	for my $l ( @$res ) {
+#         my ($id,@v)=split(':@:',$l);
+#			push @res_values, join (':@:', @v);
+#		}
+#      $SNMP_CACHE{$key} = [$rc, $rcstr, \@res_values];
+
       $SNMP_CACHE{$key} = [$rc, $rcstr, $res];
 		$values=$SNMP_CACHE{$key}->[2];
 	}
@@ -3749,7 +3827,7 @@ my $sec_level = (defined $desc->{'sec_level'}) ? $desc->{'sec_level'} : '' ;
 
 my $oid=$desc->{'oid'};
 #Hay casos en los que cualificar ifTable no funciona bien
-#if ($oid =~ /\:\:ifTable$/) { $oid='ifTable'; }
+if ($oid =~ /\:\:ifTable$/) { $oid='ifTable'; }
 
    my $task_id=$self->task_id();
    my $err_str='[OK]';
