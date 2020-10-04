@@ -993,8 +993,9 @@ $self->log('info',"task2action::[**FML**] SELECT $what FROM $table WHERE $where"
 			next;
 		}
 
-		#Si la tarea no corresponde al rol (activo/pasivo) que tiene configurado el sistema la salto.
-		if ( $cnm_role ne $cnm_role_in_db ) {
+		# Si la tarea no corresponde al rol (activo/pasivo) que tiene configurado el sistema la salto.
+		# Excepto la restauracion de datos o las tareas cuyo nombre contengan "EN CNM PASIVO"
+		if ( ( $conf{'name'} !~ /EN CNM PASIVO/) && ( $cnm_role ne $cnm_role_in_db )) {
 			$self->log('debug',"task2action::[DEBUG] Salto tarea (CNM ROLE=$cnm_role)  $conf{'name'} ($conf{'descr'})");
 			next;
 		}
