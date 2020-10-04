@@ -11,6 +11,7 @@ use Crawler::Store;
 use Crawler::SNMP;
 use CNMScripts::CNMAPI;
 use MCNM;
+use Time::Local;
 
 #-------------------------------------------------------------------------------------------
 my $VERSION='1.0';
@@ -84,7 +85,9 @@ elsif ($blocked) {
 }
 
 my $ts = time();
-my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($ts);
+my @t = localtime($ts);
+my $gmt_offset_in_hours= (timegm(@t) - timelocal(@t))/3600;
+
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # GESTION DE PROCESOS DE SISTEMA
@@ -243,9 +246,9 @@ foreach my $k (@res) {
          #$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
 			#kill 9, $pid;
 
-         if ($min % 10 == 0) {
+         #if ($min % 10 == 0) {
             $store->log('info',"cpu-load::[WARN] **HIGH** mysql PID $pid LOAD=$value (>$LOAD_LEVEL)\n");
-         }
+         #}
 
       }
 		else { $running{'mysql'} += 1; }
@@ -643,22 +646,26 @@ $store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
 #4c55ab20bc88        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   3 seconds ago       Created                                     goofy_lamarr
 #ee3341ccb8e7        saphana                 "bash -c /mnt/sql/33…"   3 seconds ago       Up Less than a second                       quizzical_joliot
 
-my $do_prune=0;
-my @lines = `docker ps -a`;
-foreach my $lx (@lines) {
-	chomp $lx;
-	if (($lx=~/Removal In Progress/) || ($lx=~/minute.*?\s+.*?Created/)){		
-		#if ($lx=~/^(\S+)\s+/) {
-			my @p = split (/\s/,$lx);
-			my $id = $p[0];
-			my $cmd = "docker rm --force $id 2>&1";
-			my $r = `$cmd`;
-			$store->log('info',"DOCKER RM >> $cmd >> $lx");
-		#}
-		#$store->log('info',"DOCKER PRUNE CANDIDATE >> $lx");
-		#$do_prune=1;
-	}
-}
+#my $do_prune=0;
+#my @lines = `docker ps -a`;
+#foreach my $lx (@lines) {
+#	chomp $lx;
+#	if (($lx=~/Removal In Progress/) || ($lx=~/minute.*?\s+.*?Created/)){		
+#		#if ($lx=~/^(\S+)\s+/) {
+#			my @p = split (/\s/,$lx);
+#			my $id = $p[0];
+#			my $cmd = "docker rm --force $id 2>&1";
+#			my $r = `$cmd`;
+#			$store->log('info',"DOCKER RM >> $cmd >> $lx");
+#		#}
+#		#$store->log('info',"DOCKER PRUNE CANDIDATE >> $lx");
+#		#$do_prune=1;
+#	}
+#}
+
+
+
+
 
 #if ($do_prune) {
 #	my $cmd = "docker container prune --force --filter \"until=45s\" 2>&1";
@@ -669,10 +676,88 @@ foreach my $lx (@lines) {
 #	}
 #}
 
-#-------------------------------------------------------------------------------------------
+#my @lines = `docker ps -a --filter "status=created"`;
+#foreach my $lx (@lines) {
+#   chomp $lx;
+#   my @p = split (/\s/,$lx);
+#   my $id = $p[0];   
+#	if ($id =~ /CONTAINER/) { next; }
+#
+#   my $date_created = `docker inspect -f '{{ .Created }}' $id`;
+#   #2020-05-01T01:18:15.579887027Z
+#   
+#   if ($date_created =~ /(\d{4})\-(\d{2})\-(\d{2})T(\d{2})\:(\d{2})\:(\d{2})/) {
+#		
+#      my ($sec,$min,$hour,$mday,$mon,$year) = ($6,$5,$4,$3,$2,$1);
+#      $year -= 1900;
+#      $mon -= 1;
+#		$hour += $gmt_offset_in_hours;
+#      my $tc = timelocal( $sec, $min, $hour, $mday, $mon, $year );
+#		my $tdiff = $ts-$tc;
+#      if ($tdiff>300) {
+#	 		my $cmd = "docker rm --force $id 2>&1";
+#         my $r = `$cmd`;
+#         $store->log('info',"DOCKER RM ($tdiff $ts|$tc) >> $cmd >> $lx");         
+#      }
+#		else {
+#			$store->log('info',"DOCKER OK ($tdiff $ts|$tc) >> $lx");
+#		}
+#   }
+#}
+#
+
+
+
+
+#my @lines = `docker ps -a --filter "status=created"`;
+#my $cnt = scalar(@lines)-1;
+#if ($cnt>=2) {
+#	$store->log('info',"***FML**** created containers counter = $cnt -----");
+#	foreach my $l (@lines) {
+#		chomp $l;
+#		$store->log('info',"***FML**** $l");
+#	}
+#	my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
+#  	$store->log('info',"EXEC DOCKER PRUNE CREATED $cmd");
+#  	my @rx=`$cmd`;
+#	foreach my $l (@rx) {
+#   	chomp $l;
+#     	$store->log('info',"DOCKER PRUNE >> $l");
+#  	}
+#}
+#else {
+#	@lines = `docker ps -a --filter "status=removing"`;
+#	$cnt = scalar(@lines)-1;
+#	if ($cnt>0) {
+#		$store->log('info',"***FML**** removing containers counter = $cnt -----");
+#   	my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
+#   	$store->log('info',"EXEC DOCKER PRUNE REMOVING $cmd");
+#   	my @rx=`$cmd`;
+#   	foreach my $l (@rx) {
+#      	chomp $l;
+#      	$store->log('info',"DOCKER PRUNE >> $l");
+#   	}
+#	}
+#}
+
+
+
+
+$store->wait_for_docker('status=created', 'prune');
+$store->wait_for_docker('status=removing', 'prune');
+
+
 #-------------------------------------------------------------------------------------------
 # Desactivo el bloqueo
+#-------------------------------------------------------------------------------------------
 $store->close_lock('/opt/crawler/bin/watch.lock');
+
+#-------------------------------------------------------------------------------------------
+my $file_custom_watch = '/opt/cnm-custom/bin/cnm-watch';
+if (-f $file_custom_watch) {
+   $store->log('info',"cnm-watch:: EXEC $file_custom_watch");
+   system "$file_custom_watch";
+}
 
 
 #-------------------------------------------------------------------------------------------
@@ -692,6 +777,11 @@ $store->close_lock('/opt/crawler/bin/watch.lock');
 #-------------------------------------------------------------------------------------------
 sub pre_watch {
 my ($store,$role_info)=@_;
+
+	if ((exists $role_info->{'DRBD'}) && ($role_info->{'DRBD'}=~/no/i)) { 
+		$store->log('debug',"cnm-watch:: pre_watch >> DRBD=no");
+		return 0; 
+	}
 
 	my ($check_mysql,$check_store)=(1,1);
 	my $os=check_os();
@@ -793,7 +883,7 @@ my ($store,$role_info)=@_;
 		if ($check_store !=0) { return 2; }
 		if ($check_mysql !=0) { return 3; }
 
-		`/opt/cnm/crawler/bin/support/cnm-repair-db`;
+		#`/opt/cnm/crawler/bin/support/cnm-repair-db`;
 
       $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role)");
 	}
@@ -838,7 +928,6 @@ my ($store,$role_info)=@_;
       $store->log('warning',"cnm-watch:: ROLE tiene un valor incorrecto ($role_info->{'ROLE'}) - Revisar /cfg/onm.role");
    }
 
-
 	return 0;
 }
 
@@ -855,6 +944,8 @@ my ($bsdtime,$etime,$cmd)=@_;
    my $elapsed_time=0;
    if ($etime =~ /(\d+)-(\d+)\:(\d+)\:(\d+)/) { $elapsed_time=$1*86400+$2*3600+$3*60+$4; }
    elsif ($etime =~ /(\d+)\:(\d+)\:(\d+)/) { $elapsed_time=$1*3600+$2*60+$3; }
+   elsif ($etime =~ /(\d+)\:(\d+)/) { $elapsed_time=$1*60+$2; }
+   elsif ($etime =~ /(\d+)/) { $elapsed_time=$1; }
 
 	my $load=0;
 	if ($elapsed_time > 0) {	
@@ -883,6 +974,7 @@ my $rc=0;
 	my @ps_extra=();
 	my %idx_extra=();
 	my %app_running=();
+	my %app_runner_running=();
 	foreach my $v (@r) {
 		chomp $v;
 		$v=~s/^\s+//;
@@ -890,6 +982,8 @@ my $rc=0;
 
 		#[crawler-app.8000.app.300]
 		if ($cmd=~/crawler-app\.(\d+)\.app\.(\d+)/) { $app_running{$1}=1; }
+		#[crawler-app-runner.10000.runner.15]
+		elsif ($cmd=~/crawler-app-runner\.(\d+)\.runner\.(\d+)/) { $app_runner_running{10000}=1; }
 	   #[crawler.003.latency.300]
    	elsif ($cmd=~/crawler\.(\d+)\..*?/) {
 			my $idx=$1;
@@ -911,15 +1005,21 @@ my $rc=0;
 		}
 	}
 
+	my $file_runner_all = '/cfg/crawler-app-runner-all.json';
+	if ((-f $file_runner_all) && (! exists $app_runner_running{10000})) {
+		start_app_runner();
+	}
+
+
 	my $file_runner = '/cfg/crawler-app-runner.json';
 	if (-f $file_runner){ 
 		my $x=$store->get_json_config($file_runner);
 	   my $runner = $x->[0]->{'runner'};
 	   foreach my $h (@$runner) {
-   	   if ((! exists $h->{'run'}) || ( $h->{'run'} != 1)) { next; }
+			if ((! exists $h->{'run'}) || ( $h->{'run'} != 1)) { next; }
       	my $range = $h->{'range'};
 			if (! $range) { next; }
-			if ($app_running{$range}) { next; }	
+ 			if ($app_running{$range}) { next; }	
 			start_app($range); 
 		}
 	}
@@ -991,12 +1091,14 @@ my $rc=0;
 
 	#foreach my $i (sort keys %$rv) {
 	#	my $pid=$rv->{$i};
+
    foreach my $i (sort keys %mapping) {
       my $pid=$mapping{$i};
 
       my $current_load = get_current_load();
-      if ($current_load>$num_cores) {
-         $store->log('notice',"watchdog::[INFO] CURRENT LOAD=$current_load (>$num_cores) ***POR CARGA SALTO IDX=$i***");
+		my $load_level = $num_cores*1.2;
+      if ($current_load>$load_level) {
+         $store->log('notice',"watchdog::[INFO] CURRENT LOAD=$current_load (>$load_level) ***POR CARGA SALTO IDX=$i***");
          next;
       }
 
@@ -1071,6 +1173,8 @@ sub start_one {
 my ($idx)=@_;
 my $rc;
 
+	$store->update_lock($file_lock);
+
    my $new_pid=0;
    $rc=system ("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $idx");
    $store->log('notice',"start::[INFO] (RC=$rc) (s -> $idx)");
@@ -1101,6 +1205,17 @@ my ($range)=@_;
 
    my $rc=system ("/opt/crawler/bin/crawler-app -s -c $range");
    $store->log('notice',"start-app::[INFO] start_app $range (RC=$rc)");
+   #$store->reset_crawler_changes($dbh,$idx);
+}
+
+#-------------------------------------------------------------------------------------------
+# start_app_runner
+#-------------------------------------------------------------------------------------------
+sub start_app_runner {
+my ()=@_;
+
+   my $rc=system ("/opt/crawler/bin/crawler-app-runner -s");
+   $store->log('notice',"start-app-runner::[INFO] START crawler-app-runner (RC=$rc)");
    #$store->reset_crawler_changes($dbh,$idx);
 }
 
