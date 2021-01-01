@@ -854,8 +854,12 @@ my %PERL_MODULE_NAMES=(
 sub perl_module_install {
 my ($module_name)=@_;
 
-   my $dir_modules='/opt/cnm-os/perl_modules';
-   if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
+   my $dir_modules='/opt/cnm-extras/perl_modules';
+	my $info = get_os_version();
+	if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+		$dir_modules='/opt/cnm-extras/debian10/perl_modules';
+	}
+
 
 	my $inst=ExtUtils::Installed->new();
 	# ej: Time-HiRes-1.42.tar.gz
@@ -1204,8 +1208,13 @@ sub do_init_store  {
 #-------------------------------------------------------------------------------------------
 sub do_perl_module_check_all  {
 
-   my $dir_modules='/opt/cnm-os/perl_modules';
-   if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
+   my $dir_modules='/opt/cnm-extras/perl_modules';
+   my $info = get_os_version();
+   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+      $dir_modules='/opt/cnm-extras/debian10/perl_modules';
+   }
+
+
 
 	# Se eliminan posibles modulos obsoletos que estaban en una ruta distinta
 	my %old_modules=(
@@ -1293,8 +1302,12 @@ sub install_perl_module  {
 my $module_name=shift;
 
    my $CWD = getcwd;
-	my $dir_modules='/opt/cnm-os/perl_modules';
-	if (-d '/opt/cnm-extras/perl_modules') { $dir_modules='/opt/cnm-extras/perl_modules'; }
+   my $dir_modules='/opt/cnm-extras/perl_modules';
+   my $info = get_os_version();
+   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+      $dir_modules='/opt/cnm-extras/debian10/perl_modules';
+   }
+
    chdir $dir_modules;
    my $cmd="./iperl $module_name 2>&1 > /tmp/$module_name.log";
    print "+++Instalando $module_name ...\n\t($cmd)\n";
@@ -1585,6 +1598,21 @@ sub my_if {
       close F;
    }
    return $if;
+}
+
+#----------------------------------------------------------------------------
+sub get_os_version {
+
+	my %os_info=();
+	my @out=`lsb_release -ir`;
+	foreach my $l (@out) {
+   	chomp $l;
+   	my ($k,$v)=split(/\:\s+/,$l);
+   	$os_info{$k}=$v;
+	}
+
+	return \%os_info;
+
 }
 
 1;
