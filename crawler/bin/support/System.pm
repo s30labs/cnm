@@ -930,6 +930,9 @@ my ($module_name)=@_;
 		# Se eliminan los '.' y asi se transforma en numerico.
 		$version =~ s/_|\.//g;
 		$mversion =~ s/_|\.//g;
+		#2.500
+		$mversion =~ s/0+$//g;
+
 
 		#print "MODULO: [   OK  ] $version | $mversion\t$mname  VERSION INSTALADA | DISPONIBLE >> $version | $mversion\n";
 		#if ( ($version ne 'NO') && ($version != $mversion) ) {
@@ -1310,7 +1313,7 @@ my $module_name=shift;
 
    chdir $dir_modules;
    my $cmd="./iperl $module_name 2>&1 > /tmp/$module_name.log";
-   print "+++Instalando $module_name ...\n\t($cmd)\n";
+   print "+++Instalando $module_name desde $dir_modules ...\n\t($cmd) \n";
    `$cmd`;
    chdir $CWD;
 }
