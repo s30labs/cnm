@@ -71,8 +71,15 @@ if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /10/) 
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
 #-------------------------------------------------------------------------------------------
+# ansible 2.9
+`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu trusty main" > /etc/apt/sources.list.d/ansible.list`;
+`apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367`;
+`apt-get update`;
+`apt-get install -y --allow-remove-essential --allow-change-held-packages ansible`;
+
+#-------------------------------------------------------------------------------------------
 `apt-get install -y --allow-remove-essential --allow-change-held-packages openssh-server`;
-`apt-get install -y --allow-remove-essential --allow-change-held-packages ansible git vim sudo`;
+`apt-get install -y --allow-remove-essential --allow-change-held-packages git vim sudo`;
 
 #-------------------------------------------------------------------------------------------
 # 01. Git config
