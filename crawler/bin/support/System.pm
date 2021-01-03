@@ -875,7 +875,7 @@ my ($module_name)=@_;
 	my ($version,$found)=('',0);
 
 	eval "require $mname";
-	if ($@) { $found=0; print STDERR "ERROR $@\n"; } 
+	if ($@) { $found=0; print STDERR "ERROR AL HACER require $mname >>> $@\n"; } 
 	else {
 
 		eval {
