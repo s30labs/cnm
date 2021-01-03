@@ -6,4 +6,8 @@
 
   roles:
     - base
+    - layout
+    - cnm-cfg
+#    - apache-php
+#    - mysql
     - net-snmp
