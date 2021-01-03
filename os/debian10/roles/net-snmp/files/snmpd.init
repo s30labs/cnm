@@ -31,7 +31,7 @@ case "$1" in
   start)
     echo -n "Starting network management services:"
     if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
-	start-stop-daemon --quiet --start --exec /usr/sbin/snmpd \
+	/sbin/start-stop-daemon --quiet --start --exec /usr/sbin/snmpd \
 	    -- $SNMPDOPTS
 	echo -n " snmpd"
     fi
@@ -39,15 +39,15 @@ case "$1" in
     ;;
   stop)
     echo -n "Stopping network management services:"
-    start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmpd
+    /sbin/start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmpd
     echo -n " snmpd"
     echo "."
     ;;
   restart)
     echo -n "Restarting network management services:"
-    start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmpd
+    /sbin/start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmpd
     if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
-		start-stop-daemon --quiet --start --exec /usr/sbin/snmpd -- $SNMPDOPTS
+		/sbin/start-stop-daemon --quiet --start --exec /usr/sbin/snmpd -- $SNMPDOPTS
 		echo -n " snmpd"
     fi
     echo "."
@@ -55,7 +55,7 @@ case "$1" in
   reload|force-reload)
     echo -n "Reloading network management services:"
     if [ "$SNMPDRUN" = "yes" -a -f /etc/snmp/snmpd.conf ]; then
-        start-stop-daemon --quiet --stop --signal 1 \
+        /sbin/start-stop-daemon --quiet --stop --signal 1 \
 	    --pidfile /var/run/snmpd.pid --exec /usr/sbin/snmpd
 	echo -n " snmpd"
     fi

@@ -29,7 +29,7 @@ case "$1" in
   start)
     echo -n "Starting network management services:"
    if [ "$TRAPDRUN" = "yes" -a -f /etc/snmp/snmptrapd.conf ]; then
-	start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
+	/sbin/start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
 	    -- $TRAPDOPTS -F "%V|%DATE>>%y%m%l %02.2h:%02.2j:%02.2k; HOST>>%A; IPv1>>%a; NAMEv1>>%A; IPv2>>%b; NAMEv2>>%B; OID>>%N; TRAP>>%w.%q; DESC>>%W; VDATA>>%v\n" 
 	echo -n " snmptrapd"
     fi
@@ -37,16 +37,16 @@ case "$1" in
     ;;
   stop)
     echo -n "Stopping network management services:"
-    start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmptrapd
+    /sbin/start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmptrapd
     echo -n " snmptrapd"
     echo "."
     ;;
   restart)
     echo -n "Restarting network management services:"
-    start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmptrapd
+    /sbin/start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmptrapd
     # Allow the daemons time to exit completely.
     if [ "$TRAPDRUN" = "yes" -a -f /etc/snmp/snmptrapd.conf ]; then
-   	start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
+   	/sbin/start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
        -- $TRAPDOPTS -F "%V|%DATE>>%y%m%l %02.2h:%02.2j:%02.2k; HOST>>%A; IPv1>>%a; NAMEv1>>%A; IPv2>>%b; NAMEv2>>%B; OID>>%N; TRAP>>%w.%q; DESC>>%W; VDATA>>%v\n"
    	echo -n " snmptrapd"
     fi
