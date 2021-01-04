@@ -8,6 +8,7 @@
     - base
     - layout
     - cnm-cfg
-#    - apache-php
+    - apache-php
 #    - mysql
     - net-snmp
+    - syslog-ng
