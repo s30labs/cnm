@@ -12,3 +12,4 @@
 #    - mysql
     - net-snmp
     - syslog-ng
+    - rrdtool
