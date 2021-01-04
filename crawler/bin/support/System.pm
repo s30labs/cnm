@@ -875,7 +875,7 @@ my ($module_name)=@_;
 	my ($version,$found)=('',0);
 
 	eval "require $mname";
-	if ($@) { $found=0; print STDERR "ERROR AL HACER require $mname >>> $@\n"; } 
+	if ($@) { $found=0; print STDERR "MODULO NO INSTALADO $mname >>> $@\n"; } 
 	else {
 
 		eval {
@@ -924,7 +924,7 @@ my ($module_name)=@_;
 	#----------------------------------------------------------
 	
 	if ($found) {
-		print "MODULO: [ INSTALLED  ] $version | $mversion\t$mname\n";
+		print "MODULO: [   INSTALLED   ] $version | $mversion\t$mname\t$module_name\n";
 
 		# En algunos casos el formato es x.y.z => No es numerico. 
 		# Se eliminan los '.' y asi se transforma en numerico.
@@ -948,7 +948,7 @@ my ($module_name)=@_;
 	}
 	else {
 		if (! $mname) { $mname=$module_name; }
-		print "MODULO: [ **UNINST** ] **$module_name**  mname=$mname mversion=$mversion\n";
+		print "MODULO: [ NOT INSTALLED ] $version | $mversion\t$mname\t$module_name\n";
 
 		install_perl_module($module_name);
 	}
