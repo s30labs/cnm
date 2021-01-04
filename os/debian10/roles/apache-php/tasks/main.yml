@@ -1,0 +1,173 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: apache-php
+
+- name: Certificate Info
+  debug:
+    msg: "{{ item }}"
+  with_items:
+   - "{{ SSLCertificateKeyFile }}"
+   - "{{ SSLCertificateChainFile }}"
+   - "{{ SSLCertificateChainFile }}"
+
+  tags: apache-php
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: apache-php
+
+- name: Install packages
+  apt:
+    name: [ 'apache2', 'apache2-dev', 'libapache2-mod-perl2', 'libapache2-mod-php7.3', 'php7.3-dba', 'php-db-dataobject', 'php-fpdf', 'php-mail', 'php-net-smtp', 'php-net-socket', 'php-pear', 'php7.3', 'php7.3-cli', 'php7.3-common', 'php7.3-dev', 'php7.3-gd', 'php7.3-mysql', 'php7.3-curl', 'php7.3-xsl', 'php7.3-ldap', 'php7.3-imap', 'php-raphf', 'php-raphf-dev', 'php-propro', 'php-propro-dev', 'php-apcu', 'php-pecl-http']
+    state: present
+    force: yes
+  become: true
+  tags: apache-php
+  
+- name: Check directory /var/log/apache2
+  file: path=/var/log/apache2 state=directory owner=www-data group=www-data mode=0755
+  tags: apache-php
+
+- name: Check /var/log/apache2/cnm_gui.log
+  stat: path=/var/log/apache2/cnm_gui.log
+  register: cnm_gui
+  tags: apache-php
+
+- name: Verify /var/log/apache2/cnm_gui.log
+  file: path=/var/log/apache2/cnm_gui.log state=touch owner=www-data group=www-data mode=0664
+  tags: apache-php
+
+- name: Verify /var/log/apache2/access.log
+  file: path=/var/log/apache2/access.log state=touch owner=www-data group=www-data mode=0664
+  tags: apache-php
+
+- name: Verify /var/log/apache2/error.log
+  file: path=/var/log/apache2/error.log state=touch owner=www-data group=www-data mode=0664
+  tags: apache-php
+
+- name: Check legacy install error with cgi module
+  stat: path=/etc/apache2/mods-enabled/cgi.load
+  register: cgi_file
+  tags: apache-php
+
+- name: Repair legacy install error with cgi module
+  file: path=/etc/apache2/mods-enabled/cgi.load state=absent
+  when: cgi_file.stat.islnk is defined and cgi_file.stat.islnk == False
+  tags: apache-php
+
+- name: Enable modules
+  apache2_module: state=present name={{ item }}
+  with_items:
+    - ssl
+    - deflate
+    - proxy
+    - proxy_http
+    - headers
+    - expires
+    - rewrite
+    - cgi
+  tags: apache-php
+
+- name: cnm_default.pem
+  copy: src=cnm_default.pem dest=/etc/apache2  owner=root group=root mode=0600
+  tags: apache-php
+
+- name: Check directory /store/www-user/apache2
+  file: path=/store/www-user/apache2 state=directory owner=www-data group=www-data mode=0755
+  tags: apache-php
+
+- name: Check /store/www-user/apache2/cnm-http-proxy
+  stat: path=/store/www-user/apache2/cnm-http-proxy
+  register: cnm_http_proxy
+  tags: apache-php
+
+- name: cnm-proxy option
+  file: path=/store/www-user/apache2/cnm-http-proxy state=touch owner=www-data group=www-data mode=0755
+  when: cnm_http_proxy.stat.exists == 0
+  tags: apache-php
+
+- name: logrotate
+  copy: src=httpd.logrotate dest=/etc/logrotate.d/httpd  owner=root group=root mode=0600
+  tags: apache-php
+
+- name: PHP Apache config file
+  copy: src=php.ini.apache dest=/etc/php/7.3/apache2/php.ini  owner=root group=root mode=0644
+  tags: apache-php
+  notify:
+   - restart apache2
+
+- name: PHP CLI config file
+  copy: src=php.ini.cli dest=/etc/php/7.3/cli/php.ini  owner=root group=root mode=0644
+  tags: apache-php
+
+
+- name: Check for HTTPREQUEST PHP module
+  shell: php -i|grep -i 'http support'|wc -l
+  register: http_support
+  tags: apache-php
+
+#- name: Create /tmp/src/pecl_http
+#  file: path=/tmp/src/pecl_http state=directory owner=root group=root mode=0640
+#  when: http_support.stdout == "0"
+#  tags: apache-php
+
+- name: Verify pear symlinks
+  file: path=/usr/share/pear src=/usr/share/php state=link owner=root group=root mode=0755
+  tags: apache-php
+
+# Para evitar warning sobre llamada a metodo estatico:
+# line 965: $this->PEAR_Error('DB Error: ' . DB::errorMessage($code), $code,
+# -> $this->PEAR_Error('DB Error: ' . @DB::errorMessage($code), $code,
+
+#FML REVISAR
+#- name: Modify pear DB.php
+#  copy: src=DB.php dest=/usr/share/php/DB.php owner=root group=root mode=0644 
+#  tags: apache-php
+
+#- name: Extract from source
+#  command: tar -C /tmp/src/pecl_http -xzvf  /opt/cnm-extras/src/php_modules/pecl_http-2.4.3.tgz
+#  when: http_support.stdout == "0"
+#  tags: apache-php
+#
+#- name: PHP Install pecl_http-2.4.3
+#  shell: "{{ item }}"
+#  with_items:
+#     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && phpize
+#     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && ./configure
+#     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && make
+#     - cd /tmp/src/pecl_http/pecl_http-2.4.3  && make install
+#  when: http_support.stdout == "0"
+#  tags: apache-php
+#  notify:
+#   - restart apache2
+
+- name: Apache config file 
+  copy: src=apache2.conf dest=/etc/apache2/apache2.conf  owner=root group=root mode=0644
+  tags: apache-php
+  notify:
+   - restart apache2
+
+- name: 000-default -> sites-enabled
+  template: src=000-default.j2 dest=/etc/apache2/sites-enabled/000-default owner=root group=root mode=0644
+  tags: apache-php
+  notify:
+   - restart apache2
+
+#FML: No le veo el sentido
+#- name: Verify 000-default -> sites-enabled
+#  copy: src=000-default dest=/etc/apache2/sites-enabled/000-default  owner=root group=root mode=0644
+#  tags: apache-php
+#  notify:
+#   - restart apache2
+
+#- name: ssl.conf -> /etc/apache2/mods-available/
+#  copy: src=ssl.conf dest=/etc/apache2/mods-available/ssl.conf  owner=root group=root mode=0644
+#  tags: apache-php
+#  notify:
+#   - restart apache2
+
+- meta: flush_handlers
+
+...
