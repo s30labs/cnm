@@ -9,7 +9,7 @@
     - layout
     - cnm-cfg
     - apache-php
-#    - mysql
+    - mysql
     - net-snmp
     - syslog-ng
     - rrdtool

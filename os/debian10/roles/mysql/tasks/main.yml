@@ -75,9 +75,9 @@
   copy: src=mysql-server.logrotate dest=/etc/logrotate.d/mysql-server  owner=root group=root mode=0640
   tags: mysql
 
-- name: Script de arranque
-  copy: src=mysql.init dest=/etc/init.d/mysql  owner=root group=root mode=0755
-  tags: mysql
+#- name: Script de arranque
+#  copy: src=mysql.init dest=/etc/init.d/mysql  owner=root group=root mode=0755
+#  tags: mysql
 
 - meta: flush_handlers
 
