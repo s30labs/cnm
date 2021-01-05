@@ -864,11 +864,23 @@ my ($module_name)=@_;
 	my $inst=ExtUtils::Installed->new();
 	# ej: Time-HiRes-1.42.tar.gz
 	my ($mname, $mversion)=('','');
+	# Soporte para modulos tar.gz, tgz o zip
 	if ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.tar\.gz$/ ) {
 		$mname=$1;
 		$mversion=$2;
 		$mname=~s/-/\:\:/g;
 	}
+   elsif ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.tgz$/ ) {
+      $mname=$1;
+      $mversion=$2;
+      $mname=~s/-/\:\:/g;
+   }
+   elsif ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.zip$/ ) {
+      $mname=$1;
+      $mversion=$2;
+      $mname=~s/-/\:\:/g;
+   }
+
 
 	if (exists $PERL_MODULE_NAMES{$mname}) { $mname=$PERL_MODULE_NAMES{$mname}; }	
 
