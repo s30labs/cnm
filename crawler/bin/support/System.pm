@@ -856,7 +856,7 @@ my ($module_name)=@_;
 
    my $dir_modules='/opt/cnm-extras/perl_modules';
 	my $info = get_os_version();
-	if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+	if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
 		$dir_modules='/opt/cnm-extras/debian10/perl_modules';
 	}
 
@@ -1225,7 +1225,7 @@ sub do_perl_module_check_all  {
 
    my $dir_modules='/opt/cnm-extras/perl_modules';
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
       $dir_modules='/opt/cnm-extras/debian10/perl_modules';
    }
 
@@ -1319,7 +1319,7 @@ my $module_name=shift;
    my $CWD = getcwd;
    my $dir_modules='/opt/cnm-extras/perl_modules';
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
       $dir_modules='/opt/cnm-extras/debian10/perl_modules';
    }
 
