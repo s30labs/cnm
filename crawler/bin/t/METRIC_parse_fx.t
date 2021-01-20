@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 use lib "/opt/crawler/bin";
 use strict;
-use Test::More tests => 35;
+use Test::More tests => 37;
 use Crawler::FXM;
 
 #------------------------------------------------------------------------------
@@ -101,21 +101,35 @@ ok( $new_values->[0] - 2.07944154167984 < 0.000001, "$fx=$new_values->[0] >> val
 $fx='abs(o2)';
 $new_values=$FXM->parse_fx($fx,\@values,\%desc);
 
-ok( $new_values->[0] = 5, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+ok( $new_values->[0] == 5, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
 
 #------------------------------------------------------------------------------
 @values=(3, 49);
 $fx='sqrt(o2)';
 $new_values=$FXM->parse_fx($fx,\@values,\%desc);
 
-ok( $new_values->[0] = 7, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+ok( $new_values->[0] == 7, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
 
 #------------------------------------------------------------------------------
 @values=(3, 49.765);
 $fx='int(o2)';
 $new_values=$FXM->parse_fx($fx,\@values,\%desc);
 
-ok( $new_values->[0] = 49, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+ok( $new_values->[0] == 49, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+
+#------------------------------------------------------------------------------
+@values=(7, 10);
+$fx='o1-o2';
+$new_values=$FXM->parse_fx($fx,\@values,\%desc);
+
+ok( $new_values->[0] == -3, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+
+#------------------------------------------------------------------------------
+@values=(7, 10);
+$fx='ABS(o1-o2)';
+$new_values=$FXM->parse_fx($fx,\@values,\%desc);
+
+ok( $new_values->[0] == 3, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
 
 
 #------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ my $log_mode = 2; # 2 => stdout
 
 #-----------------------------------------------------------------------------------------
 my $crawler = Crawler->new(log_level=>$log_level, log_mode=>$log_mode);
-my $FILE_CALENDAR='/opt/cnm/crawler/bin/t/calendar.json';
+my $FILE_CALENDAR = $ARGV[0] || '/opt/cnm/crawler/bin/t/calendar.json';
 my $jconf = $crawler->slurp_file($FILE_CALENDAR);
 my $json = JSON->new();
 my $CAL = $json->decode($jconf);
