@@ -134,7 +134,7 @@ $ENT_13191_ONEACCESS::ENTERPRISE_PREFIX='13191';
 #  DESCRIPTION   "Signal strength (dBm)"
 #::= { iso(1) org(3) dod(6) internet(1) private(4) enterprises(1) oneAccess(13191) oacExperimental(10) oacExpInternalModules(3) oacExpIMCellRadio(9) oacCellRadioModuleTable(2) oacCellRadioModuleEntry(1) 41 }
 
-	{	'name'=> 'PARAMETROS RADIO',  'oid'=>'oacCellSignalStrength|oacCellRSRQ|oacCellRSRP|oacCellSNR', 'subtype'=>'oneaccess_radio_params', 'class'=>'ONEACCESS', 'range'=>'ONEACCESS-CELLULAR-MIB::oacCellRadioModuleTable', 'get_iid'=>'oacCellModuleIndex', 'include'=>'1', 'items'=>'oacCellSignalStrength|oacCellRSRQ|oacCellRSRP|oacCellSNR', 'esp'=>'', 'itil_type' => 1, 'apptype'=>'NET.ONEACCESS' },
+	{	'name'=> 'PARAMETROS RADIO',  'oid'=>'oacCellSignalStrength|oacCellRSRQ|oacCellRSRP|oacCellSNR', 'subtype'=>'oneaccess_radio_params', 'class'=>'ONEACCESS', 'range'=>'ONEACCESS-CELLULAR-MIB::oacCellRadioModuleTable', 'get_iid'=>'oacCellModuleIndex', 'include'=>'1', 'items'=>'oacCellSignalStrength|oacCellRSRQ|oacCellRSRP|oacCellSNR', 'esp'=>'', 'itil_type' => 1, 'apptype'=>'NET.ONEACCESS', 'mtype'=>'STD_ANAL' },
 
 #NS-ROOT-MIB::vsvrState
 #vsvrState OBJECT-TYPE
