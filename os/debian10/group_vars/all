@@ -3,6 +3,7 @@
 # Las particulares de cada equipo estan en /cfg/cnm_vars.yml
 # Si se quieren modificar se deben incluir los nuevos valores en /cfg/cnm_vars.yml
 # ansible-playbook --connection=local  cnm.yml --extra-vars="db_root_password=xxxxxx"
+ansible_python_interpreter: /usr/bin/python
 
 cnm_apt_repo: "deb http://deb.debian.org/debian/ buster main"
 cnm_git_repo: "https://github.com/s30labs"

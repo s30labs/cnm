@@ -4,7 +4,14 @@ $file = '/cfg/onm.if';
 if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
 if (getenv("CNM_LOCAL_IP") !== false) { $ip = getenv("CNM_LOCAL_IP"); }
 else {
-	$ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+//	$ip = chop(`/sbin/ifconfig $iface | grep 'inet addr' | cut -d ":" -f2|cut -d " " -f1`);
+   $ip = chop(`/sbin/ifconfig $iface | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'`);
+   if ($ip == "") {
+      //Debian 10
+      $ip = chop(`/sbin/ifconfig $iface | grep 'inet ' | cut -d: -f2 | awk '{print $2}'`);
+   }
+
+print "***********FML*******************INIT CNMS ip=$ip\n";
 }
 $name = chop(`/bin/hostname`);
 if (getenv("CNM_DB_SERVER") !== false) { $name = getenv("CNM_DB_SERVER"); }

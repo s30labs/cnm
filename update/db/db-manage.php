@@ -453,7 +453,7 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 	print "INSTALANDO PLUGIN:\t$plug_name\t";
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -465,7 +465,7 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 		print " ({$client['db1_name']})\t";
 
       $db_params = array(
-			'phptype'  => 'mysql',
+			'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
 			'hostspec' => $client['db1_server'],
@@ -499,7 +499,7 @@ function d_clear_plugin_base($plugin_id=''){
 	
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -510,7 +510,7 @@ function d_clear_plugin_base($plugin_id=''){
    foreach($a_client as $client){
 		print "Elimino plugin ($plugin_id) de {$client['db1_name']} ...";
       $db_params = array(
-			'phptype'  => 'mysql',
+			'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
 			'hostspec' => $client['db1_server'],
@@ -532,7 +532,7 @@ function d_update_tips(){
 
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -543,7 +543,7 @@ function d_update_tips(){
    foreach($a_client as $client){
 		print "Actualizo la tabla tips de {$client['db1_name']} ...";
       $db_params = array(
-			'phptype'  => 'mysql',
+			'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
 			'hostspec' => $client['db1_server'],
@@ -571,7 +571,7 @@ global $DBScheme,$DBData,$DBModData,$DBExcepcion,$force;
 
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -582,7 +582,7 @@ global $DBScheme,$DBData,$DBModData,$DBExcepcion,$force;
    foreach($a_client as $client){
 		print "{$client['db1_name']}...";
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],
@@ -630,7 +630,7 @@ global $DBData;
 
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -641,7 +641,7 @@ global $DBData;
    foreach($a_client as $client){
 		print "{$client['db1_name']}...";
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],
@@ -666,7 +666,7 @@ function d_update_table(){
 	print "ACTUALIZANDO TABLAS ...\n";
 	$cred = get_db_credentials();
    $db_params=array(
-      'phptype'  => 'mysql',
+      'phptype'  => 'mysqli',
       'username' => 'onm',
       'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
@@ -678,7 +678,7 @@ function d_update_table(){
    foreach($a_client as $client){
 		print "{$client['db1_name']}...";
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
          'username' => $client['db1_user'],
          'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],
@@ -701,7 +701,7 @@ function d_update_charset(){
 
 	$cred = get_db_credentials();
    $db_params=array(
-      'phptype'  => 'mysql',
+      'phptype'  => 'mysqli',
       'username' => 'onm',
       'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
@@ -714,7 +714,7 @@ function d_update_charset(){
    $a_client = _cnms($db_params);
    foreach($a_client as $client){
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
          'username' => $client['db1_user'],
          'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],
@@ -738,7 +738,7 @@ global $DBSchemeCNM,$DBExcepcionCNM,$DBDataCNM,$DBModDataCNM,$DBProcedureCNM,$DB
 
 	$cred = get_db_credentials();
    $db_params=array(
-      'phptype'  => 'mysql',
+      'phptype'  => 'mysqli',
       'username' => 'onm',
       'hostspec' => $cred["CNM_DB_SERVER"],
       'database' => 'cnm',
@@ -760,7 +760,7 @@ global $DBSchemeCNM,$DBExcepcionCNM,$DBDataCNM,$DBModDataCNM,$DBProcedureCNM,$DB
    foreach($a_client as $client){
 		print "Actualizando bbdd {$client['db1_name']} ... ";
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
          'username' => $client['db1_user'],
          'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],
@@ -785,7 +785,7 @@ function d_drop_table($tables){
 
 	$cred = get_db_credentials();
    $db_params=array(
-		'phptype'  => 'mysql',
+		'phptype'  => 'mysqli',
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
@@ -797,7 +797,7 @@ function d_drop_table($tables){
    foreach($a_client as $client){
 		print "{$client['db1_name']}...";
       $db_params = array(
-         'phptype'  => 'mysql',
+         'phptype'  => 'mysqli',
 			'username' => $client['db1_user'],
 			'password' => $client['db1_pwd'],
          'hostspec' => $client['db1_server'],

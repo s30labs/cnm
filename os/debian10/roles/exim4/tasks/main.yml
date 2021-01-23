@@ -1,0 +1,33 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: exim4
+
+# Add specified repository into sources list.
+- name: Verify repository
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: exim4
+
+- name: Install packages
+  apt:
+    name: [ 'exim4', 'exim4-base', 'exim4-config', 'exim4-daemon-light' ]
+    state: present
+    force: yes
+  become: true
+  tags: rrdtool
+  
+- name: Create dir /opt/data/buzones/cnmnotifier/new
+  file: path=/opt/data/buzones/cnmnotifier/new state=directory owner=www-data group=www-data mode=0775
+  tags: exim4
+
+- name: Config Files
+  copy: src="{{ item }}" dest="/etc/exim4/{{ item }}"  owner=root group=root mode=0640
+  with_items:
+    - cnm-mta-filter
+    - cnm-mta-local
+    - exim4.conf
+  tags: exim4
+  notify:
+   - restart exim4
+
+...

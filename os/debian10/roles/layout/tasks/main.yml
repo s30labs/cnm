@@ -1,6 +1,7 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
+  tags: layout
 
 # Add specified repository into sources list.
 - name: Se asigna repositorio

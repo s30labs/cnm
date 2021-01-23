@@ -319,6 +319,7 @@ global $enlace;
 		// SE MANEJAN LOS DATOS CON CODIFICACION UTF-8
 	   $query  = "SET CHARACTER SET 'utf8'";
 	   $result = $enlace->query($query);
+
 	}
 }
 
@@ -386,11 +387,7 @@ global $enlace;
 	// Invocamos los procedimientos que nos interesen
 	// $queryProcedure = "CALL $procedure('','')";
 	$procedure = 'sp_alerts_read';
-
-	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
-	else {
-		$local_ip = chop(`/sbin/ifconfig eth0|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
-	}
+	$local_ip = get_local_ip();
 	$queryProcedure = "CALL $procedure('default','$local_ip')";
 	$resultQueryProcedure=$enlace->query($queryProcedure);
 	if (@PEAR::isError($resultQueryProcedure)) {
@@ -448,7 +445,8 @@ global $enlace;
 
 		_debug("update_script:: $fileFullPath | size=$fsize | date=$fdate",__LINE__,'DBG','cfg_monitor_agent_script_update');
 
-      $fdata = mysql_real_escape_string(file_get_contents($fileFullPath));
+      //$fdata = real_escape_string(file_get_contents($fileFullPath));
+		$fdata = $enlace->escapeSimple(file_get_contents($fileFullPath));
       $queryInsert="INSERT INTO cfg_monitor_agent_script (script,size,date,script_data,custom) VALUES ('$file',$fsize,$fdate,'$fdata',0) ON DUPLICATE KEY UPDATE size=$fsize,date=$fdate,script_data='$fdata'";
 		$resultInsert=$enlace->query($queryInsert);
       if (@PEAR::isError($resultInsert)) {
@@ -1021,9 +1019,11 @@ return;
             foreach($valor as $a_cascade) $struct['data'][]=$a_cascade;
          }else{
             $a_Cols[]=$columna;
-            $a_Vals[]="'".mysql_real_escape_string($valor)."'";
+            //$a_Vals[]="'".real_escape_string($valor)."'";
+				$a_Vals[]="'".$enlace->escapeSimple($valor)."'";
 
-            $sqlBusqueda.=$sqlBusquedaSep.$columna.'='."'".mysql_real_escape_string($valor)."'";
+            //$sqlBusqueda.=$sqlBusquedaSep.$columna.'='."'".real_escape_string($valor)."'";
+            $sqlBusqueda.=$sqlBusquedaSep.$columna.'='."'".$enlace->escapeSimple($valor)."'";
             $sqlBusquedaSep = "AND ";
          }
       }
@@ -1037,7 +1037,8 @@ return;
       foreach ($tupla as $columna => $valor){
          if(in_array($columna,$a_pk)) continue;
          if(is_array($valor)) continue; // Tabla cfg_remote_alerts
-         $sqlUpdate.=$sqlUpdate_sep.$columna."='".mysql_real_escape_string($valor)."'";
+         //$sqlUpdate.=$sqlUpdate_sep.$columna."='".real_escape_string($valor)."'";
+         $sqlUpdate.=$sqlUpdate_sep.$columna."='".$enlace->escapeSimple($valor)."'";
          $sqlUpdate_sep=',';
       }
 
@@ -1068,7 +1069,8 @@ return;
          foreach ($tupla as $columna => $valor){
 				if(in_array($columna,$a_pk)) continue;
 				if(is_array($valor)) continue; // Tabla cfg_remote_alerts
-				$sqlInsert.=$sqlInsert_sep.$columna."='".mysql_real_escape_string($valor)."'";
+				//$sqlInsert.=$sqlInsert_sep.$columna."='".real_escape_string($valor)."'";
+				$sqlInsert.=$sqlInsert_sep.$columna."='".$enlace->escapeSimple($valor)."'";
 				$sqlInsert_sep=',';
          }
 
@@ -1080,7 +1082,8 @@ return;
 			foreach ($tupla as $columna => $valor){
             if(!in_array($columna,$a_pk)) continue;
 				if(is_array($valor)) continue; // Tabla cfg_remote_alerts
-            $sqlInsert.=$sqlInsert_sep.$columna."='".mysql_real_escape_string($valor)."'";
+            //$sqlInsert.=$sqlInsert_sep.$columna."='".real_escape_string($valor)."'";
+            $sqlInsert.=$sqlInsert_sep.$columna."='".$enlace->escapeSimple($valor)."'";
             $sqlInsert_sep=' AND ';
          }
 			$sqlInsert.=")";
@@ -1646,6 +1649,7 @@ global $enlace;
 
 function DataModInit($datos){
 global $enlace;
+
 /*
 // Datos que deben ser modificados y no insertados
 $DBModData = array(
@@ -1680,7 +1684,8 @@ $DBModDataCNM = array(
 			$sep = '';
 			foreach ($tupla as $columna => $valor){
 				if(in_array($columna,$infoTabla['key'])) continue;
-            $sqlTot.=$sep.$columna."='".mysql_real_escape_string($valor)."'";
+            //$sqlTot.=$sep.$columna."='".real_escape_string($valor)."'";
+            $sqlTot.=$sep.$columna."='".$enlace->escapeSimple($valor)."'";
             $sep=',';
          }
 			$sqlTot.=" WHERE ";
@@ -1715,7 +1720,8 @@ $DBModDataCNM = array(
 
          $sep = '';
          foreach ($tupla as $columna => $valor){
-            $sqlTot.=$sep."'".mysql_real_escape_string($valor)."'";
+            //$sqlTot.=$sep."'".real_escape_string($valor)."'";
+            $sqlTot.=$sep."'".$enlace->escapeSimple($valor)."'";
 				$sep=',';
          }
 			$sqlTot.=")";
@@ -1814,14 +1820,7 @@ global $enlace;
    $a_client=array();
 
    connectDB($db_params);
-
-   $iface = 'eth0';
-   $file = '/cfg/onm.if';
-   if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
-	if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
-	else {
-   	$local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
-	}
+	$local_ip = get_local_ip();
 
 	// $result=$enlace->query("SELECT hidx,cid,descr,db1_name,db1_server,db1_pwd,db1_user,db2_name,db2_server,db2_pwd,db2_user FROM cfg_cnms WHERE host_ip='$local_ip'");
 	$result=$enlace->query("SELECT * FROM cfg_cnms WHERE host_ip='$local_ip'");
@@ -2014,4 +2013,24 @@ function read_cfg_file($file,&$data){
 function is_assoc($var){
 	return is_array($var) && array_diff_key($var,array_keys(array_keys($var)));
 }
+
+
+function get_local_ip() {
+
+   $iface = 'eth0';
+   $file = '/cfg/onm.if';
+   if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
+
+   if (getenv("CNM_LOCAL_IP") !== false) { $local_ip = getenv("CNM_LOCAL_IP"); }
+   else {
+      $local_ip = chop(`/sbin/ifconfig $iface | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'`);
+      if ($local_ip == "") {
+         //Debian 10
+         $local_ip = chop(`/sbin/ifconfig $iface | grep 'inet ' | cut -d: -f2 | awk '{print $2}'`);
+      }
+   }
+
+	return $local_ip;
+}
+
 ?>

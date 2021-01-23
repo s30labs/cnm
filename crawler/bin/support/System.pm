@@ -856,7 +856,7 @@ my ($module_name)=@_;
 
    my $dir_modules='/opt/cnm-extras/perl_modules';
 	my $info = get_os_version();
-	if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+	if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
 		$dir_modules='/opt/cnm-extras/debian10/perl_modules';
 	}
 
@@ -864,11 +864,23 @@ my ($module_name)=@_;
 	my $inst=ExtUtils::Installed->new();
 	# ej: Time-HiRes-1.42.tar.gz
 	my ($mname, $mversion)=('','');
+	# Soporte para modulos tar.gz, tgz o zip
 	if ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.tar\.gz$/ ) {
 		$mname=$1;
 		$mversion=$2;
 		$mname=~s/-/\:\:/g;
 	}
+   elsif ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.tgz$/ ) {
+      $mname=$1;
+      $mversion=$2;
+      $mname=~s/-/\:\:/g;
+   }
+   elsif ($module_name =~/^(\S+?)-*([\d+|\.*|_*]+)\.zip$/ ) {
+      $mname=$1;
+      $mversion=$2;
+      $mname=~s/-/\:\:/g;
+   }
+
 
 	if (exists $PERL_MODULE_NAMES{$mname}) { $mname=$PERL_MODULE_NAMES{$mname}; }	
 
@@ -1213,7 +1225,7 @@ sub do_perl_module_check_all  {
 
    my $dir_modules='/opt/cnm-extras/perl_modules';
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
       $dir_modules='/opt/cnm-extras/debian10/perl_modules';
    }
 
@@ -1307,7 +1319,7 @@ my $module_name=shift;
    my $CWD = getcwd;
    my $dir_modules='/opt/cnm-extras/perl_modules';
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) || ($info->{'Release'} =~ /10/) ) {
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
       $dir_modules='/opt/cnm-extras/debian10/perl_modules';
    }
 

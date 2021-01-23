@@ -8,7 +8,7 @@
   
 - name: Install packages
   apt:
-    name: ['gcc', 'make', 'autoconf', 'libperl-dev' ]
+    name: ['gcc', 'make', 'autoconf', 'libperl-dev', 'snmpsim' ]
     state: present
     force: yes
   become: true

@@ -9,7 +9,15 @@
     - layout
     - cnm-cfg
     - apache-php
-#    - mysql
+    - mysql
     - net-snmp
     - syslog-ng
     - rrdtool
+
+    - exim4
+    - ntp
+    - ldap
+    - wmic
+    - smb
+
+    - cnm-schema
