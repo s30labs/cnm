@@ -14,7 +14,7 @@ use Encode qw(decode_utf8);
 my $FILE_CONF='/cfg/onm.conf';
 my ($rres,$sql,$HELP,$VIEW,$ID,$USER,$RECURSE)=([],'','','',0,'',0);
 my %PH=();
-my $USAGE = "Usage: $0 -view 'View name' -user login_name";
+my $USAGE = "Usage: $0 -view 'View name' -user login_name [-recurse]";
 my %ALLV=();
 
 #-------------------------------------------------------------------------------------------
@@ -80,8 +80,7 @@ foreach my $id (@ALL) {
 
    my $cid=$ALLV{$id}->{'cid'};
    my $cid_ip=$ALLV{$id}->{'cid_ip'};
-   print "Grant access to user $USER in $ALLV{$id}->{'name'} ...\n";
-   print "Grant access to user $USER ($IDU) in $ALLV{$id}->{'name'} ($id) ...\n";
+   print "Grant access to user $USER ($IDU) in $ALLV{$id}->{'name'} ($id) [$IDU,$id,$USER,$cid,$cid_ip]...\n";
    $store->insert_to_db($dbh,'cfg_user2view',{'id_user'=>$IDU,'id_cfg_view'=>$id,'login_name'=>$USER,'cid'=>$cid,'cid_ip'=>$cid_ip});
 }
 
