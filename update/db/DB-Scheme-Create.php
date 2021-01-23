@@ -836,7 +836,7 @@ $DBScheme = array(
       'name'=>"varchar(155) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'value'=>"varchar(250) character set utf8 collate utf8_spanish_ci NOT NULL",
       'calendar'=>"varchar(100) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
-      'PRIMARY KEY  (`id_notification_type`,`value`)'=>'',
+      'PRIMARY KEY  (`id_notification_type`,`value`,`calendar`)'=>'',
 		'KEY `id_register_transport` (`id_register_transport`)'=>''
    ),
    'cfg_notification2transport'=>array( //Tabla cfg_notification2transport
