@@ -972,9 +972,11 @@ $self->log('debug',"get_app_data:: app=$xx");
 
    #--------------------------------------------
    my %app_flush=();
+	my @all_app_id=();
    foreach my $h (@{$app->{'mapper'}}) {
       my @k = keys %$h;
       my $app_id = $k[0]; # module = app_id
+		push @all_app_id, $app_id;
 
 		# Si no existe la clave host en cualquiera de las estructuras de mapper
 		# se crea con el valor del host por defecto.
@@ -988,6 +990,8 @@ $self->log('debug',"get_app_data:: app=$xx");
 #         $store->clear_app_data($dbh,$logfile_temp,$app_id);
 #      }
 
+		# flush ==> Elimina en contenido de la table antes de volver a insertar
+		# buffer ==> Elimina los valores previos a capture_offset (automantiene la cantidad de datos)
       if (exists $h->{$app_id}->{'capture_mode'}) {
 			if ($h->{$app_id}->{'capture_mode'} eq 'flush') {
 	         $app_flush{$app_id} = $h->{$app_id}->{'app_name'}.'-'.$app->{'source'};
@@ -1005,7 +1009,8 @@ $self->log('debug',"get_app_data:: app=$xx");
    #--------------------------------------------
 	# Si no hay datos, termina
 	my $n=scalar(@$data);
-	$self->log('info',"get_app_data:: CAPTURED >> $n LINES");
+	my $all_ids = join(';',@all_app_id);
+	$self->log('info',"get_app_data:: CAPTURED $all_ids >> $n LINES");
 	if ($n==0) { 
 
 	   foreach my $aid (keys %app_flush) {
