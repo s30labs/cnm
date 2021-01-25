@@ -21,3 +21,9 @@
     - smb
 
     - cnm-schema
+    - cnm-runtime
+
+    - cnm-docker
+
+    - cnm-sp
+    - cnm-provision
