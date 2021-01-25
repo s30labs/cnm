@@ -32,7 +32,7 @@ CREATE TABLE `oid_tree` (
 //print_r($cred);
 
 	   $data = array(
-	      'phptype'  => 'mysql',
+	      'phptype'  => 'mysqli',
 	      'username' => 'onm',
 	      'password' => $cred["CNM_DB_PASSWORD"],
 	      'hostspec' => $cred["CNM_DB_SERVER"],
@@ -69,6 +69,7 @@ CREATE TABLE `oid_tree` (
 		$step = 50;
 
 	   $values = '';
+	   $sep_values = '';
 		$init_i = 1;
 		$progressBar = new \ProgressBar\Manager(0, $num_oids);
 	   for ($i=0;$i<$num_oids;$i++){
