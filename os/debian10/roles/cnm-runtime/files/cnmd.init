@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# CNM init file
+#
+# chkconfig: - 90 90
+# description: CNM
+#
+### BEGIN INIT INFO
+# Provides:          cnmd
+# Required-Start:    $syslog $mysql
+# Required-Stop:     $syslog $mysql
+# Default-Start:     
+# Default-Stop:      0 1 6
+# Short-Description: CNM Stop script
+# Description:
+#
+### END INIT INFO
+
+# source function library
+
+RETVAL=0
+
+FILE_LOCK='/opt/crawler/bin/watch.lock'
+#
+#if [ -e "$FILE_LOCK" ] ; then
+#echo "Activado sistema de bloqueo: $FILE_LOCK"
+#echo "Ending ...."
+#exit 2
+#fi 
+
+#/bin/touch "$FILE_LOCK"
+
+do_kill () {
+   touch "$FILE_LOCK"
+
+   for PID in `ps -eo pid,cmd | grep '\[crawler' | grep -v grep | awk '{print $1}' |xargs`; do
+      echo -n "Stopping crawler [$PID]: "
+      kill -9 $PID
+      echo
+   done
+
+   for filename in /var/run/crawler*.pid; do
+      if [[ ! -e "$filename" ]]; then continue; fi
+      rm -f $filename
+   done
+
+   for PID in `ps -eo pid,cmd | grep '\[notificationsd' | grep -v grep | awk '{print $1}' |xargs`; do
+      echo -n "Stopping notificationsd [$PID]: "
+      kill -9 $PID
+      echo
+   done
+
+   for filename in /var/run/notificationsd*.pid; do
+      if [[ ! -e "$filename" ]]; then continue; fi
+      rm -f $filename
+   done
+
+   for PID in `ps -eo pid,cmd | grep '\[actionsd' | grep -v grep | awk '{print $1}' |xargs`; do
+      echo -n "Stopping actionsd [$PID]: "
+      kill -9 $PID
+      echo
+   done
+
+   for filename in /var/run/actionsd*.pid; do
+      if [[ ! -e "$filename" ]]; then continue; fi
+      rm -f $filename
+   done
+
+   for PID in `ps -eo pid,cmd | grep '\[mail_manager' | grep -v grep | awk '{print $1}' |xargs`; do
+      echo -n "Stopping mail_manager [$PID]: "
+      kill -9 $PID
+      echo
+   done
+
+   for filename in /var/run/mail_manager*.pid; do
+      if [[ ! -e "$filename" ]]; then continue; fi
+      rm -f $filename
+   done
+
+   /bin/rm -f /tmp/_ipc_*
+   /bin/rm -f "$FILE_LOCK"
+
+}
+
+
+
+
+
+case "$1" in
+  start)
+        	echo "Processes are started automatically with cnm-watch !!"
+        	echo "You can do a restart with restart_all option"
+        	;;
+  stop)
+		  	echo "Stopping all monitoring processes ..."
+			
+			for filename in /var/run/notificationsd*.pid; do
+
+				if [[ ! -e "$filename" ]]; then continue; fi
+				PID=`cat $filename` 
+	        	echo -n "Stopping notificationsd [$PID] ($filename): "
+   	     	start-stop-daemon --stop --pidfile $filename --signal 15
+      	  	RETVAL=$?
+        		[ $RETVAL -eq 0 ] && rm -f $filename
+        		echo
+
+			done
+
+         for filename in /var/run/actionsd*.pid; do
+
+            if [[ ! -e "$filename" ]]; then continue; fi
+            PID=`cat $filename`
+            echo -n "Stopping actionsd [$PID] ($filename): "
+            start-stop-daemon --stop --pidfile $filename --signal 15
+            RETVAL=$?
+            [ $RETVAL -eq 0 ] && rm -f $filename
+            echo
+
+         done
+
+
+         for filename in /var/run/crawler*.pid; do
+
+            if [[ ! -e "$filename" ]]; then continue; fi
+            PID=`cat $filename`
+            echo -n "Stopping crawler [$PID] ($filename): "
+            start-stop-daemon --stop --pidfile $filename --signal 15
+            RETVAL=$?
+            [ $RETVAL -eq 0 ] && rm -f $filename
+            echo
+
+         done
+
+
+         for filename in /var/run/mail_manager*.pid; do
+
+            if [[ ! -e "$filename" ]]; then continue; fi
+            PID=`cat $filename`
+            echo -n "Stopping mail_manager [$PID] ($filename): "
+            start-stop-daemon --stop --pidfile $filename --signal 15
+            RETVAL=$?
+            [ $RETVAL -eq 0 ] && rm -f $filename
+            echo
+
+         done
+
+        	;;
+  	kill)
+			do_kill
+        	;;
+
+  restart_all)
+
+			do_kill
+			if [[ -e "$FILE_LOCK" ]]; then
+				kill -9 `ps -eo pid,cmd | grep 'cnm-watch' | grep -v grep | awk '{print $1}' |xargs` 	
+			fi
+			echo "Starting all monitoring processes (this may take a while) ..."
+			/opt/cnm/crawler/bin/cnm-watch -fv
+			;;
+
+  restart_base)
+
+		  echo "Starting base processes ..."
+		  /etc/init.d/smb restart
+		  /etc/init.d/snmpd restart
+		  /etc/init.d/syslog-ng restart
+		  /etc/init.d/mysql restart
+		  /etc/init.d/apache2 restart
+		  	
+#        /bin/rm -f "$FILE_LOCK"
+#        $0 stop
+#        /bin/rm -f "$FILE_LOCK"
+#        $0 start
+#        RETVAL=$?
+        ;;
+  status)
+        status notificationsd
+        RETVAL=$?
+        status actionsd
+        RETVAL=$?
+        status crawler
+        RETVAL=$?
+        ;;
+  register)
+        echo -n "Registering metrics: "
+        /opt/crawler/bin/crawler -i
+        RETVAL=$?
+        echo
+        ;;
+
+  *)
+        echo "Usage:cnm {stop|kill|restart_base|restart_all|status|register}"
+#		  /bin/rm -f "$FILE_LOCK"
+        exit 1
+esac
+#/bin/rm -f "$FILE_LOCK"
+
+

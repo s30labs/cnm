@@ -20,10 +20,23 @@
 
 - name: Install packages
   apt:
-    name: [ 'apache2', 'apache2-dev', 'libapache2-mod-perl2', 'libapache2-mod-php7.3', 'php7.3-dba', 'php-db-dataobject', 'php-fpdf', 'php-mail', 'php-net-smtp', 'php-net-socket', 'php-pear', 'php7.3', 'php7.3-cli', 'php7.3-common', 'php7.3-dev', 'php7.3-gd', 'php7.3-mysql', 'php7.3-curl', 'php7.3-xsl', 'php7.3-ldap', 'php7.3-imap', 'php-raphf', 'php-raphf-dev', 'php-propro', 'php-propro-dev', 'php-apcu', 'php-pecl-http']
+    name: [ 'apache2', 'apache2-dev', 'libapache2-mod-perl2', 'libapache2-mod-php7.3', 'php7.3-dba', 'php-db-dataobject', 'php-fpdf', 'php-mail', 'php-net-smtp', 'php-net-socket', 'php-pear', 'php7.3', 'php7.3-cli', 'php7.3-common', 'php7.3-dev', 'php7.3-gd', 'php7.3-mysql', 'php7.3-curl', 'php7.3-xsl', 'php7.3-ldap', 'php7.3-imap', 'php7.3-mbstring', 'php-raphf', 'php-raphf-dev', 'php-propro', 'php-propro-dev', 'php-apcu', 'php-pecl-http']
     state: present
     force: yes
   become: true
+  tags: apache-php
+
+
+- name: Check directory /opt/php-utils/progress_bar
+  file: path=/opt/php-utils/progress_bar state=directory owner=www-data group=www-data mode=0755
+  tags: apache-php
+
+- name: Copy progress_bar files
+  copy: src={{ item.src }} dest={{ item.dest }} owner=root group=root mode=0644
+  with_items:
+    - { src: 'progress_bar/Manager.php', dest: '/opt/php-utils/progress_bar/Manager.php' }
+    - { src: 'progress_bar/Registry.php', dest: '/opt/php-utils/progress_bar/Registry.php' }
+    - { src: 'progress_bar/README.md', dest: '/opt/php-utils/progress_bar/README.md' }
   tags: apache-php
   
 - name: Check directory /var/log/apache2

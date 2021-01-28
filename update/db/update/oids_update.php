@@ -1,14 +1,15 @@
 <?php
 ini_set('memory_limit','1024M');
+set_include_path('.:/usr/share/php:/usr/share/pear:/var/www/html/onm/inc:/opt/php-utils');
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
 require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA LEER DATOS DE CONFIGURACION DE CNM
 require_once('/update/db/DB-Scheme-Lib.php');
-require_once '/var/www/html/onm/inc/progress_bar/Manager.php';
-require_once '/var/www/html/onm/inc/progress_bar/Registry.php';
-
-
+//require_once '/var/www/html/onm/inc/progress_bar/Manager.php';
+//require_once '/var/www/html/onm/inc/progress_bar/Registry.php';
+require_once 'progress_bar/Manager.php';
+require_once 'progress_bar/Registry.php';
 
 /*
 CREATE TABLE `oid_tree` (
@@ -31,7 +32,7 @@ CREATE TABLE `oid_tree` (
 //print_r($cred);
 
 	   $data = array(
-	      'phptype'  => 'mysql',
+	      'phptype'  => 'mysqli',
 	      'username' => 'onm',
 	      'password' => $cred["CNM_DB_PASSWORD"],
 	      'hostspec' => $cred["CNM_DB_SERVER"],
@@ -68,6 +69,7 @@ CREATE TABLE `oid_tree` (
 		$step = 50;
 
 	   $values = '';
+	   $sep_values = '';
 		$init_i = 1;
 		$progressBar = new \ProgressBar\Manager(0, $num_oids);
 	   for ($i=0;$i<$num_oids;$i++){

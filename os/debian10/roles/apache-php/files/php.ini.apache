@@ -754,6 +754,7 @@ user_dir =
 ; Directory in which the loadable extensions (modules) reside.
 ; http://php.net/extension-dir
 ;extension_dir = "./"
+extension_dir = "/usr/lib/php/20180731/"
 ; On windows:
 ;extension_dir = "ext"
 
@@ -944,9 +945,9 @@ default_socket_timeout = 60
 ;extension=xmlrpc
 ;extension=xsl
 
-extension=raphf
-extension=propro
-extension=http
+;extension=raphf
+;extension=propro
+;extension=http
 
 ;;;;;;;;;;;;;;;;;;;
 ; Module Settings ;

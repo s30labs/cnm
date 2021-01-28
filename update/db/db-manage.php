@@ -218,6 +218,8 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure;
 	 * Datos que deben ser actualizados con cierto criterio
 	 * NOTAS: A $DBModData se le va a aplicar la función DataModInit()
 	*/
+	if (! isset($CNM_CONFIG)) { $CNM_CONFIG=''; }
+	if (! isset($CFG_USERS)) { $CFG_USERS=''; }
 	$DBModData = array(
 	   'tips'       => array('data'=>$TIPS, 'key'=>array('id_ref','tip_type'),'condition'=>'tip_class=1'),
 	   'cnm_config' => array('data'=>$CNM_CONFIG, 'key'=>array('cnm_key'),'condition'=>"cnm_value=''"),
