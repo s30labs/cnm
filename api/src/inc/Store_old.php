@@ -42,12 +42,13 @@ function read_cfg_file($file,&$data){
 */
 function getQuery($id,$data){
    global $sql_pool;
+	global $dbc;
 	include_once('sql/mod_Configure.sql');
 
    $sql=$sql_pool[$id];
    if (count($data)>0) {
       foreach ($data as $key => $value){
-         if($key!='__CONDITION__' AND $key!='__VALUES__') $value = mysql_real_escape_string($value);
+         if($key!='__CONDITION__' AND $key!='__VALUES__') $value = $dbc->escapeSimple($value);
          $sql=str_replace($key,$value,$sql);
       }
    }
@@ -210,7 +211,7 @@ global $dbc;
 			$a_return['data'][]=array('key'=>$key,'descr'=>'The field doesnt exist in the CNM database');
 			continue;
 		}
-      $dato=mysql_real_escape_string($value);
+      $dato=$dbc->escapeSimple($value);
 
       // SSV: PROXY INVERSO
       $dato=str_replace('[proxy]', '____PROXY____[proxy]', $dato);

@@ -100,9 +100,10 @@ function myflot($input){
    $lapse_rrd      = 300;
    $null           = '';
 
-#print "***PARCHE****\n";
+	// FML 30/07/2019 No entiendo este offset. Se elimina
+   //$sec_offset = date('Z');
+	$sec_offset = 0;
 
-   $sec_offset = date('Z');
    // Array con los valores máximos definidos en la métrica/vista
    $a_top_value = array();
 
@@ -189,7 +190,15 @@ function myflot($input){
       $start = $lapse_start;
       $end   = $lapse_end;
    }
-   // Último día
+   // Ultimo dia
+   elseif ($lapse=='hour'){
+
+		$start = strtotime(date("Y-m-d H:0:0"));
+		$start -= $lapse_rrd;
+		$end = $start + 3600 + $lapse_rrd;
+   }
+
+   // Ultimo dia
    elseif ($lapse=='today'){
 /*
       $aux = lapse_flot(0);
@@ -229,6 +238,14 @@ function myflot($input){
       $start = strtotime(date("Y-m-d H:i:s",strtotime("-1 weeks")));
       $end   = strtotime(date("Y-m-d H:i:s"));
    }
+   elseif (strpos($lapse,'hour_')!==false){
+
+		$n = str_replace('hour_','',$lapse);
+      $start = strtotime(date("Y-m-d H:0:0"));
+		$start -= $n*3600;
+		$start -= $lapse_rrd;
+      $end = $start + 3600 + $lapse_rrd;
+   }
    // Hace X días, el día completo
    elseif(strpos($lapse,'day_')!==false){
       $n = str_replace('day_','',$lapse);
@@ -261,7 +278,10 @@ function myflot($input){
       $start = $input['start'];
       $end   = $input['end'];
    }
-   else return;
+   else {
+		CNMUtils::info_log(__FILE__, __LINE__, "LAPSE NOT SUPPORTED ($lapse)");
+		return;
+	}
 
    CNMUtils::info_log(__FILE__, __LINE__, "**flot** START=$start END=$end");
    $cf = (strpos($file,'STDMM')!==false)?'MAX':'AVERAGE';
@@ -288,6 +308,7 @@ function myflot($input){
             $timestamp_js = ($timestamp+$sec_offset);
 
             $a_value = array();
+/*
             // DISPONIBILIDAD O ESTADO DE INTERFACES
             if ($subtype=='disp_icmp' or $subtype=='status_mibii_if'){
                for ($i=0;$i<$num_fields-count($a_top_value);$i++){
@@ -329,6 +350,7 @@ function myflot($input){
             }
             // RESTO DE MÉTRICAS
             else{
+*/
                for ($i=0;$i<$num_fields-count($a_top_value);$i++){
                   $value=$c[$i+1];
                   if ($value == '0' or $value == '1') $value=(int)$value;
@@ -338,12 +360,12 @@ function myflot($input){
                for($j=0;$j<count($a_top_value);$j++){
                   $a_value[]=(string)$a_top_value[$j];
                }
-            }
+  //          }
 
          }
          // Parche para que, en caso de que solo haya un valor en el fichero rrd aparezca algo en la gráfica porque hacen falta dos valores para que pinte flot
          // if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-10)/10,'v'=>$a_value);
-         if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-1),'v'=>$a_value);
+         if($flag==0)$data['flot']['data'][]=array('t'=>($timestamp_js-$lapse_rrd),'v'=>$a_value);
          $flag = 1;
 
          // $data['flot']['data'][]=array('t'=>$timestamp_js/10,'v'=>$a_value);

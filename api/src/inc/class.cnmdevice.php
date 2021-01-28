@@ -1058,7 +1058,7 @@
 		   $sql2="SELECT id,descr FROM devices_custom_types";
 		   $result2 = $dbc->query($sql2);
 		   while ($result2->fetchInto($r2)){
-				$dato=mysql_real_escape_string($this->get_custom_field($r2['descr']));
+				$dato=$dbc->escapeSimple($this->get_custom_field($r2['descr']));
 				// ////////////////// //
 				// SSV: PROXY INVERSO //
 				// ////////////////// //

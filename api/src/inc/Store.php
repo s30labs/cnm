@@ -3412,11 +3412,12 @@ function get_remote_client() {
    */
 	function getQuery($id,$data){
 		global $sql_pool;
+		global $dbc;
 		include_once('sql/mod_Configure.sql');
 		$sql=$sql_pool[$id];
 		if (count($data)>0) {
 	      foreach ($data as $key => $value){
-				if($key!='__CONDITION__' and $key!='__VALUES__') $value = mysql_real_escape_string($value);
+				if($key!='__CONDITION__' and $key!='__VALUES__') $value = $dbc->escapeSimple($value);
 				// $value = addslashes($value);
 				// $value = str_replace("'","\'",$value);
       	   $sql=str_replace($key,$value,$sql);
@@ -3438,7 +3439,7 @@ function get_remote_client() {
 		$comma = '';
 		foreach($a_params as $param){
 			if(is_int($param))          $sql.=$comma.$param;
-			elseif(is_string($param))   $sql.=$comma.'"'.mysql_real_escape_string($param).'"';
+			elseif(is_string($param))   $sql.=$comma.'"'.$dbc->escapeSimple($param).'"';
 			$comma = ',';
 		}
 		$sql.=")";
@@ -6013,9 +6014,6 @@ function save_doc($id_tip,$id_ref,$title,$descr,$id_refn=0){
 	$date   = time();
    // Insertar documentación
    if($id_tip==0){
-		// SSV: Se quita mysql_real_escape_string porque ya se hace en doQuery() y en caso de dejarlos aquí también lo que pasa es que
-		// una comilla doble se mete como \" en la BBDD
-      // $datosQuery = array ('__DESCR__'=>mysql_real_escape_string($descr),'__ID_REF__'=>$id_ref,'__TIP_TYPE__'=>tip_type,'__DATE__'=>$date,'__NAME__'=>mysql_real_escape_string($title));
       $datosQuery = array ('__DESCR__'=>$descr,'__ID_REF__'=>$id_ref,'__TIP_TYPE__'=>tip_type,'__DATE__'=>$date,'__NAME__'=>$title,'__ID_REFN__'=>$id_refn);
       $result=doQuery('cnm_cfg_tips_store_create',$datosQuery);
 	   if ($result['rc']!=0) $a_response = array('rc'=>$result['rc'],'msg'=>"Ha habido algún problema al crear la entrada en documentación ({$result['rcstr']})");
@@ -6023,7 +6021,6 @@ function save_doc($id_tip,$id_ref,$title,$descr,$id_refn=0){
    }
    // Modificar documentación
    else{
-      // $datosQuery = array ('__ID_TIP__'=>$id_tip,'__ID_REF__'=>$id_ref,'__TIP_TYPE__'=>tip_type,'__DESCR__'=>mysql_real_escape_string($descr),'__DATE__'=>$date,'__NAME__'=>mysql_real_escape_string($title));
       $datosQuery = array ('__ID_TIP__'=>$id_tip,'__ID_REF__'=>$id_ref,'__TIP_TYPE__'=>tip_type,'__DESCR__'=>$descr,'__DATE__'=>$date,'__NAME__'=>$title);
       $result=doQuery('cnm_cfg_tips_store_update',$datosQuery);
 		if ($result['rc']!=0) $a_response = array('rc'=>$result['rc'],'msg'=>"Ha habido algún problema al modificar la entrada en documentación ({$result['rcstr']})");
@@ -7408,7 +7405,7 @@ global $dbc;
          $a_return['data'][]=array('key'=>$key,'descr'=>'The field doesnt exist in the CNM database');
          continue;
       }
-      $dato=mysql_real_escape_string($value);
+      $dato=$dbc->escapeSimple($value);
       // SSV: PROXY INVERSO
       $dato=str_replace('[proxy]', '____PROXY____[proxy]', $dato);
 

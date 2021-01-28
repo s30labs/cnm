@@ -16,6 +16,7 @@
 			// Validar que existe la alerta
          $data   = array('__ID_ALERT__'=>$id_alert,'__CID__'=>self::$cid,'__CID_IP__'=>$cid_ip);
          $result = doQuery('alert_info',$data);
+			CNMUtils::debug_log(__FILE__, __LINE__, "SQL={$result['query']}");
 			if($result['cont']==0){
             $a_res['rc']      = 1;
             $a_res['rcstr']   = "ALERT WITH ID $id_alert DOESNT EXIST";
@@ -30,6 +31,7 @@
 		   if ($result['rc']!='0'){
 		      $a_res['rc']      = 1;
 		      $a_res['rcstr']   = 'ERROR SAVING ALERT INTO ALERT STORE (STEP 1)';
+				CNMUtils::info_log(__FILE__, __LINE__, "RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
          	return $a_res;
 		   }
 	

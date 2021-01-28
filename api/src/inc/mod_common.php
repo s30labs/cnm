@@ -434,6 +434,8 @@ else{
     *         mod_dispositivo_layout.php
    */
 	function common_devices_get_table($mode=0,$input_params=array(),$extra_params=array(),$input_tabla='',$input_a_ss_params=array()){
+	global $dbc;
+
 	   if($mode==0){
 	      $tabla       = new Table();
 			$posStart    = $extra_params['posStart'];
@@ -593,7 +595,7 @@ else{
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -653,7 +655,7 @@ else{
 		      $cond.=$sep_params."( ''='' ";
 		      $sep_params = ' OR ';
 	
-		      foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		      foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 		
 		      foreach($params as $k_cond => $v_cond){
 			      if($v_cond=='') continue;
@@ -1571,6 +1573,8 @@ Condición de búsqueda');
 
 
 	function common_views_get_table($mode=0,$input_params=array()){
+	global $dbc;
+
       $tabla = new Table();
       $posStart    = 0;
       $count       = 1000000;
@@ -1659,7 +1663,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -1757,6 +1761,8 @@ Condición de búsqueda');
 	}
 
 	function common_metrics_get_table($mode=0,$input_params=array(),$extra_params=array()){
+	global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -1826,7 +1832,7 @@ Condición de búsqueda');
       // Parte de búsquedas //
       ////////////////////////
       if(! empty($params)){
-         foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+         foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 
          foreach($params as $k_cond => $v_cond){
             if($v_cond=='') continue;
@@ -1883,7 +1889,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -1937,6 +1943,8 @@ Condición de búsqueda');
 	}
 
 	function common_views_get_metrics($mode,$id_cfg_view,$input_params,$extra_params){
+	global $dbc;
+
 		$tabla = new Table();
 
       $cid    = cid(_hidx);
@@ -2057,7 +2065,7 @@ Condición de búsqueda');
       // Parte de búsquedas //
       ////////////////////////
       if(! empty($params)){
-         foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+         foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 
          foreach($params as $k_cond => $v_cond){
             if($v_cond=='') continue;
@@ -2106,6 +2114,8 @@ Condición de búsqueda');
 
 
 	function common_views_get_remote_alerts($mode,$id_cfg_view,$input_params,$extra_params){
+	global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2160,7 +2170,7 @@ Condición de búsqueda');
 	   // Parte de búsquedas //
    	////////////////////////
 		if(! empty($params)){
-		   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+		   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 		
 		   foreach($params as $k_cond => $v_cond){
 		      if($v_cond=='') continue;
@@ -2206,6 +2216,8 @@ Condición de búsqueda');
 
 
 	function common_alerts_get_table($mode,$input_params,$extra_params){
+	global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2299,7 +2311,7 @@ Condición de búsqueda');
 	   ////////////////////////
 	   // Parte de búsquedas //
 	   ////////////////////////
-	   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+	   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 
 	   foreach($params as $k_cond => $v_cond){
 	      if($v_cond=='') continue;
@@ -2359,6 +2371,8 @@ Condición de búsqueda');
 	* Descr:
 	*/
 	function common_alerts_store_get_table($mode,$input_params,$extra_params){
+	global $dbc;
+
 		$tabla = new Table();
 		/////////////
 		// Titulos //
@@ -2451,7 +2465,7 @@ Condición de búsqueda');
 	   ////////////////////////
 	   // Parte de búsquedas //
 	   ////////////////////////
-	   foreach($params as $key=>$value) $params[$key]=mysql_real_escape_string($value);
+	   foreach($params as $key=>$value) $params[$key]=$dbc->escapeSimple($value);
 
 	   foreach($params as $k_cond => $v_cond){
 	      if($v_cond=='') continue;
@@ -2503,6 +2517,8 @@ Condición de búsqueda');
 
 
 	function common_tickets_get_table($mode,$input_params,$extra_params){
+	global $dbc;
+
 		$tabla = new Table();
 		$tabla->no_limit_words();
 		/////////////
@@ -2610,11 +2626,11 @@ Condición de búsqueda');
 	   foreach($params as $key=>$value) {
 			if(is_array($value)){
 				foreach($value as $k => $v){
-					$params[$key][$k]=mysql_real_escape_string($v);
+					$params[$key][$k]=$dbc->escapeSimple($v);
 				}
 			}
 			else{
-				$params[$key]=mysql_real_escape_string($value);
+				$params[$key]=$dbc->escapeSimple($value);
 			}
 		}
 
