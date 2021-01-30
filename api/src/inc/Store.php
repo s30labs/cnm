@@ -701,26 +701,6 @@ global $dbc;
 
 function delete_device($ID,$cid){
 global $dbc;
-//	//Elimina el dispositivo de la tabla
-//	$sql="delete from devices where id_dev in ($ID)";
-//	$result = mysql_query($sql);
-//
-//	// Notifica a los crawlers que se deben eliminar las metricas
-//	$sql="Update metrics set status=3, refresh=1 where id_dev in ($ID)";
-//	$result = mysql_query($sql);
-//
-//	// Elimina las alertas asociadas de ese dispositivo
-//	$sql="delete from alerts where id_device in  ($ID)";
-//	$result = mysql_query($sql);
-//
-//   // Elimina las alertas asociadas de ese dispositivo
-//   $sql="delete from alerts_store where id_device in  ($ID)";
-//   $result = mysql_query($sql);
-
-//   // Elimina los avisos asociadas de ese dispositivo
-//   $sql="delete from cfg_notification2device where id_device in  ($ID)";
-//   $result = mysql_query($sql);
-
 
    if (! $ID) {
 		$msg = 'delete_device::No se ha pasado ID';
@@ -1654,10 +1634,15 @@ global $dbc;
 
    $result = $dbc->query($sql);
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-	$rcstr=mysql_error();
-	str_replace("\"", "\\\"",$rcstr);
-	str_replace("\'", "\\\'",$rcstr);
+
+	$rc=0;
+	$rcstr='OK';
+	if (@PEAR::isError($result)){
+   	$rcstr = $result->getUserInfo();
+   	$rc = $result->getCode();
+	   str_replace("\"", "\\\"",$rcstr);
+   	str_replace("\'", "\\\'",$rcstr);
+	}
 
 	return array('rows'=>$rows, 'rc'=>$rc, 'rcstr'=>$rcstr, 'subtype'=>$subtype);
 
@@ -1732,10 +1717,14 @@ depura_datos("STORE.PHP-LINEA ".__LINE__," update_custom_metric_snmp_esp $sql");
 
    $result = $dbc->query($sql);
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
-   str_replace("\"", "\\\"",$rcstr);
-   str_replace("\'", "\\\'",$rcstr);
+   $rc=0;
+   $rcstr='OK';
+   if (@PEAR::isError($result)){
+      $rcstr = $result->getUserInfo();
+      $rc = $result->getCode();
+      str_replace("\"", "\\\"",$rcstr);
+      str_replace("\'", "\\\'",$rcstr);
+   }
 
    return array('rows'=>$rows, 'rc'=>$rc, 'rcstr'=>$rcstr, 'subtype'=>$subtype);
 
@@ -2088,10 +2077,14 @@ if ($type=='xagent') $n = $iid;
 	}
 
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
-   str_replace("\"", "\\\"",$rcstr);
-   str_replace("\'", "\\\'",$rcstr);
+   $rc=0;
+   $rcstr='OK';
+   if (@PEAR::isError($result)){
+      $rcstr = $result->getUserInfo();
+      $rc = $result->getCode();
+      str_replace("\"", "\\\"",$rcstr);
+      str_replace("\'", "\\\'",$rcstr);
+   }
 
    return array('rows'=>$rows,'rc'=>$rc,'rcstr'=>$rcstr);
 
@@ -2252,10 +2245,14 @@ global $dbc;
 
    $result = $dbc->query($sql);
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
-   str_replace("\"", "\\\"",$rcstr);
-   str_replace("\'", "\\\'",$rcstr);
+   $rc=0;
+   $rcstr='OK';
+   if (@PEAR::isError($result)){
+      $rcstr = $result->getUserInfo();
+      $rc = $result->getCode();
+      str_replace("\"", "\\\"",$rcstr);
+      str_replace("\'", "\\\'",$rcstr);
+   }
 
    $response=array('rows'=>$rows,'rc'=>$rc,'rcstr'=>$rcstr);
 
@@ -2310,10 +2307,14 @@ global $dbc;
 
    $result = $dbc->query($sql);
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
-   str_replace("\"", "\\\"",$rcstr);
-   str_replace("\'", "\\\'",$rcstr);
+   $rc=0;
+   $rcstr='OK';
+   if (@PEAR::isError($result)){
+      $rcstr = $result->getUserInfo();
+      $rc = $result->getCode();
+      str_replace("\"", "\\\"",$rcstr);
+      str_replace("\'", "\\\'",$rcstr);
+   }
 
    $response=array('rows'=>$rows,'rc'=>$rc,'rcstr'=>$rcstr);
 
@@ -2352,10 +2353,14 @@ global $dbc;
 
    $result = $dbc->query($sql);
    $rows=$dbc->affectedRows();
-   $rc=mysql_errno();
-   $rcstr=mysql_error();
-   str_replace("\"", "\\\"",$rcstr);
-   str_replace("\'", "\\\'",$rcstr);
+   $rc=0;
+   $rcstr='OK';
+   if (@PEAR::isError($result)){
+      $rcstr = $result->getUserInfo();
+      $rc = $result->getCode();
+      str_replace("\"", "\\\"",$rcstr);
+      str_replace("\'", "\\\'",$rcstr);
+   }
 
    $response=array('rows'=>$rows,'rc'=>$rc,'rcstr'=>$rcstr,'monitor'=>$monitor);
 
@@ -2398,12 +2403,11 @@ global $dbc;
                                  vlabel='$vlabel' ,mode='$mode', get_iid='$get_iid', mtype='$mtype', oid_info='$info'";
    $result = $dbc->query($sql);
    $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
+   if (@PEAR::isError($result)){
+      $RESULT['rcstr'] = $result->getUserInfo();
+      $RESULT['rc'] = $result->getCode();
+   }
 
-   if ($RESULT['rc']) {
-      $rcstr=mysql_error();
-      $RESULT['rcstr']=$rcstr;
- 	}
    elseif ($rows == 1){ $RESULT['rcstr']="Nueva M&eacute;trica SNMP generada."; }
    elseif ($rows == 2){ $RESULT['rcstr']="M&eacute;trica SNMP actualizada."; }
 
@@ -2431,12 +2435,11 @@ global $dbc;
 
    $result = $dbc->query($sql);
    $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
-
-   if ($RESULT['rc']) {
-      $rcstr=mysql_error();
-      $RESULT['rcstr']=$rcstr;
+   if (@PEAR::isError($result)){
+      $RESULT['rcstr'] = $result->getUserInfo();
+      $RESULT['rc'] = $result->getCode();
    }
+
    elseif ($rows == 1){ $RESULT['rcstr']="Nueva Vista  generada."; }
    elseif ($rows == 2){ $RESULT['rcstr']="Vista actualizada."; }
 
@@ -2472,12 +2475,11 @@ global $dbc;
 //print "SQL=$sql\n";
    $result = $dbc->query($sql);
    $rows = $dbc->affectedRows();
-   $RESULT['rc']=mysql_errno();
-
-   if ($RESULT['rc']) {
-      $rcstr=mysql_error();
-      $RESULT['rcstr']=$rcstr;
+   if (@PEAR::isError($result)){
+      $RESULT['rcstr'] = $result->getUserInfo();
+      $RESULT['rc'] = $result->getCode();
    }
+
    elseif ($rows == 1){ $RESULT['rcstr']="Metrica en vista generada."; }
    elseif ($rows == 2){ $RESULT['rcstr']="Metrica en vista actualizada."; }
 
