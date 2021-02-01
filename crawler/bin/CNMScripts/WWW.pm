@@ -9,6 +9,7 @@ package CNMScripts::WWW;
 use strict;
 use LWP::UserAgent;
 use Data::Dumper;
+use Digest::MD5 qw(md5_hex);
 use Net::Curl::Easy qw(:constants);
 use bytes;
 use HTML::LinkExtor;
@@ -29,7 +30,7 @@ my ($class,%arg) =@_;
    $self->{_credentials} = $arg{credentials} || {};
    $self->{_lwp} = $arg{lwp} || '';
    $self->{_endpoint} = $arg{endpoint} || '';
-   $self->{_timeout} = $arg{timeout} || 5;
+   $self->{_timeout} = $arg{timeout} || 10;
    $self->{_err_num} = $arg{er_num} || 0;
    $self->{_err_str} = $arg{err_str} || '';
 
@@ -288,6 +289,8 @@ my ($self,$desc)=@_;
    my ($referer,$content,$status,$rc,$rcstr)=(undef,'','200 OK',0,0);
    eval {
 
+		alarm($timeout);
+
       $easy->setopt( CURLOPT_URL, $url_mod);
       $easy->setopt( CURLOPT_VERBOSE, $VERBOSE );
       $easy->setopt( CURLOPT_WRITEHEADER, \$easy->{headers} );
@@ -303,15 +306,16 @@ my ($self,$desc)=@_;
 #    $easy->setopt( CURLOPT_COOKIEFILE, '' );
 #    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
 
-      $self->log('info',"**LOC** GET url=$url_mod");
-
       $easy->perform();
 
+      $self->log('info',"mon_http_base (curl) >> GET url=$url_mod");
+
+		alarm(0);
    };
 
    if ($@) {
       print STDERR "**ERROR** EN GET url=$url ($@)\n";
-      $self->log('info',"**ERROR** EN GET url=$url ($@)");
+      $self->log('info',"mon_http_base (curl) >> **ERROR** EN GET url=$url ($@) (timeout=$timeout)");
 	   $self->err_num(1);
    	$self->err_str($@);
 
@@ -367,6 +371,66 @@ my ( $easy, $data, $uservar ) = @_;
    $$uservar .= $data;
    return length $data;
 }
+
+#----------------------------------------------------------------------------
+sub mon_http_base_curl {
+my ($self,$desc)=@_;
+
+   $self->err_num(0);
+   $self->err_str('');
+   my $timeout= $self->timeout();
+
+#$timeout=60;
+
+   my %results=( 'elapsed'=>'U', 'size'=>0, 'pattern'=>0, 'rctype'=>0, 'nlinks'=>0, 'rc'=>0);
+   my $url=$desc->{'url'};
+
+   my $VERBOSE=$desc->{'verbose'};
+
+   my $k=$url.time();
+   my $file_out = '/tmp/www'.substr(md5_hex($k),0,12);
+	my $file_debug = $file_out.'-debug';
+
+   my $cmd= "curl -L --output $file_out --connect-timeout $timeout --silent --verbose --write-out '%{http_code};%{time_appconnect};%{time_connect};%{time_namelookup};%{time_pretransfer};%{time_starttransfer};%{time_total}\n' $url 2>$file_debug";
+   my $line=`$cmd`;
+   chomp $line;
+   $self->log('info',"mon_http_base (curlcmd) GET url=$url >> $line");
+
+   #401;0.152;0.046;0.005;0.152;0.202;0.320
+   my ($http_code,$time_appconnect,$time_connect,$time_namelookup,$time_pretransfer,$time_starttransfer,$time_total) = split(';', $line);
+   $results{'rc'} = $http_code;
+   $results{'rctype'} = int ($http_code/100);
+   $results{'elapsed'} = $time_total;
+#  $results{'rcstr'} = $2;
+
+   local($/) = undef;  # slurp
+   open (F,"<$file_out");
+   my $content = <F>;
+   close F;
+	
+	if ($http_code>0) {
+	   unlink $file_out, $file_debug;
+	}
+
+   my $count=0;
+   if ($desc->{'pattern'}) {
+      while ($content =~ /$desc->{'pattern'}/g) { $count++ }
+      $results{'pattern'} = $count;
+   }
+   else { $results{'pattern'} = 0; }
+
+   $results{'size'} = bytes::length($content);
+
+   my $parser = HTML::LinkExtor->new();
+   $parser->parse($content);
+   my @links = $parser->links();
+   $results{'nlinks'} = scalar(@links);
+
+   return \%results;
+
+}
+
+
 
 1;
 
