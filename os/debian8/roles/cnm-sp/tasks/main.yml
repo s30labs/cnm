@@ -34,6 +34,7 @@
     - file-server
     - icmp-dual
     - ipmi-sensors
+    - sp-scheme
     - ssh-linuxOS
     - ssh-syslog
     - ssl-certs
