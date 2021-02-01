@@ -104,6 +104,7 @@ my @ALERTS_CLR=();	# Referencia a un hash con las alertas en curso (CLEAR).
 my $CFG_NOTIF;			# Referencia a un hash con los avisos configurados.
 my $CFG_APP;
 
+my $CALENDAR_BASE_PATH='/store/www-user/calendar';
 my $FILE_CONF='/cfg/onm.conf';
 my $RELOAD_FILE='/var/www/html/onm/reload/notificationsd.reload';
 
@@ -472,6 +473,10 @@ my ($self)=@_;
 	$store->cid($cid);
 	my $cid_ip=$self->cid_ip();
 	$store->cid_ip($cid_ip);
+
+	# Soporte para multiidioma
+	my $lang = $self->core_i18n_global();
+	$self->lang($lang);
 
    my $log_level=$self->log_level();
    $SNMP=Crawler::SNMP->new( store => $store, dbh => $dbh, store_path=>$spath, cfg=>$rcfgbase, log_level=>$log_level, mode_flag=>{rrd=>0, alert=>0} );
@@ -2234,11 +2239,12 @@ my $ev=$TASKS{$key}->{'ev'};
 				# Es neceasrio obtener la severidad de la tabla de alertas por si hubiera un watch con
 				# multiples severidades. 
 				# FIX-20190307
-				my $x=$store->get_from_db( $dbh,'severity','alerts',"id_alert=$id_alert");
+				my $x=$store->get_from_db( $dbh,'severity,id_metric','alerts',"id_alert=$id_alert");
 				$sev = $x->[0][0];
+				my $id_metric = $x->[0][1];
 
 	         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
-   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>'', 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
+   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>$id_metric, 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
 
             # Si es un monitor de multiples severidades tengo que borrar el fichero de marca.
             # Basta con chequear que exista el fichero.
@@ -4121,6 +4127,18 @@ __URL__
 		$txt =~s/$k/$value/g;
 	}
 
+	# Casos en los que interese el label/c_label de la metrica
+	my $label = '';
+   my $x=$store->get_from_db($dbh, 'ifnull(c_label,label)', 'metrics',"id_metric=$id_metric",'');
+   my $e=$store->error();
+   if ($e) { 
+		$e .= $store->errorstr().'  ('.$store->lastcmd().' )';
+   	$self->log('debug',"compose_notification_body:: **ERROR** $e");
+	}
+	else { $label = $x->[0][0]; }
+
+	$txt =~s/__LABEL__/$label/g;
+
 	if ($alert_type == TRAP_ALERT_TYPE) { 
 		my $x='Alarma generada por un eqipo remoto, no se dispone de grafica asociada.';
 		$txt =~s/__URL__/$x/g;
@@ -4140,6 +4158,7 @@ my ($self,$mode,$a,$notif_info)=@_;
 
 	my $subject = '';
 	my $cfg = $self->cfg();
+	my $lang = $self->lang();
 
    my $id_dev_alert=$a->[aDEVICE];    #id del device
    my $device=$a->[aALERT_DEV_NAME].'.'.$a->[aALERT_DEV_DOMAIN];
@@ -4170,11 +4189,28 @@ my ($self,$mode,$a,$notif_info)=@_;
 		$subject =~ s/__ALERT_CAUSE__/$alert_cause/g;
 		$subject =~s/__DEVICE__/$device/g;
 		$subject =~s/__IP__/$ip/g;
+
+	   # Casos en los que interese el label/c_label de la metrica
+	   my $dbh=$self->dbh();
+	   my $store=$self->store();
+   	my $label = '';
+   	my $x=$store->get_from_db($dbh, 'ifnull(c_label,label)', 'metrics',"id_metric=$id_metric",'');
+  	 	my $e=$store->error();
+   	if ($e) {
+      	$e .= $store->errorstr().'  ('.$store->lastcmd().' )';
+      	$self->log('debug',"compose_notification_body:: **ERROR** $e");
+   	}
+   	else { $label = $x->[0][0]; }
+
+		$subject =~s/__LABEL__/$label/g;
+
 	}
 	else {
 
-	   my $set_clr='GENERADA ALERTA';
-   	if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
+	   #my $set_clr='GENERADA ALERTA';
+   	#if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
+	   my $set_clr = $lang->{_alertgenerated};
+   	if ($mode ne 'set') { $set_clr = $lang->{_alertremoved}; }
 
 	   my $msg_full = $notif_info->{'nname'}.' '."[$device - $ip]".' **'.$set_clr.'**';
    	$subject = $cfg->{notif_subject}->[0].' '.$msg_full;
@@ -4187,11 +4223,37 @@ my ($self,$mode,$a,$notif_info)=@_;
 sub set_aviso   {
 my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
 
+	my $lang = $self->lang();
+
    my $store=$self->store();
 	my ($rc,$rcstr,$descr)=(0,'UNK','');
 
 	my ($id_dev,$notif_type,$notif_descr, $dest, $id_cfg_notif) = 
 		($notif_info->{'id_dev'}, $notif_info->{'id_notification_type'}, $notif_info->{'nname'}, $notif_info->{'dest'}, $notif_info->{'id_cfg_notification'} );
+
+	#--------------------
+	# Si el aviso tiene un calendario asociado, valido que es hora de envio. En caso contrario termino.
+	# El directorio para calendarios de avisos es /store/www-user/calendar
+	#--------------------
+	#/store/www-user/calendar/calendar-8x7.json
+	if ((defined $notif_info->{'calendar'}) && ($notif_info->{'calendar'} ne '')) {
+		my $calendar_file = join('/', $CALENDAR_BASE_PATH, $notif_info->{'calendar'});
+		$self->log('debug',"set_aviso:: ****DEBUG**** calendar_file=$calendar_file-----");
+		if (-f $calendar_file) {
+   		my $jconf = $store->slurp_file($calendar_file);
+   		my $CAL = decode_json($jconf);
+   		my $inrange = $store->check_calendar($CAL->{'maintenance'});
+			$self->log('debug',"set_aviso:: ****DEBUG**** inrange=$inrange-----");
+			if ($inrange == 1) {
+				$self->log('info',"set_aviso::AVISO => **SKIP BY CALENDAR*** $calendar_file >> $notif_info->{'dest'}");
+			   $response->{'rc'} = 0;
+  				$response->{'rcstr'} = 'SKIP';
+   			$response->{'descr'} = 'SKIP BY CALENDAR';
+				return;
+			}
+		}
+	}
+	#--------------------
 
    my $device=$a->[aALERT_DEV_NAME].'.'.$a->[aALERT_DEV_DOMAIN];
    my $ip=$a->[aALERT_DEV_IP];
@@ -4202,8 +4264,12 @@ my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
    my $transport=$self->transport();
    my $cfg = $self->cfg();
 
-	my $set_clr='GENERADA ALERTA';
-	if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
+	#my $set_clr='GENERADA ALERTA';
+	#if ($mode ne 'set') { $set_clr='ELIMINADA ALERTA'; }
+	my $set_clr = $lang->{_alertgenerated};
+	if ($mode ne 'set') { $set_clr = $lang->{_alertremoved}; }
+
+
 
    my $msg_full = "$notif_descr [$device - $ip]".' **'.$set_clr.'**';
 

@@ -16,3 +16,5 @@ _organizationalprofiles||Perfiles Organizativos
 _normal||Normal
 _low||Baja
 _verylow||Muy Baja
+_alertgenerated||GENERADA ALERTA
+_alertremoved||ELIMINADA ALERTA
