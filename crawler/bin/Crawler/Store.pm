@@ -6831,14 +6831,14 @@ my ($self,$dbh)=@_;
    my $rres=sqlSelectAll(
 
       $dbh,
-      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity,c.wsize,c.template,c.title_template',
-      'cfg_notifications c,  cfg_notification2device d, cfg_notification2transport t, cfg_register_transports r',
+      'c.id_cfg_notification,d.id_device,c.id_alert_type,r.id_notification_type,r.value,c.name,c.monitor,c.type,c.severity,c.wsize,c.template,c.title_template,r.calendar',
+      'cfg_notifications c, cfg_notification2device d, cfg_notification2transport t, cfg_register_transports r',
       'c.status=0 AND c.id_cfg_notification=d.id_cfg_notification AND c.id_cfg_notification=t.id_cfg_notification AND t.id_register_transport=r.id_register_transport'
    );
 
    foreach my $l (@$rres) {
 		my $id=$l->[0].'-'.$l->[1].'-'.$l->[4];
-      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'wsize'=>$l->[9], 'template'=>$l->[10], 'title_template'=>$l->[11], 'aviso'=>1 };
+      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'id_notification_type'=>$l->[3], 'dest'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'severity'=>$l->[8], 'wsize'=>$l->[9], 'template'=>$l->[10], 'title_template'=>$l->[11], 'calendar'=>$l->[12], 'aviso'=>1 };
    }
 
 	# --------------------------------------------------
@@ -6858,11 +6858,11 @@ my ($self,$dbh)=@_;
 
 		#type_run != 0 => Se ejecuta inmediatamente
 		if ($l->[8] != 0) {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'title_template'=>$l->[15], 'run'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'script'=>$l->[9], 'params'=>$l->[10], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'title_template'=>$l->[15], 'calendar'=>'', 'run'=>1 };
 		}
 		#type_run == 0 => Se ejecuta como tarea
 		else {
-	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'title_template'=>$l->[15], 'app'=>1 };
+	      $data{$id}= { 'id_dev'=>$l->[1], 'id_alert_type'=>$l->[2], 'aname'=>$l->[3], 'name'=>$l->[4], 'nname'=>$l->[5], 'monitor'=>$l->[6], 'type'=>$l->[7], 'id_cfg_notification'=>$l->[0], 'timeout'=>$l->[11], 'severity'=>$l->[12], 'wsize'=>$l->[13], 'template'=>$l->[14], 'title_template'=>$l->[15], 'calendar'=>'', 'app'=>1 };
 		}
    }
 
@@ -7590,6 +7590,102 @@ my ($self,$dbh,$id_dev,$rules)=@_;
 
 }
 
+
+#----------------------------------------------------------------------------
+# Funcion: set_template_metrics_by_custom_file
+# Descripcion:
+# Si el dispositivo tiene un fichero de metricas para la plantilla, se aplica.
+# Si no tiene fichero definido, no hace nada.
+# El nombre del fichero se especifica en el campo de dispositivo CNM-METRICS
+# La ruta es /store/www-user/automation (Se sube desde configuracion)
+#----------------------------------------------------------------------------
+sub set_template_metrics_by_custom_file {
+my ($self,$dbh,$id_dev)=@_;
+
+   my $custom_field = 'CNM-METRICS';
+   my $file_path = '/store/www-user/automation';
+   my $rres = $self->get_from_db_cmd($dbh,"SELECT id FROM devices_custom_types WHERE descr = '$custom_field'");
+
+   # Si no esta definido el custom_field termina.
+   if (!defined $rres->[0][0]) { return; }
+
+   my $field = 'columna'.$rres->[0][0];
+   #select columna3 from devices_custom_data where id_dev=431;
+   $rres = $self->get_from_db_cmd($dbh,"SELECT $field FROM devices_custom_data WHERE id_dev=$id_dev");
+
+   my $file_metrics = join ('/', $file_path, $rres->[0][0]);
+   if (! -f $file_metrics) {
+		$self->log('warning',"set_template_metrics_by_custom_file::[WARN] NO EXISTE file_metrics=$file_metrics");
+      return;
+   }
+
+	my $rules={};
+   my $x=$self->slurp_file($file_metrics);
+   my $json = JSON->new();
+   $json = $json->canonical([1]);
+	
+	eval {
+   	$rules = $json->decode($x);
+ 	};
+ 	if ($@) { $self->log('error',"set_template_metrics_by_custom_file::ERROR AL DECODIFICAR $file_metrics ($@)"); }
+
+	print Dumper($rules);
+
+#          'enable' => [
+#                        {
+#                          'label_like' => 'ICMP',
+#                          'type' => 'latency',
+#                          'watch' => '',
+#                          'subtype' => 'disp_icmp'
+#                        },
+#                        {
+#                          'watch' => '',
+#                          'subtype' => 'status_mibii_if',
+#                          'type' => 'snmp',
+#                          'label_like' => 'Tunnel0'
+#                        },
+
+
+	my ($enable, $disable) = ([], []);
+	if (exists $rules->{'enable'}) { $enable = $rules->{'enable'}; }
+	if (exists $rules->{'disable'}) { $disable = $rules->{'disable'}; }
+
+	#--------------------------------------------
+   my @result=();
+   my $values='c.id_template_metric,c.type,c.subtype,i.watch,i.iid,i.mname,i.label,i.status,c.lapse';
+   my $tables="prov_template_metrics c, prov_template_metrics2iid i";
+   my $where="c.id_template_metric=i.id_template_metric and c.id_dev=$id_dev";
+   $rres=sqlSelectAll($dbh,$values,$tables,$where);
+
+	my @template=();
+   foreach my $m (@$rres) {
+
+		my ($id_template_metric,$type,$subtype,$watch,$iid,$mname,$label,$status,$lapse) = ($m->[0],$m->[1],$m->[2],$m->[3],$m->[4],$m->[5],$m->[6],$m->[7],$m->[8]);
+		my $rule_status = 1;
+		foreach my $r (@$enable) {
+			my $label_like = $r->{'label_like'};
+			#$self->log('debug',"set_template_metrics_by_custom_file::**DEPURA** label_like=$label_like >> label=$label");
+			if ( ($subtype eq $r->{'subtype'}) && ($type eq $r->{'type'}) && ($label=~/$label_like/)) { 
+				$rule_status = 0;
+				last;
+			}
+		}
+
+		$self->log('debug',"set_template_metrics_by_custom_file::id=$id_template_metric status=$status ($rule_status) label=$label");
+
+		my %table = ('watch'=>$watch, 'status'=>$rule_status);
+		my $condition="id_template_metric=$id_template_metric AND mname='$mname'";
+	   my $rv=sqlUpdate($dbh,'prov_template_metrics2iid',\%table,$condition);
+
+   	$self->error($libSQL::err);
+   	$self->errorstr($libSQL::errstr);
+   	$self->lastcmd($libSQL::cmd);
+   	if ($libSQL::err) {
+      	$self->manage_db_error($dbh,"set_template_metrics_by_custom_file");
+   	}
+
+   }
+}
 
 #----------------------------------------------------------------------------
 # Funcion: get_template_metrics
@@ -9609,7 +9705,7 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 		}
 		push @dblines, [$l->{'ts'}, $l->{'line'}, $md5, $l->{'ts'}, $l->{'line'}, $md5];
 
-$self->log('debug',"set_log_rx_lines_bulk: LINE $l->{'ts'}, $l->{'line'}, $md5");
+		#$self->log('info',"set_log_rx_lines_bulk: [$table] LINE $l->{'ts'}, $l->{'line'}, $md5");
 
 	}
 	my $cnt_lines=scalar(@dblines);
@@ -9979,7 +10075,8 @@ my ($self,$dbh,$params)=@_;
 	}
 
 	my $field = 'columna'.$rres->[0][0];
-	$rres = $self->get_from_db_cmd($dbh,"SELECT d.id_dev,d.name,d.domain,c.columna2  FROM devices d, devices_custom_data c WHERE d.id_dev=c.id_dev AND c.columna2 !='-'");
+	#$rres = $self->get_from_db_cmd($dbh,"SELECT d.id_dev,d.name,d.domain,c.columna2  FROM devices d, devices_custom_data c WHERE d.id_dev=c.id_dev AND c.columna2 !='-'");
+	$rres = $self->get_from_db_cmd($dbh,"SELECT d.id_dev,d.name,d.domain,c.$field  FROM devices d, devices_custom_data c WHERE d.id_dev=c.id_dev AND c.$field !='-'");
 	foreach my $r (@$rres) {
    	my $id_dev = $r->[0];
    	my $name = $r->[1];

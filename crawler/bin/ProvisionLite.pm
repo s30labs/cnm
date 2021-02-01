@@ -1280,6 +1280,14 @@ print Dumper(\@TEMPLATE);
 		#if ( $in->{'init'}==2 ) { next; }
 
 
+		# -------------------------------------------------------------------------------
+		# Es posible modificar las metricas de la plantilla si existe un fichero JSON 
+		# especificado en el campo de dispositivo CNM-METRICS. 
+		# Si existe el estado de las metricas esta definido por el dispositivo
+		# Si no existe, no se hace nada.
+		# -------------------------------------------------------------------------------
+		$STORE->set_template_metrics_by_custom_file($dbh,$ID_DEV);
+
 		#-------------------------------------------------------------------------------
 		# Para provisionar se utiliza la plantilla del dispositivo con las metricas ya estan instanciadas !!
 		# Se obtiene la plantilla de la base de datos.
