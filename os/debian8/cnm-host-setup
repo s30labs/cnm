@@ -27,6 +27,7 @@ $fpth[$#fpth] -m  : Configura los parametros de maquina del sistema preguntando 
 $fpth[$#fpth]     : Configura los parametros de maquina del sistema preguntando al usuario
 (-d debug)
 $fpth[$#fpth] -f  : Configura los parametros de maquina del sistema sin preguntar al usuario
+$fpth[$#fpth] -s  : No configura la red. Si hay mas de un interfaz, se debe usar y configurarla manualmante.
 Necesita que exista el fichero /cfg/chk-host.conf
 
 IPADDR=
@@ -52,7 +53,7 @@ my %opts=();
 my $REV='';
 my $FCONF_HOST='/cfg/chk-host.conf';
 my $FCONF_BASE='/cfg/onm.conf';
-getopts("fhdcmv",\%opts);
+getopts("fhdcmvs",\%opts);
 if ($opts{h}) { die $USAGE; }
 my $DEBUG = ($opts{d}) ? 1 : 0;
 
@@ -321,6 +322,8 @@ if (-f '/bin/systemctl') { system ("/bin/systemctl daemon-reload"); }
 #-------------------------------------------------------------------------------------------
 # Networking restart
 my $if=my_if();
+if ($opts{s}) { $net_restart=0; }
+
 if ( 	$net_restart && 
 		($GLOBALS{'__INTERFACE__'} ne '' ) &&
 		($GLOBALS{'__IPADDR__'} =~/\d+\.\d+\.\d+\.\d+/) &&
@@ -504,10 +507,10 @@ sub read_host_conf {
 	chomp $HOST_CFG{'INTERFACE'};
 
 	#172.17.0.x -> docker IP addresses -> SKIP
-	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig | grep -v '172.17.0.' | /bin/grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '127.0.0.1'`;
+	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'inet addr:([0-9]*.){3}[0-9]*' | awk -F: '{print \$2}'`;
 	chomp $HOST_CFG{'IPADDR'};
 
-	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig | grep -v '172.17.0.' | /bin/grep -Eo ' (Mask:)?([0-9]*\\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\\.){3}[0-9]*' | /bin/grep -v '255.0.0.0'`;
+	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'Mask:([0-9]*.){3}[0-9]*' | awk -F: '{print \$2}'`;
 	chomp $HOST_CFG{'NETMASK'};
 
 	$HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;

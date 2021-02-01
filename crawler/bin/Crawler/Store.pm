@@ -1169,7 +1169,8 @@ my @c=();
 		push @cols, $r->[0];
 	}
 
-	my $what = $DEV_COLS . ',' . join ',', @keys_in_order;
+	my $what = $DEV_COLS;
+	if (scalar @keys_in_order > 0) { $what .= ',' . join ',', @keys_in_order; }
 
 	$rres=sqlSelectAll($dbh,$what,'devices a, devices_custom_data b',"a.id_dev=b.id_dev AND a.id_dev=$id_dev");
 	$INFO{'__TYPE__'} = $rres->[0][0];
