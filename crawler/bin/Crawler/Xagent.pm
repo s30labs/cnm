@@ -691,6 +691,7 @@ $self->log('debug',"chk_metric::[DUMPER] proxies=$dump1");
 	}
 
 	$desc{'iid'}=$iid;
+	$desc{'file'}=$file;
 
 #print "IP=$ip  MNAME=$mname  IID=$iid";
 
@@ -1137,7 +1138,8 @@ $self->log('debug',"mod_xagent_get_iids::[DEBUG] custom=$desc->{custom} script=$
 sub core_xagent_get  {
 my ($self,$desc)=@_;
 
-   my $task_id=$self->task_id();
+	my $subtype = (exists $desc->{subtype}) ? $desc->{subtype} : '';
+   my $task_id = $subtype.'|'.$self->task_id();
 
    $self->err_str('[OK]');
    $self->err_num(0);
@@ -1216,6 +1218,11 @@ my ($self,$desc)=@_;
    }
    my $task_id_base=$desc->{host_ip}.'-'.$desc->{'script'}.'-'.$desc->{'md5par'};
 
+	# OJO $file_rrd solo es valido si la llamada es desde do_task.
+	# dede chk_metric no es correcto el valor de $desc->{file}
+	my $file_rrd='/opt/data/rrd/elements/'.$desc->{file};
+	$self->log('info',"core_xagent_get:: CNM_TAG_RRD_FILE=$file_rrd*******CNM_TAG_SUBTYPE=$subtype");
+
    #-------------------------------------------------------------------
    # METRICAS SIN IIDS
    #-------------------------------------------------------------------
@@ -1244,7 +1251,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 		#elsif (! exists $XAGENT_CACHE_DATA{$task_id_searched}) { 
 		elsif (! $INCACHE) { 
 
-			$out_cmd=$self->execScript();
+			$out_cmd=$self->execScript({'CNM_TAG_RRD_FILE'=>$file_rrd, 'CNM_TAG_SUBTYPE'=>$subtype});
    	   my $rcstr=$self->err_str();
       	my $rc=$self->err_num();
       	$ev[0] = "Ejecutado script: $desc->{'script'} (RC=$rc) RCSTR=$rcstr";
@@ -1283,7 +1290,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 	            my @parsed_out_cmd=split(':', $parsed_line);
 					# key >> 10.50.100.44-linux_metric_event_counter.pl-95eefcb3-001  >> prfix=001
       	      my $key = $task_id_base .'-'.$prefix;
-					$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
+					$self->log('debug',"core_xagent_get::[task_id=$task_id] cfg=1 CACHEFILL KEY=$key VAL=@parsed_out_cmd");
 
 					my $ip = $desc->{host_ip};
 					$XAGENT_CACHE_ERRORS{$ip} = [$rc, $rcstr, \@parsed_out_cmd];
@@ -1295,7 +1302,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 		else {
 			$ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
 			$self->event_data(\@ev);
-			$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=1 CACHEGET");
+			$self->log('debug',"core_xagent_get::[task_id=$task_id] cfg=1 CACHEGET");
 		}
 
      	#$self->log('info',"core_xagent_get::[INFO ID=$task_id] PARAMS=$exec_vector->{'params'} RES=@$out_cmd tag=$tag EV=$ev");
@@ -1359,7 +1366,7 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 		elsif (! $INCACHE) {
 				
          #10.2.254.71-xagt_000000-d7aa32b0
-			$out_cmd=$self->execScript();
+			$out_cmd=$self->execScript({'CNM_TAG_RRD_FILE'=>$file_rrd, 'CNM_TAG_SUBTYPE'=>$subtype});
          my $rcstr=$self->err_str();
          my $rc=$self->err_num();
          $ev[0] = "Ejecutado script: $desc->{'script'} (RC=$rc) RCSTR=$rcstr";
@@ -1529,6 +1536,19 @@ $self->log('debug',"_compose_params exec ::[DUMPER] credentials=$dump1");
 			$value =~ s/\\\\"/\\"/g;
 			$value = '"'.$value.'"';
 		}
+		# eqs, nomatch, match, ne, eq, gt, lt, gte, lte
+		# Se garantiza que los parametros que usan la sintaxis de patterns vayan entre comillas dobles
+		# al ejecutar el script. En algunos casos el comportamiento ha sido erratico
+		elsif ($value =~ /\|eqs\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|eq\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|ne\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|match\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|nomatch\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|gt\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|lt\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|gte\|/) { $value = '"'.$value.'"'; }
+		elsif ($value =~ /\|lte\|/) { $value = '"'.$value.'"'; }
+
 
 		# Si el parametro es de tipo IP se obtiene de: $desc->{'host_ip'}	
 		if ($param_type==2) { $value=$host_ip; }
@@ -1667,11 +1687,15 @@ my ($self,$myenv)=@_;
 
 	local %ENV=();
 	$ENV{'CNM_TAG_IP'} = $host_ip;
+	$ENV{'CNM_TAG_CALLER'} = basename($0);
+	$ENV{'CNM_TAG_CALLER'} =~ s/\[(crawler\.\d+)\.\S+/$1/g;
+	$ENV{'CNM_TAG_CALLER'} =~ s/\[(notificationsd\.\d+)\.\S+/$1/g;
+	$ENV{'CNM_TAG_CALLER'} .= '.'.int(10000*rand);
 	if ((defined $myenv) && (ref($myenv) eq 'HASH')) {
 		foreach my $k (keys %$myenv) { $ENV{$k} = $myenv->{$k}; }
 	}
 
-
+	my $subtype = (exists $myenv->{'CNM_TAG_SUBTYPE'}) ? $myenv->{'CNM_TAG_SUBTYPE'} : '';
 #	local $SIG{CHLD} = 'IGNORE';
 #	local $SIG{CHLD}=sub { my $rc=wait(); $self->log('info',"execScript [$proxy_host]:: **end child** rc=$rc ($?)");};
 
@@ -1682,8 +1706,9 @@ my ($self,$myenv)=@_;
       }
    };
 
-	$SIG{ALRM} = sub { die "Timeout" };
+
 	my $timeout = (exists $exec_vector->{'timeout'}) ? $exec_vector->{'timeout'} : $self->timeout();
+	$SIG{ALRM} = sub { die "Timeout ($timeout)" };
 
    eval {
 
@@ -1696,7 +1721,7 @@ my ($self,$myenv)=@_;
 		if ($proxy_host eq 'localhost') {
 			$cmd = "/usr/bin/sudo -E -u $proxy_user  $file_script $params";
 
-	      $self->log('info',"execScript [$proxy_host]:: **START** $task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
+	      $self->log('info',"execScript [$proxy_host]:: **START** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
 
 			if ($self->_params_ok($params)) {
 				$ENV{'PERL_CAPTURE_TINY_TIMEOUT'}=$timeout-5;
@@ -1705,7 +1730,7 @@ my ($self,$myenv)=@_;
 			}
 			else { ($stdout, $stderr, $rc) = ('', "***ERROR DE CREDENCIALES** ($params)",20); }
 
-	      $self->log('debug',"execScript [$proxy_host]:: **END** $task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
+	      $self->log('debug',"execScript [$proxy_host]:: **END** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
 
 			$self->stdout($stdout);
 			$self->stderr($stderr);
@@ -1809,7 +1834,7 @@ my ($self,$myenv)=@_;
 
    if ($@) {
       my $err_string=$@;
-      $self->log('warning',"execScript [$proxy_host]:: $task_id [ERROR EN EXECSCRIPT] (file_script=$file_script PARAMS=$params) RC=$err_string");
+      $self->log('warning',"execScript [$proxy_host]:: $task_id [ERROR EN EXECSCRIPT] Timeout=$timeout (file_script=$file_script PARAMS=$params) RC=$err_string");
       $self->err_str("[ERROR] en execScript [$proxy_host] RC=$err_string");
       $self->err_num(1);
 
@@ -1845,6 +1870,7 @@ my ($self,$myenv)=@_;
    # --------------------------------------
    my $child_pids=$self->get_all_child_pids();
    kill 9,@$child_pids;
+	$self->log('debug',"execScript [$proxy_host]:: **RESULT2** PID-BASE=$$ $task_id RESPONSE=$stdout");
 
    return \@response;
 
