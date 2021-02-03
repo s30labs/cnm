@@ -12,6 +12,7 @@ use Crawler::SNMP;
 use CNMScripts::CNMAPI;
 use MCNM;
 use Time::Local;
+use Digest::MD5 qw(md5_hex);
 
 #-------------------------------------------------------------------------------------------
 my $VERSION='1.0';
