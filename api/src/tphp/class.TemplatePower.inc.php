@@ -58,7 +58,7 @@ class TemplatePowerParser
 	* 
 	* @access private
     */
-   function TemplatePowerParser( $tpl_file, $type )
+   public function __construct( $tpl_file, $type )
    {
        $this->version        = '3.0.1';
 
@@ -460,7 +460,7 @@ class TemplatePower extends TemplatePowerParser
 	 * 
 	 * @access public
      */
-    function TemplatePower( $tpl_file='', $type= T_BYFILE )
+    public function __construct( $tpl_file='', $type= T_BYFILE )
     {
         TemplatePowerParser::TemplatePowerParser( $tpl_file, $type );
 

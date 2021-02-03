@@ -40,7 +40,7 @@ class TPLSerializer extends TemplatePowerParser
       constructor
             ***********/
 
-    function TPLSerializer( $tpl_file, $stpl_file )
+    public function __construct( $tpl_file, $stpl_file )
     {
         $this->stpl_file = $stpl_file;
 

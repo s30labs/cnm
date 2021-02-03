@@ -11,7 +11,7 @@ class MC_Base {
 		'ch_CH'=>'ch.lang',
 	);
  
-	function MC_Base($lang='es_ES') {
+	public function __construct($lang='es_ES') {
       if(! array_key_exists($lang,$this->a_lang_defined)){
          echo "El idioma {$lang} no está definido";
          exit;
