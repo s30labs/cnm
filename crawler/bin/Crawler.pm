@@ -3487,8 +3487,8 @@ my ($self,$ifname)=@_;
 		# SIN LINK: UP BROADCAST MULTICAST  MTU:1500  Metric:1
 		# IF DOWN: BROADCAST MULTICAST  MTU:1500  Metric:1
 		if ($l=~/BROADCAST/) { 
-			if ($l=~/UP /) {
-				if ($l=~/RUNNING /) { $rc=0; }
+			if (($l=~/UP /) || ($l=~/UP,/)) {
+         	if (($l=~/RUNNING /) || ($l=~/RUNNING,/)) { $rc=0; }
 				else { $rc=1; }
 			}
 			else { $rc=2; }
