@@ -365,9 +365,20 @@ my ($file,$path)=@_;
 sub my_ip {
 
 	my $if=my_if();
+	my $os=_os_version();
 	my $r=`/sbin/ifconfig $if`;
-	$r=~/inet\s+addr\:(\d+\.\d+\.\d+\.\d+)\s+/;
- 	return $1; 
+
+	my $ip='';
+	if ( $os->{'Release'} !~ /10/ ) {
+		$r=~/inet\s+addr\:(\d+\.\d+\.\d+\.\d+)\s+/;
+		$ip=$1;
+	}
+	else { 
+		$r=~/inet\s+(\d+\.\d+\.\d+\.\d+)\s+/; 
+		$ip=$1;
+	}
+
+ 	return $ip; 
 }
 
 #-------------------------------------------------------------------------------------------------------
@@ -385,6 +396,20 @@ sub my_if {
    return $if;
 }
 
+#----------------------------------------------------------------------------
+sub _os_version {
+
+   my %os_info=();
+   my @out=`lsb_release -ir`;
+   foreach my $l (@out) {
+      chomp $l;
+      my ($k,$v)=split(/\:\s+/,$l);
+      $os_info{$k}=$v;
+   }
+
+   return \%os_info;
+
+}
 
 #-------------------------------------------------------------------------------------------------------
 sub get_rrd_path {
