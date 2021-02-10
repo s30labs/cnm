@@ -239,7 +239,7 @@ __DATA__
 #!/bin/bash
 
 dir1=$(pwd)
-cd /opt/cnm/os/debian8
+cd /opt/cnm/os/debian10
 ansible-playbook -c local -i /cfg/ansible.hosts $1 cnm.yml
 #cd $dir1
 

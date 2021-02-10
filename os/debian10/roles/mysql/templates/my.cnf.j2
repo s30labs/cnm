@@ -1,0 +1,66 @@
+[mysqld]
+back_log = 75
+;skip-innodb
+max_connections = {{ db_max_connections }}
+key_buffer = 256M
+myisam_sort_buffer_size = 64M
+join_buffer_size = 1M
+read_buffer_size = 1M
+sort_buffer_size = 2M
+table_cache = 200
+thread_cache_size = 384
+wait_timeout = 300
+connect_timeout = 10
+tmp_table_size = 256M
+max_heap_table_size = 256M
+max_allowed_packet = 64M
+max_connect_errors = 1000
+read_rnd_buffer_size = 524288
+bulk_insert_buffer_size = 8M
+query_cache_limit = 4M
+query_cache_size =128M
+query_cache_type = 1
+query_prealloc_size = 65536
+query_alloc_block_size = 131072
+; default-storage-engine = MyISAM
+
+;log = /var/log/mysql/mysql.log
+
+; enable the slow query log, default 10 seconds
+;log-slow-queries
+
+; log queries taking longer than 5 seconds
+;long_query_time = 5
+
+; log queries that don't use indexes even if they take less than long_query_time
+; MySQL 4.1 and newer only
+;log-queries-not-using-indexes
+
+character-set-server = utf8
+collation-server = utf8_spanish_ci
+; default-character-set=utf8
+skip-character-set-client-handshake
+tmpdir = /store/mysql_tmp
+
+[mysqld_safe]
+nice = -5
+open_files_limit = 8192
+pid-file = /var/lib/mysql/cnm.pid
+datadir = /var/lib/mysql
+character-set-server = utf8
+collation-server = utf8_spanish_ci
+;default-character-set=utf8
+skip-character-set-client-handshake
+
+[mysqldump]
+quick
+max_allowed_packet = 16M
+
+[myisamchk]
+key_buffer = 64M
+sort_buffer = 64M
+read_buffer = 16M
+write_buffer = 16M
+
+[client]
+default-character-set=utf8

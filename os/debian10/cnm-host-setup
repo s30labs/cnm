@@ -186,6 +186,8 @@ else	{
 			if ($GLOBALS{'__INTERFACE__'} ne $HOST_CFG{'INTERFACE'}) { $net_restart = 1; }
 		}
 
+		#set_onm_if_file($GLOBALS{'__INTERFACE__'});
+	
 		$GLOBALS{'__IPADDR__'}=get_input("Introduzca la IP [Pulse INTRO para mantener >> $HOST_CFG{'IPADDR'}]: ",'',0);
       if ($GLOBALS{'__IPADDR__'} eq '') { $GLOBALS{'__IPADDR__'} = $HOST_CFG{'IPADDR'}; }
       else {
@@ -507,10 +509,11 @@ sub read_host_conf {
 	chomp $HOST_CFG{'INTERFACE'};
 
 	#172.17.0.x -> docker IP addresses -> SKIP
-	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'inet addr:([0-9]*.){3}[0-9]*' | awk -F: '{print \$2}'`;
+	# Debian 10
+	$HOST_CFG{'IPADDR'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'inet ([0-9]*.){3}[0-9]*' | awk  '{print \$2}'`;
 	chomp $HOST_CFG{'IPADDR'};
 
-	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'Mask:([0-9]*.){3}[0-9]*' | awk -F: '{print \$2}'`;
+	$HOST_CFG{'NETMASK'} = `/sbin/ifconfig $HOST_CFG{'INTERFACE'} | grep -Eo 'netmask ([0-9]*.){3}[0-9]*' | awk '{print \$2}'`;
 	chomp $HOST_CFG{'NETMASK'};
 
 	$HOST_CFG{'GATEWAY'} = `/sbin/ip route | awk '/default/ { print \$3 }'`;
@@ -601,3 +604,15 @@ CNMVARS
 	}
 }
 
+
+#-------------------------------------------------------------------------------------------
+# set_onm_if_file
+#-------------------------------------------------------------------------------------------
+sub set_onm_if_file {
+my ($if)=@_;
+
+	my $file='/cfg/onm.if';
+	open (F,">$file");
+	print F "$if\n";
+	close F;
+}
