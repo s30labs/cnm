@@ -60,7 +60,7 @@ print "$sqlUpdate\n";
 // PROGRAMA PRINCIPAL
 global $enlace;
 $db_params=array(
-   'phptype'  => 'mysql',
+   'phptype'  => 'mysqli',
    'username' => 'onm',
    'hostspec' => 'localhost',
    'database' => 'onm',
