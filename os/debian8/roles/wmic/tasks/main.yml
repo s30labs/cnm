@@ -17,36 +17,13 @@
   tags: wmic
 
 - name: Extract from source
-  command: tar -C /tmp/src/wmic -xjvf /opt/cnm-extras/src/wmic/wmi-1.3.14.tar.bz2
+  command: tar -C /tmp/src/wmic -xvf /opt/cnm-extras/src/wmic/wmi-1.4.0.tar
   when: wmic_binary.stat.exists is defined and wmic_binary.stat.exists==0
   tags: wmic
 
-- name: Copy patches
-  copy: src="/opt/cnm-extras/src/wmic/{{ item }}" dest="/tmp/src/wmic/{{ item }}" owner=root group=root mode=0640
-  with_items:
-    - openvas-wmi-1.3.14.patch
-    - openvas-wmi-1.3.14.patch2
-    - openvas-wmi-1.3.14.patch3
-    - openvas-wmi-1.3.14.patch4
-    - openvas-wmi-1.3.14.patch5
-    - openvas-wmi-1.3.14.patch6
+- name: Make and install (tail -f /tmp/wmic.log)
+  shell: make -C /tmp/src/wmic/wmi-1.4.0 DESTDIR=/usr CPP=gcc -E -ffreestanding > /tmp/wmic.log 2>&1
   when: wmic_binary.stat.exists is defined and wmic_binary.stat.exists==0
   tags: wmic
 
-- name: Aply patches
-  shell: "cd /tmp/src/wmic && patch -d wmi-1.3.14 -p1 < {{ item }}"
-  with_items:
-    - openvas-wmi-1.3.14.patch
-    - openvas-wmi-1.3.14.patch2
-    - openvas-wmi-1.3.14.patch3
-    - openvas-wmi-1.3.14.patch4
-    - openvas-wmi-1.3.14.patch5
-    - openvas-wmi-1.3.14.patch6
-  when: wmic_binary.stat.exists is defined and wmic_binary.stat.exists==0
-  tags: wmic
-
-- name: Make and install
-  command: make -C /tmp/src/wmic/wmi-1.3.14 DESTDIR=/usr "CPP=gcc -E -ffreestanding"
-  when: wmic_binary.stat.exists is defined and wmic_binary.stat.exists==0
-  tags: wmic
 
