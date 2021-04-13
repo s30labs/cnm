@@ -1,0 +1,246 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# Fichero: cnm-setup
+#-------------------------------------------------------------------------------------------
+use strict;
+use Getopt::Std;
+use Cwd;
+use Data::Dumper;
+
+BEGIN {
+  $ENV{'MIBS'}='ALL';
+  $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+}
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my @fname = split ('\.',$fpth[$#fpth],10);
+my $VERSION="1.0";
+my $USAGE = <<USAGE;
+CNM Installer $VERSION (c) s30labs
+
+$fpth[$#fpth] 
+$fpth[$#fpth] [-o] 
+$fpth[$#fpth] -a root_pwd
+$fpth[$#fpth] [-m master] [-r rev_number]
+$fpth[$#fpth] -h
+
+-u : Update system installed with cnm-install
+-a : clave de root
+-b : clave del usuario onm de BBDD
+-m : Modo (branch)
+-r : Revision
+-o : Store STDOUT and STDERR to file (/tmp/cnm-install-core.log)
+-h : Ayuda
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my %opts=();
+getopts("houm:a:b:r:",\%opts);
+if ($opts{h}) { die $USAGE;}
+my $BRANCH = 'master';
+if ($opts{m}) { $BRANCH=$opts{m}; }
+my $REV='';
+if ($opts{r}) { $REV=$opts{r}; }
+
+my $DB_ROOT_PWD = ($opts{a}) ? $opts{a} : 'cnmManag3r';
+#-------------------------------------------------------------------------------------------
+my $REPO="software.s30labs.com";
+#-------------------------------------------------------------------------------------------
+my $APT_GET="/usr/bin/apt-get";
+my $GIT="/usr/bin/git";
+
+#-------------------------------------------------------------------------------------------
+# 01. Clone/checkout repos: cnm, cnm-os, cnm-mibs, cnm-lang, cnm-sp
+#-------------------------------------------------------------------------------------------
+my @features = (
+   { 'name' => 'cnm', 'url' => 'https://github.com/s30labs/cnm.git' },
+   { 'name' => 'cnm-sp', 'url'  =>'https://github.com/s30labs/cnm-sp.git' },
+   { 'name' => 'cnm-mibs', 'url'  => 'https://github.com/s30labs/cnm-mibs.git' },
+   { 'name' => 'cnm-extras', 'url'  => 'https://github.com/s30labs/cnm-extras.git' }
+);
+foreach my $feat (@features) {
+
+	# just in case ....
+	update_repo($feat->{'name'});
+
+   print "-" x70, "\n";
+   print "INSTALANDO $feat->{'name'}...\n";
+   print "-" x70, "\n";
+   get_feature($feat->{'name'},$feat->{'url'});
+}
+
+#-------------------------------------------------------------------------------------------
+# 02. Se crea /cfg/cnm_vars.yml si no existe. 
+#     Necesario al actualizar un sistema previo (instalado con cnm-install)
+#-------------------------------------------------------------------------------------------
+#my $DRBD_PARTITION='/dev/sda6';
+#my $CNM_CFG_DIR='/cfg';
+#my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
+#my $CNM_VARS = <<"CNMVARS";
+#---
+## CNM Global Vars
+#
+#key: gpl
+#cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+#drbd_partition: $DRBD_PARTITION
+#ntpserver: pool.ntp.org
+#mtu: 1450
+#
+#CNMVARS
+#
+#
+#if (! -d $CNM_CFG_DIR) { system ("/bin/mkdir -p $CNM_CFG_DIR"); }
+#if (! -f $CNM_VARS_FILE) {
+#  open (F,">$CNM_VARS_FILE");
+#  print F $CNM_VARS;
+#  close F;
+#}
+
+#-------------------------------------------------------------------------------------------
+# 03. Se crea /cfg/ansible.hosts si no existe.
+#     Necesario al actualizar un sistema previo (instalado con cnm-install)
+#-------------------------------------------------------------------------------------------
+my $ANSIBLE_HOSTS_FILE='/cfg/ansible.hosts';
+
+if (! -f $ANSIBLE_HOSTS_FILE) {
+  open (F,">$ANSIBLE_HOSTS_FILE");
+  print F 'localhost';
+  close F;
+}
+
+#-------------------------------------------------------------------------------------------
+# 04. Se crea /root/.my.cnf si  no existe. 
+#-------------------------------------------------------------------------------------------
+if ($opts{u}) {
+	my $CNM_INSTALL_MY_FILE='/root/.my.cnf';
+	my $CNM_MY_DATA = <<"CNMMYDATA";
+[client]
+user=root
+password=$DB_ROOT_PWD
+CNMMYDATA
+
+	if (! -f $CNM_INSTALL_MY_FILE) {
+  	open (F,">$CNM_INSTALL_MY_FILE");
+ 	print F $CNM_MY_DATA;
+  	close F;
+	}
+}
+
+#-------------------------------------------------------------------------------------------
+# 05. Se instala/actualiza cnm-core
+#-------------------------------------------------------------------------------------------
+my %cfg_vars=();
+$cfg_vars{'db_root_password'} = $DB_ROOT_PWD;
+
+my $extra_vars='';
+if (scalar(keys %cfg_vars)>0) { 
+	$extra_vars='--extra-vars '; 
+	foreach my $k (keys %cfg_vars) {
+		$extra_vars.= "$k=$cfg_vars{$k} ";
+	}
+}
+
+my $script_file = '/tmp/cnm-install-core.sh';
+create_script($script_file);
+my $cmd = "$script_file \"$extra_vars\"";
+if ($opts{o}) {
+	$cmd .= ' | tee /tmp/cnm-install-core.log';
+}
+print "$cmd\n\n";
+exec "$cmd";
+ 
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub create_script {
+my ($script_file)=@_;
+
+   local($/) = undef;  # slurp
+	my $script_code = <DATA>;
+	open (F,">$script_file");
+	print F "$script_code\n";
+	close F;
+	chmod 0755, $script_file;
+}
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub get_feature {
+my ($feature,$url) = @_;
+
+   my $BRANCH = 'master';
+   my $GIT = "/usr/bin/git";
+   my $user = 'git';
+   my ($rc,$cmd) = (0,'');
+
+   my $dir_local = '/opt/'.$feature;
+
+   if ((-d $dir_local) && (-d "$dir_local/.git")) {
+
+      chdir($dir_local);
+      print "pull from $url ...\n";
+      $cmd = "$GIT pull";
+      $rc = system ($cmd);
+      if ($rc !=0) { 
+			print "**WARNNG** Found local changes - pull exits (rc=$rc)\n"; 
+			exit;
+		}
+      $cmd = "$GIT checkout";
+      $rc = system ($cmd);
+      if ($rc !=0) { print "**WARN** $cmd (rc=$rc)\n"; }
+
+   }
+   else {
+
+      print "clone from $url ...\n";
+      if (-d $dir_local) {
+         $cmd = "/bin/rm -rf $dir_local";
+         $rc = system ($cmd);
+         if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+      }
+      #$cmd = "$GIT clone -b $BRANCH https://$user:\@$REPO/$feature.git $dir_local";
+      $cmd = "$GIT clone -b $BRANCH $url $dir_local";
+      $rc = system ($cmd);
+      if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+
+      chdir $dir_local;
+      #$cmd = "$GIT remote set-url --push origin git\@$REPO:$dir_local.git";
+      #$rc = system ($cmd);
+      #if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
+
+   }
+}
+
+
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub update_repo {
+my ($feature) = @_;
+
+   if (! -d "/opt/$feature") { return; }
+   if (! -f "/opt/$feature/.git/config") { return; }
+
+   open (F,"</opt/$feature/.git/config");
+   #url = https://software.s30labs.com/cnm.git
+   while (<F>) {
+      chomp;
+      if ($_ =~ /software\.s30labs\.com/) {
+         if (! -d '/store/old_repo') { `/bin/mkdir /store/old_repo`; }
+         `/bin/mv /opt/$feature /store/old_repo/`;
+         print "**** $feature -> /store/old_repo/ ****\n";
+         last;
+      }
+   }
+   close F;
+
+}
+
+__DATA__
+#!/bin/bash
+
+dir1=$(pwd)
+cd /opt/cnm/os/debian10
+ansible-playbook -c local -i /cfg/ansible.hosts $1 cnm.yml
+#cd $dir1
+
+
