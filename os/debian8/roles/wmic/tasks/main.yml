@@ -22,7 +22,7 @@
   tags: wmic
 
 - name: Make and install (tail -f /tmp/wmic.log)
-  shell: make -C /tmp/src/wmic/wmi-1.4.0 DESTDIR=/usr CPP=gcc -E -ffreestanding > /tmp/wmic.log 2>&1
+  shell: make -C /tmp/src/wmic/wmi-1.4.0 DESTDIR=/usr "CPP=gcc -E -ffreestanding" > /tmp/wmic.log 2>&1
   when: wmic_binary.stat.exists is defined and wmic_binary.stat.exists==0
   tags: wmic
 
