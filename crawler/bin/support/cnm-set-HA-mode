@@ -28,13 +28,14 @@ $fpth[$#fpth] -i IP  -m MASK -g GW -p -x ACTIVE_IP
 -a		Se configura en modo activo.
 -p		Se configura en modo pasivo.
 -x		IP del activo
+-d    DRBD mode yes|no (default yes)
 -v    Verbose
 USAGE
 
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hi:m:g:x:ap",\%opts);
+getopts("hi:m:g:x:d:ap",\%opts);
 
 if ($opts{h}) { die $USAGE;}
 if ( (!$opts{i}) && (!$opts{m}) && (!$opts{g})) { die $USAGE;}
@@ -46,6 +47,8 @@ if ($opts{x}) { $ACTIVE=$opts{x}; }
 my $ROLE = 'active';
 if ($opts{p}) { $ROLE = 'passive'; }
 elsif ($opts{a}) { $ROLE = 'active'; }
+my $DRBD = 'yes';
+if ($opts{d}) { $DRBD = $opts{d}; }
 
 my $IP = $opts{i};
 my $NETMASK = $opts{m};
@@ -73,7 +76,7 @@ $|=1;
 #-------------------------------------------------------------------------------------------
 print "a. PASANDO EL EQUIPO A MODO: $ROLE ";
 
-set_role_info($ROLE,$ACTIVE);
+set_role_info($ROLE,$ACTIVE,$DRBD);
 `/etc/init.d/cnmd stop >/dev/null 2>&1`;
 `/etc/init.d/cnmd kill >/dev/null 2>&1`;
 my $n=5;

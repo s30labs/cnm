@@ -333,15 +333,18 @@ sub get_role_info {
 #-------------------------------------------------------------------------------------------------------
 #ROLE = passive
 #ACTIVE_ADDRESS = 1.1.1.1
+#DRBD = yes
 
 sub set_role_info {
-my ($role,$active)=@_;
+my ($role,$active,$drbd)=@_;
 
    my $file_role='/cfg/onm.role';
 
    open (F,">$file_role");
 	print F "ROLE = $role\n";
 	print F "ACTIVE_ADDRESS = $active\n";
+	if (! defined $drbd) { $drbd='yes'; }
+	print F "DRBD = $drbd\n";
 	close F;
 }
 
