@@ -3252,7 +3252,7 @@ my ($self,$desc)=@_;
 
    my $cmd_base='';
    if ($version==3) {
-      $cmd_base="/usr/local/bin/snmpwalk -Cc -v $version ";
+      $cmd_base="/usr/local/bin/snmpwalk -Cc -r 10 -v $version ";
 
       $cmd_base .=  ($desc->{'sec_level'}) ? "-l $desc->{'sec_level'} " : "";
       $cmd_base .=  ($desc->{'sec_name'}) ? "-u $desc->{'sec_name'} " : "";
@@ -3267,16 +3267,17 @@ my ($self,$desc)=@_;
    }
 
 
-
-
-   $cmd_base .= " $ip __OID__ 2>/dev/null";
+   #$cmd_base .= " $ip __OID__ 2>/dev/null";
+	$cmd_base .= " $ip __OID__ ";
+	
    if ( $oid_tab ) {
       my $cmd1=$cmd_base;
       $cmd1 =~ s/__OID__/$oid_tab/;
       $self->log('debug',"snmp_get_iid::[DEBUG] oid_tab=$oid_tab");
-      $self->log('debug',"snmp_get_iid::[DEBUG] CMD=$cmd1");
-      my @r1=`$cmd1`;
-      foreach my $o (@r1) {
+      $self->log('debug',"snmp_get_iid::[DEBUG] safe_snmpwalk >> CMD=$cmd1");
+      #my @r1=`$cmd1`;
+		my $r1=$self->safe_snmpwalk($cmd1);
+      foreach my $o (@$r1) {
 			chomp $o;
          #IF-MIB::ifDescr.1 = STRING: lo
          $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO EN OID_TAB $o ($oid_tab)");
@@ -3298,13 +3299,14 @@ my ($self,$desc)=@_;
 
       my $cmd1=$cmd_base;
       $cmd1 =~ s/__OID__/$oid_descr/;
-      $self->log('debug',"snmp_get_iid::[DEBUG] CMD=$cmd1");
+      $self->log('debug',"snmp_get_iid::[DEBUG] safe_snmpwalk >> CMD=$cmd1");
 
-      my @r1=`$cmd1`;
+      #my @r1=`$cmd1`;
+		my $r1=$self->safe_snmpwalk($cmd1);
 
       my %d=();
 		my ($oidx,$vartype,$descrx,$descr_raw)=('','','','');
-      foreach my $o (@r1) {
+      foreach my $o (@$r1) {
 			chomp $o;
          $self->log('debug',"snmp_get_iid::[DEBUG] EVALUO $o ($oid_descr_short)");
 			if ($o =~ /\S+\:\:$oid_descr_short\.(\S+)\s*\=\s*(.*?)\:\s*(.*)$/) {
@@ -4540,6 +4542,34 @@ my ($self,$oid2txt)=@_;
 	}
 #/DBG--
 
+}
+
+#----------------------------------------------------------------------------
+# Funcion: safe_snmpwalk
+# Descripcion:
+#----------------------------------------------------------------------------
+sub safe_snmpwalk  {
+my ($self,$cmd)=@_;
+
+   my $MAX_REPETITIONS=100;
+   my @r=();
+   my $line_1='';
+   my $cnt=0;
+   my $pid = open(F, "$cmd|");
+   while (<F>) {
+      chomp;
+      push @r,$_;
+      if ($_ eq $line_1) { $cnt +=1; }
+      else { $line_1 = $_; $cnt =0; }
+      if ($cnt > $MAX_REPETITIONS) {
+         $self->log('warning',"safe_snmpwalk::**SNMPWALK MIB LOOP ERROR PID=$pid cnt=$cnt** $cmd");
+         kill 9,$pid;
+         return [];
+         #last;
+      }
+   }
+   close(F);
+   return \@r;
 }
 
 #----------------------------------------------------------------------------
