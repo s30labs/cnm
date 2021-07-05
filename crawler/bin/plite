@@ -75,6 +75,8 @@ foreach my $cid (keys %$params) {
 
    eval {
 
+		alarm(600);
+
       $provision->init( {  db_server=>$params->{$cid}->{'db_server'},
                            db_name=>$params->{$cid}->{'db_name'},
                            db_user=>$params->{$cid}->{'db_user'},
@@ -246,9 +248,12 @@ foreach my $cid (keys %$params) {
 
 
       $STORE->close_db($dbh);
+
+		alarm(0);
    };
 
-   if ($@) {$STORE->log('info',"ERROR host_ip=$host_ip cid=$cid ($@)"); }
+   #if ($@) {$STORE->log('info',"ERROR host_ip=$host_ip cid=$cid ($@)"); }
+   if ($@) {$STORE->log('info',"ERROR host_ip=$host_ip cid=$cid ()"); print "---$@---\n";}
 
 }
 
