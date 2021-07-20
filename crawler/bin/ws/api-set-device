@@ -90,7 +90,7 @@ if (! exists $row{'ip'}) {
 my $api=CNMScripts::CNMAPI->new( 'host'=>$host_ip, 'timeout'=>10, 'log_level'=>$log_level );
 my ($user,$pwd)=('admin','cnm123');
 my $sid = $api->ws_get_token($user,$pwd);
-#print "sid=$sid\n";
+if ($OPTS{'debug'}) { print "sid=$sid\n"; }
 
 my $class='';
 my $endpoint='devices.json';
