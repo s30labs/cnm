@@ -327,12 +327,13 @@ my $ok=0;
 		}
 
       # -----------------------------------------------------------------------
-		$store->scripts2cache($dbh);
+		$store->scripts2cache($dbh,$range);
 
       # -----------------------------------------------------------------------
       # Si no hay link, no se ejecutan las tareas
       my @task=();
-      my $link_error=$self->check_if_link('eth0');
+		my $if=my_if();
+      my $link_error=$self->check_if_link($if);
       if ($link_error <= 0) {
          my $rx = $store->get_crawler_task_from_work_file($range,'xagent',\@task);
          if (! defined $rx) {
@@ -1706,7 +1707,8 @@ my ($self,$myenv)=@_;
       }
    };
 
-
+	my $file_script_range = $file_script.'.'.$self->range();
+	
 	my $timeout = (exists $exec_vector->{'timeout'}) ? $exec_vector->{'timeout'} : $self->timeout();
 	$SIG{ALRM} = sub { die "Timeout ($timeout)" };
 
@@ -1720,6 +1722,9 @@ my ($self,$myenv)=@_;
 		# ------------------------------------------------------------------
 		if ($proxy_host eq 'localhost') {
 			$cmd = "/usr/bin/sudo -E -u $proxy_user  $file_script $params";
+			if (-f $file_script_range) {
+				$cmd = "/usr/bin/sudo -E -u $proxy_user  $file_script_range $params";
+			}
 
 	      $self->log('info',"execScript [$proxy_host]:: **START** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
 

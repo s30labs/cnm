@@ -5806,15 +5806,25 @@ my ($self,$crawler_idx)=@_;
 
 #-----------------------------------------------------------------------------
 sub scripts2cache {
-my ($self,$dbh)=@_;
+my ($self,$dbh,$range)=@_;
 
-   my $rres=sqlSelectAll($dbh,'distinct script',"cnm.work_xagent",'','');
+	my $dir_scripts='/opt/data/mdata/scripts';
+   #my $rres=sqlSelectAll($dbh,'distinct script',"cnm.work_xagent",'','');
+#select script, count(*) as cnt FROM cnm.work_xagent WHERE crawler_idx=6011 GROUP BY script ORDER BY cnt desc;
+	my $rres=sqlSelectAll($dbh,'script, count(*) as cnt','cnm.work_xagent',"crawler_idx=$range",'GROUP BY script ORDER BY cnt desc');
    foreach my $l (@$rres) {
-		my $script=$l->[0];
-$self->log('info',"scripts2cache:: script2file script=$script");
+		my $script = $l->[0];
+		my $cnt = $l->[1];
 		if ($script=~/^\w*/) {  
-			$self->script2file($dbh,$l->[0]); 
-
+      	$self->log('info',"scripts2cache_ok:: $script ($cnt)");
+			$self->script2file($dbh,$script); 
+			my $fscript = join('/', $dir_scripts, $script);
+			my $fscript_range = join('.', $fscript, $range);
+			my $rx=copy($fscript,$fscript_range);
+			my $uid = getpwnam 'root';
+			my $gid = getgrnam 'www-data';
+			chown $uid, $gid, $fscript_range;
+			chmod 0775, $fscript_range;
 		}
 	}
 }
@@ -5835,7 +5845,7 @@ my ($self,$dbh,$script)=@_;
    $self->lastcmd($libSQL::cmd);
 
    if ($libSQL::err) {
-      #$self->log('warning',"script2file::[DBERROR] (EDB=$libSQL::err) $libSQL::errstr ($libSQL::cmd)");
+      $self->log('warning',"script2file::[DBERROR] (EDB=$libSQL::err) $libSQL::errstr ($libSQL::cmd)");
 		$self->manage_db_error($dbh,"script2file");
       return undef;
    }
