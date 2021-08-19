@@ -25,7 +25,7 @@ class CNMAPI {
    		// RELLENAMOS LOS DATOS DEL HASH ANTERIOR
 	   	read_cfg_file($cfg_file,$db_data);
    		$data = array(
-      		'phptype'  => 'mysql',
+      		'phptype'  => 'mysqli',
       		'username' => $db_data['DB_USER'],
 	      	'password' => $db_data['DB_PWD'],
    	   	'hostspec' => $db_data['DB_SERVER'],

@@ -929,7 +929,6 @@ Array
 				if ($a_system_fields['severity'] == 4) { $cond.= ' AND counter>0 '; }
 			}
 
-			CNMUtils::info_log(__FILE__, __LINE__, "cond=$cond");
 			// ///////////////////// //
 			// Calcular los perfiles //
 			// ///////////////////// //
@@ -1025,7 +1024,7 @@ Array
          }
 
 			$cond.= ')';
-
+			CNMUtils::info_log(__FILE__, __LINE__, "cond=$cond");
 
 			// ////////////////////// //
 			// Calcular la ordenacion //
