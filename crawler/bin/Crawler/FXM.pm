@@ -255,10 +255,13 @@ my ($self,$esp_base,$values)=@_;
       my $j=$i-1;
       if ($esp_base =~ /o$i/i) {
         	$esp_base =~ s/o$i/$values->[$j]/ig;
-#			$self->log('debug',"parse_fx:: [o2val] subtype=$subtype esp_base=$esp_base SUBST o$i");
+			#Para el caso de metricas con instancias donde values puede ser del tipo:
+			#values=67.67.71.82.70.65.83.83.73.80.48.49:@:1 67.67.71.82.70.65.83.83.73.80.48.50:@:1
+			$esp_base =~ s/^.+?\:\@\:(\d+)/$1/g;	
+			$self->log('debug',"parse_fx:: [o2val] subtype=$subtype esp_base=$esp_base SUBST o$i");
       }
    }
-#	$self->log('debug',"parse_fx:: [o2val] subtype=$subtype OUT esp_base=$esp_base ");
+	$self->log('debug',"parse_fx:: [o2val] subtype=$subtype OUT esp_base=$esp_base ");
 
 #     #----------------------------------------------------
 #     #Sustituyo = por ==

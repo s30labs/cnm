@@ -1823,16 +1823,17 @@ my ($self,$key) = @_;
    my $txt = '';
 
    #ojo -> Quito el primero (revisar)
-   shift @c;
+   #FML 20210814 cual es la causa???
+   #shift @c;
    foreach my $d (@c) {
       if ($d<32) { $txt .= '.'; next; }
       $txt .= chr($d);
    }
 
-$self->log('debug',"key2ascii:: p1=$p1 p2=$p2  (@c) txt=$txt");
-
    my @words = split(/\./,$txt);
    my $p2n= join('.',  @words);
+	$self->log('debug',"key2ascii:: p1=$p1 p2=$p2  (@c) txt=$txt (return=$p1$p2n)");
+
    return $p1.$p2n;
 }
 
@@ -3284,6 +3285,7 @@ my ($self,$desc)=@_;
          if ($o=~/$oid_tab\.(\S+)\s*\=\s*.*?\:\s*(.*)$/) {
             my $oidx=$1;
             $oidx=~s/"//g;
+            $oidx=~s/'//g;
             $self->log('debug',"snmp_get_iid::[DEBUG] SEARCHED_IID = $oidx");
             $SEARCHED_IIDS{$oidx}='';
          }
@@ -3312,6 +3314,7 @@ my ($self,$desc)=@_;
 			if ($o =~ /\S+\:\:$oid_descr_short\.(\S+)\s*\=\s*(.*?)\:\s*(.*)$/) {
 				$oidx=$1; $vartype=$2; $descrx=$3; $descr_raw=$descrx;
 				$oidx=~s/"//g;
+				$oidx=~s/'//g;
 				if ($vartype =~/Hex-STRING/i) { $descrx=$self->hex2ascii($descr_raw); }
 				$d{$oidx}=$descrx;
 				$self->log('debug',"snmp_get_iid::[DEBUG] OK >> oidx=$oidx descrx=$descrx");
