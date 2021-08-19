@@ -201,6 +201,15 @@ if (-d '/home/cnm/correos') {
 #-------------------------------------------------------------------------------------------
 `find /store/www-user/files -type f  -mtime +60 -exec rm {} \\; 2>&1`;
 
+# Si hay tareas e tipo cron cada x minutos, el periodo de retencion es mucho menor.
+my $tasks = $store->get_from_db_cmd($dbh, 'SELECT subtype FROM cfg_task_configured WHERE cron LIKE "*/%"');
+foreach my $h (@$tasks) {
+	my $dir_path = '/store/www-files/tasks/'.$h->[0];
+	if (-d $dir_path) {
+		`find $dir_path -type f  -mmin +60 -exec rm {} \\; 2>&1`;
+	}
+}
+
 #-------------------------------------------------------------------------------------------
 my $cnmos=CNMOS->new();
 $cnmos->validate_dir();
