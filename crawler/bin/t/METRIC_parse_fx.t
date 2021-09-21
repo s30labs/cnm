@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 use lib "/opt/crawler/bin";
 use strict;
-use Test::More tests => 38;
+use Test::More tests => 40;
 use Crawler::FXM;
 use Data::Dumper;
 
@@ -285,6 +285,22 @@ ok( ($new_values->[0] == 0) && ($new_values->[1] == 0) && ($new_values->[2] == 1
 @values=('10');
 #$fx='MAP(0)(2,0,0,0)|MAP(10)(2,1,0,0)|MAP(2)(0,0,2,0)|MAP(1)(0,0,0,2)|MAP(11)(0,1,0,2)|MAP(12)(0,1,2,0)';
 $fx='MAP(0)(1,0,0,0)|MAP(10)(1,0.5,0,0)|MAP(2)(0,0,1,0)|MAP(1)(0,0,0,1)|MAP(11)(0,0.5,0,1)|MAP(12)(0,0.5,1,0)';
+$new_values=$FXM->parse_fx($fx,\@values,\%desc);
+
+ok( ($new_values->[0] == 1) && ($new_values->[1] == 0.5) && ($new_values->[2] == 0) && ($new_values->[3] == 0), "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+
+#------------------------------------------------------------------------------
+@values=('0');
+#$fx='MAP(0)(2,0,0,0)|MAP(10)(2,1,0,0)|MAP(2)(0,0,2,0)|MAP(1)(0,0,0,2)|MAP(11)(0,1,0,2)|MAP(12)(0,1,2,0)';
+$fx='MAP(0)(1,0,0,0,0,0)|MAP(10)(1,0.5,0,0,0,0)|MAP(2)(0,0,1,0,0,0)|MAP(1)(0,0,0,1,0,0)|MAP(11)(0,0.5,0,1,0,0)|MAP(12)(0,0.5,1,0,0,0)';
+$new_values=$FXM->parse_fx($fx,\@values,\%desc);
+
+ok( ($new_values->[0] == 1) && ($new_values->[1] == 0) && ($new_values->[2] == 0) && ($new_values->[3] == 0), "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+
+#------------------------------------------------------------------------------
+@values=('10');
+#$fx='MAP(0)(2,0,0,0)|MAP(10)(2,1,0,0)|MAP(2)(0,0,2,0)|MAP(1)(0,0,0,2)|MAP(11)(0,1,0,2)|MAP(12)(0,1,2,0)';
+$fx='MAP(0)(1,0,0,0,0,0)|MAP(10)(1,0.5,0,0,0,0)|MAP(2)(0,0,1,0,0,0)|MAP(1)(0,0,0,1,0,0)|MAP(11)(0,0.5,0,1,0,0)|MAP(12)(0,0.5,1,0,0,0)';
 $new_values=$FXM->parse_fx($fx,\@values,\%desc);
 
 ok( ($new_values->[0] == 1) && ($new_values->[1] == 0.5) && ($new_values->[2] == 0) && ($new_values->[3] == 0), "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");

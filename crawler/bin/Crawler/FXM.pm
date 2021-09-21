@@ -532,7 +532,7 @@ my ($self,$mode,$esp,$values)=@_;
 			#my $mode='int';
 			# Caso numerico
 			if ($mode eq 'int') {
-	         if ($esp->[$i] =~ /MAP\(([-|\d+|\,]+)\)\(([-|\d+|\,]+)\)/) { ($a,$b)=($1,$2); }
+	         if ($esp->[$i] =~ /MAP\(([-|\d+|\,]+)\)\(([-|\d+|\,|\.]+)\)/) { ($a,$b)=($1,$2); }
 				else { push @newvals, 'U'; next; }
 			}
 			elsif ($mode eq 'ascii') {
@@ -557,12 +557,20 @@ my ($self,$mode,$esp,$values)=@_;
   			# Miramos si los valores de $values cumplen la condicion ...
 		   my $ok=0;
   			for my $i (0..$nv-1) {
+
+				# Si hay unstancias los valores no son los numeros, son del tipo:
+         	#values=67.67.71.82.70.65.83.83.73.80.48.49:@:1 67.67.71.82.70.65.83.83.73.80.48.50:@:1
+         	$values->[$i] =~ s/^.+?\:\@\:(\d+)/$1/g;
+
+
 				if ($mode eq 'int') {
 	  				if (($vx[$i]==$values->[$i]) || ($vx[$i] eq '*') ) { $ok+=1; }
 				}
 				elsif ($mode eq 'ascii') {
 					if (($vx[$i]  =~ /$values->[$i]/) || ($vx[$i] eq '*') ) { $ok+=1; }
 				}
+#$self->log('debug',"parse_fx:: [fx_MAP] **COMPARO** $vx[$i] CON $values->[$i] >> ok=$ok---");
+
   			}
          if ($ok == $nv) {
   		     	@newvals=@rx;
