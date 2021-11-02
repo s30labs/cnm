@@ -1,5 +1,5 @@
 package linux_metric_ssl_certs;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_ssl_certs -p ssl-certs
+# /opt/cnm/designer/gconf-proxy -m linux_metric_ssl_certs -p ssl-certs
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

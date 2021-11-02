@@ -1,5 +1,5 @@
 package linux_metric_tcp_check;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_tcp_check -p tcp-check
+#/opt/cnm/designer/gconf-proxy -m linux_metric_tcp_check -p tcp-check
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
@@ -127,7 +127,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
 #+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
 #|            18 | EXCESO DE EVENTOS                | s_xagt_647cba-d30a2710     | v1>1000   | NULL   |        2 | xagt_647cba     | xagent | xagt_647cba     |     0 | proxy-linux        |
 
-#/opt/custom_pro/conf/get_monitor_id -s xagt_004010
+#/opt/cnm/designer/get_monitor_id -s xagt_004010
       # ----------------------------
       '__MONITORS__' => {
 
@@ -168,7 +168,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
          '__DESCR_TIP__' => 'Métrica que monitorizaestado del puerto 80/TCP. Puede tener tres valores: Ok(1), Unknown(2) y Nok(3).',
       },
 
-		#/opt/custom_pro/conf/get_monitor_id -s xagt_004011
+		#/opt/cnm/designer/get_monitor_id -s xagt_004011
       # ----------------------------
       '__MONITORS__' => {
 
@@ -204,7 +204,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
          '__DESCR_TIP__' => 'Métrica que monitoriza el tiempo qde respuesta del  pueerto 443/TCP',
       },
 
-#/opt/custom_pro/conf/get_monitor_id -s xagt_004012
+#/opt/cnm/designer/get_monitor_id -s xagt_004012
       # ----------------------------
       '__MONITORS__' => {
 
@@ -243,7 +243,7 @@ linux_metric_tcp_check.pl -h  : Ayuda
          '__DESCR_TIP__' => 'Métrica que monitorizaastado  del puerto 443/TCP. Puede tener tres valores: Ok(1), Unknown(2) y Nok3).',
       },
 
-#/opt/custom_pro/conf/get_monitor_id -s xagt_004013
+#/opt/cnm/designer/get_monitor_id -s xagt_004013
       # ----------------------------
       '__MONITORS__' => {
 

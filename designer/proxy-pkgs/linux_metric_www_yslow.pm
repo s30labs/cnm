@@ -1,5 +1,5 @@
 package linux_metric_www_yslow;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_www_yslow -p www-yslow
+#/opt/cnm/designer/gconf-proxy -m linux_metric_www_yslow -p www-yslow
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

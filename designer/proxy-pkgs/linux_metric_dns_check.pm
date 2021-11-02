@@ -1,5 +1,5 @@
 package linux_metric_dns_check;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_dns_check -p dns-check
+#/opt/cnm/designer/gconf-proxy -m linux_metric_dns_check -p dns-check
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
@@ -127,7 +127,7 @@ linux_metric_dns_check.pl -h  : Ayuda
 #+---------------+----------------------------------+----------------------------+-----------+--------+----------+-----------------+--------+-----------------+-------+--------------------+
 #|            18 | EXCESO DE EVENTOS                | s_xagt_647cba-d30a2710     | v1>1000   | NULL   |        2 | xagt_647cba     | xagent | xagt_647cba     |     0 | proxy-linux        |
 
-#/opt/custom_pro/conf/get_monitor_id -s xagt_004018
+#/opt/cnm/designer/get_monitor_id -s xagt_004018
       # ----------------------------
       '__MONITORS__' => {
 

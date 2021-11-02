@@ -1,5 +1,5 @@
 package linux_metric_ipmi_sensors;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_ipmi_sensors -p ipmi-sensors
+#/opt/cnm/designer/gconf-proxy -m linux_metric_ipmi_sensors -p ipmi-sensors
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

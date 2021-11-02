@@ -1,6 +1,6 @@
 package cnm_app_api_inventory;
 
-#/opt/custom_pro/conf/gconf-proxy -m cnm_app_api_inventory -p api-inventory
+#/opt/cnm/designer/gconf-proxy -m cnm_app_api_inventory -p api-inventory
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

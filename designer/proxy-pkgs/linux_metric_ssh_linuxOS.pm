@@ -1,5 +1,5 @@
 package linux_metric_ssh_linuxOS;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_ssh_linuxOS -p ssh-linuxOS
+#/opt/cnm/designer/gconf-proxy -m linux_metric_ssh_linuxOS -p ssh-linuxOS
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

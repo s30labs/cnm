@@ -1,6 +1,6 @@
 package cnm_app_api_device;
 
-#/opt/custom_pro/conf/gconf-proxy -m cnm_app_api_device -p api-device
+#/opt/cnm/designer/gconf-proxy -m cnm_app_api_device -p api-device
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 

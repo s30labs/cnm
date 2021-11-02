@@ -1,5 +1,5 @@
 package linux_metric_www_perf;
-# /opt/custom_pro/conf/gconf-proxy -m linux_metric_www_perf -p www-perf
+#/opt/cnm/designer/gconf-proxy -m linux_metric_www_perf -p www-perf
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
