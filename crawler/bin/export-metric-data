@@ -27,7 +27,7 @@ USAGE
 #-------------------------------------------------------------------------------------------
 my ($VERBOSE,$CONDITION,$log_mode,$class,$endpoint) = (0,'',3,'','');
 my %OPTS = ();
-GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s', 'view=s', 'lapse=s', 'pg', 'csv')
+GetOptions (\%OPTS,  'h','help','v','verbose','d=s','c=s','a=s','q=s', 'view=s', 'lapse=s', 'pg', 'csv','bi')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
@@ -47,7 +47,15 @@ elsif ($OPTS{'view'}) {
 	$endpoint='views/'.$OPTS{'view'}.'/metrics.json';
 }
 
-my $host_ip='localhost';
+
+my $host_pg = '';
+if ( $OPTS{'pg'} && !$OPTS{'csv'} ) {
+   $host_pg = `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' core-timescaledb`;
+   chomp $host_pg;
+   if ($host_pg eq '') { die "No existe servicio core-timescaledb"; }
+}
+
+my $host_ip = 'localhost';
 my $log_level= (defined $OPTS{d}) ? $OPTS{d} : 'info';
 my $cid = (defined $OPTS{c}) ? $OPTS{c} : 'default';
 my $lapse = (defined $OPTS{lapse}) ? $OPTS{lapse} : 'today';
@@ -113,10 +121,10 @@ else {
 
 my @CSV=();
 my %METRIC_INFO=();
-my @HEADINGS=();
 $class='metrics';
 my $items = [];
 
+my %METRIC_DATA=(); 
 foreach my $id (sort keys %IDs) {
 	#$endpoint='data/'.$id.'.json?lapse=week_0';
 	$endpoint='data/'.$id.'.json?lapse='.$lapse;
@@ -141,8 +149,10 @@ foreach my $id (sort keys %IDs) {
 	}	
 	my $vcols_header = join(',',@vcols);
 
-	#push @HEADINGS,'Time,metricid,deviceid,'.$ofields.','.join(',',@$items);
-	push @HEADINGS,'Time,metricid,deviceid,'.$vcols_header;
+	@CSV=();
+	$METRIC_DATA{$id}->{'heading_csv'} = 'Time,metricid,deviceid,'.$vcols_header;
+	$METRIC_DATA{$id}->{'heading_bi'} = 't.timestamp,t.Year,t.Month,t.Day,t.Hour,t.Min,t.Sec,metricid,deviceid,'.$vcols_header;
+
 	foreach my $hv (@{$response->{'flot'}->{'data'}}) {
 	   my %line=();
      	$line{'metricid'} = $id;
@@ -180,8 +190,8 @@ foreach my $id (sort keys %IDs) {
 		$line{'vcols_data'}=\@vcols_data;
 		push @CSV, \%line;
 
-
 	}
+	$METRIC_DATA{$id}->{'csv'} = \@CSV;
 }
 
 if ($VERBOSE) { 
@@ -213,14 +223,31 @@ if ($VERBOSE) {
 #print Dumper(\@CSV);
 #my $ofields = join(',',@fields);
 #print 'Time,metricid,'.$ofields.','.join(',',@$items)."\n";
+#-------------------------------------------------------------------------------------------
 if ($OPTS{'csv'}) {
 
-	foreach my $h (@HEADINGS) {
-		print "$h\n";
+	foreach my $id (sort keys %METRIC_DATA) {
+		print $METRIC_DATA{$id}->{'heading_csv'}."\n";
+		foreach my $h (@{$METRIC_DATA{$id}->{'csv'}}) {
+			print $h->{'ts'}.','.$h->{'metricid'}.','.$h->{'deviceid'}.','.$h->{'vcols'}."\n";
+   	}
 	}
-	foreach my $h (@CSV) {
-		print $h->{'ts'}.','.$h->{'metricid'}.','.$h->{'deviceid'}.','.$h->{'vcols'}."\n";
-	}
+
+}
+
+#-------------------------------------------------------------------------------------------
+if ($OPTS{'bi'}) {
+
+   foreach my $id (sort keys %METRIC_DATA) {
+      print $METRIC_DATA{$id}->{'heading_bi'}."\n";
+      foreach my $h (@{$METRIC_DATA{$id}->{'csv'}}) {
+			my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($h->{'ts'});
+      	$year += 1900;
+      	$mon += 1;
+			print $h->{'ts'}.','.$year.','.$mon.','.$mday.','.$hour.','.$min.','.$sec.','.$h->{'metricid'}.','.$h->{'deviceid'}.','.$h->{'vcols'}."\n";
+      }
+   }
+
 }
 
 #-------------------------------------------------------------------------------------------
@@ -228,12 +255,11 @@ if ($OPTS{'csv'}) {
 #-------------------------------------------------------------------------------------------
 if ($OPTS{'pg'}) {
 
-	my $host = `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' core-timescaledb`;
-	chomp $host;
+	if ($host_pg eq '') { die "No existe servicio core-timescaledb"; }
 	my $port = 5432;
 	my $driver  = "Pg";
 	my $database = "metrics";
-	my $dsn = "DBI:$driver:dbname = $database;host = $host;port = $port";
+	my $dsn = "DBI:$driver:dbname = $database;host = $host_pg;port = $port";
 	my $userid = "postgres";
 	my $password = "cnmManag3r";
 	my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 })
