@@ -11,6 +11,7 @@ use Carp 'croak','cluck';
 use Cwd;
 use Net::SMTP;
 use Net::SMTP::TLS;
+use Authen::SASL;
 use Device::SerialPort;
 use Device::Gsm;
 
@@ -493,110 +494,84 @@ my ($self,$rdata)=@_;
 	my $port = $cfg->{'notif_mx_port'}->[0];
    my $from_name=$self->from_name();
    my $subject=$self->subject();
+	my $msg;
 	
-	# CON TLS -------------------------------------------------------------------
-	if ($cfg->{'notif_mx_tls'}->[0]) {
-
-		my $user = $cfg->{'notif_mx_auth_user'}->[0];
-		my $pwd = $cfg->{'notif_mx_auth_pwd'}->[0];
-      $self->log('info',"tx_email::[INFO] SMTP-TLS mxhost=$mxhost port=$port user=$user pwd=$pwd");
-
-		eval {
-			my $smtp = new Net::SMTP::TLS( $mxhost, Hello => '', Port => $port, User => $user, Password => $pwd );
-
-		   if (!defined $smtp) {
-   		   $self->log('warning',"tx_email::[ERROR] al crear objeto SMTP $mxhost");
-      		$self->err_str("ERROR DE CONEXION: Al establecer sesion con $mxhost");
-      		return 1;
-   		}
-
-			$smtp->mail($from);
-			$self->log('info',"tx_email::[INFO] SMTP-TLS MAIL FROM:$from");
-			$smtp->to($to);
-			$self->log('info',"tx_email::[INFO] SMTP-TLS RCPT TO:$to");
-
-      	my %info=('from'=>$from, 'to'=>$to, 'subject'=>$subject, 'txt'=>$txt );
-      	my $mime=$self->mime_composer(\%info);
-      	$smtp->data;
-			$smtp->datasend($mime);
-			$smtp->dataend;
-
-			$self->log('info',"tx_email::[INFO] SMTP-TLS ($subject) DATA");
-
-			$smtp->quit;
-   	   $self->log('info',"tx_email::[INFO] SMTP-TLS to MX $mxhost :DONE");
-
-		};
-		if ($@) {
-			my $err_str=$@;
-			$err_str=~s/\n/ /g;
-			$self->err_str("ERROR DE MTA: ($err_str)");
-			$self->log('warning',"tx_email::ERROR EN SMTP-TLS ($err_str)");
-			return 2;
-		}
-	}
-
-	# SIN TLS -------------------------------------------------------------------
-	else {
-	   my $smtp = Net::SMTP->new($mxhost, Timeout => 60);
+   my $smtp = Net::SMTP->new($mxhost, Timeout => 60);
+   if ($cfg->{'notif_mx_tls'}->[0]) {
+      $smtp->starttls();
+   }
 	
-	   if (!defined $smtp) {
-   	   $self->log('warning',"tx_email::[ERROR] al crear objeto SMTP $mxhost ($@)");
-      	$self->err_str("ERROR DE CONEXION: Al establecer sesion con $mxhost ($@)");
-			return 3;
-   	}
+  	if (!defined $smtp) {
+ 	   $self->log('warning',"tx_email::SMTP-ERROR al crear objeto SMTP $mxhost ($@)");
+     	$self->err_str("ERROR DE CONEXION: Al establecer sesion con $mxhost ($@)");
+		return 3;
+  	}
 
-      if ($cfg->{'notif_mx_auth'}->[0]) {
-         my $user = $cfg->{'notif_mx_auth_user'}->[0];
-         my $pwd = $cfg->{'notif_mx_auth_pwd'}->[0];
+   if ($cfg->{'notif_mx_auth'}->[0]) {
+      my $user = $cfg->{'notif_mx_auth_user'}->[0];
+      my $pwd = $cfg->{'notif_mx_auth_pwd'}->[0];
 
-         my $ok=$smtp->auth($user,$pwd);
-         if (!$ok) {
-            my $msg=$smtp->message();
-            $msg=~s/[\n|\>|\<]/ /g;
-            $self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
-            $smtp->quit;
-            return 4;
-         }
+      my $ok=$smtp->auth(
+         Authen::SASL->new(
+            mechanism => 'LOGIN',
+            callback  => { user => $user, pass => $pwd }
+         )
+      );
+
+		$msg=$smtp->message();
+      if (!$ok) {
+         $msg=~s/[\n|\>|\<]/ /g;
+         $self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
+         $smtp->quit;
+         return 4;
       }
-
-	   $smtp->mail($from);
-	   $self->log('info',"tx_email::[INFO] SMTP MAIL FROM:$from (RESP: @{[$smtp->code()]}:@{[$smtp->message()]})");
-		if ($smtp->code() > 500) {
-  	    	my $msg=$smtp->message();
-      	$msg=~s/[\n|\>|\<]/ /g;
-			$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
-			$smtp->quit;
-			return 5;
+		else {
+			$msg=~s/[\r|\n]/ /g;
+			$self->log('info',"tx_email::[INFO] SMTP-AUTH (RESP: @{[$smtp->code()]}:$msg)");
 		}
+   }
 
-	   $smtp->to($to);
-   	$self->log('info',"tx_email::[INFO] SMTP RCPT TO:$to (RESP: @{[$smtp->code()]}:@{[$smtp->message()]})");
-		if ($smtp->code() > 500) {
-			my $msg=$smtp->message();
-			$msg=~s/[\n|\>|\<]/ /g;
-			$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
-			$smtp->quit;
-			return 6;
-		}
-
-		my %info=('from'=>$from, 'to'=>$to, 'subject'=>$subject, 'txt'=>$txt );
-		my $mime=$self->mime_composer(\%info);
-   	$smtp->data([$mime]);
-
-	   $self->log('info',"tx_email::[INFO] SMTP ($subject) DATA (RESP: @{[$smtp->code()]}:@{[$smtp->message()]})");
-		if ($smtp->code() > 500) {
-      	my $msg=$smtp->message();
-			$msg=~s/[\n|\>|\<]/ /g;
-			$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
-   	   $smtp->quit;
-      	return 7;
-		}
-
-	   $smtp->quit;
-   	$self->log('info',"tx_email::[INFO] SMTP QUIT (RESP: @{[$smtp->code()]}:@{[$smtp->message()]})");
-   	$self->log('info',"tx_email::[INFO] SMTP to MX $mxhost :DONE");
+   $smtp->mail($from);
+	$msg=$smtp->message();
+	$msg=~s/[\r|\n]/ /g;
+	$self->log('info',"tx_email::[INFO] SMTP-MAIL-FROM $from (RESP: @{[$smtp->code()]}:$msg) MX=$mxhost");
+	if ($smtp->code() > 500) {
+     	$msg=~s/[\n|\>|\<]/ /g;
+		$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
+		$smtp->quit;
+		return 5;
 	}
+
+   $smtp->to($to);
+   $msg=$smtp->message();
+   $msg=~s/[\r|\n]/ /g;
+	$self->log('info',"tx_email::[INFO] SMTP-RCPT-TO $to (RESP: @{[$smtp->code()]}:$msg)");
+	if ($smtp->code() > 500) {
+		$msg=~s/[\n|\>|\<]/ /g;
+		$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
+		$smtp->quit;
+		return 6;
+	}
+
+	my %info=('from'=>$from, 'to'=>$to, 'subject'=>$subject, 'txt'=>$txt );
+	my $mime=$self->mime_composer(\%info);
+  	$smtp->data([$mime]);
+
+	$msg=$smtp->message();
+   $msg=~s/[\r|\n]/ /g;
+	$self->log('info',"tx_email::[INFO] SMTP-DATA ($subject) (RESP: @{[$smtp->code()]}:$msg)");
+	if ($smtp->code() > 500) {
+		$msg=~s/[\n|\>|\<]/ /g;
+		$self->err_str("ERROR DE MTA: @{[$smtp->code()]} ($msg)");
+  	   $smtp->quit;
+     	return 7;
+	}
+
+   $smtp->quit;
+   $msg=$smtp->message();
+   $msg=~s/[\r|\n]/ /g;
+	$self->log('info',"tx_email::[INFO] SMTP-QUIT (RESP: @{[$smtp->code()]}:$msg)");
+
 	return 0;
 
 }
