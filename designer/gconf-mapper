@@ -1,0 +1,125 @@
+#!/usr/bin/perl -w
+#---------------------------------------------------------------------------
+use lib '/opt/cnm/crawler/bin';
+use lib '/opt/cnm/designer';
+use lib '/opt/cnm/designer/proxy-pkgs';
+use lib './proxy-pkgs';
+use strict;
+use Data::Dumper;
+use File::Basename;
+use Digest::MD5 qw(md5_hex);
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+
+#-------------------------------------------------------------------------------------------
+my $FILE_CONF='/cfg/onm.conf';
+#-------------------------------------------------------------------------------------------
+my $rCFG=conf_base($FILE_CONF);
+my $conf_path=$rCFG->{'conf_path'}->[0];
+my $txml_path=$rCFG->{'txml_path'}->[0];
+my $app_path=$rCFG->{'app_path'}->[0];
+my $dev_path=$rCFG->{'dev_path'}->[0];
+my $store_path=$rCFG->{'store_path'}->[0];
+
+my $db_server=$rCFG->{db_server}->[0];
+my $db_name=$rCFG->{db_name}->[0];
+my $db_user=$rCFG->{db_user}->[0];
+my $db_pwd=$rCFG->{db_pwd}->[0];
+
+
+#---------------------------------------------------------------------------
+my $DIR_BASE = '.';
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my %opts=();
+getopts("hvum:p:d:i:l:b:",\%opts);
+
+if ($opts{h}) {
+   my $USAGE = usage(); die $USAGE;
+}
+
+if ($opts{b}) { 
+	if (! -d $opts{b}) { die "**ERROR** No existe el directorio $opts{b}\n"; }
+	$DIR_BASE = $opts{b}; 
+	#use lib $DIR_BASE.'/proxy-pkgs';
+}
+#---------------------------------------------------------------------------
+#my $SCRIPT_SRC_PATH = $DIR_BASE.'/xagent/base';
+#my $SCRIPT_DST_PATH='xagent/base';
+
+my $MODULES_DIR = $DIR_BASE.'/proxy-pkgs';
+my $MODULES_PATH = "$MODULES_DIR/mapping*.pm";
+my @files = < $MODULES_PATH >;
+
+foreach my $mod( sort @files){
+   my($filename, $directories, $suffix) = fileparse($mod);
+   if ($filename =~/(\S+)\.pm/) { 
+		my $m=$1;
+		my $cmd="$DIR_BASE/gconf-mapper -m $m ";
+		if ($opts{v}) { print "$cmd\n"; }
+	}
+}
+
+
+#---------------------------------------------------------------------------
+#my $dir_pm='/opt/custom_pro/conf/proxy-pkgs';
+my $dir_pm = $DIR_BASE.'/proxy-pkgs';
+
+if (! $opts{m}) {
+   my $USAGE = usage(); die $USAGE;
+}
+
+my $MODULE=$opts{m};
+$MODULE=~s/\.pm//;
+
+my $file_pm=$dir_pm.'/'.$MODULE.'.pm';
+if ( ! -f $file_pm) {
+	print "**ERROR** NO EXISTE EL FICHERO $file_pm\n\n";
+   my $USAGE = usage(); die $USAGE;
+}
+
+#---------------------------------------------------------------------------
+my ($sqlblock, $sqlblock1, $sqlblock2, $sqlblock3, $sqlblock4, $sqlblock5) = ('','','','','','');
+#---------------------------------------------------------------------------
+foreach my $mod(@files){
+    my($filename, $directories, $suffix) = fileparse($mod);
+print "Cargando: $filename\n";
+    require $filename;
+}
+
+#print Dumper(\%mapping_ds_processes::TEMPLATE);
+
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+my $log_level='info';
+my $log_info=3;
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level, log_info=>$log_info);
+$store->store_path($store_path);
+my $dbh=$store->open_db();
+
+foreach my $id_dev (@{$mapping_ds_processes::TEMPLATE{'devices'}}) {
+
+	print "id_dev=$id_dev\n";
+   $store->store_template_metrics($dbh,$id_dev,$mapping_ds_processes::TEMPLATE{'tpl'});
+}
+
+#--------------------------------------------------------------------------------
+sub usage {
+
+   my @fpth = split ('/',$0,10);
+   my @fname = split ('\.',$fpth[$#fpth],10);
+   my $USAGE = <<USAGE;
+Compilador de PROXY descriptors
+hf:c:d:
+
+$fpth[$#fpth] -d  : Fija el nivel de depuracion
+$fpth[$#fpth] -h  : Ayuda
+$fpth[$#fpth] -m  : Nombre de modulo p.ej: linux_metric_wmi_services
+
+USAGE
+
+}
+
