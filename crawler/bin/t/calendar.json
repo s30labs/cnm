@@ -12,7 +12,8 @@
 	  {"name":"inmonth-09", "month":"9", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
 	  {"name":"inmonth-10", "month":"10", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
 	  {"name":"inmonth-11", "month":"11", "mday":"1,27", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
-	  {"name":"inmonth-12", "month":"12", "mday":"1,28", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
+	  {"name":"inmonth-12", "month":"12", "mday":"1,28", "hhmm_start":"18h00m", "hhmm_end":"18h20m" },
+	  {"name":"inmonth-12b", "month":"12", "mday":"1,28", "hhmm_start":"18h20m", "hhmm_end":"19h00m" },
 
 	  {"name":"inday-year-0", "month_start":"1", "month_end":"1", "mday_start":"2", "mday_end":"2", "hhmm_start":"18h0m", "hhmm_end":"19h0m" },
 	  {"name":"inday-day_period-1", "hhmm_start":"02h00m", "hhmm_end":"06h00m", "weekday":"*" },
