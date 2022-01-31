@@ -754,7 +754,7 @@ $store->wait_for_docker('status=removing', 'prune');
 $store->close_lock('/opt/crawler/bin/watch.lock');
 
 #-------------------------------------------------------------------------------------------
-my $file_custom_watch = '/opt/cnm-custom/bin/cnm-watch';
+my $file_custom_watch = '/opt/cnm-local/bin/cnm-watch';
 if (-f $file_custom_watch) {
    $store->log('info',"cnm-watch:: EXEC $file_custom_watch");
    system "$file_custom_watch";
