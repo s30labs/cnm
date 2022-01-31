@@ -36,6 +36,7 @@ my %opts=();
 getopts("hxlskrc:d:f:",\%opts);
 my $range = (defined $opts{c}) ? $opts{c} : 'all';
 my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
+my $file_config_runner = (defined $opts{f}) ? $opts{f} : '/cfg/crawler-app-runner-all.json';
 
 my $crawler;
 
@@ -46,8 +47,7 @@ elsif ($opts{s}) {
 	
 	$crawler=Crawler::LogManager::App->new(user=>$USER, group=>$GROUP, name=>"crawler-app-runner", store_path=>$STORE_PATH, host_idx=>$host_idx, host=>$host, cfg=>$rcfgbase, log_level=>$log_level, cid=>$cid, cid_ip=>$ip, data_path=>$data_path, 'log_mode'=>$log_mode );
 
-	#if ($opts{f}) { $crawler->config_path($opts{f}); }
-	$crawler->config_path('/cfg/crawler-app-runner-all.json');
+	$crawler->config_path($file_config_runner);
 	$crawler->daemon(1);
 	my $pid=$crawler->run_all();
 
@@ -65,8 +65,7 @@ elsif ($opts{r}) {
 	$crawler->stop_runner();
 	sleep 1;
 
-   #if ($opts{f}) { $crawler->config_path($opts{f}); }
-   $crawler->config_path('/cfg/crawler-app-runner-all.json');
+	$crawler->config_path($file_config_runner);
    $crawler->daemon(1);
    my $pid=$crawler->run_all();
 
