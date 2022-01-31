@@ -1227,6 +1227,7 @@ print "======================================prov_device_app_metrics============
    		%ProvisionLite::assigned_watches=();
    		%ProvisionLite::assigned_status=();
 		   my $watches=$STORE->get_from_db($dbh,'iid,label,watch,status','prov_template_metrics2iid',"id_dev=$ID_DEV");
+			$self->log('debug',"prov_do_set_device_metric::[DEBUG] ---START_WATCHES---");
 		   foreach my $t (@$watches) {
       		my $iid=$t->[0];
 		      my $label=$t->[1];
@@ -1237,7 +1238,9 @@ print "======================================prov_device_app_metrics============
     		     	$self->log('debug',"prov_do_set_device_metric::[DEBUG]**FML** WATCH=$watch L=$label");
       		}
 				$ProvisionLite::assigned_status{$label} = { 'iid' => $iid, 'status' => $status};	
+				$self->log('debug',"prov_do_set_device_metric::[DEBUG] WATCH=$watch L=$label");
    		}
+			$self->log('debug',"prov_do_set_device_metric::[DEBUG] ---END_WATCHES---");
 		
    		if (scalar @DEFAULT) {
       		my @TEMPLATE=();
@@ -3580,6 +3583,7 @@ my ($self,$port_list, $rparams)=@_;
    my $host_ip=$rparams->{'ip'};
 	my ($ok_icmp,$mac)=$self->check_icmp($host_ip);
 
+print "***>>ok_icmp=$ok_icmp mac=$mac\n";
 
 	# Hago el check del vector. Pongo a 1 en valor de las claves que corresponda
    while (my ($k,$v)=each %ProvisionLite::LATENCY_CHECK_VECTOR) {
