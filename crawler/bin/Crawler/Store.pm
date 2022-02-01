@@ -9716,8 +9716,7 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
 		}
 		push @dblines, [$l->{'ts'}, $l->{'line'}, $md5, $l->{'ts'}, $l->{'line'}, $md5];
 
-		#$self->log('info',"set_log_rx_lines_bulk: [$table] LINE $l->{'ts'}, $l->{'line'}, $md5");
-
+		$self->log('debug',"set_log_rx_lines_bulk: [$table] LINE $l->{'ts'}, $l->{'line'}, $md5");
 	}
 	my $cnt_lines=scalar(@dblines);
 	
@@ -9725,6 +9724,8 @@ my ($self,$dbh,$ip,$id_dev,$logfile,$source,$lines)=@_;
    $self->error($libSQL::err);
    $self->errorstr($libSQL::errstr);
    $self->lastcmd($libSQL::cmd);
+
+	$self->log('info',"set_log_rx_lines_bulk:[INFO] ($libSQL::err $libSQL::errstr) (CMD=$libSQL::cmd) cnt_lines=$cnt_lines");
 
    #Si no existe la tabla (1146), se crea
    if ($libSQL::err == 1146) {
