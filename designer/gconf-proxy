@@ -2,6 +2,7 @@
 #---------------------------------------------------------------------------
 use lib '/opt/cnm/designer';
 use lib '/opt/cnm/designer/proxy-pkgs';
+use lib './proxy-pkgs';
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -13,12 +14,17 @@ my $DIR_BASE = '/opt/cnm/designer';
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
 my %opts=();
-getopts("hvum:p:d:i:l:",\%opts);
+getopts("hvum:p:d:i:l:b:",\%opts);
 
 if ($opts{h}) {
    my $USAGE = usage(); die $USAGE;
 }
 
+if ($opts{b}) { 
+	if (! -d $opts{b}) { die "**ERROR** No existe el directorio $opts{b}\n"; }
+	$DIR_BASE = $opts{b}; 
+	#use lib $DIR_BASE.'/proxy-pkgs';
+}
 #---------------------------------------------------------------------------
 #my $SCRIPT_SRC_PATH = $DIR_BASE.'/xagent/base';
 #my $SCRIPT_DST_PATH='xagent/base';
@@ -65,7 +71,6 @@ if ( ! -f $file_pm) {
 
 #---------------------------------------------------------------------------
 my ($sqlblock, $sqlblock1, $sqlblock2, $sqlblock3, $sqlblock4, $sqlblock5) = ('','','','','','');
-
 #---------------------------------------------------------------------------
 foreach my $mod(@files){
     my($filename, $directories, $suffix) = fileparse($mod);
@@ -145,16 +150,19 @@ my $SQLSCRIPT_DATA = <<"SQLSCRIPT_DATA";
       \$CFG_MONITOR_AGENT_SCRIPT[]=array(
             'script' => '__SCRIPT__',  'exec_mode' => __EXEC_MODE__, 'timeout'=>__TIMEOUT__, 'out_files'=>'__OUT_FILES__',
             'description' => '__SCRIPT_DESCRIPTION__',
-            'proxy_type' => '__PROXY_TYPE__', 'cfg' => '__CFG__',  'custom' => '0', 'proxy_user'=>'__PROXY_USER__', 'proxy_pwd'=>'__PROXY_PWD__',
+            'proxy_type' => '__PROXY_TYPE__', 'cfg' => '__CFG__',  'custom' => '__CUSTOM__', 'proxy_user'=>'__PROXY_USER__', 'proxy_pwd'=>'__PROXY_PWD__',
       );
 
 SQLSCRIPT_DATA
 
 $sqlblock=$SQLSCRIPT_DATA;
-foreach my $k (sort keys %SCRIPT) {
-   $sqlblock =~ s/$k/$SCRIPT{$k}/;
+if (scalar(keys %SCRIPT)>0) {
+	if (! exists $SCRIPT{'__CUSTOM__'}) { $SCRIPT{'__CUSTOM__'}=0; }
+	foreach my $k (sort keys %SCRIPT) {
+   	$sqlblock =~ s/$k/$SCRIPT{$k}/;
+	}
+	set_db_file($INIT_SCRIPT_FILE,$sqlblock);
 }
-set_db_file($INIT_SCRIPT_FILE,$sqlblock);
 
 #---------------------------------------------------------------------------
 # 1.1 ATRIBUTOS DEL SCRIPT
@@ -201,21 +209,23 @@ SQLSCRIPT_PARAM
 
 my $position=0;
 $sqlblock1='';
-foreach my $id ( sort keys %{$SCRIPT{__SCRIPT_PARAMS__}}) {
-	$sqlblock=$SQLSCRIPT_PARAM;
+if ( scalar(keys %{$SCRIPT{__SCRIPT_PARAMS__}})>0) {
+	foreach my $id ( sort keys %{$SCRIPT{__SCRIPT_PARAMS__}}) {
+		$sqlblock=$SQLSCRIPT_PARAM;
 
-	my $p = $SCRIPT{__SCRIPT_PARAMS__}->{$id};
-	if ($p->{'__HPARAM__'} eq '') { $p->{'__HPARAM__'} = substr(md5_hex($p->{'__SCRIPT__'}.$position),0,8); }
-	foreach my $k (sort keys %$p) {
-	   $sqlblock =~ s/$k/$p->{$k}/;
+		my $p = $SCRIPT{__SCRIPT_PARAMS__}->{$id};
+		if ($p->{'__HPARAM__'} eq '') { $p->{'__HPARAM__'} = substr(md5_hex($p->{'__SCRIPT__'}.$position),0,8); }
+		foreach my $k (sort keys %$p) {
+	   	$sqlblock =~ s/$k/$p->{$k}/;
+		}
+
+		$sqlblock =~ s/__POSITION__/$position/;
+
+		$position += 1;
+		$sqlblock1 .= $sqlblock;
 	}
-
-	$sqlblock =~ s/__POSITION__/$position/;
-
-	$position += 1;
-	$sqlblock1 .= $sqlblock;
+	set_db_file($INIT_SCRIPT_PARAM_FILE,$sqlblock1);
 }
-set_db_file($INIT_SCRIPT_PARAM_FILE,$sqlblock1);
 
 #---------------------------------------------------------------------------
 # 3 DOCUMENTACION DEL SCRIPT
@@ -234,10 +244,12 @@ SQLSCRIPT_TIP
 
 
 $sqlblock=$SQLSCRIPT_TIP;
-foreach my $k (keys %{$SCRIPT{__TIP__}}) {
-	$sqlblock =~ s/$k/$SCRIPT{__TIP__}->{$k}/;
+if ( scalar(keys %{$SCRIPT{__TIP__}})>0) {
+	foreach my $k (keys %{$SCRIPT{__TIP__}}) {
+		$sqlblock =~ s/$k/$SCRIPT{__TIP__}->{$k}/;
+	}
+	set_db_file($INIT_SCRIPT_TIPS_FILE,$sqlblock);
 }
-set_db_file($INIT_SCRIPT_TIPS_FILE,$sqlblock);
 
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
@@ -264,20 +276,22 @@ my $SQLSCRIPT_METRIC = <<"SQLSCRIPT_METRIC";
             'apptype' => '__APPTYPE__',  'itil_type' => '__ITIL_TYPE__',    'tag' => '__TAG__',   'esp'=>'__ESP__',  'iptab' => '__IPTAB__',
             'items' => '__ITEMS__',        'vlabel' => '__VLABEL__',      'mode' => '__MODE__',
             'mtype' => '__MTYPE__',        'top_value' => '1',     'module' => 'mod_xagent_get',    'nparams' => '__NPARAMS__',
-            'params' => '__PARAMS__',      'params_descr' => '__PARAMS_DESCR__',
+            'params' => "__PARAMS__",      'params_descr' => '__PARAMS_DESCR__',
             'script' => '__SCRIPT__',         'severity' => '__SEVERITY__',
-            'cfg' => '__CFG__',  'custom' => '0',  'get_iid' => '__GET_IID__',  'proxy'=>1, 'proxy_type'=>'__PROXY_TYPE__',
+            'cfg' => '__CFG__',  'custom' => '__CUSTOM__',  'get_iid' => '__GET_IID__',  'proxy'=>1, 'proxy_type'=>'__PROXY_TYPE__',
             'info' => '',  'lapse' => __LAPSE__,   'include'=>__INCLUDE__,
 				'myrange' => '__MYRANGE__',
       );
 SQLSCRIPT_METRIC
+
+#            'params' => "[-host;Host;;2]:[-app;APP ID;333333001062;0]:[-lapse;Lapse (min.);6;0]:[-pattern;Pattern;'\"job\":\"Job_DM_SID_ActivCptClient\"';0]:[-field;Data Field;status;0]:[-oper;Data Operation;count;0]",      'params_descr' => '',
 
 #---------------------------------------------------------------------------
 # PARAMETROS DE LA METRICA
 #---------------------------------------------------------------------------
 my $SQLMETRIC_PARAM = <<"SQLMETRIC_PARAM";
       \$CFG_MONITOR_PARAM[]=array(
-         'subtype' => '__SUBTYPE__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => '__VALUE__',
+         'subtype' => '__SUBTYPE__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => "__VALUE__",
          'script' => '__SCRIPT__',
       );
 
@@ -321,13 +335,27 @@ my $SQLMONITOR_TIP = <<"SQLMONITOR_TIP";
 
 SQLMONITOR_TIP
 
-
 ($sqlblock1, $sqlblock2, $sqlblock3,  $sqlblock4, $sqlblock5) = ('','','','','');
 foreach my $m (@METRICS) {
+
+	#-------------------------------------------------
+	# Si el script no se define en el pm proque ya existe haya que tener en la metrica una seccion __SCRIPT_DEFINED_PARAMS__
+	# para calcular el valor de hparam
+	if (! exists $SCRIPT{__SCRIPT_PARAMS__}) {
+   	$position=0;
+	   foreach my $id ( sort keys %{$m->{__SCRIPT_DEFINED_PARAMS__}}) {
+   	   my $p = $SCRIPT{__SCRIPT_DEFINED_PARAMS__}->{$id};
+      	if ($p->{'__HPARAM__'} eq '') { $p->{'__HPARAM__'} = substr(md5_hex($p->{'__SCRIPT__'}.$position),0,8); }
+	      $position += 1;
+   	}
+	}
+	#-------------------------------------------------
+
 
 	# -----------------------------------------------
 	if ($m->{'__SUBTYPE__'} eq '') { $m->{'__SUBTYPE__'} = 'xagt_' . substr(md5_hex($m->{'__DESCRIPTION__'}),0,6); }
 	if (! exists $m->{'__LAPSE__'}) { $m->{'__LAPSE__'} = 300; }
+	if (! exists $m->{'__CUSTOM__'}) { $m->{'__CUSTOM__'} = 0; }
 	$sqlblock=$SQLSCRIPT_METRIC;
 	foreach my $k (sort keys %$m) {
    	$sqlblock =~ s/$k/$m->{$k}/;
@@ -345,7 +373,13 @@ foreach my $m (@METRICS) {
    	}
 
 		$sqlblock =~ s/__SUBTYPE__/$m->{'__SUBTYPE__'}/;
-		$sqlblock =~ s/__HPARAM__/$SCRIPT{__SCRIPT_PARAMS__}->{$id}->{'__HPARAM__'}/;
+		if (exists $SCRIPT{'__SCRIPT_PARAMS__'}->{$id}->{'__HPARAM__'}) {
+			$sqlblock =~ s/__HPARAM__/$SCRIPT{'__SCRIPT_PARAMS__'}->{$id}->{'__HPARAM__'}/;
+		}
+		elsif (exists $m->{'__SCRIPT_DEFINED_PARAMS__'}) {
+         $sqlblock =~ s/__HPARAM__/$m->{'__SCRIPT_DEFINED_PARAMS__'}->{$id}->{'__HPARAM__'}/;
+      }
+
 		$sqlblock2 .= $sqlblock;
 	}
    #print  "$sqlblock2\n";
@@ -406,11 +440,13 @@ foreach my $m (@METRICS) {
 
 	}
 }
-set_db_file($INIT_METRIC_FILE,$sqlblock1);
-set_db_file($INIT_METRIC_PARAM_FILE,$sqlblock2);
-set_db_file($INIT_METRIC_TIPS_FILE,$sqlblock3);
-set_db_file($INIT_MONITOR_FILE,$sqlblock4);
-set_db_file($INIT_MONITOR_TIPS_FILE,$sqlblock5);
+if ($TOTAL_METRICS>0) {
+	set_db_file($INIT_METRIC_FILE,$sqlblock1);
+	set_db_file($INIT_METRIC_PARAM_FILE,$sqlblock2);
+	set_db_file($INIT_METRIC_TIPS_FILE,$sqlblock3);
+	set_db_file($INIT_MONITOR_FILE,$sqlblock4);
+	set_db_file($INIT_MONITOR_TIPS_FILE,$sqlblock5);
+}
 
 #---------------------------------------------------------------------------
 if ($opts{p}) {
@@ -454,7 +490,7 @@ my $SQLSCRIPT_APP = <<"SQLSCRIPT_APP";
          'params' => '',      'iptab'=>'__IPTAB__', 'ready'=>'__READY__',
          'myrange' => '__MYRANGE__',   'enterprise'=>'0',
          'cfg' => '__CFG__',  'platform' => '__PLATFORM__',   'script' => '__SCRIPT__',   'format'=>__FORMAT__,
-         'custom' => '0', 'aname'=> '__ANAME__', 'res'=>__RES__, 'ipparam'=>'__IPPARAM__',
+         'custom' => '__CUSTOM__', 'aname'=> '__ANAME__', 'res'=>__RES__, 'ipparam'=>'__IPPARAM__',
          'apptype' => '__APPTYPE__',  'itil_type' => '__ITIL_TYPE__'
       );
 
@@ -506,6 +542,7 @@ foreach my $m (@APPS) {
 
    # -----------------------------------------------
    #if ($m->{'__SUBTYPE__'} eq '') { $m->{'__SUBTYPE__'} = 'xagt_' . substr(md5_hex($m->{'__DESCRIPTION__'}),0,6); }
+	if (! exists $m->{'__CUSTOM__'}) { $m->{'__CUSTOM__'}=0; } 
    $sqlblock=$SQLSCRIPT_APP;
    foreach my $k (sort keys %$m) {
       $sqlblock =~ s/$k/$m->{$k}/;
@@ -612,24 +649,22 @@ my ($subdir) = @_;
 	if (defined $subdir) {
 
       my $script_path = $subdir_path.'/'.$SCRIPT_DST_PATH;
-      if (! -d $script_path) { system("/bin/mkdir -p $script_path"); }
-      system("/bin/cp $SCRIPT_SRC_PATH/$SCRIPT_NAME $script_path");
-
-#		print "/bin/ln -s $script_path/$SCRIPT_NAME $SCRIPT_SRC_PATH/$SCRIPT_NAME\n";
-#		if (-f "$SCRIPT_SRC_PATH/$SCRIPT_NAME") { system("/bin/mv $SCRIPT_SRC_PATH/$SCRIPT_NAME /tmp"); }
-#      system("/bin/ln -s $script_path/$SCRIPT_NAME $SCRIPT_SRC_PATH/$SCRIPT_NAME");
-#		system ("/bin/chmod 755 $script_path/$SCRIPT_NAME");
+		my $script_src_file = join ('/', $SCRIPT_SRC_PATH, $SCRIPT_NAME);
+		if (-f $script_src_file) {
+	      if (! -d $script_path) { system("/bin/mkdir -p $script_path"); }
+   	   system("/bin/cp $SCRIPT_SRC_PATH/$SCRIPT_NAME $script_path");
+		}
 
 		# Se copian todos los scripts porque diferentes scripts pueden compartir subdir
-		#$install_file .= "/bin/cp $script_path/* $SCRIPT_SRC_PATH\n";
 		$install_file .= "[ -f $subdir_path/pre-install  ] && $subdir_path/pre-install\n\n";
-		#$install_file .= "if [ -d $SCRIPT_SRC_PATH  ]; then\n";
-		$install_file .= "if [ -L /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
-		$install_file .= "   /bin/rm -f /opt/cnm/xagent/base/$SCRIPT_NAME\n";
-		$install_file .= "elif [ -e /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
-		$install_file .= "   /bin/mv /opt/cnm/xagent/base/$SCRIPT_NAME /tmp\n";
-		$install_file .= "elif [ -d /opt/cnm/xagent/base  ]; then\n";
-		$install_file .= "	/bin/ln -s $script_path/$SCRIPT_NAME /opt/cnm/xagent/base/$SCRIPT_NAME\nfi\n";
+		if (-f $script_src_file) {
+			$install_file .= "if [ -L /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
+			$install_file .= "   /bin/rm -f /opt/cnm/xagent/base/$SCRIPT_NAME\n";
+			$install_file .= "elif [ -e /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
+			$install_file .= "   /bin/mv /opt/cnm/xagent/base/$SCRIPT_NAME /tmp\n";
+			$install_file .= "elif [ -d /opt/cnm/xagent/base  ]; then\n";
+			$install_file .= "	/bin/ln -s $script_path/$SCRIPT_NAME /opt/cnm/xagent/base/$SCRIPT_NAME\nfi\n";
+		}
 		$install_file .= "/update/db/db-manage.php -p $subdir_path\n\n";
 		$install_file .= "if [ -f $subdir_path/post-install  ]; then\n";
 		$install_file .= "   $subdir_path/post-install\n";
@@ -662,6 +697,7 @@ $fpth[$#fpth] -h  : Ayuda
 $fpth[$#fpth] -m  : Nombre de modulo p.ej: linux_metric_wmi_services
 $fpth[$#fpth] -p  : Genera plugin xxx (Copia ficheros a ruta del plugin /opt/cnm-sp/xxx)
 $fpth[$#fpth] -u  : Copia ficheros a /update
+$fpth[$#fpth] -b  : Cambia base_dir (para usar utra ruta para los ficheros .pm)
 
 USAGE
 
