@@ -550,7 +550,8 @@ my ($self,$mode,$esp,$values)=@_;
 	   	my $nr=scalar(@rx);
 
 			$self->log('debug',"parse_fx:: [fx_MAP] mode=$mode a=$a b=$b nv=$nv nr=$nr vx=@vx rx=@rx values=@$values");
-  			for my $i (0..$nr-1) { push @newvals,0; }
+  			#for my $i (0..$nr-1) { push @newvals,0; }
+			push @newvals,0;
 
 	      # ---------------------------------------------------
   		   # Se itera sobre el VECTOR O (IN)
