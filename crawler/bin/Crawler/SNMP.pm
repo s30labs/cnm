@@ -1484,6 +1484,7 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 		else {
 			foreach my $r (@$rv) {
 
+				$self->log('debug',"chk_metric:: Datos dispositivo r=$r----");
 				my @d=split(/\:\@\:/, $r);
 				my $iid=shift(@d);
 				if ((exists $params->{'iid_mode'}) && ($params->{'iid_mode'} =~ /ascii/i)) {
@@ -1826,7 +1827,8 @@ my ($self,$key) = @_;
    #FML 20210814 cual es la causa???
    #shift @c;
    foreach my $d (@c) {
-      if ($d<32) { $txt .= '.'; next; }
+      #if ($d<32) { $txt .= '.'; next; }
+      if ($d<32) { next; }
       $txt .= chr($d);
    }
 
