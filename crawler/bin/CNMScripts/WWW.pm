@@ -302,7 +302,7 @@ my ($self,$desc)=@_;
 #    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
     $easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
 #    $easy->setopt( CURLOPT_ENCODING, 'gzip,deflate' ) if $has_zlib;
-#    $easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
+    $easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
 #    $easy->setopt( CURLOPT_COOKIEFILE, '' );
 #    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
 
