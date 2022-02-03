@@ -217,10 +217,6 @@ my ($self,$dbh,$params)=@_;
       if (($pat->{'pattern_type'} eq 'AND') && ($num_ok == $pat->{'npatterns'})) { $event_counter += 1; }
       elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $event_counter += 1;  }
 
-#if ($id_app eq '333333001003') {
-#$self->log('info',"**DEBUGXX* pattern_type=$pat->{'pattern_type'} >> $num_ok vs $pat->{'npatterns'} event_counter=$event_counter****");
-#}
-
       if ($event_counter == 1) {
          $event_info = $l->[3];
          $last_ts = $l->[2];
@@ -477,15 +473,19 @@ my ($self,$dbh,$params)=@_;
 		elsif (($pat->{'pattern_type'} eq 'OR') && ($num_ok>0)) { $all_patterns_ok = 1; }
 
 if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
-		$self->log('info',"FMLFML $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
+		$self->log('info',"FMLFML id_app=$id_app $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
+}
+
+if ($id_app eq '333333001055') {
+   $self->log('info',"**DEBUG** FML333333001055 $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
 }
 
 		if (! $all_patterns_ok) { next; }
 
-#if ($id_app eq '333333001003') {
-#	$self->log('info',"**DEBUG** FML1003 line=$l->[3]");
-#	$self->log('info',"**DEBUG** FML1003 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
-#}
+if ($id_app eq '333333001055') {
+	$self->log('info',"**DEBUG** FML333333001055 line=$l->[3]");
+	$self->log('info',"**DEBUG** FML333333001055 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
+}
 
 		# OPER = sum >> SUMA DE DATOS
 		if ($params->{'oper'} =~ /sum/i) {
@@ -720,21 +720,14 @@ my ($self,$data,$patterns,$id_app)=@_;
    foreach my $k (sort keys %$data) {
 
       my $kx = uc $k;
+
 		# Si el patron no es una de las claves definidas para este campo, lo salto.
       if (! exists $patterns->{$kx}) { next; }
-
-#if ($id_app eq '333333001003') {
-#$self->log('info',"**DEBUG** CHECK-CAMPO=$kx **");
-#}
 
       foreach my $h (@{$patterns->{$kx}})  {
 
          my $op = $h->{'op'};
          my $value = (exists $h->{'value'}) ?  $h->{'value'} : '';
-
-#if ($id_app eq '333333001003') {
-#$self->log('info',"**DEBUG** CHECK-CLAVE CAMPO=$kx VALOR=$data->{$k} $op $value **");
-#}
 
 			#Operando: exists
          if (($op =~ /exists/i) && ($kx eq (uc $h->{'k'}))) { $ok += 1; }
@@ -770,9 +763,6 @@ my ($self,$data,$patterns,$id_app)=@_;
             elsif ($data->{$k} eq $value) { $ok += 1; }
          }
 
-#if ($id_app eq '333333001003') {
-#      	$self->log('info',"check_patterns>> $data->{'BEGIN'} $data->{'APP'} ($kx) --$data->{$k}--$h->{'k'}--$op--$value-- -> ok=$ok");
-#}
 			if ($ok>0) {
       		$self->log('debug',"check_patterns>> [clave=$kx|valor=$data->{$k}]  EXPR=$h->{'k'}--$op--$value-- ok=$ok");
 			}
