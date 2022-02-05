@@ -10,9 +10,13 @@ use Cwd;
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("ht:",\%opts);
+getopts("hd:t:",\%opts);
 if ($opts{h}) { my $USAGE = usage(); die $USAGE;}
 
+my @other_dirs=();
+if ($opts{d}) { 
+	@other_dirs = split(';', $opts{d});
+}
 #-----------------------------------------------------------------------
 my @DIR=(
 	'/opt/cnm',
@@ -27,6 +31,7 @@ my @DIR=(
 	'/opt/custom_pro004',
 );
 
+push @DIR,@other_dirs;
 #-------------------------------------------------------------------------------------------
 my $host=`/bin/hostname`;
 chomp $host;
