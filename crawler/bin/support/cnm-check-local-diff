@@ -7,6 +7,7 @@ use lib "/opt/crawler/bin";
 use strict;
 use Getopt::Std;
 use Cwd;
+use ONMConfig;
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
@@ -25,6 +26,7 @@ my @DIR=(
 	'/opt/cnm-os',
 	'/opt/cnm-sp',
 	'/opt/custom_pro',
+	'/opt/cnm-extras',
 	'/opt/custom_pro001',
 	'/opt/custom_pro002',
 	'/opt/custom_pro003',
@@ -41,7 +43,11 @@ print F '-'x60 ."\n";
 print F "$host\n";
 
 foreach my $d (@DIR) { 
+	if (! -d $d) {next; }
+	if (! -d "$d/.git") {next; }
+	print '-'x60 ."\n";
 	print "Directorio: $d\n";
+	print '-'x60 ."\n";
 	print F '-'x60 ."\n";
 	print F "$d\n";
 	print F '-'x60 ."\n";
@@ -49,6 +55,11 @@ foreach my $d (@DIR) {
 	print F "$res\n";
 
 	print "\n";
+}
+
+if (-d '/opt/cnm-local') {
+	print "**EXISTE /opt/cnm-local\n";
+	print F "**EXISTE /opt/cnm-local\n";
 }
 
 close F;
@@ -70,11 +81,18 @@ my ($dir)=@_;
 #       modified:   ../CNMScripts/SSH.pm
 
 	my $txt='';
+	my $exists_untracked=0;
 	my @modified=();
+	my @untracked=();
 	foreach my $l (@res) {
 		$txt.=$l;
 		chomp $l;
 		if ($l=~/modified\:\s+(\S+)/) { push @modified,$1; }
+		elsif ($l=~/Untracked files\:/) { $exists_untracked=1; }
+		elsif ($l=~/use "git add/) { next; }
+		elsif ($l=~/nothing added to commit but untracked files present/) { next; }
+		elsif ($l eq '') { next; }
+		elsif ($exists_untracked) { push @untracked,$l; }
 	}
 
 	$txt.="\n\n";
@@ -87,6 +105,11 @@ my ($dir)=@_;
 		my $diff = `$cmd`;
 		$txt.=$cmd."\n";
 		$txt.=$diff."\n\n";
+	}
+
+	if (scalar(@untracked)>0) {print "\n"; }
+	foreach my $m (@untracked) {
+		print "Untracked: $m\n";
 	}
 
 	return $txt;
