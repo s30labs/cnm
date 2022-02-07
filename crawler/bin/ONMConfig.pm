@@ -468,7 +468,7 @@ sub check_version {
 my $LEGEND = <<LEGEND;
 -------------------------------------------------------------------------
 Custom Network Manager (CNM) version $version.
-Copyright (c) 2008-2014 by s30labs. http://www.s30labs.com
+Copyright (c) 2008-2022 by s30labs. http://www.s30labs.com
 This module is part of the CNM Engine and it is released under the GPLv2 license
 If you have a commercial subscription, plase check the terms of service before doing any software modification.
 -------------------------------------------------------------------------
