@@ -45,7 +45,7 @@ USAGE
 my ($host_ip,$log_level,$VERBOSE)=('localhost','info',0);
 my %OPTS = ();
 GetOptions (\%OPTS,  'h','help','v','verbose','d=s','host=s','fields=s','q=s','alert', 'device', 'view', 'counter', 'id=s',
-							'sort=s', 'page_size=s', 'page_number=s')
+							'sort=s', 'page_size=s', 'page_number=s', 'separator=s')
             or die "$0:[ERROR] en el paso de parametros. Si necesita ayuda ejecute $0 -help\n";
 
 if ( ($OPTS{'help'}) || ($OPTS{'h'}) ) { die $USAGE; }
@@ -72,7 +72,7 @@ else { push @query_string, 'cnm_page_size=500'; }
 if (defined $OPTS{page_number}) { push @query_string, 'cnm_page_number='.$OPTS{page_number}; }
 if (defined $OPTS{sort}) { push @query_string, 'cnm_sort='.$OPTS{sort}; }
 if (defined $OPTS{q}) { push @query_string , $OPTS{q}; }
-
+my $separator = exists($OPTS{separator}) ? $OPTS{separator} : "\t";
 if (scalar(@query_string) > 0 ) { 
 	$endpoint .= '?'.join ('&',@query_string);
 }
@@ -131,9 +131,9 @@ elsif (! defined $OPTS{fields}) { print Dumper($response); }
 else {
 	my @fields = split(',',$OPTS{fields});
 	foreach my $h (@$response) {
-		foreach my $field (@fields) {
-			print $h->{$field}."\t";
-		}
+		my @cols=();
+		foreach my $field (@fields) { push @cols,$h->{$field}; }
+		print join($separator, @cols);
 		print "\n";
 	}
 }
