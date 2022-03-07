@@ -162,6 +162,7 @@ foreach my $id (sort keys %IDs) {
       $line{'metricname'} = $IDs{$id}->{'metricname'};
       $line{'vcols_header'} = $vcols_header;
 		#$line{'item'} = $items->[$i];
+		$METRIC_DATA{$id}->{'metricname'} = $line{'metricname'};
 
 		my @vcols_data=();
 		for my $i (0..$nitems-1) {
@@ -191,7 +192,7 @@ foreach my $id (sort keys %IDs) {
 		push @CSV, \%line;
 
 	}
-	$METRIC_DATA{$id}->{'csv'} = \@CSV;
+	$METRIC_DATA{$id}->{'csv'} = [@CSV];
 }
 
 if ($VERBOSE) { 
@@ -227,7 +228,8 @@ if ($VERBOSE) {
 if ($OPTS{'csv'}) {
 
 	foreach my $id (sort keys %METRIC_DATA) {
-		print $METRIC_DATA{$id}->{'heading_csv'}."\n";
+		print '#'.$METRIC_DATA{$id}->{'metricname'}."\n";
+		print '#'.$METRIC_DATA{$id}->{'heading_csv'}."\n";
 		foreach my $h (@{$METRIC_DATA{$id}->{'csv'}}) {
 			print $h->{'ts'}.','.$h->{'metricid'}.','.$h->{'deviceid'}.','.$h->{'vcols'}."\n";
    	}
