@@ -9499,7 +9499,7 @@ my ($self,$dbh,$logfile,$source)=@_;
 	if (! defined $dbh) { return undef; }
    my $rres=sqlDelete($dbh, $table, $where);
 
-	$self->log('info',"delete_from_dated_table::[DEBUG] $libSQL::cmd");
+	$self->log('info',"clear_app_data::[DEBUG] $libSQL::cmd");
    if ($libSQL::err) {
       $self->manage_db_error($dbh,"clear_app_data");
 	}
@@ -10191,10 +10191,10 @@ my ($self,$dbh,$table,$where)=@_;
 
    if ($libSQL::err) {
       #$self->log('warning',"delete_from_dated_table::[WARN] table=$table ($libSQL::errstr)");
-		$self->manage_db_error($dbh,"delete_from_dated_table");
+		$self->manage_db_error($dbh,"delete_from_db");
       return;
    }
-   else { $self->log('debug',"delete_from_dated_table::[DEBUG] $libSQL::cmd"); }
+   else { $self->log('debug',"delete_from_db::[DEBUG] $libSQL::cmd"); }
 
    return $rres;	#affected rows
 }
