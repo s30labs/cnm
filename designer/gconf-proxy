@@ -14,7 +14,7 @@ my $DIR_BASE = '/opt/cnm/designer';
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
 my %opts=();
-getopts("hvum:p:d:i:l:b:",\%opts);
+getopts("xhvum:p:d:i:l:b:",\%opts);
 
 if ($opts{h}) {
    my $USAGE = usage(); die $USAGE;
@@ -460,6 +460,12 @@ else {
 #---------------------------------------------------------------------------
 print "***TOTAL**** SCRIPTS=$TOTAL_SCRIPTS METRICAS=$TOTAL_METRICS | MONITORES=$TOTAL_MONITORS\n";
 
+#---------------------------------------------------------------------------
+if ($opts{x}) {
+   my $cmd = '/opt/cnm-sp/'.$opts{p}.'/install';
+   print "***INSTALL*** ($cmd)\n";
+	system($cmd);
+}
 
 }
 
@@ -598,6 +604,13 @@ else {
 #---------------------------------------------------------------------------
 print "****TOTAL**** APPS=$TOTAL_APPS\n";
 
+#---------------------------------------------------------------------------
+if ($opts{x}) {
+	my $cmd = '/opt/cnm-sp/'.$opts{p}.'/install';
+   print "***INSTALL*** ($cmd)\n";
+	system($cmd);
+}
+
 }
 
 #---------------------------------------------------------------------------
@@ -698,6 +711,7 @@ $fpth[$#fpth] -m  : Nombre de modulo p.ej: linux_metric_wmi_services
 $fpth[$#fpth] -p  : Genera plugin xxx (Copia ficheros a ruta del plugin /opt/cnm-sp/xxx)
 $fpth[$#fpth] -u  : Copia ficheros a /update
 $fpth[$#fpth] -b  : Cambia base_dir (para usar utra ruta para los ficheros .pm)
+$fpth[$#fpth] -x  : Ejecuta install (/opt/cnm-sp/xxx/install)
 
 USAGE
 
