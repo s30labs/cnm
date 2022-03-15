@@ -33,7 +33,7 @@ my $DIR_BASE = '.';
 #---------------------------------------------------------------------------
 #---------------------------------------------------------------------------
 my %opts=();
-getopts("hvum:p:d:i:l:b:",\%opts);
+getopts("hvm:b:",\%opts);
 
 if ($opts{h}) {
    my $USAGE = usage(); die $USAGE;
@@ -90,9 +90,10 @@ print "Cargando: $filename\n";
 
 #print Dumper(\%mapping_ds_processes::TEMPLATE);
 
+
 #---------------------------------------------------------------------------
-#---------------------------------------------------------------------------
-#---------------------------------------------------------------------------
+my %TEMPLATE = eval '%'.$MODULE.'::TEMPLATE';
+
 #---------------------------------------------------------------------------
 my $log_level='info';
 my $log_info=3;
@@ -100,10 +101,12 @@ my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$
 $store->store_path($store_path);
 my $dbh=$store->open_db();
 
-foreach my $id_dev (@{$mapping_ds_processes::TEMPLATE{'devices'}}) {
+print Dumper($TEMPLATE{'tpl'});
+
+foreach my $id_dev (@{$TEMPLATE{'devices'}}) {
 
 	print "id_dev=$id_dev\n";
-   $store->store_template_metrics($dbh,$id_dev,$mapping_ds_processes::TEMPLATE{'tpl'});
+   $store->store_template_metrics($dbh,$id_dev,$TEMPLATE{'tpl'});
 }
 
 #--------------------------------------------------------------------------------
@@ -112,12 +115,13 @@ sub usage {
    my @fpth = split ('/',$0,10);
    my @fname = split ('\.',$fpth[$#fpth],10);
    my $USAGE = <<USAGE;
-Compilador de PROXY descriptors
-hf:c:d:
+Mapping metrics to devices/s using a mapping modue
+hvm:b:
 
-$fpth[$#fpth] -d  : Fija el nivel de depuracion
-$fpth[$#fpth] -h  : Ayuda
-$fpth[$#fpth] -m  : Nombre de modulo p.ej: linux_metric_wmi_services
+$fpth[$#fpth] -v  : Verbose
+$fpth[$#fpth] -h  : Help message
+$fpth[$#fpth] -m  : Specify Mapping module name (in BASE_DIR/proxy_pkgs directory)
+$fpth[$#fpth] -b  : Sets BASE_DIR for designer code and proxy_pkgs modules
 
 USAGE
 
