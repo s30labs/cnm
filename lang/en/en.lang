@@ -18,3 +18,7 @@ _low||Low
 _verylow||Very Low
 _alertgenerated||ALERT GENERATED
 _alertremoved||ALERT REMOVED
+_sinrespuestasnmp||NO SNMP RESPONSE
+_sinrespuestawmi||NO WMI RESPONSE
+_sinrespuestacnmagent||NO CNM-AGENT RESPONSE
+_dispositivoincomunicadoicmp||DEVICE WITH NO CONECTIVITY (ICMP)

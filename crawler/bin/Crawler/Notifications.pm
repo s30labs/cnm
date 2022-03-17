@@ -2007,7 +2007,8 @@ my ($self)=@_;
    my $dbh = $self->dbh();
 	my $log_data;
 	my $tnow=time();
-			
+	my $lang = $self->lang();
+		
    # Se obtienen los monitores que tienen diferentes severidades
    # EJ: 's_esp_cpu_avg_mibhost-174e4020' => 'v1>85:v1>75:' (critical:major:minor)
    my $WATCH_MULTI = $store->get_cfg_watch_multi_severity($dbh);
@@ -2150,25 +2151,40 @@ my ($self)=@_;
             $TASKS{$key}->{'result'}='SET';
             $TASKS{$key}->{'severity'} = 4;  # Alerta azul ==> Para el administrador
 
+				my $msg='';
+				#SIN RESPUESTA SNMP
             if ($mname eq 'mon_snmp') {
-               $TASKS{$key}->{'cause'} = 'SIN RESPUESTA SNMP';
+               #$TASKS{$key}->{'cause'} = 'SIN RESPUESTA SNMP';
+					$msg = $lang->{'_sinrespuestasnmp'};
+					$TASKS{$key}->{'cause'} = $msg;
                $TASKS{$key}->{'severity'} = 1;
-               $log_data="CHILDRES: $key SIN RESPUESTA SNMP ($task_info) DATA_OUT=@$DATA_OUT";
+               #$log_data="CHILDRES: $key SIN RESPUESTA SNMP ($task_info) DATA_OUT=@$DATA_OUT";
+               $log_data="CHILDRES: $key $msg ($task_info) DATA_OUT=@$DATA_OUT";
             }
+				#DISPOSITIVO INCOMUNICADO (ICMP)
             elsif ( ($mname eq 'mon_icmp') or ($mname eq 'disp_icmp') )  {
-               $TASKS{$key}->{'cause'} = 'DISPOSITIVO INCOMUNICADO (ICMP)';
+					$msg = $lang->{'_dispositivoincomunicadoicmp'};
+               #$TASKS{$key}->{'cause'} = 'DISPOSITIVO INCOMUNICADO (ICMP)';
+               $TASKS{$key}->{'cause'} = $msg;
 					$TASKS{$key}->{'severity'} = 1;
-               $log_data="CHILDRES: $key DISPOSITIVO INCOMUNICADO ICMP ($task_info) DATA_OUT=@$DATA_OUT";
+               #$log_data="CHILDRES: $key DISPOSITIVO INCOMUNICADO ICMP ($task_info) DATA_OUT=@$DATA_OUT";
+               $log_data="CHILDRES: $key $msg ($task_info) DATA_OUT=@$DATA_OUT";
             }
+				#SIN RESPUESTA WMI
             elsif ($mname eq 'mon_wbem') {
-               $TASKS{$key}->{'cause'} = 'SIN RESPUESTA WMI';
+					$msg = $lang->{'_sinrespuestawmi'};
+               #$TASKS{$key}->{'cause'} = 'SIN RESPUESTA WMI';
+               $TASKS{$key}->{'cause'} = $msg;
                $TASKS{$key}->{'severity'} = 2;
-               $log_data="CHILDRES: $key SIN RESPUESTA WMI ($task_info) DATA_OUT=@$DATA_OUT";
+               $log_data="CHILDRES: $key $msg ($task_info) DATA_OUT=@$DATA_OUT";
             }
+				#SIN RESPUESTA CNM-AGENT
             elsif ($mname eq 'mon_xagent') {
-               $TASKS{$key}->{'cause'} = 'SIN RESPUESTA CNM-AGENT' ;
+					$msg = $lang->{'_sinrespuestacnmagent'};
+               #$TASKS{$key}->{'cause'} = 'SIN RESPUESTA CNM-AGENT' ;
+               $TASKS{$key}->{'cause'} = $msg;
                $TASKS{$key}->{'severity'} = 2;
-               $log_data="CHILDRES: $key SIN RESPUESTA CNM-AGENT ($task_info) DATA_OUT=@$DATA_OUT";
+               $log_data="CHILDRES: $key $msg ($task_info) DATA_OUT=@$DATA_OUT";
             }
             # En este caso se trata de una metrica de sin respuesta a OID (no es watch ni mon_snmp)
             elsif ($type eq 'latency') {
@@ -4198,7 +4214,7 @@ my ($self,$mode,$a,$notif_info)=@_;
   	 	my $e=$store->error();
    	if ($e) {
       	$e .= $store->errorstr().'  ('.$store->lastcmd().' )';
-      	$self->log('debug',"compose_notification_body:: **ERROR** $e");
+      	$self->log('debug',"compose_notification_subject:: **ERROR** $e");
    	}
    	else { $label = $x->[0][0]; }
 
