@@ -628,7 +628,8 @@ my ($self,$lapse,$range)=@_;
             $self->log('warning',"do_task::[WARN] **NO LINK** (error=$link_error)");
          }
 
-         if (($ok) && ($link_error <= 0)) {
+			my $op_mode = $self->check_operation();
+         if (($ok) && ($link_error <= 0) && ($op_mode != 10)) {
 
    			#----------------------------------------------------------------------
 			   # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
@@ -821,9 +822,10 @@ my ($self,$lapse,$range)=@_;
 	      if ($link_error > 0) {
    	      $self->log('warning',"do_task::[WARN] **NO LINK** (error=$link_error)");
       	}
-			
-			if (($ok) && ($link_error <= 0)) {
 
+         my $op_mode = $self->check_operation();
+         if (($ok) && ($link_error <= 0) && ($op_mode != 10)) {
+			
 
             # ----------------------------------------------------------------------
             # Si pertenece a algun dominio obtiene las alertas de los otros equipos del dominio
@@ -2272,7 +2274,7 @@ my $ev=$TASKS{$key}->{'ev'};
 					my $idw = 'mwatch-'.$id_dev.'-'.$monitor;
 					my $cid=$self->cid();
 					my $file_watch = "$Crawler::MDATA_PATH/output/$cid/notif/$idw";
-               $self->log('info',"manage_app_notifications [$idw] ++CLEAR FILE++ CHECK file_watch=$file_watch");
+               $self->log('info',"alert_processor [$idw] ++CLEAR FILE++ CHECK file_watch=$file_watch");
                if (-f $file_watch) {
                   my $rx = unlink $file_watch;
                   $self->log('info',"alert_processor [$idw] ++CLEAR FILE++ UNLINK ($rx) $file_watch");

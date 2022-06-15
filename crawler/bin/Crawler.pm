@@ -3499,6 +3499,25 @@ my ($self,$ifname)=@_;
 	return $rc;
 }
 
+#----------------------------------------------------------------------------
+# check_operation
+# Checks operation rules in operaion file
+# Return:
+#  0  => OPERATION NORMAL
+#  10 => NO ALERTS
+#----------------------------------------------------------------------------
+sub check_operation {
+my ($self)=@_;
+
+   my $rc=0;
+   my $operation_cfg_file = '/cfg/onm.operation';
+   if (-f $operation_cfg_file) {
+      my $x = $self->slurp_file($operation_cfg_file);
+      if ($x =~ /noalerts/i) { $rc=10; }
+		$self->log('info', "check_operation:: rule=$x (rc=$rc) ");
+   }
+   return $rc;
+}
 
 #----------------------------------------------------------------------------
 sub reload_syslog {
