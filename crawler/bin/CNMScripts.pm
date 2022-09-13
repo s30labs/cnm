@@ -1515,6 +1515,34 @@ my ($self)=@_;
 	}
 }
 
+#--------------------------------------------------------------------
+# grep_patterns
+# Crea las cadenas necesarias para parsear el log lapse secs, desde el instante actual
+# Si tnow = Jul 14 20:26:10 y lapse=300 seran:
+# Jul 14 20:21|Jul 14 20:22|Jul 14 20:23|Jul 14 20:24|Jul 14 20:25|Jul 14 20:26
+#--------------------------------------------------------------------
+sub grep_patterns {
+my ($self,$lapse)=@_;
+
+   my $nmin = int($lapse/60) + 1;
+   my @patterns = ();
+   my @month = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
+   my $ts_now = time;
+   my $tx = $ts_now - $nmin*60;
+
+   while ($nmin>=0) {
+      my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($tx);
+      my $px = sprintf("%s %02d %02d:%02d",$month[$mon],$mday,$hour,$min);
+      $tx += 60;
+      $nmin-=1;
+
+      push @patterns,$px;
+   }
+
+   return \@patterns;
+
+}
+
 
 #----------------------------------------------------------------------------
 # UTILIDADES
