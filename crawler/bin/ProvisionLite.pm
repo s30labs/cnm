@@ -1613,7 +1613,7 @@ print "------------------------------\n";
 
 		# Se eliminan las metricas azules del dispositivo (en metrics) 
 		# select mname from alerts where id_device=100 and severity=4;
-      my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',"id_device=$ID_DEV and severity=4");
+      my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',"id_device=$ID_DEV and severity=4 and type!='xagent'");
       if (scalar(@$rx)>0) {
 			my @mnames=();
          foreach my $x (@$rx) {
