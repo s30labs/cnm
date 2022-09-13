@@ -297,6 +297,8 @@ my ($self,$desc)=@_;
 		$easy->setopt( CURLOPT_HEADERFUNCTION, \&cb_header );
       $easy->setopt( CURLOPT_FILE, \$easy->{body} );
 
+    $easy->setopt( CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36' );
+
 #    $easy->setopt( CURLOPT_TIMEOUT, 300 );
     $easy->setopt( CURLOPT_CONNECTTIMEOUT, $timeout );
 #    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
