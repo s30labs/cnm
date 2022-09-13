@@ -792,7 +792,8 @@ my ($self,$lapse,$task)=@_;
             	   foreach my $ev (@$lines) {
 
   	            	   $i++;
-     	            	$self->log('debug',"do_task_all:: CHECK ALERT [$i|$total] >> $ev->{'ip'} >> $ev->{'source_line'}");
+							my $ipx = (defined $ev->{'ip'}) ? $ev->{'ip'} : 'UNDEF';
+     	            	$self->log('debug',"do_task_all:: CHECK ALERT [$i|$total] >> $ipx >> $ev->{'source_line'}");
 
          	         # Gestiono la posible alerta
   	         	      $self->check_alert($ev);
@@ -1367,6 +1368,13 @@ my ($self,$event)=@_;
 
    my $expr_logic='AND'; # REVISAR!!! FML
 
+	# En el caso de lineas de log obtenidas desde los crawler-app-run lo habitual es que no exista $ip
+	# Estas lineas son custom defined en formato JSON
+	if (! defined $ip) {
+		$self->log('debug',"check_alert::[INFO] ip UNDEF msg=$msg **SALTO DISPOSITIVO IP NO DEFINIDA**");
+      return;
+	}
+
    #Si es una alerta de un dispositivo dado de alta pero no activo => No se genera la alerta
    my $ip2name=$self->ip2name();
    if ((exists $ip2name->{$ip}) && ($ip2name->{$ip}->{'status'} !=0)) {
@@ -1381,7 +1389,7 @@ my ($self,$event)=@_;
 
 
       if (! exists $event2alert->{$ev}->{$ip}) {
-         $self->log('debug',"check_alert:: ALERTA $ev: NO DEFINIDA PARA $ip...");
+         $self->log('debug',"check_alert:: ALERTA $ev: NO DEFINIDA PARA $ip ($msg) ...");
          next;
       }
 

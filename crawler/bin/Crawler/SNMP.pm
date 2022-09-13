@@ -1720,7 +1720,7 @@ my ($self,$desc,$key)=@_;
    }
    #elsif ($res->[0] eq 'NOSNMP') {
    elsif ($self->response() eq 'NOSNMP') {
-      $self->log('warning',"fill_cache::[WARN ID=$task_id] CACHESET de $desc->{oid} = NOSNMP");
+      $self->log('info',"fill_cache::[WARN ID=$task_id] CACHESET de $desc->{oid} = NOSNMP");
 		#return $res;
 		return [$rc, $rcstr, $res];
    }
@@ -2318,7 +2318,7 @@ $self->log('debug',"mod_snmp_walk::[DEBUG ID=$task_id] CACHESET KEY=$key RC=$rc 
    #-------------------------------------------------------------------
 	# Control de errores
 	my $rc=$self->err_num();
-	if ($rc > 0) {
+	if ($rc != 0) {
 		if (ref($values) eq "ARRAY") { $res=$values;  }
 		else { $res=['U'];  }
       $self->log('warning',"mod_snmp_walk::[WARN ID=$task_id] RC=$rc VAL=@$res oid=$desc->{oid}");
@@ -2336,7 +2336,7 @@ $self->log('debug',"mod_snmp_walk::[DEBUG ID=$task_id] CACHESET KEY=$key RC=$rc 
 
 		#----------------------------------------------------------------------
 		# Se revisa si hay que ejecutar una funcion de post-procesado de metrica especial.
-		$res = $self->core_snmp_esp ($desc,$task_id,$values);
+		$res = $self->core_snmp_esp($desc,$task_id,$values);
 	}
 
 
@@ -4012,7 +4012,7 @@ my $oid=$desc->{'oid'};
 	   $self->err_str($err_str);
    	$self->err_num($rc);
 
-   	$self->log('info',"core_snmp_table::[INFO ID=$task_id] CACHE de $host=U => RES=NOSNMP RC=$rc RCSTR=$err_str**");
+   	$self->log('info',"core_snmp_table::[INFO ID=$task_id] CACHE de $host=U => RES=NOSNMP RC=$rc RCSTR=$err_str** num_values=$num_values");
 		#return ['U'];
 		$self->response('NOSNMP');
       for my $i (0..$num_values-1) { push @values, 'U'; }
