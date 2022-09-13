@@ -21,6 +21,7 @@
    - apache2.2-common
    - apt
    - apt-utils
+   - apt-transport-https
    - aptitude
    - arping
    - at

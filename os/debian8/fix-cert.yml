@@ -1,0 +1,9 @@
+---
+# This playbook configure the local resolver
+- name: Fix letsencrypt root certificate problem in debian 8
+  hosts: all
+  remote_user: root
+
+  roles:
+    - fix-cert
+

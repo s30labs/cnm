@@ -1,0 +1,26 @@
+---
+- name: http repository assignment 
+  apt_repository: repo="deb http://software.s30labs.com/repositorio8/ stable main contrib" state=present
+  tags: fix-cert
+
+- name: Install packages
+  apt: name=apt-transport-https state=installed force=yes
+  tags: fix-cert
+
+- name: Set ISRG_Root_X1.crt file
+  copy: src=ISRG_Root_X1.crt dest=/usr/share/ca-certificates/mozilla  owner=root group=root mode=0644
+  tags: fix-cert
+
+- name: Update ca-certificates.conf file
+  copy: src=ca-certificates.conf dest=/etc  owner=root group=root mode=0644
+  tags: fix-cert
+
+- name: Update system certificates
+  shell: update-ca-certificates
+  tags: fix-cert
+
+- name: Se asigna repositorio https
+  apt_repository: repo="deb https://software01.s30labs.com/repositorio8/ stable main contrib" state=present
+  tags: fix-cert
+
+...
