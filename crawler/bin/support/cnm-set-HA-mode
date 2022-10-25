@@ -118,6 +118,7 @@ sub set_network {
 	print F $interfaces;
 	close F;
 
+	local($/) = "\n";
 	my $if=my_if();
   	system ("/sbin/ifdown $if && /sbin/ifup $if");
 
