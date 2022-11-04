@@ -1244,6 +1244,9 @@ my ($self,$in,$results,$store)=@_;
    my $dbh=$store->dbh();
 	$self->watch(0);
 
+   my $lang = $self->core_i18n_global();
+   $self->lang($lang);
+
    #--------------------------------------------------------------------------------------
    my ($ip,$mname)=($in->{'host_ip'}, $in->{'mname'});
    #--------------------------------------------------------------------------------------
@@ -1259,7 +1262,7 @@ my ($self,$in,$results,$store)=@_;
 
       if ( (! defined $ip) && (! defined $mname) ) {
          # No podemos hacer el chequeo
-         $results= [ 'ERROR. NO HAY DATOS' ];
+         $results= [ $lang->{_errornodata} ];
          return 0;
       }
    }
@@ -1294,19 +1297,18 @@ my ($self,$in,$results,$store)=@_;
       $self->log('debug',"chk_metric::[DEBUG] **RC=$rc1 RCSTR1=$rcstr1 RES1=@$res1");
 #/DBG--
 
-
-   	my $data_out1='';
+		my $display_txt = $lang->{'_result'}.':';
 		if ($rc1 != 0) {
-			$data_out1 = "sin respuesta snmp ($rcstr1)";
+			my $data_out1= $lang->{'_sinrespuestasnmp'}." ($rcstr1)";
 			$self->event_data([$data_out1]);
-   		push @$results, ['Resultado:', $data_out1];
+   		push @$results, [$display_txt, $data_out1];
          $self->severity(2);
 			$self->data_out(['U']);
 		}
    	else {
-			$data_out1="@$res1\n";   	
+			my $data_out1="@$res1\n";   	
 			$self->data_out($res1);
-   		push @$results, ['Resultado:', $data_out1];
+   		push @$results, [$display_txt, $data_out1];
 		}
 		return 0;
 #   	if ($rc1 != 0) {
@@ -1421,9 +1423,12 @@ my ($self,$in,$results,$store)=@_;
 #print "VALIDANDO [ip=$desc{host_ip} mname=$mname] [oid=$desc{oid} c=$desc{community} v=$desc{version} module=$desc{module}]\n";
 
    #--------------------------------------------------------------------------------------
-   push @$results, ["Metrica ($mode):","$DESCR ($label)",''];
-   push @$results, ['Valores monitorizados:', $items, ''];
-   push @$results, ['Valores monitorizados:', $desc{'oidn'}, ''];
+	my $display_txt = $lang->{'_metric'}.' ('.$mode.'):';
+	my $display_txt2 = '';
+   push @$results, [$display_txt,"$DESCR ($label)",''];
+	$display_txt = $lang->{'_monitoredvalues'}.':';
+   push @$results, [$display_txt, $items, ''];
+   push @$results, [$display_txt, $desc{'oidn'}, ''];
    push @$results, ['fx:', $desc{'esp'}, ''];
 #   push @$results, ['Parametros:', $desc{'params'}, ''];
 
@@ -1476,11 +1481,18 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 		# Si la metrica no es tabla (escalar o especial??)
 		if ($desc{'cfg'}!=2) {
 			#if (scalar @$ev > 0) { $data_out .= "(@$ev)";  }
-			push @$results, ['Datos dispositivo:', $data_out ];
+			$display_txt = $lang->{'_devicedata'}.':';
+			push @$results, [$display_txt, $data_out ];
 		}
 		# Si la metrica es tabla pero ya esta instanciada
-		elsif ( $mname ne $subtype) { push @$results, ['Datos dispositivo:', $data_out ]; }
-		elsif ( $desc{'esp'} =~ /TABLE/) { push @$results, ['Datos dispositivo:', $data_out ]; }
+		elsif ( $mname ne $subtype) { 
+			$display_txt = $lang->{'_devicedata'}.':';
+			push @$results, [$display_txt, $data_out ]; 
+		}
+		elsif ( $desc{'esp'} =~ /TABLE/) { 
+			$display_txt = $lang->{'_devicedata'}.':';
+			push @$results, [$display_txt, $data_out ]; 
+		}
 		else {
 			foreach my $r (@$rv) {
 
@@ -1494,10 +1506,14 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 
 				$self->log('debug',"chk_metric:: Datos dispositivo iid=$iid >> @d");
 
-   			push @$results, ["Datos dispositivo [iid=$iid]:","@d",''];
+				$display_txt = $lang->{'_devicedata'}.' [iid='.$iid.']:';
+   			push @$results, [$display_txt,"@d",''];
 			}	
 		}
-		if (scalar @$ev > 0) { push @$results, ["Datos dispositivo [Ev]:","@$ev",'']; }
+		if (scalar @$ev > 0) { 
+			$display_txt = $lang->{'_devicedata'}.' [Ev]:';
+			push @$results, [$display_txt,"@$ev",'']; 
+		}
 	}
 
    #--------------------------------------------------------------------------------------
@@ -1537,13 +1553,12 @@ $self->log('info',"chk_metric::[FML] **rvd8 = @rvd8**rvd= @$rvd");
 
             $self->log('debug',"chk_metric:: Datos dispositivo iid=$iid >> @d");
 
-            push @$results, ["Datos dispositivo [iid=$iid]:","@d",''];
+				$display_txt = $lang->{'_devicedata'}.' [iid='.$iid.']:';
+            push @$results, [$display_txt,"@d",''];
          }
 
-
-
-         #push @$results, ['Datos dispositivo:', "@$rv"];
-         push @$results, ['Datos diferenciales:', "No hay datos almacenados para calcular diferencias"];
+			$display_txt = $lang->{'_differentialdata'}.':';
+         push @$results, [$display_txt, $lang->{'_nodiffdata'}];
       }
 #DBG--
       else {
@@ -1552,8 +1567,10 @@ $self->log('info',"chk_metric::[FML] **rvd8 = @rvd8**rvd= @$rvd");
          my $kkk1=$rvd->[0];
          my $kkk2=$rvd->[1];
          $self->log('debug',"chk_metric::[DEBUG] **FML N=$kkk v1=$kkk1 v2=$kkk2**");
-         push @$results, ['Datos dispositivo:', "@$rv"];
-         push @$results, ['Datos diferenciales:', "@$rvd"];
+			$display_txt = $lang->{'_devicedata'}.':';
+         push @$results, [$display_txt, "@$rv"];
+			$display_txt = $lang->{'_differentialdata'}.':';
+         push @$results, [$display_txt, "@$rvd"];
 
       }
 
@@ -1636,16 +1653,19 @@ $self->log('info',"chk_metric::[FML] **rvd8 = @rvd8**rvd= @$rvd");
 
       	my ($condition,$lval,$oper,$rval)=$self->watch_eval($expr,$rv,$file,{'top_value'=>$top_value});
 
-	      push @$results, ['Monitor:', "$cause ($expr) ($lval $oper $rval)",''];
+			$display_txt = $lang->{'_monitorassociated'}.':';
+	      push @$results, [$display_txt, "$cause ($expr) ($lval $oper $rval)",''];
    	   #if (($condition) && (! $fx)) {
    	   if ($condition) {
-      	   #print "ALERTA POR MONITOR: $cause $expr (@$rv)\n";
-         	push @$results, ['Resultado:',"**ALERTA** ($lval $oper $rval)",''];
+				$display_txt = $lang->{'_result'}.':';
+				$display_txt2 = '**'.$lang->{'_alert'}."** ($lval $oper $rval)";
+         	push @$results, [$display_txt, $display_txt2, ''];
 	         #my $ev="$label ($rvj) **ALERTA ($expr) ($lval $oper $rval)**";
    	      #$self->event_data([$ev]);
 
             my $ev=$self->event_data();
-            push @$ev," | **ALERTA ($expr) ($lval $oper $rval)**";
+				$display_txt2 = '**'.$lang->{'_alert'};
+            push @$ev," | $display_txt2 ($expr) ($lval $oper $rval)**";
             $self->event_data($ev);
 
 				$self->severity($sev);
@@ -1659,7 +1679,9 @@ $self->log('info',"chk_metric::[FML] **rvd8 = @rvd8**rvd= @$rvd");
 			#	return 0;
 			#}
 		}
-		push @$results, ['Resultado:',"NO CUMPLE MONITOR/ES",''];
+		$display_txt = $lang->{'_result'}.':';
+		$display_txt2 = $lang->{'_noalertbymonitor'};
+		push @$results, [$display_txt,$display_txt2,''];
    }
 	return 0;
 }

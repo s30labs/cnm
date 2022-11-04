@@ -22,3 +22,17 @@ _sinrespuestasnmp||SIN RESPUESTA SNMP
 _sinrespuestawmi||SIN RESPUESTA WMI
 _sinrespuestacnmagent||SIN RESPUESTA CNM-AGENT
 _dispositivoincomunicadoicmp||DISPOSITIVO INCOMUNICADO (ICMP)
+_scriptexecuted||Script ejecutado
+_scriptnotexecuted||No se ejecuta script
+_metric||Metrica
+_monitoredvalues||Valores monitorizados
+_parameters||Parametros
+_devicedata||Datos dispositivo
+_differentialdata||Datos diferenciales
+_nodiffdata||No hay datos almacenados para calcular diferencias
+_monitorassociated||Monitor asociado
+_result||Resultado
+_alert||ALERTA
+_alertbymonitor||ALERTA POR MONITOR
+_noalertbymonitor||NO CUMPLE MONITOR/ES
+_errornodata||ERROR NO HAY DATOS

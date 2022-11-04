@@ -455,6 +455,9 @@ my %desc=();
 	my $dbh=$store->dbh();
 	$self->watch(0);
 
+   my $lang = $self->core_i18n_global();
+   $self->lang($lang);
+
    my ($ip,$mname)=($in->{'host_ip'}, $in->{'mname'});
    #--------------------------------------------------------------------------------------
    if ( (! defined $ip) && (! defined $mname) ) {
@@ -469,7 +472,7 @@ my %desc=();
 
       if ( (! defined $ip) && (! defined $mname) ) {
          # No podemos hacer el chequeo
-         $results= [ 'ERROR. NO HAY DATOS' ];
+         $results= [ $lang->{_errornodata}  ];
          return;
       }
    }
@@ -502,9 +505,14 @@ my %desc=();
 #print "VALIDANDO [ip=$desc{host_ip} mname=$mname] [$desc{monitor} $desc{params} $desc{module}]\n";
 
    #--------------------------------------------------------------------------------------
-   push @$results, ['Metrica:',$DESCR,''];
-   push @$results, ['Valores monitorizados:', $items, ''];
-   push @$results, ['Parametros:', $desc{'params'}, ''];
+   my $display_txt = $lang->{'_metric'}.':';
+   my $display_txt2 = '';
+
+   push @$results, [$display_txt,$DESCR,''];
+	$display_txt = $lang->{'_monitoredvalues'}.':';
+   push @$results, [$display_txt, $items, ''];
+	$display_txt = $lang->{'_parameters'}.':';
+   push @$results, [$display_txt, $desc{'params'}, ''];
 
    my ($rv,$ev)=$self->modules_supported(\%desc);
 	# Si $rv es undef es muy probable que sea un modulo no soportado
@@ -532,7 +540,8 @@ my %desc=();
 
 	my $data_out="@$rv\n";
    if (scalar @$ev > 0) { $data_out .= "(@$ev)";  }
-   push @$results, ['Resultado:', $data_out];
+	$display_txt = $lang->{'_result'}.':';
+   push @$results, [$display_txt, $data_out];
 
    # Si hay un error en la obtencion de datos, se termina. No tiene sentido evaluar watches
    # Se devuelve 0 porque no hay alerta por monitor.
@@ -591,16 +600,17 @@ my %desc=();
       	#}
 
 			my ($condition,$lval,$oper,$rval)=$self->watch_eval($expr,$rv,$file,{'top_value'=>$top_value});
-   	   push @$results, ['Monitor:', "$cause ($expr)",''];
+			$display_txt = $lang->{'_monitorassociated'}.':';
+   	   push @$results, [$display_txt, "$cause ($expr)",''];
 			#if (($condition) && (! $fx)) {
 			if ($condition) {
-         	#print "ALERTA POR MONITOR: $cause $expr (@$rv)\n";
-	         push @$results, ['Resultado:',"**ALERTA** ($lval $oper $rval)",''];
-   	      #my $ev="($rvj) **ALERTA ($expr) ($lval $oper $rval)**";
-      	   #$self->event_data([$ev]);
+            $display_txt = $lang->{'_result'}.':';
+            $display_txt2 = '**'.$lang->{'_alert'}."** ($lval $oper $rval)";
+            push @$results, [$display_txt, $display_txt2, ''];
 
             my $ev=$self->event_data();
-            push @$ev," | **ALERTA ($expr) ($lval $oper $rval)**";
+            $display_txt2 = '**'.$lang->{'_alert'};
+            push @$ev," | $display_txt2 ($expr) ($lval $oper $rval)**";
             $self->event_data($ev);
 
 				$self->severity($sev);

@@ -309,6 +309,9 @@ my $ok=0;
    #Ajustes de real_lapse
    my $real_lapse = $self->real_lapse($lapse);
 
+   my $lang = $self->core_i18n_global();
+   $self->lang($lang);
+
    while (1) {
 
       %DATA_DIFF=();
@@ -559,6 +562,9 @@ my ($self,$in,$results,$store)=@_;
    my $dbh=$store->dbh();
 	$self->watch(0);
 
+   my $lang = $self->core_i18n_global();
+   $self->lang($lang);
+
 	#--------------------------------------------------------------------------------------
 #   my $task_id=$in->{host_ip}.'-'.$in->{mname};
 #   $self->task_id($task_id);
@@ -579,7 +585,7 @@ my ($self,$in,$results,$store)=@_;
 
    	if ( (! defined $ip) && (! defined $mname) ) {
       	# No podemos hacer el chequeo
-      	$results= [ 'ERROR. NO HAY DATOS' ];
+      	$results= [ $lang->{_errornodata} ];
      		return;
 		}
    }
@@ -706,9 +712,12 @@ $self->log('debug',"chk_metric::[DUMPER] proxies=$dump1");
 	#----------------------------------------------------------------------
 $self->log('warning',"chk_metric::[**FML**] VALIDANDO [ip=$desc{host_ip} mname=$mname] [class=$desc{class} script=$desc{script} module=$desc{module} IID=$desc{'iid'} id_proxy=$desc{'id_proxy'} ip_proxy=$desc{'ip_proxy'} cfg=$desc{'cfg'}] file=$file DESCR=$desc{'descr'} subtype=$desc{'subtype'} items=$items params=$desc{params}");
 
-   push @$results, ['Metrica:',$desc{'descr'},''];
-   push @$results, ['Valores monitorizados:', $items, ''];
-#   push @$results, ['Parametros:', $desc{params}, ''];
+   my $display_txt = $lang->{'_metric'}.' ('.$mode.'):';
+   my $display_txt2 = '';
+   push @$results, [$display_txt,$desc{'descr'},''];
+	$display_txt = $lang->{'_monitoredvalues'}.':';
+   push @$results, [$display_txt, $items, ''];
+   #push @$results, ['Parametros:', $desc{params}, ''];
    my ($iids,$rv,$ev)=$self->modules_supported(\%desc);
    if (! defined $rv) {
       $self->data_out(['U']);
@@ -727,9 +736,13 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 
 	# Metricas sin instancias (cfg=1)
 	if ($desc{'cfg'} == 1) {
-	   push @$results, ['Datos dispositivo:', $data_out];
+		$display_txt = $lang->{'_devicedata'}.':';
+	   push @$results, [$display_txt, $data_out];
 	}
-	elsif ( $desc{'esp'} =~ /TABLE/) { push @$results, ['Datos dispositivo:', $data_out ]; }
+	elsif ( $desc{'esp'} =~ /TABLE/) { 
+		$display_txt = $lang->{'_devicedata'}.':';
+      push @$results, [$display_txt, $data_out];
+	}
 	# Para metricas con instancias (cfg=2) hay 2 situaciones:
 	# a. Se pregunta por una instancia concreta (una metrica ya instanciada) mname=custom_b56d08e1-f9fcb06a
 	# b. Se pregunta portodas las instancias mname=custom_b56d08e1-f9fcb06a
@@ -737,7 +750,8 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 		my $x=0;
       foreach my $r (@$rv) {
 			my $right = $iids->[$x].' = '.$r;
-			push @$results, [ "Datos dispositivo [$x]: ", $right ];
+			$display_txt = $lang->{'_devicedata'}." [$x]: ";
+			push @$results, [ $display_txt, $right ];
 			$x+=1;
       }
    }
@@ -745,12 +759,16 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 		my @items=split(/\|/,$desc{'items'});
 		my $c=0;
 		foreach my $r (@$rv) {
-			push @$results, ["Datos dispositivo11 ($items[$c]):", $r];
+			$display_txt = $lang->{'_devicedata'}."11 ($items[$c]):";
+			push @$results, [$display_txt, $r];
 			$c+=1;
 		}
    }
 
-   if (scalar @$ev > 0) { push @$results, ["Datos dispositivo [Ev]:","@$ev",'']; }
+   if (scalar @$ev > 0) { 
+		$display_txt = $lang->{'_devicedata'}.' [Ev]:';
+		push @$results, [$display_txt,"@$ev",'']; 
+	}
 
 
    #--------------------------------------------------------------------------------------
@@ -765,7 +783,8 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 #DBG--
       else { $self->log('debug',"chk_metric::[DEBUG] **$desc{host_ip}:$mname MODE=COUNTER [@$rvd] F=$file**"); }
 #/DBG--
-      push @$results, ['Datos diferenciales:', "@$rvd"];
+		$display_txt = $lang->{'_differentialdata'}.':';
+      push @$results, [$display_txt, "@$rvd"];
       #Para evaluar el watch
       $rv=$rvd;
    }
@@ -817,13 +836,16 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 
 	      my ($condition,$lval,$oper,$rval)=$self->watch_eval($expr,$rv,$file,{'top_value'=>$top_value});
 
-			push @$results, ['Monitor:', "$cause ($expr) ($lval $oper $rval)",''];
+			$display_txt = $lang->{'_monitorassociated'}.':';
+         push @$results, [$display_txt, "$cause ($expr) ($lval $oper $rval)",''];
       	if ($condition) {
-         	#print "ALERTA POR MONITOR: $cause $expr (@$rv)\n";
-	         push @$results, ['Resultado:',"**ALERTA** (@$rv)",''];
+            $display_txt = $lang->{'_result'}.':';
+            $display_txt2 = '**'.$lang->{'_alert'}."** (@$rv)";
+            push @$results, [$display_txt, $display_txt2, ''];
+
 				my $ev=$self->event_data();
-				#push @$ev,"RESULTADO=$rvj **ALERTA ($expr) ($lval $oper $rval)**";
-				push @$ev," | **ALERTA ($expr) ($lval $oper $rval)**";
+            $display_txt2 = '**'.$lang->{'_alert'};
+            push @$ev," | $display_txt2 ($expr) ($lval $oper $rval)**";
 				$self->event_data($ev);
 				$self->severity($sev);
 				$self->watch($watch_name);
@@ -831,7 +853,9 @@ $self->log('warning',"chk_metric::[**FML**] VALIDADO [ip=$desc{host_ip} mname=$m
 				return 1;
       	}
 		}
-		push @$results, ['Resultado:',"NO CUMPLE MONITOR/ES",''];
+      $display_txt = $lang->{'_result'}.':';
+      $display_txt2 = $lang->{'_noalertbymonitor'};
+      push @$results, [$display_txt,$display_txt2,''];
    }
 
 	return 0;
@@ -1141,6 +1165,7 @@ my ($self,$desc)=@_;
 
 	my $subtype = (exists $desc->{subtype}) ? $desc->{subtype} : '';
    my $task_id = $subtype.'|'.$self->task_id();
+	my $lang = $self->lang();
 
    $self->err_str('[OK]');
    $self->err_num(0);
@@ -1244,7 +1269,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 
 		# no lo vuelvo a ejecutar hasta el proximo ciclo de poolling.
 		if ( exists $XAGENT_CACHE_ERRORS{$task_id_base}) {
-         $ev[0]="No se ejecuta script: $desc->{'script'} - ERROR PREVIO";
+         $ev[0]= $lang->{'_scriptnotexecuted'}.': '.$desc->{'script'}. ' - ERROR PREVIO';
          $self->event_data(\@ev);
 			$self->log('info',"core_xagent_get::TASK_ID=$task_id **ERROR PREVIO. NO EJECUTO SCRIPT**");
 		}
@@ -1255,8 +1280,8 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 			$out_cmd=$self->execScript({'CNM_TAG_RRD_FILE'=>$file_rrd, 'CNM_TAG_SUBTYPE'=>$subtype});
    	   my $rcstr=$self->err_str();
       	my $rc=$self->err_num();
-      	$ev[0] = "Ejecutado script: $desc->{'script'} (RC=$rc) RCSTR=$rcstr";
-         if (exists $desc->{'descr'}) { $ev[1] = 'Metrica: '.$desc->{'descr'}; }
+			$ev[0] = $lang->{'_scriptexecuted'}.': '.$desc->{'script'}." (RC=$rc) RCSTR=$rcstr";
+         if (exists $desc->{'descr'}) { $ev[1] = $lang->{'_metric'}.': '.$desc->{'descr'}; }
 
 			$self->event_data(\@ev);
 
@@ -1301,7 +1326,7 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
          }
 		}
 		else {
-			$ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
+			$ev[0]= $lang->{'_scriptnotexecuted'}.': '.$desc->{'script'}. ' - CACHEGET';
 			$self->event_data(\@ev);
 			$self->log('debug',"core_xagent_get::[task_id=$task_id] cfg=1 CACHEGET");
 		}
@@ -1358,7 +1383,7 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
       # Si script+params ha dado error al ejecutarlo contra un dispositivo concreto
       # no lo vuelvo a ejecutar hasta el proximo ciclo de poolling.
       if ( exists $XAGENT_CACHE_ERRORS{$task_id_base}) {
-         $ev[0]="No se ejecuta script: $desc->{'script'} - ERROR PREVIO";
+			$ev[0]= $lang->{'_scriptnotexecuted'}.': '.$desc->{'script'}. ' - ERROR PREVIO';
          $self->event_data(\@ev);
          $self->log('info',"core_xagent_get::TASK_ID=$task_id **ERROR PREVIO. NO EJECUTO SCRIPT**");
       }
@@ -1370,8 +1395,8 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 			$out_cmd=$self->execScript({'CNM_TAG_RRD_FILE'=>$file_rrd, 'CNM_TAG_SUBTYPE'=>$subtype});
          my $rcstr=$self->err_str();
          my $rc=$self->err_num();
-         $ev[0] = "Ejecutado script: $desc->{'script'} (RC=$rc) RCSTR=$rcstr";
-			if (exists $desc->{'descr'}) { $ev[1] = 'Metrica: '.$desc->{'descr'}.' '.$iidx; }
+			$ev[0] = $lang->{'_scriptexecuted'}.': '.$desc->{'script'}." (RC=$rc) RCSTR=$rcstr";
+			if (exists $desc->{'descr'}) { $ev[1] = $lang->{'_metric'}.': '.$desc->{'descr'}; }
          else { $ev[1] = 'Instancia: '.$iidx;}
 
 			$self->event_data(\@ev);
@@ -1428,7 +1453,7 @@ $self->log('debug',"core_xagent_get:: cfg=2 INCACHE=$INCACHE task_id=$task_id");
 			}
       }
 		else {
-         $ev[0]="No se ejecuta script: $desc->{'script'} - CACHEGET";
+			$ev[0]= $lang->{'_scriptnotexecuted'}.': '.$desc->{'script'}. ' - CACHEGET';
          $self->event_data(\@ev);
 			$self->log('debug',"core_xagent_get:: [task_id=$task_id] cfg=2 CACHEGET");
 		}

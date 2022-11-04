@@ -32,7 +32,8 @@ $store->store_path($store_path);
 my $dbh=$store->open_db();
 
 #-------------------------------------------------------------------------------------------
-my $tag='_docdevicesummary';
+#my $tag='_docdevicesummary';
+my $tag='_scriptexecuted';
 my $tag_value = $store->core_i18n_tag($tag);
 print "$tag\t$tag_value\n";
 
