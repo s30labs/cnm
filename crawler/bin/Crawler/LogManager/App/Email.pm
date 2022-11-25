@@ -17,7 +17,8 @@ use JSON;
 use YAML;
 use Time::Local;
 use IO::CaptureOutput qw/capture/;
-use Net::IMAP::Simple;
+use Mail::IMAPClient;
+use MIME::Base64;
 use MIME::Parser;
 use HTML::TableExtract;
 use HTML::Strip;
@@ -124,7 +125,7 @@ my ($self,$task_cfg_file)=@_;
 	my $app=$self->get_json_config($task_cfg_file);
 
 	# Debe existir el fichero de credenciales IMAP
-	if ((! exists $app->[0]->{'credentials'}) && (! -f $app->[0]->{'credentials'})) {
+if ((! exists $app->[0]->{'credentials'}) && (! -f $app->[0]->{'credentials'})) {
 		$self->log('warning',"core-imap4:: **ERROR** SIN CREDENCIALES DE ACCESO");
 		return \@RESULT;	
 	}
@@ -147,21 +148,33 @@ my ($self,$task_cfg_file)=@_;
    	my $use_ssl = (exists $h->{'imap_secure'}) ? $h->{'imap_secure'} : 0;
 	   my $mailbox = (exists $h->{'imap_mailbox'}) ? $h->{'imap_mailbox'} : 'INBOX';
 
-	   my $imap = new Net::IMAP::Simple($h->{'imap_host'}, Timeout=>$timeout , ResvPort=>$port, use_ssl=>$use_ssl);
+		my $oauth_sign = $self->xoauth2_negotiate($h);
+
+		$self->log('debug',"core-imap4:: oauth_sign=$oauth_sign");
+
+		my $imap = Mail::IMAPClient->new(Server=>$h->{'imap_host'}, Port=>$port, Ssl=>$use_ssl, Uid=>1);
 
    	if (!defined $imap) { 
 			$self->log('warning',"core-imap4:: **ERROR** EN CONEXION IMAP $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
 			return \@RESULT;
 		}
 
-   	my $r=$imap->login($h->{'imap_user'},$h->{'imap_pwd'});
+		my $r = $imap->authenticate('XOAUTH2', sub { return $oauth_sign });
 
    	if (! defined $r) { 
-         $self->log('warning',"core-imap4:: **ERROR** EN LOGIN IMAP $h->{'imap_user'}/xxxxxxxx | $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
+			my $errstr = $imap->LastError;
+         $self->log('warning',"core-imap4:: **ERROR** EN IMAP XOAUTH2 $errstr | $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
          return \@RESULT;
       }
 
-   	my $nm=$imap->select($mailbox);
+		if (! $imap->select($mailbox) ) {
+      	$imap->close($mailbox);
+         $self->log('warning',"core-imap4:: **ERROR** SIN ACCESO A CARPETA $mailbox | $h->{'imap_host'}/$port (use_ssl=$use_ssl)");
+       	return \@RESULT;
+		}
+
+		my $nm=$imap->message_count($mailbox);
+
 		$self->log('info',"core-imap4:: IMAP CONEX OK $nm MSGs in $mailbox");
    	my $parser = new MIME::Parser;
    	#$parser->output_to_core(1);
@@ -170,12 +183,22 @@ my ($self,$task_cfg_file)=@_;
    	if (! -d $FROM_MAIL_FILES_DIR) { mkdir $FROM_MAIL_FILES_DIR; }
    	$parser->output_dir($FROM_MAIL_FILES_DIR);
 
-	   for(my $i = 1; $i <= $nm; $i++){
-   	   my $ts=time();
-      	my $seen = $imap->seen($i);
-      	my $msize  = $imap->list($i);
+		$imap->Ignoresizeerrors(1);		
 
-	      my $msg = $imap->get( $i ) or die $imap->errstr;
+		my $i=1;
+		my $tlast_mark=0;
+		for( $imap->search('ALL') ) {
+
+   	   my $ts=time();
+			# Si hay muchos mensajes en la bandeja puede terminar el proceso por tmark
+			if ($ts-$tlast_mark > 60) {
+				$self->log_tmark();
+				$tlast_mark=$ts;
+				$self->log('info',"core-imap4::app_get_mail_imap4:: tmark updated");
+			}
+
+			my $msg = $imap->message_string($_) or die "message_string failed: $@\n";
+
    	   # Necesario para que parse_data interprete un string
       	$msg = "$msg";
 
@@ -183,8 +206,8 @@ my ($self,$task_cfg_file)=@_;
 				open (F, ">$mail_dir/$ts.msg");
 				print F "$msg\n";
 				close F;
+				$self->log('info',"core-imap4::app_get_mail_imap4:: get message DONE ($i|$nm) $mail_dir/$ts.msg");
 			}
-
 
       	%HEAD=();
       	($TXT,$HTML) = ('','');
@@ -207,7 +230,8 @@ my ($self,$task_cfg_file)=@_;
       	$line{'From'} =~ s/<(.+)>/$1/;	# Por si acaso el From solo tiene <email> (sin nombre)
 	      $line{'Date'} = $HEAD{'Date'};
    	   $line{'ts'} = $ts; # Necesario para que cambie el hash md5 que identifica el mensaje
-      	$self->log('debug',"core-imap4:: LEIDO MSG $i|$nm (size=$msize leido=$seen) >> From=$line{'From'} | Subject=$line{'Subject'}");
+      	#$self->log('debug',"core-imap4:: LEIDO MSG $i|$nm (size=$msize leido=$seen) >> From=$line{'From'} | Subject=$line{'Subject'}");
+      	$self->log('debug',"core-imap4:: LEIDO MSG $i|$nm >> From=$line{'From'} | Subject=$line{'Subject'}");
 
       	#$line{'Message-ID'} = $HEAD{'Message-ID'};
       	#$line{'cnt'} = $i;
@@ -259,14 +283,17 @@ $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
       	push @RESULT, join (',',$MSG{'ts'},$app_id,$app_name,$MSG{'source_line'});
       	#--------------------------------------
 
-      	$imap->delete($i);
+			$imap->delete_message($_);
+
+			$i++;
    	}
 
    	if ($nm>0) {
-     	 	my $expunged = $imap->expunge_mailbox($mailbox);
+			$imap->expunge($mailbox);
    	}
 
-   	$imap->quit();
+		$imap->done();
+
    	undef $imap;
 	}
 
@@ -276,7 +303,37 @@ $self->log('info',"core-imap4::***DEBUG mv [$j]*** mv $fpath $APP_FILES_DIR");
 
 	return \@RESULT;
 
+}
 
+#------------------------------------------------------------------------------------------
+# xoauth2_negotiate
+#------------------------------------------------------------------------------------------
+sub xoauth2_negotiate {
+my ($self,$cfg)=@_;
+
+	my $username = $cfg->{'imap_user'};
+	my $tenant = $cfg->{'xoauth2_tenant'};
+	my $client_id = $cfg->{'xoauth2_client_id'};
+	my $client_secret = $cfg->{'xoauth2_client_secret'};
+	my $scope = $cfg->{'xoauth2_scope'};
+	my $refresh_token = $cfg->{'xoauth2_refresh_token'};
+
+   my $CMD='curl -s -X POST https://login.microsoftonline.com/__TENANT__/oauth2/v2.0/token -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=__CLIENT_ID__&refresh_token=__REFRESH_TOKEN__&grant_type=refresh_token&client_secret=__CLIENT_SECRET__"';
+	
+  	$CMD=~s/__TENANT__/$tenant/;
+   $CMD=~s/__CLIENT_ID__/$client_id/;
+   $CMD=~s/__REFRESH_TOKEN__/$refresh_token/;
+   $CMD=~s/__CLIENT_SECRET__/$client_secret/;
+   $CMD=~s/__SCOPE__/$scope/;
+
+
+   my $response = `$CMD`;
+   my $json = JSON->new();
+   my $x = $json->decode($response);
+
+	my $oauth_sign = encode_base64("user=". $username ."\x01auth=Bearer ". $x->{'access_token'} ."\x01\x01", '');
+
+	return $oauth_sign;
 }
 
 
