@@ -4145,6 +4145,13 @@ __URL__
 		$txt =~s/$k/$value/g;
 	}
 
+	my $metric_vars = $store->get_metric_vars($dbh,$id_metric);
+   foreach my $k (keys %{$metric_vars}) {
+      my $value = $metric_vars->{$k};
+      $txt =~s/$k/$value/g;
+		$self->log('info',"compose_notification_body:: metric_var in template $k >> $value");
+   }
+
 	# Casos en los que interese el label/c_label de la metrica
 	my $label = '';
    my $x=$store->get_from_db($dbh, 'ifnull(c_label,label)', 'metrics',"id_metric=$id_metric",'');

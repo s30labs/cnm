@@ -1197,6 +1197,26 @@ my @c=();
 	return \%INFO;
 }
 
+#----------------------------------------------------------------------------
+# Funcion: get_metric_vars
+# Descripcion:
+# Get the runtime vars associated with a metric and stored ind metric2vars table in JSON.
+# Example:
+# {"__CLASSIFICATION__":"","__COUNTRY__":"","__SCOPE__":"CNM_INFRA_US","__SUPPORT__":""}
+#----------------------------------------------------------------------------
+sub get_metric_vars {
+my ($self,$dbh,$id_metric)=@_;
+
+   my $rres=sqlSelectAll($dbh,'runtime_vars','metric2vars',"id_metric=$id_metric",'');
+	if (! defined $rres->[0][0]) { return {} ; }
+
+   my $json = JSON->new();
+   $json = $json->canonical([1]);
+	my $vars = $json->decode($rres->[0][0]);
+	
+	return $vars;
+}
+
 
 #----------------------------------------------------------------------------
 # Funcion: get_cfg_networks
