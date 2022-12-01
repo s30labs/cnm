@@ -1414,10 +1414,11 @@ my ($self,$in,$results,$store)=@_;
 
 	#----------------------------------------------------
 	# Solo si la metrica esta asociada al dispositivo obtendremos un resultado de esta query.
-   my $rres1=$store->get_from_db( $dbh, 'm.file,m.label,m.file', 'metrics m, devices d', "m.id_dev=d.id_dev and  d.ip=\'$ip\' and  m.name=\'$mname\'");
+   my $rres1=$store->get_from_db( $dbh, 'm.file,m.label,m.file,m.c_label', 'metrics m, devices d', "m.id_dev=d.id_dev and  d.ip=\'$ip\' and  m.name=\'$mname\'");
    my $file=$rres1->[0][0] || '';
    my $label=$rres1->[0][1] || '';
 	$desc{'file'}=$rres1->[0][2];
+   my $c_label=$rres1->[0][3] || '';
    $label =~ s/^(.*?)\(\S+\)$/$1/;  #Obviamos la parte de (host_name)
 	
 #print "VALIDANDO [ip=$desc{host_ip} mname=$mname] [oid=$desc{oid} c=$desc{community} v=$desc{version} module=$desc{module}]\n";
@@ -1469,10 +1470,10 @@ $self->log('info',"chk_metric::[DEBUG] **FML** *modules_supported rv=@$rv ev=@$e
 
 	if (($mode eq 'GAUGE') || (exists $in->{'only_value'})){
 	   if ($rc != 0) {
-			$data_out = "sin datos OID $desc{oid} ($rcstr)";
+			$data_out = "sin datos OID para ($label) ($rcstr)";
 			$desc{oid}=~ s/[_|\|]/  /g;	# Es estetico, pero al no haber espacios se descontrola el ancho de los eventos
-			if ($strange) { $self->event_data(["sin datos OID $desc{oid} ($rcstr) (G) **REVISAR METRICA**"]); }
-			else {  $self->event_data(["sin datos OID $desc{oid} ($rcstr) (G)"]); }
+			if ($strange) { $self->event_data(["sin datos OID para ($label) ($rcstr) (G) **REVISAR METRICA**"]); }
+			else {  $self->event_data(["sin datos OID para ($label) ($rcstr) (G)"]); }
 		}
 		else { $data_out="@$rv\n";  }
 
