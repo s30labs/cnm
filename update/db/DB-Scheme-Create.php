@@ -1271,6 +1271,13 @@ $DBScheme = array(
 		'PRIMARY KEY  (`name`,`id_dev`,`host_idx`)'=>'',
 		'KEY `id_metric` (`id_metric`)'=>''
    ),
+   'metric2vars'=>array( //Tabla metric2vars
+      'id_metric'=>"int(11) NOT NULL default '0'",
+      'mname'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'id_dev'=>"int(11) NOT NULL default '0'",		
+      'runtime_vars' =>"text character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'PRIMARY KEY  (`mname`,`id_dev`)'=>''
+   ),
    'note_types'=>array( //Tabla note_types
 		'id_note_type'=>"int(11) NOT NULL auto_increment",
 		'name'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
