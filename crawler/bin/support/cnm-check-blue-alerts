@@ -53,13 +53,13 @@ my $dbh=$STORE->open_db();
 #-------------------------------------------------------------------------------------------
 # A. GET BLUE ALERTS
 #-------------------------------------------------------------------------------------------
-my @x = `/opt/cnm/crawler/bin/ws/cnm-get -alert -fields="deviceid,devicename,deviceip,subtype,type,metricid,counter,cause" -q "severity=4"`;
+my @x = `/opt/cnm/crawler/bin/ws/cnm-get -alert -fields="deviceid,devicename,deviceip,subtype,type,metricid,counter,cause,event" -q "severity=4"`;
 my @blue_alerts=();
 foreach my $l (@x) {
 	chomp $l;
-	my ($id_dev,$name,$ip,$subtype,$type,$id_metric,$counter,$cause) = split (/\t/,$l);
+	my ($id_dev,$name,$ip,$subtype,$type,$id_metric,$counter,$cause,$event) = split (/\t/,$l);
 	if ($id_dev !~ /^\d+$/) { next; }
-	push @blue_alerts, { 'id_dev'=>$id_dev, 'name'=>$name, 'ip'=>$ip, 'subtype'=>$subtype, 'type'=>$type, 'id_metric'=>$id_metric, 'counter'=>$counter, 'cause'=>$cause, 'ok'=>1};
+	push @blue_alerts, { 'id_dev'=>$id_dev, 'name'=>$name, 'ip'=>$ip, 'subtype'=>$subtype, 'type'=>$type, 'id_metric'=>$id_metric, 'counter'=>$counter, 'cause'=>$cause, 'event'=>$event, 'ok'=>1};
 }
 
 #-------------------------------------------------------------------------------------------
@@ -69,9 +69,14 @@ my $j=0;
 foreach my $h (@blue_alerts) {
 
 	my $ip = $h->{'ip'};
+	my $id_dev = $h->{'id_dev'};
 	my $type = $h->{'type'};
 	my $subtype = $h->{'subtype'};   #convert mname/subtype
-	print "$j\tCHECK $ip  $type  $subtype  ";
+	my $event = $h->{'event'};
+	my $cause = $h->{'cause'};
+	print "$j\tCHECK $ip ($id_dev)  $type  $subtype  ";
+	if ($subtype =~ /disk_mibhost/) { print "$event "; }
+	else { print "$cause "; }
 	my $res = `/var/www/cgi-bin/onm/validate_metric  'ip=$ip&mname=$subtype&type=$type&m=json'`;
 	my $json = JSON->new();
 	my $hres = $json->decode($res);
@@ -83,7 +88,7 @@ foreach my $h (@blue_alerts) {
 			$blue_alerts[$j]->{'ok'}=0;
 		}
 	}
-	if ($ok) { print " >>> RESPONSE OK\n"; }
+	if ($ok) { print "\n"; }
 	else {  print " >>> SIN DATOS DEL DISPOSITIVO\n"; }
 	$j+=1;
 }
