@@ -518,6 +518,25 @@ $DBScheme = array(
    ),
 
 //--------------------------
+//INSERT INTO  metric_analysis_kpi (kpi,subtype,kpi_label) VALUES (1,'disk_mibhost','Disk Usage (%)');
+   'metric_analysis_kpi'=>array( //Tabla metric_analysis_kpi
+		'kpi'=>"int(11) NOT NULL default '0'",
+		'subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+		'kpi_label'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+		'PRIMARY KEY  (`kpi`)'=>''
+	},
+
+   'metric_analysis_data'=>array( //Tabla metric_analysis_data
+      'id_metric'=>"int(11) NOT NULL",
+		'ts'=>"int(11) NOT NULL default '0'",
+		'kpi'=>"int(11) NOT NULL default '0'",
+		'v'=>"float NOT NULL",
+		'vref'=>"float NOT NULL default '0'",
+      'PRIMARY KEY  (`id_metric`,`ts`,`kpi`)'=>''
+   ),
+
+
+//--------------------------
    'cfg_monitor_analysis'=>array( //Tabla cfg_monitor_analysis
       'id_cfg_monitor_analysis'=>"int(11) NOT NULL auto_increment",
       'asubtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
