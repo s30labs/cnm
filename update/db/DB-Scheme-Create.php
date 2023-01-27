@@ -524,7 +524,7 @@ $DBScheme = array(
 		'subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'kpi_label'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'PRIMARY KEY  (`kpi`)'=>''
-	},
+	),
 
    'metric_analysis_data'=>array( //Tabla metric_analysis_data
       'id_metric'=>"int(11) NOT NULL",
