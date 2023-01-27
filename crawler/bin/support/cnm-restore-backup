@@ -24,4 +24,4 @@ getopts("hr",\%opts);
 if ($opts{h}) { die $USAGE; }
 if (! $opts{r}) { die $USAGE; }
 print "Restaurando backup ......\n";
-`/usr/bin/php /var/www/html/onm/inc/Backup.php action=restore`;
+system("/usr/bin/php /var/www/html/onm/inc/Backup.php action=restore");
