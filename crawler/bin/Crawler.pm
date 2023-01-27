@@ -3503,20 +3503,20 @@ my ($self,$ifname)=@_;
 # check_operation
 # Checks operation rules in operaion file
 # Return:
-#  0  => OPERATION NORMAL
-#  10 => NO ALERTS
+# {'no_alerts'=>0/1, 'no_notifications'=>0/1}
 #----------------------------------------------------------------------------
 sub check_operation {
 my ($self)=@_;
 
-   my $rc=0;
+   my %op_mode=('no_alerts'=>0, 'no_notifications'=>0); 
    my $operation_cfg_file = '/cfg/onm.operation';
    if (-f $operation_cfg_file) {
       my $x = $self->slurp_file($operation_cfg_file);
-      if ($x =~ /noalerts/i) { $rc=10; }
-		$self->log('info', "check_operation:: rule=$x (rc=$rc) ");
+      if ($x =~ /noalerts/i) { $op_mode{'no_alerts'}=1; $op_mode{'no_notifications'}=1; }
+      elsif ($x =~ /nonotifications/i) { $op_mode{'no_alerts'}=0; $op_mode{'no_notifications'}=1; }
+		$self->log('info', "check_operation:: rule=$x no_alerts=$op_mode{'no_alerts'} no_notifications=$op_mode{'no_notifications'}");
    }
-   return $rc;
+   return \%op_mode;
 }
 
 #----------------------------------------------------------------------------

@@ -629,7 +629,7 @@ my ($self,$lapse,$range)=@_;
          }
 
 			my $op_mode = $self->check_operation();
-         if (($ok) && ($link_error <= 0) && ($op_mode != 10)) {
+         if (($ok) && ($link_error <= 0) && (! $op_mode->{'no_notifications'})) {
 
    			#----------------------------------------------------------------------
 			   # Chequeo si ha habido modificaciones en el fichero de configuracion global (/cfg/onm.conf)
@@ -824,9 +824,8 @@ my ($self,$lapse,$range)=@_;
       	}
 
          my $op_mode = $self->check_operation();
-         if (($ok) && ($link_error <= 0) && ($op_mode != 10)) {
+         if (($ok) && ($link_error <= 0) && (! $op_mode->{'no_alerts'})) {
 			
-
             # ----------------------------------------------------------------------
             # Si pertenece a algun dominio obtiene las alertas de los otros equipos del dominio
 #				my $DOMAIN_LIST=$store->get_mcnm_domain_cids($dbh, {'cid'=>$cid, 'cid_ip'=>$cid_ip} );
