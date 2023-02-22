@@ -720,8 +720,12 @@ $self->log('warning',"chk_metric::[**FML**] VALIDANDO [ip=$desc{host_ip} mname=$
    #push @$results, ['Parametros:', $desc{params}, ''];
    my ($iids,$rv,$ev)=$self->modules_supported(\%desc);
    if (! defined $rv) {
-      $self->data_out(['U']);
-      return 'U';
+#FMLU
+#      $self->data_out(['U']);
+#      return 'U';
+      $self->data_out([-1]);
+      return -1;
+
    }
    $self->data_out($rv);
 
@@ -1309,7 +1313,9 @@ $self->log('debug',"core_xagent_get:: cfg=1 INCACHE=$INCACHE task_id=$task_id");
 					#([+-]?([0-9]*[.])?[0-9]+)
 	            if ($l =~ /^<(.*?)>.*?\=\s*(.*?)\s*$/) { 
 						($prefix,$parsed_line)=($1,$2);  
-						if ($parsed_line eq '') { $parsed_line='U'; }
+						#FMLU
+						#if ($parsed_line eq '') { $parsed_line='U'; }
+						if ($parsed_line eq '') { $parsed_line=-1; }
 					}
             	else { $parsed_line=$l; }
 
@@ -1373,7 +1379,9 @@ $self->log('debug',"core_xagent_get:: cfg=2 BUSCO task_id_searched=$task_id_sear
 				# Si el $task_id_searched no esta en la cache pero se ha ejecutado el script sobre el equipo con 
 				# sus parametros, se supone que la instancia ha sido eliminada. 
 				# No es necesario volver a ejecutar el script.
-				if ($XAGENT_CACHE_DATA{$task_id_base}) { $XAGENT_CACHE_DATA{$task_id_searched} = [0, '', ['U']]; }
+				#FMLU
+				#if ($XAGENT_CACHE_DATA{$task_id_base}) { $XAGENT_CACHE_DATA{$task_id_searched} = [0, '', ['U']]; }
+				if ($XAGENT_CACHE_DATA{$task_id_base}) { $XAGENT_CACHE_DATA{$task_id_searched} = [0, '', [-1]]; }
 				else { $INCACHE=0; } 
 			}
       }
@@ -1495,7 +1503,9 @@ $self->log('debug',"do_task::[****] BUCLE tagi=$tagi (task_idx=$task_idx)");
 
 	# Si el script falla y no devuelve valores se consideran todos nulos
 	if (scalar (@values)==0) {
-		foreach my $tagi (@all_metric_tags) { push @values,'U';  push @iids, 'U'; }
+		#FMLU
+		#foreach my $tagi (@all_metric_tags) { push @values,'U';  push @iids, 'U'; }
+		foreach my $tagi (@all_metric_tags) { push @values,-1;  push @iids, -1; }
 	}
 
    $self->log('info',"core_xagent_get::[INFO ID=$task_id] VALUES=@values IIDS=@iids");
