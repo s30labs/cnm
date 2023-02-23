@@ -33,7 +33,28 @@
     - /store/www-user/tmp
     - /store/www-user/files
     - /store/www-user/remote_cfgs
+    - /store/www-user/file_storage_repository
+    - /store/www-user/calendar
+    - /store/www-user/automation
   tags: cnm-runtime
+
+- name: Verify www-user symlinks
+  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode=0777
+  with_items:
+    - { path: '/var/www/html/onm/user/background', src: '/store/www-user/background' }
+    - { path: '/var/www/html/onm/user/images', src: '/store/www-user/images' }
+    - { path: '/var/www/html/onm/user/gui_templates', src: '/store/www-user/gui_templates' }
+    - { path: '/var/www/html/onm/user/resources', src: '/store/www-user/resources' }
+    - { path: '/var/www/html/onm/user/tmp', src: '/store/www-user/tmp' }
+    - { path: '/var/www/html/onm/user/files', src: '/store/www-user/files' }
+    - { path: '/var/www/html/onm/user/remote_cfgs', src: '/store/www-user/remote_cfgs' }
+    - { path: '/var/www/html/onm/user/file_storage_repository', src: '/store/www-user/file_storage_repository' }
+    - { path: '/var/www/html/onm/user/calendar', src: '/store/www-user/calendar' }
+    - { path: '/var/www/html/onm/user/automation', src: '/store/www-user/automation' }
+  tags: cnm-runtime
+
+
+
 
 - name: crontab
   copy: src=crontab dest=/etc/crontab  owner=root group=root mode=0640
