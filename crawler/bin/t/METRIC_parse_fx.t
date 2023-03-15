@@ -125,7 +125,7 @@ ok( $new_values->[0] == 7, "$fx=$new_values->[0] >> values(ox)=@values | new_val
 $fx='int(o2)';
 $new_values=$FXM->parse_fx($fx,\@values,\%desc);
 
-ok( $new_values->[0] == 49, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
+ok( $new_values->[0] == 49.765, "$fx=$new_values->[0] >> values(ox)=@values | new_values(vx)=@$new_values");
 
 #------------------------------------------------------------------------------
 @values=(7, 10);

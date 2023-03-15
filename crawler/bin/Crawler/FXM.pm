@@ -281,6 +281,8 @@ my ($self,$esp_base,$values)=@_;
 	$esp_base=~s/\+\-/\-/g;
 	$esp_base=~s/\-\+/\-/g;
 
+	$esp_base=~s/ABS/abs/g;
+
    # Para hacer el eval 'untainted'
    if ($esp_base =~ /(.+)/) { $esp_base = eval $1; }
 	if (! defined $esp_base) { $esp_base=0;}
@@ -299,8 +301,12 @@ my ($self,$esp_base,$values)=@_;
 #----------------------------------------------------------------------------
 # fx_INT
 # INT(o1)   >>    $snmp->fx_INT($esp_base,$values);
-#
+# No es la funcion int de perl. Lo que hace es quedarse con la parte numerica del 
+# resultado. Quita unidades y signos, pero no convierte a entero
+# Si se quiere usar la funcion int de perl lo que hay que hacer es ponerla con 
+# minusculas en la expresion de la metrica.
 # "3 mv"		-->	3
+# "3.5 mv"  -->   3.5
 #
 # IN: $esp_base:  Contiene el valor para procesar
 #     $values:    Vector con los datos de entrada (VECTOR O)
@@ -323,8 +329,9 @@ my ($self,$esp_base,$values)=@_;
    	my $newvalue=$v;
 	   if ($v=~/^\s*.*?([-|\d+|\.+|\,+]+).*?$/) {
    	   $newvalue=$1;
-      	if( $newvalue =~/\.$/) {$newvalue.='0'; }
+      	#if( $newvalue =~/\.$/) {$newvalue.='0'; }
    	}
+		else { $newvalue.='0'; }
 
 	 	$Crawler::FXM::Intermediate{"INT\\(o$aux\\)"} = $newvalue;
 	}
@@ -464,7 +471,7 @@ my ($self,$esp_base,$values)=@_;
    foreach my $expr (keys %Crawler::FXM::Intermediate) {
       my $result=$Crawler::FXM::Intermediate{$expr};
 
-      #$self->log('debug',"parse_fx:: [fx_INT] subtype=$subtype PROCESADO $esp_base >> / $expr / $result /");
+      #$self->log('debug',"parse_fx:: [fx_BIT] subtype=$subtype PROCESADO $esp_base >> / $expr / $result /");
 
       $esp_base =~ s/$expr/$result/;
    }
