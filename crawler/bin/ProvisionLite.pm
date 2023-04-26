@@ -3815,8 +3815,11 @@ my ($self,$host,$other)=@_;
 		return \@open_ports;
 	}
 	#Se parte en dos tramos porque si todos los puertos estan filtrados tarda mas de 100 segs.
-   $self->log('info',"check_tcp_ports::10-1024...");
-   @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T2 -P0 -p 10-1024 --host-timeout 60s $host`;
+   #$self->log('info',"check_tcp_ports::10-1024...");
+   #@lines=`/usr/bin/sudo /usr/bin/nmap -sS -T2 -P0 -p 10-1024 --host-timeout 60s $host`;
+	my $list_of_ports='21,22,23,25,37,39,42,53,80,88,110,115,123,137,139,143,179,161,389,443,445,873,993,995,1080,1433,1434,1512,1812,2049,3306,5800,6000';
+   $self->log('info',"check_tcp_ports:: $list_of_ports");
+   @lines=`/usr/bin/sudo /usr/bin/nmap -sS -T2 -P0 -p $list_of_ports --host-timeout 60s $host`;
 
    foreach my $l (@lines) {
       chomp($l);
