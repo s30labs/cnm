@@ -877,7 +877,7 @@ my $new_id_dev;
 	#------------------------------------------------------------------------
    if ($data->{'id_dev'}) {$table{'id_dev'}=$data->{'id_dev'};}
    if ($data->{'ip'}) {$table{'ip'}=$data->{'ip'};}
-   if ($data->{'name'}) {$table{'name'}=lc $data->{'name'};}
+   if ($data->{'name'}) {$table{'name'}=$data->{'name'};}
    if ($data->{'domain'}) {$table{'domain'}= lc $data->{'domain'};}
 
    if (defined $data->{'sysloc'}) {$table{'sysloc'}=$data->{'sysloc'};}
@@ -1292,7 +1292,7 @@ my $rv=undef;
 	#else { $table{'disk'}=0; }
 
 
-   if (defined $data->{'host'}) {$table{'host'}= lc $data->{'host'};}
+   if (defined $data->{'host'}) {$table{'host'}=$data->{'host'};}
    if (defined $data->{'graph'}) {$table{'graph'}=$data->{'graph'};}
 	if (defined $data->{'mode'}) {$table{'mode'}=$data->{'mode'};}
 	if (defined $data->{'module'}) {$table{'module'}=$data->{'module'};}
@@ -8493,7 +8493,7 @@ my $rv=undef;
    if (defined $data->{id_dev}) { $table{id_dev}=$data->{id_dev}; }
    else {return;}
 
-   if (defined $data->{name}) {$table{name}= lc $data->{name};}
+   if (defined $data->{name}) {$table{name}= $data->{name};}
    if (defined $data->{domain}) {$table{domain}= lc $data->{domain};}
    if (defined $data->{ip}) {$table{ip}=$data->{ip};}
    if (defined $data->{sysloc}) {$table{sysloc}=$data->{sysloc};}
@@ -10088,6 +10088,72 @@ my ($self,$dbh) = @_;
 	return \%result;
 }
 
+#-------------------------------------------------------------------------------------------
+# check_dyn_names_wins
+# Checks and updates IP address changes in dynamic hosts with neme resolution by WINS
+# Hosts in this situation have dyn field in devices table set to 2.
+# (dyn=0->static adress | dyn=1->DNS dynamic address | dyn=2->WINS dynamic address)
+#-------------------------------------------------------------------------------------------
+sub check_dyn_names_wins {
+my ($self,$dbh) = @_;
+
+   my $file_dyn_names='/cfg/names.dyn.wins';
+   my $file_cfg_wins='/cfg/onm.wins';
+
+   my @hosts=();
+   my %host2ip=();
+   my $db_dyn_stored=$self->get_device($dbh,{'dyn'=>2},'id_dev,name,ip');
+
+   if (scalar(@$db_dyn_stored)==0) { return; }
+
+   open (F,">$file_dyn_names");
+   foreach my $x (@$db_dyn_stored) {
+      push @hosts, $x->[1];
+      $host2ip{$x->[1]} = $x->[2];
+      print F join (';', $x->[1], $x->[2])."\n";
+   }
+   close F;
+
+   if (! -f $file_cfg_wins) {
+      $self->log('error',"check_dyn_names_wins:: Can't access file $file_cfg_wins");
+      return;
+   }
+
+   my $wins_server = '';
+   open (F, "<$file_cfg_wins");
+   while (<F>) {
+      chomp;
+      $wins_server = $_;
+   }
+   close F;
+
+   if ($wins_server eq '') {
+      $self->log('error',"check_dyn_names_wins:: Bad data in file $file_cfg_wins");
+      return;
+   }
+   my $all_names = join (' ', @hosts);
+   my $cmd = "nmblookup -U $wins_server -R $all_names | grep -v $wins_server";
+   my @res = `$cmd`;
+   my @changes = (); # ip,name
+   foreach my $l (@res) {
+      chomp $l;
+      #1.1.1.1 PCHOST1<00>
+      if ($l !~ /(\d+\.\d+\.\d+\.\d+) (\w+)\<00\>/) { next; }
+      my ($new_ip,$name) = ($1,$2);
+      if ($host2ip{$name} eq $new_ip) { next; }
+
+      $self->log('info',"check_dyn_names_wins:: Host $name changed IP to $new_ip");
+      push @changes, [$new_ip,$name];
+   }
+
+   if (scalar(@changes)>0) {
+      my $sql="UPDATE devices SET ip=? WHERE name=? AND dyn=2";
+      my $rv=sqlCmd_fast($dbh,\@changes,$sql);
+      if ($libSQL::err) {
+         $self->log('error',"check_dyn_names_wins:: Error updating devices [$libSQL::err] >> $libSQL::errstr ");
+      }
+   }
+}
 
 
 #----------------------------------------------------------------------------
