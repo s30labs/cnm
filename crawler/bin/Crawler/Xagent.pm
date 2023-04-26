@@ -368,7 +368,7 @@ $dump1=Dumper($p);
 $dump1 =~ s/\n/ /g;
 $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
 
-		my $nt=0;
+		my $nt=1;
       foreach my $desc (@task) {
 
 			$desc->{'lapse'}=$lapse;
@@ -384,18 +384,18 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
 			$self->task_id($task_id);
 
 #DBG--
-         $self->log('info',"do_task:: ========== TAREA=$task_id ($task_name)" );
+         $self->log('info',"do_task:: ========== START_TASK $task_id ($task_name)" );
 #/DBG--
 
          if (($desc->{'cfg'} == 2) && ($desc->{'iid'} eq 'U')) {
-            $self->log('info',"do_task:: SALTO TAREA=$task_id ($task_name)" );
+            $self->log('info',"do_task:: SKIP_TASK $task_id ($task_name)" );
             next;
          }
 
          #----------------------------------------------------
          my $idmetric=$desc->{idmetric};
          if (! defined $idmetric) {
-            $self->log('info',"do_task::[WARN] desc SIN IDMETRIC @{[$desc->{name}]} $task_name >> @{[$desc->{host_ip}]} @{[$desc->{host_name}]}");
+            $self->log('info',"do_task::[WARN] TASK without IDMETRIC @{[$desc->{name}]} $task_name >> @{[$desc->{host_ip}]} @{[$desc->{host_name}]}");
          }
 
 			my $tp1=Time::HiRes::time();
@@ -404,10 +404,10 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
 			if ((defined $rv->[0]) && ($rv->[0] eq 'U')) {  $NU+=1; 	}
 
          #----------------------------------------------------
-         $nt += 1;
          my $tpdiffx=Time::HiRes::time()-$tp1;
          my $tpdiff=sprintf("%.3f", $tpdiffx);
-         $self->log('debug',"do_task:: ++PROFILE++ [$nt|$NM|LAPSE=$tpdiff] TAREA=$task_id [@$rv] WATCH=$desc->{watch}" );
+         $self->log('info',"do_task:: PROFILE_TASK [$nt|$NM|LAPSE=$tpdiff] TAREA=$task_id [@$rv] WATCH=$desc->{watch}" );
+         $nt += 1;
 
       }
 
@@ -1761,7 +1761,7 @@ my ($self,$myenv)=@_;
 				$cmd = "/usr/bin/sudo -E -u $proxy_user  $file_script_range $params";
 			}
 
-	      $self->log('info',"execScript [$proxy_host]:: **START** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
+	      $self->log('info',"execScript [$proxy_host]:: **START** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
 
 			if ($self->_params_ok($params)) {
 				$ENV{'PERL_CAPTURE_TINY_TIMEOUT'}=$timeout-5;
@@ -1770,7 +1770,7 @@ my ($self,$myenv)=@_;
 			}
 			else { ($stdout, $stderr, $rc) = ('', "***ERROR DE CREDENCIALES** ($params)",20); }
 
-	      $self->log('debug',"execScript [$proxy_host]:: **END** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'}");
+	      $self->log('debug',"execScript [$proxy_host]:: **END** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
 
 			$self->stdout($stdout);
 			$self->stderr($stderr);
