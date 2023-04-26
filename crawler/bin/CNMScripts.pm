@@ -1505,12 +1505,12 @@ my ($self)=@_;
          $counter += 1;
       }
 
-      if ($counter < 2) { $in_wait=0; }
+      if ($counter < 10) { $in_wait=0; }
 
 		#if ($cnt<2 ) { $in_wait=0; }
 		else { 
 			$self->log('info',"wait_for_docker:: DOCKERWAIT [$ppname] Containers blocking = $counter");
-			sleep 10; 
+			sleep 2; 
 		}	
 	}
 }

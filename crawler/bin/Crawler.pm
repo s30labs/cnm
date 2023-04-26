@@ -13,6 +13,7 @@ use vars qw($VERSION);
 use Fcntl qw(:flock);
 use POSIX qw(:signal_h setsid WNOHANG);
 use Time::HiRes qw(gettimeofday);
+use Time::Local;
 use Carp 'croak','cluck';
 use Carp::Heavy;
 use File::Basename;
@@ -3592,86 +3593,114 @@ my ($self,$filter,$action)=@_;
 
    my $in_wait=1;
 	if ((! defined $filter) || ($filter eq '')) { $filter = 'status=created'; }
-	my $max_level = ($filter=~/status=created/) ? 2 : 1;
+	my $max_level = ($filter=~/status=created/) ? 10 : 1;
+	my $ts = time();
    while ($in_wait) {
 
-#root@cnm-areas:/opt/cnm/crawler/bin# docker ps -f status=created
-#CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS              PORTS               NAMES
-#ad77440ffb23        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   3 seconds ago       Created                                 crawler.6005.13
-#5ddc19eea04e        saphana                 "bash -c /mnt/sql/79…"   6 seconds ago       Created                                 crawler.6001.3133
-#8da5f8cbae1b        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   6 seconds ago       Created                                 333333001009
-#6455692a4b67        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   7 seconds ago       Created                                 notificationsd.010.3102
-	
-		my $cmd = "docker ps -f $filter";
-		$self->log('info',"wait_for_docker:: DOCKER CHECK ($max_level) >> $cmd");
+		#docker ps -a -f status=created --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'
+		#72f832e02ee7;2023-04-21 09:25:13 +0200 CEST;crawler.6015.4590;impacket:debian-11.3-slim;Created
+
+		my $cmd = "docker ps -a -f $filter --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'";
+		$self->log('info',"wait_for_docker:: DOCKER CHECK $filter (max=$max_level)");
 		my @lines = `$cmd`;
 		my $counter = 0;
 		my $error = 0;
 		my %containers = ();
+		my $t;
 		foreach my $l (@lines) {
-			chomp $l;
-			if ($l=~/CONTAINER ID/) { next; }
-			#if ($l !~ /Created/) {
-			#	$self->log('info',"wait_for_docker:: REVISAR >> $l");
-			#	$error = 1;
-			#	next;
-			#}
-			my ($c,$t)=('',0);
-			if ($l =~ /^(\w{12})\s+/) { 
-				$c=$1;
-				if ($l =~ /(\d+) second[s]* ago/) { $t=$1; }
-				elsif ($l =~ /(\d+) minutes ago/) { $t=$1*60; }
-				elsif ($l =~ /About a minute ago/) { $t=60; }
-				#elsif ($l =~ /minute[s]* ago/) { $t=60; }
-				elsif ($l =~ /hour[s]* ago/) { $t=3600; }
-				#else { $t=0; }
+		   chomp $l;
+		   my ($cid,$created,$name,$image,$status_raw) = split(';', $l);
+   		my $tcreated=$ts;
+   		if ($created=~/(\d{4})-(\d{2})-(\d{2}) (\d{2})\:(\d{2})\:(\d{2})/) {
+      		my ($year,$mon,$mday,$hour,$min,$sec) = ($1,$2,$3,$4,$5,$6);
+		      $year -= 1900;
+     		 	$mon -= 1;
+      		$tcreated = timelocal( $sec, $min, $hour, $mday, $mon, $year );
 
-				$containers{$c}=$t;
-				$self->log('info',"wait_for_docker:: DOCKER DEBUG >> [$c|$t] $l");
-			}
-			if ($t>=60) { 	$counter += 1; }
-		}
+				$t = $ts - $tcreated;
+				$containers{$cid}=$t;
+				$self->log('info',"wait_for_docker:: DOCKER CONTAINER $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created");
 
-      if ($counter < $max_level) { $in_wait=0; }
-      else {
+  		 	}
+			if ($t>=10) {  
+				$counter += 1; 
+				if ((defined $action) && ($action eq 'prune')) {
 
-			if ((defined $action) && ($action eq 'prune')) {
-   			#my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
-   			#$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE (filter=$filter) $cmd");
-   			#my @rx=`$cmd`;
-   			#foreach my $l (@rx) {
-      		#	chomp $l;
-      		#	$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE >> $l");
-   			#}
-				foreach my $cid (keys %containers) {
-					if ($containers{$cid} < 30) { 
-						$self->log('info',"wait_for_docker:: SALTO $cid T=$containers{$cid}");
-						next; 
-					}
-
-					if ($filter=~/status=created/) {
-						$cmd = "/sbin/init 6";
-						$self->log('info',"wait_for_docker:: **RESTART DOCKER** $cid T=$containers{$cid}");
-						system($cmd);
-						sleep 5;
-					}
-	
-					$cmd = "docker rm --force $cid 2>&1";
-					$self->log('info',"wait_for_docker:: DOCKEREXEC RM (pre) $cid");
-					my @rx=`$cmd`;
-					foreach my $l (@rx) {
-						chomp $l;
-						$self->log('info',"wait_for_docker:: DOCKEREXEC RM (post) $cid >> $l");
-					}
-					sleep 1;
+					my $cmd = "docker rm --force $cid 2>&1";
+               $self->log('info',"wait_for_docker:: DOCKEREXEC RM $name ($cid) with $filter (time in creation = $t) cmd=$cmd");
+               my @rx=`$cmd`;
+               foreach my $l (@rx) {
+                  chomp $l;
+                  $self->log('info',"wait_for_docker:: DOCKEREXEC RM DONE $name ($cid) with $filter RES=$l");
+               }
+               sleep 1;
 				}
 			}
+		}
 
-			else {
-         	$self->log('info',"wait_for_docker:: DOCKERWAIT Containers=$counter ($filter) (error=$error)");
-         	sleep 10;
-			}
+      if ($counter < $max_level) { 
+			$in_wait=0; 
+			next;
+		}
+
+      if ((defined $action) && ($action eq 'prune')) {
+
+         if ($filter=~/status=created/) {
+            $cmd = "/sbin/init 6";
+            $self->log('info',"wait_for_docker:: **RESTART DOCKER** CONTAINERS CREATED = $counter (max_level=$max_level)");
+				foreach my $cid (keys %containers) {
+					$self->log('info',"wait_for_docker:: CONTAINERS CREATED >> $cid T=$containers{$cid}");
+				}
+            system($cmd);
+            sleep 5;
+         }
+		}
+      else {
+         $self->log('info',"wait_for_docker:: DOCKERWAIT Containers=$counter ($filter) max_level=$max_level (error=$error)");
+         sleep 2;
       }
+		
+
+
+#      else {
+#			
+#			if ((defined $action) && ($action eq 'prune')) {
+#   			#my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
+#   			#$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE (filter=$filter) $cmd");
+#   			#my @rx=`$cmd`;
+#   			#foreach my $l (@rx) {
+#      		#	chomp $l;
+#      		#	$self->log('info',"wait_for_docker:: DOCKEREXEC PRUNE >> $l");
+#   			#}
+#				foreach my $cid (keys %containers) {
+#					if ($containers{$cid} < 30) { 
+#						$self->log('info',"wait_for_docker:: SALTO $cid T=$containers{$cid}");
+#						next; 
+#					}
+#
+#					if ($filter=~/status=created/) {
+#						$cmd = "/sbin/init 6";
+#						$self->log('info',"wait_for_docker:: **RESTART DOCKER** $cid T=$containers{$cid}");
+#						system($cmd);
+#						sleep 5;
+#					}
+#	
+#					#$cmd = "docker rm --force $cid 2>&1";
+#					#$self->log('info',"wait_for_docker:: DOCKEREXEC RM (pre) $cid");
+#					#my @rx=`$cmd`;
+#					#foreach my $l (@rx) {
+#					#	chomp $l;
+#					#	$self->log('info',"wait_for_docker:: DOCKEREXEC RM (post) $cid >> $l");
+#					#}
+#					#sleep 1;
+#				}
+#			}
+#
+#			else {
+#         	$self->log('info',"wait_for_docker:: DOCKERWAIT Containers=$counter ($filter) (error=$error)");
+#         	sleep 10;
+#			}
+#      }
 
    }
 }
