@@ -48,8 +48,8 @@ $linux_metric_wmi_process::SCRIPT_NAME = 'linux_metric_wmi_process.pl';
 		'p01' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '2', '__PARAM_PREFIX__' => '-n', '__PARAM_DESCR__' => 'IP', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
 		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-u', '__PARAM_DESCR__' => 'User', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
 		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-p', '__PARAM_DESCR__' => 'Clave', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
-      'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-i', '__PARAM_DESCR__' => 'Name', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
-
+      'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-i', '__PARAM_DESCR__' => 'Indice', '__PARAM_VALUE__' => 'Name', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
+      'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-f', '__PARAM_DESCR__' => 'Filtro', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_process::SCRIPT_NAME },
 
 		},
 

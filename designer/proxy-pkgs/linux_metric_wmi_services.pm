@@ -1,5 +1,6 @@
 package linux_metric_wmi_services;
 
+#/opt/cnm/designer/gconf-proxy -m linux_metric_wmi_services -p wmi-services
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
@@ -49,6 +50,7 @@ $linux_metric_wmi_services::SCRIPT_NAME = 'linux_metric_wmi_services.pl';
 		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-u', '__PARAM_DESCR__' => 'User', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
 		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '1', '__PARAM_PREFIX__' => '-p', '__PARAM_DESCR__' => 'Clave', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
 		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-i', '__PARAM_DESCR__' => 'Indice', '__PARAM_VALUE__' => 'Name', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
+		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-f', '__PARAM_DESCR__' => 'Filtro', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
 
 
 		},
@@ -68,11 +70,12 @@ linux_metric_wmi_services.pl -h  : Ayuda
 -p    pwd
 -d    Dominio
 -i    Index Propiedad para indexar las instancias. Por defecto es Name.
+-f    Filtro sobre la consulta WSQL aplicado sobre el indice
 -h    Ayuda
 
 linux_metric_wmi_services.pl -n 1.1.1.1 -u user -p xxx
 linux_metric_wmi_services.pl -n 1.1.1.1 -u user -p xxx -d miDominio
-linux_metric_wmi_services.pl -n 1.1.1.1 -u user -p xxx -i Name
+linux_metric_wmi_services.pl -n 1.1.1.1 -u user -p xxx -i Name -f TermService
 ',
 		'__ID_REF__' => $linux_metric_wmi_services::SCRIPT_NAME
 	}
@@ -134,6 +137,7 @@ linux_metric_wmi_services.pl -n 1.1.1.1 -u user -p xxx -i Name
    	   'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
    	   'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
    	   'p04' => { '__ENABLE__' => '1', '__VALUE__' => 'Name', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
+   	   'p05' => { '__ENABLE__' => '1', '__VALUE__' => 'Filter', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
       },
 		# ----------------------------
 	   '__TIP__'  => {
@@ -176,6 +180,7 @@ Se trata de una métrica sin instancias, esto significa que hay que especificar 
          'p02' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.user', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
          'p03' => { '__ENABLE__' => '1', '__VALUE__' => '$sec.wmi.pwd', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
          'p04' => { '__ENABLE__' => '1', '__VALUE__' => 'Name', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
+         'p05' => { '__ENABLE__' => '1', '__VALUE__' => 'Filter', '__SCRIPT__' => $linux_metric_wmi_services::SCRIPT_NAME },
       },
       # ----------------------------
       '__TIP__'  => {

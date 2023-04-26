@@ -1,5 +1,6 @@
 package linux_metric_wmi_EventLog;
 
+#/opt/cnm/designer/gconf-proxy -m linux_metric_wmi_EventLog -p wmi-EventLog
 #---------------------------------------------------------------------------
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 
@@ -102,8 +103,8 @@ linux_metric_wmi_EventLog.pl -h  : Ayuda
 		#defSUBTYPE=xagt_647cba
 		'__SUBTYPE__'=> 'xagt_647cba', '__CLASS__'=> 'proxy-linux',  	
 		'__DESCRIPTION__'=> 'WMI - NUMERO DE EVENTOS ALMACENADOS',
-		'__APPTYPE__'=> 'SO.WINDOWS', 	'__ITIL_TYPE__'=> '1', 	'__TAG__'=> '003', 	'__ESP__'=> 'o1',
-		'__IPTAB__'=> '1', '__ITEMS__'=> 'Num. Eventos', 	'__VLABEL__'=> 'Num',
+		'__APPTYPE__'=> 'SO.WINDOWS', 	'__ITIL_TYPE__'=> '1', 	'__TAG__'=> 'NumberOfRecords', 	'__ESP__'=> 'o1',
+		'__IPTAB__'=> '1', '__ITEMS__'=> 'NumberOfRecords', 	'__VLABEL__'=> 'Num',
 		'__MODE__'=> 'GAUGE', 	'__MTYPE__'=> 'STD_AREA',	
 		'__NPARAMS__'=> '3', 	'__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]', 	
 		'__PARAMS_DESCR__'=> '',
@@ -145,8 +146,8 @@ Es válida para sistemas Windows',
 		#defSUBTYPE=xagt_ac18b2
       '__SUBTYPE__'=> 'xagt_ac18b2', '__CLASS__'=> 'proxy-linux',
       '__DESCRIPTION__'=> 'WMI - TAMAÑO DEL VISOR DE EVENTOS',
-      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> '002',   '__ESP__'=> 'o1',
-      '__IPTAB__'=> '1', '__ITEMS__'=> 'Size',   '__VLABEL__'=> 'Size',
+      '__APPTYPE__'=> 'SO.WINDOWS',  '__ITIL_TYPE__'=> '1',  '__TAG__'=> 'FileSize',   '__ESP__'=> 'o1',
+      '__IPTAB__'=> '1', '__ITEMS__'=> 'FileSize',   '__VLABEL__'=> 'Size',
       '__MODE__'=> 'GAUGE',   '__MTYPE__'=> 'STD_AREA',
       '__NPARAMS__'=> '3',    '__PARAMS__'=> '[-n;IP;;2]:[-u;Usuario;$sec.wmi.user;1]:[-p;Clave;$sec.wmi.pwd;1]',
       '__PARAMS_DESCR__'=> '',
