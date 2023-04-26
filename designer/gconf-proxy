@@ -276,7 +276,7 @@ my $SQLSCRIPT_METRIC = <<"SQLSCRIPT_METRIC";
             'apptype' => '__APPTYPE__',  'itil_type' => '__ITIL_TYPE__',    'tag' => '__TAG__',   'esp'=>'__ESP__',  'iptab' => '__IPTAB__',
             'items' => '__ITEMS__',        'vlabel' => '__VLABEL__',      'mode' => '__MODE__',
             'mtype' => '__MTYPE__',        'top_value' => '1',     'module' => 'mod_xagent_get',    'nparams' => '__NPARAMS__',
-            'params' => "__PARAMS__",      'params_descr' => '__PARAMS_DESCR__',
+            'params' => '__PARAMS__',      'params_descr' => '__PARAMS_DESCR__',
             'script' => '__SCRIPT__',         'severity' => '__SEVERITY__',
             'cfg' => '__CFG__',  'custom' => '__CUSTOM__',  'get_iid' => '__GET_IID__',  'proxy'=>1, 'proxy_type'=>'__PROXY_TYPE__',
             'info' => '',  'lapse' => __LAPSE__,   'include'=>__INCLUDE__,
@@ -291,7 +291,7 @@ SQLSCRIPT_METRIC
 #---------------------------------------------------------------------------
 my $SQLMETRIC_PARAM = <<"SQLMETRIC_PARAM";
       \$CFG_MONITOR_PARAM[]=array(
-         'subtype' => '__SUBTYPE__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => "__VALUE__",
+         'subtype' => '__SUBTYPE__', 'hparam' => '__HPARAM__', 'type' => 'xagent', 'enable' => '__ENABLE__', 'value' => '__VALUE__',
          'script' => '__SCRIPT__',
       );
 
