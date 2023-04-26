@@ -3601,8 +3601,9 @@ my ($self,$filter,$action)=@_;
 		#72f832e02ee7;2023-04-21 09:25:13 +0200 CEST;crawler.6015.4590;impacket:debian-11.3-slim;Created
 
 		my $cmd = "docker ps -a -f $filter --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'";
-		$self->log('info',"wait_for_docker:: DOCKER CHECK $filter (max=$max_level)");
 		my @lines = `$cmd`;
+		my $nc = scalar(@lines);
+		$self->log('info',"wait_for_docker:: DOCKER CHECK $filter (current=$nc | max=$max_level)");
 		my $counter = 0;
 		my $error = 0;
 		my %containers = ();
@@ -3619,7 +3620,7 @@ my ($self,$filter,$action)=@_;
 
 				$t = $ts - $tcreated;
 				$containers{$cid}=$t;
-				$self->log('info',"wait_for_docker:: DOCKER CONTAINER $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created");
+				$self->log('debug',"wait_for_docker:: DOCKER CONTAINER $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created");
 
   		 	}
 			if ($t>=10) {  

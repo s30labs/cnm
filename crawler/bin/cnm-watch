@@ -1093,10 +1093,12 @@ my $rc=0;
 	#foreach my $i (sort keys %$rv) {
 	#	my $pid=$rv->{$i};
 
+	my $current_load = get_current_load();
+	$store->log('info',"watchdog::[INFO] current_load=$current_load");
+
    foreach my $i (sort keys %mapping) {
       my $pid=$mapping{$i};
 
-      my $current_load = get_current_load();
 		my $load_level = $num_cores*1.2;
       if ($current_load>$load_level) {
          $store->log('notice',"watchdog::[INFO] CURRENT LOAD=$current_load (>$load_level) ***POR CARGA SALTO IDX=$i***");
