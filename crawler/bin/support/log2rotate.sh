@@ -12,5 +12,5 @@ file2=$newdir/$1.`date +%Y%m%d`
 
 mv $file1 $file2
 
-find $newdir -mtime +3 -type f -print0 | xargs -0 rm -rf
+find $newdir/ -mtime +15 -type f -print0 | xargs -0 rm -rf
 
