@@ -8,15 +8,13 @@
 use strict;
 use Getopt::Std;
 use Cwd;
+use Data::Dumper;
 
+#-------------------------------------------------------------------------------------------
 BEGIN {
   $ENV{'MIBS'}='ALL';
   $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 }
-
-use Data::Dumper;
-#-------------------------------------------------------------------------------------------
-my $REPO="software.s30labs.com";
 
 #-------------------------------------------------------------------------------------------
 my $APT_GET="/usr/bin/apt-get";
@@ -62,7 +60,7 @@ foreach my $l (@out) {
 	$os_info{$k}=$v;
 }
 
-if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /10/) ) {
+if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /11/) ) {
 	print Dumper(\%os_info);
 	die "Not a Debian distro ...\n";
 }
@@ -71,15 +69,17 @@ if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /10/) 
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
 #-------------------------------------------------------------------------------------------
-`apt-get install -y --allow-remove-essential --allow-change-held-packages openssh-server`;
-`apt-get install -y --allow-remove-essential --allow-change-held-packages git vim sudo gnupg2`;
+`apt-get install -y --allow-unauthenticated openssh-server`;
+`apt-get install -y --allow-unauthenticated git vim sudo gnupg2`;
 
 # ansible 2.9
-`apt-get install -y --allow-remove-essential --allow-change-held-packages `;
-`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu trusty main" > /etc/apt/sources.list.d/ansible.list`;
+#`apt-get install -y --allow-remove-essential --allow-change-held-packages `;
+`apt-get install gnupg2 curl wget -y --allow-unauthenticated`;
+
+`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu focal main" > /etc/apt/sources.list.d/ansible.list`;
 system ("apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367");
 `apt-get update`;
-`apt-get install -y --allow-remove-essential --allow-change-held-packages ansible`;
+`apt-get install -y --allow-unauthenticated ansible`;
 
 #-------------------------------------------------------------------------------------------
 # 01. Git config
@@ -190,16 +190,11 @@ my ($feature,$url) = @_;
   			$rc = system ($cmd);
   			if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
 		}
-  		#$cmd = "$GIT clone -b $BRANCH https://$user:\@$REPO/$feature.git $dir_local";
   		$cmd = "$GIT clone -b $BRANCH $url $dir_local";
   		$rc = system ($cmd);
   		if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
 
   		chdir $dir_local;
-  		#$cmd = "$GIT remote set-url --push origin git\@$REPO:$dir_local.git";
-  		#$rc = system ($cmd);
-  		#if ($rc !=0) { print "$cmd (rc=$rc)\n"; }
-
   	}
 
 }
