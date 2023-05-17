@@ -4298,6 +4298,18 @@ my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
 	my $set_clr = $lang->{_alertgenerated};
 	if ($mode ne 'set') { $set_clr = $lang->{_alertremoved}; }
 
+	# Si en event_data hay extrafile (href). Se incluye como adjunto
+	#  EV=Executed script: linux_metric_event_counter.pl (RC=0) RCSTR=[OK] Metric: xxxx with errors <html><a href=user/files/xxxx-errors/001.txt target=&quot;popup&quot;>extrafile2</a></html>"
+	# Solo se envian ficheros txt y csv
+	my $files = {};
+	if ($event_data=~/a href\=user\/(files\/\S+) target/) {
+		my $fpath = '/store/www-user/'.$1;
+		my $ext='txt';
+		if ($fpath=~/.+?\.(\S+)$/)	{ $ext = lc $1; }
+		if ($ext eq 'txt') { $files = { $fpath=>'text/plain' }; }
+		elsif ($ext eq 'csv') { $files = { $fpath=>'text/csv' }; }
+		$self->log('info',"set_aviso:: REVISAR ATTACH fpath=$fpath ext=$ext");
+	}
 
 
    my $msg_full = "$notif_descr [$device - $ip]".' **'.$set_clr.'**';
@@ -4317,7 +4329,7 @@ my ($self,$dbh,$a,$notif_info,$mode,$response)=@_;
    if ($notif_type == $Crawler::Transport::NOTIF_EMAIL) {
 
 		my $txt = $self->compose_notification_body($set_clr,$url,$a,$notif_info);
-      $transport->notify_by_transport($notif_type, {'dest'=>$dest, 'subject'=>$SUBJECT, 'txt'=>$txt});
+      $transport->notify_by_transport($notif_type, {'dest'=>$dest, 'subject'=>$SUBJECT, 'txt'=>$txt, 'files'=>$files});
 
 		$msg_full.=" $alert_cause";
       $rcstr=$msg_full.'<br>'.$transport->err_str();
