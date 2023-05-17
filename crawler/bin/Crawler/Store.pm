@@ -5546,7 +5546,7 @@ my ($what,$from,$where,$sql,$rv);
 
    my %work_tables = (
       'work_snmp-60' => {'block_size'=>60, 'range'=>1000},
-      'work_latency-60' => {'block_size'=>60, 'range'=>2000},
+      'work_latency-60' => {'block_size'=>45, 'range'=>2000},
       'work_xagent-60' => {'block_size'=>60, 'range'=>3000},
       'work_snmp-300' => {'block_size'=>450, 'range'=>4000},
       'work_latency-300' => {'block_size'=>400, 'range'=>5000},
@@ -5558,7 +5558,7 @@ my ($what,$from,$where,$sql,$rv);
 
 	#-------------------------------------
    my $rcfg=$self->cfg();
-	my ($factor_iid,$factor_snmp,$factor_latency,$factor_xagent)=(0.1, 2.6, 0.8, 2);
+	my ($factor_iid,$factor_snmp,$factor_latency,$factor_xagent)=(0.1, 2.6, 1.2, 2);
    if ((exists $rcfg->{'factor_iid'}->[0]) && ($rcfg->{'factor_iid'}->[0]=~/^[\d+|\.]+$/)) { $factor_iid=$rcfg->{'factor_iid'}->[0]; }
    if ((exists $rcfg->{'factor_snmp'}->[0]) && ($rcfg->{'factor_snmp'}->[0]=~/^[\d+|\.]+$/)) { $factor_snmp=$rcfg->{'factor_snmp'}->[0]; }
    if ((exists $rcfg->{'factor_latency'}->[0]) && ($rcfg->{'factor_latency'}->[0]=~/^[\d+|\.]+$/)) { $factor_latency=$rcfg->{'factor_latency'}->[0]; }
@@ -5577,8 +5577,6 @@ open (W,'>/tmp/workset.log');
 
       $rres=sqlSelectAll($dbh,'count(*)',"cnm.$table","lapse=$lapse",'');
       my $total_metrics=$rres->[0][0];
-
-      $self->log('info',"consolidate_work_tables:: $table_lapse TOTAL=$total_metrics");
 
       my $tavailable=$lapse;
       my @update_ids=();
@@ -5648,6 +5646,7 @@ print W "****WRITE****$table_lapse\t$crawler_idx\t$total_metrics\n";
 print W "****WRITE(resto)****$table_lapse\t$crawler_idx\t$total_metrics\n";
 
       }
+		$self->log('info',"consolidate_work_tables:: $table_lapse TOTAL=$total_metrics last_idx=$crawler_idx");
 		$self->clean_idx_files($crawler_idx);
    }
 close W;

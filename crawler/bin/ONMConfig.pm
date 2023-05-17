@@ -43,7 +43,7 @@ my %CFG = (
 
    'factor_iid' => ['0.1'],
    'factor_snmp' => ['2'],
-   'factor_latency' => ['0.8'],
+   'factor_latency' => ['1.2'],
    'factor_xagent' => ['2'],
 
 	'db_server' => ['localhost'],
