@@ -15,6 +15,7 @@ use IO::Socket;
 use NetAddr::IP;
 use File::Basename;
 use Time::HiRes qw(gettimeofday tv_interval);
+use Time::Local;
 use Sys::Syslog qw(:DEFAULT setlogsock);
 use Capture::Tiny ':all';
 use Digest::MD5 qw(md5_hex);
@@ -1473,41 +1474,17 @@ sub wait_for_docker  {
 my ($self)=@_;
 
 	my $in_wait=1;
-
+	my $CONCURRENCY_LIMIT = 3;
 	my $ppid = getppid();
 	my $ppname = `cat /proc/$ppid/cmdline | tr "\\0" " "`;
 
 	while ($in_wait) {
-		my @lines = `docker ps -a --filter "status=created"`;
 
-      my $counter = 0;
-      my $error = 0;
-      my %containers = ();
-      foreach my $l (@lines) {
-         chomp $l;
-         if ($l=~/CONTAINER ID/) { next; }
-         #if ($l !~ /Created/) {
-         #  $self->log('info',"wait_for_docker:: REVISAR >> $l");
-         #  $error = 1;
-         #  next;
-         #}
-         my ($c,$t)=('',0);
-         if ($l =~ /^(\w{12})\s+/) {
-            $c=$1;
-            if ($l =~ /(\d+) second[s]* ago/) { $t=$1; }
-            elsif ($l =~ /minute[s]* ago/) { $t=60; }
-            elsif ($l =~ /hour[s]* ago/) { $t=3600; }
-            #else { $t=0; }
+		my $cmd = "docker ps -a -f 'status=created' --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'";
+      my @lines = `$cmd`;
+      my $counter = scalar(@lines);
 
-            $containers{$c}=$t;
-            $self->log('debug',"wait_for_docker:: DOCKER DEBUG >> [$c|$t] $l");
-         }
-         $counter += 1;
-      }
-
-      if ($counter < 10) { $in_wait=0; }
-
-		#if ($cnt<2 ) { $in_wait=0; }
+      if ($counter < $CONCURRENCY_LIMIT) { $in_wait=0; }
 		else { 
 			$self->log('info',"wait_for_docker:: DOCKERWAIT [$ppname] Containers blocking = $counter");
 			sleep 2; 
