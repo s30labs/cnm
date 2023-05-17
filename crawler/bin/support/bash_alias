@@ -1,0 +1,32 @@
+
+function _tval() {
+	tail -f /var/log/crawler_debug.log  | grep validate
+}
+
+function _twait() {
+	tail -f /var/log/crawler_debug.log  | grep crawler.$1 | grep "WAIT=" 
+}
+
+function _tcrawler() {
+   tail -f /var/log/crawler_debug.log  | grep crawler.$1
+}
+
+function _wait() {
+   grep "WAIT=" /var/log/crawler_debug.log  | grep crawler.$1
+}
+
+function _waits() {
+   grep "WAIT=" /var/log/crawler_debug.log  | grep crawler.$1 | grep "\*S"
+}
+
+function _drunc() {
+	docker ps -a -f 'status=created' --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'
+}
+
+function _drunr() {
+	docker ps -a -f 'status=removing' --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'
+}
+
+function _druna() {
+	docker ps -a --format '{{.ID}};{{.CreatedAt}};{{.Names}};{{.Image}};{{.Status}}'
+}
