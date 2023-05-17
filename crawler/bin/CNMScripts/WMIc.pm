@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------------------
 # File: CNMScripts/WMIc.pm
-# Description: WMI client based on docker container
+# Description: WMI client based on wmiquery.py
 #-------------------------------------------------------------------------------------------
 use CNMScripts;
 package CNMScripts::WMIc;
@@ -44,18 +44,22 @@ my $VERSION = '1.00';
 
 #-------------------------------------------------------------------------------------------
 # Funcion: Constructor
-# Descripcion: Crea un objeto del tipo CNMScripts::WMI
-# docker run -v /opt/cnm-local/impacket:/usr/scripts --rm --name testkkk -it impacket:debian-11.3-slim /usr/scripts/wmiquery.py -namespace 'root\CIMV2' -rpc-auth-level integrity -file /usr/scripts/Win32_TerminalService.wsql 'areas.net/svc-wmifr:5vcWm1f_@192.168.117.216'
+# Descripcion: Crea un objeto del tipo CNMScripts::WMIc
+# If using docker, the command is:
+# docker run -v /opt/cnm-local/impacket:/usr/scripts --rm --name testkkk -it impacket:debian-11.3-slim /usr/scripts/wmiquery.py -namespace 'root\CIMV2' -rpc-auth-level integrity -file /usr/scripts/Win32_TerminalService.wsql 'domain/user:pwd@192.168.117.216'
+# If not:
+# /usr/scripts/wmiquery.py -namespace 'root\CIMV2' -rpc-auth-level integrity -file /usr/scripts/Win32_TerminalService.wsql 'domain/user:pwd@192.168.117.216'
 #-------------------------------------------------------------------------------------------
 sub new {
 my ($class,%arg) =@_;
 
 
    my $self=$class->SUPER::new(%arg);
-	my $working_dir = '/usr/scripts';
+	#my $working_dir = '/usr/scripts';
+	my $working_dir = '/opt/containers/impacket';
 	my $docker_image = 'impacket:debian-11.3-slim';
-	#my $docker_image = 'impacket:3.8-alpine';
-   $self->{_cmd} = $arg{cmd} || "docker run -v /opt/containers/impacket:$working_dir --rm --name __CONTAINER_NAME__ -t $docker_image $working_dir/wmiquery.py -rpc-auth-level integrity ";
+   #$self->{_cmd} = $arg{cmd} || "docker run -v /opt/containers/impacket:$working_dir --rm --name __CONTAINER_NAME__ -t $docker_image $working_dir/wmiquery.py -rpc-auth-level integrity ";
+	$self->{_cmd} = $arg{cmd} || "export LD_LIBRARY_PATH=/opt/cnm-extras/openssl-3.1.0 && /usr/local/bin/wmiquery.py -rpc-auth-level integrity ";
 	$self->{_working_dir} = $working_dir;
    $self->{_host} = $arg{host} || '';
    $self->{_user} = $arg{user} || '';
@@ -362,45 +366,28 @@ my ($self,$wsql_file)=@_;
 	
    my $wmic = $cmd.' -namespace \''.$self->namespace().'\' -file '.$wsql_file_path.' \''.$self->credentials().'@'.$self->host().'\'';
 
+   #$self->wait_for_docker();
+   #$self->log('info',"DOCKERRUN >> impacket/wmiquery");
+
 	$self->log('info',"get_raw_data >> wmic=$wmic");
 
    capture sub { $rc=system($wmic); } => \$stdout, \$stderr;
-   #$stdout=`$wmic`;
 
    @lines = split (/\n/, $stdout);
 
 $stdout=~s/\n/ /g;
+$stdout=~s/\r/ /g;
 my $stdout300 = substr $stdout,0,300;
 $self->log('info',"get_raw_data >> stdout=$stdout300");
 
-	if ($stderr ne '') {
-
-		# Para evitar salidas espureas
-		@lines = ();
-
-		$stderr=~s/\n/ /g;
-		if ($stderr =~ /NT_STATUS_IO_TIMEOUT/) { 
-			$self->err_str('NT_STATUS_IO_TIMEOUT');
-			$self->err_num(1);
-		}
-      elsif ($stderr =~ /NT_STATUS_ACCESS_DENIED/) {
-         $self->err_str('NT_STATUS_ACCESS_DENIED');
-         $self->err_num(2);
-      }
-      elsif ($stderr =~ /NTSTATUS: (.*)$/) {
-         $self->err_str($1);
-         $self->err_num(3);
-      }
-      elsif ($stderr =~ /Usage: \[\-\?\|\-\-help\]/) {
-         $self->err_str('ERROR DE PARAMETROS');
-         $self->err_num(4);
-      }
-
-		else {
-         $self->err_str($stderr);
-         $self->err_num(10);
-		}
-		$self->log('error',"get_raw_data >> **ERROR** stderr=$stderr (wmic=$wmic)");
+	if ($lines[2] =~ /^\[-\]\s+(.+)$/) {
+		my $err_msg = $1;
+		$self->err_str($err_msg);
+		if ($err_msg =~ /timed out/) { $self->err_num(1); }
+		elsif ($err_msg =~ /rpc_s_access_denied/) { $self->err_num(2); }
+		elsif ($err_msg =~ /WMI Session Error/) { $self->err_num(3); }
+		else { $self->err_num(4); }
+		$self->log('error',"get_raw_data >> **ERROR** $err_msg");
 	}
 
 	$self->host_status($host,$self->err_num());
@@ -424,6 +411,11 @@ my ($self,$wsql_file,$iid)=@_;
 
 	my $lines = $self->get_raw_data($wsql_file);
 
+	if ($self->err_num() != 0) {
+	   if (! $iid) { return []; }
+		else { return {};}
+   }
+
 	my @k=();	
    my @data=();
 	my $more_lines = 1;
@@ -434,7 +426,9 @@ my ($self,$wsql_file,$iid)=@_;
 	while ($more_lines) {
 		
 		# Skips query
-		if ($lines->[0] =~ /^WQL\>/) { 
+		my $wql=substr $lines->[0],0,4;
+		if ((defined $wql) && ($wql eq 'WQL>')) {
+		#if ($lines->[0] =~ /^WQL\>/) { 
 			$self->log('debug',"get_wmi_counters >> START BLOQUE ELIMINO WSQL $lines->[0]");
 			shift @$lines; 
 		}
