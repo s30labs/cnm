@@ -23,7 +23,7 @@ my $log_mode=3;
 my %opts=();
 getopts("hmvd:c:a:p:",\%opts);
 if ($opts{h}) { die $USAGE;}
-if (! $opts{a}) { die $USAGE;}
+#if (! $opts{a}) { die $USAGE;}
 
 my $host_ip='localhost';
 my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
@@ -72,8 +72,11 @@ my $response = $api->ws_get($class,$endpoint);
 if (scalar(@fields)==0) { print Dumper($response); }
 elsif (scalar(@$response)==0) { print "0\n"; }
 else {
-	foreach my $field (@fields) {
-		print $response->[0]->{$field}."\n";
+	foreach my $h (@$response) {
+		foreach my $field (@fields) {
+			print $h->{$field}." | ";
+		}
+		print "\n";
 	}
 }
 
