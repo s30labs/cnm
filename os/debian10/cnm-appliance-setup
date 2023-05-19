@@ -150,6 +150,7 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 #-------------------------------------------------------------------------------------------
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian10');
+`ln -s /usr/bin/python3.9 /usr/bin/python`;
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
 print "Ejecutando $cmd ...\n";
 `$cmd`;
