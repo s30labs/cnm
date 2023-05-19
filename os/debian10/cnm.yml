@@ -17,7 +17,7 @@
     - exim4
     - ntp
     - ldap
-    - wmic
+    - impacket
     - smb
 
     - cnm-schema

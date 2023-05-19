@@ -1,0 +1,23 @@
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+
+- name: Install packages
+  apt:
+    name: [ 'python3-pip' ]
+    state: present
+    force: yes
+  become: true
+  tags: impacket
+
+- name: Upgrade pip
+  command: python3 -m pip install --upgrade pip
+  tags: impacket
+
+- name: Install impacket
+  command: python3 -m pip install impacket
+  tags: impacket
+
+- name: Adjust timeout
+  command: sed -i 's/set_connect_timeout(30)/set_connect_timeout(5)/g' /usr/local/lib/python3.9/dist-packages/impacket/dcerpc/v5/transport.py
+  tags: impacket
+
