@@ -12,6 +12,7 @@ use JSON;
 use Data::Dumper;
 use Encode;
 use LWP::UserAgent;
+use LWP::Protocol::https;
 use ONMConfig;
 
 #----------------------------------------------------------------------------
@@ -172,7 +173,7 @@ my ($self,$class,$endpoint,$params)=@_;
    eval {
 
 	   #my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 'SSL_VERIFY_NONE'});
-		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv1'});
+		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv12'});
    	$ua->default_header(Authorization => $sid);
    	my $response = $ua->get($url);
 
@@ -251,7 +252,7 @@ my ($self,$class,$endpoint,$params)=@_;
    eval {
 
       #my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 'SSL_VERIFY_NONE'});
-		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv1'});
+		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv12'});
       $ua->default_header(Authorization => $sid);
       #my $response = $ua->put($url, {});
       my $response = $ua->put($url);
@@ -329,7 +330,7 @@ my ($self,$class,$endpoint,$params)=@_;
    eval {
 
       #my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 'SSL_VERIFY_NONE'});
-		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv1'});
+		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv12'});
       $ua->default_header(Authorization => $sid);
       my $response = $ua->post($url, $params);
 		$content = $response->content();
@@ -417,7 +418,7 @@ my ($self,$class,$endpoint,$params)=@_;
    eval {
 
       #my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 'SSL_VERIFY_NONE'});
-		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv1'});
+		my $ua = LWP::UserAgent->new(ssl_opts => { SSL_verify_mode => 0, verify_hostname => 0, SSL_version=>'TLSv12'});
       $ua->default_header(Authorization => $sid);
 		my $response;
 	   if (scalar(@extra)>0) {
