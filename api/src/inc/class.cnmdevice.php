@@ -477,7 +477,7 @@
 	         '__COMMUNITY__'       => $aux_community,
 	         '__XAGENT_VERSION__'  => $this->get_system_field('xagentversion'),
 	         '__ENTERPRISE__'      => $this->get_system_field('enterprise'),
-	         '__CORRELATED_BY__'   => $this->get_system_field('correlated'),
+				'__CORRELATED_BY__'   => intval($this->get_system_field('correlated')),
 	         '__MAC__'             => $this->get_system_field('mac'),
 	         '__MAC_VENDOR__'      => $this->get_system_field('macvendor'),
 	         '__CRITIC__'          => $this->get_system_field('critic'),
