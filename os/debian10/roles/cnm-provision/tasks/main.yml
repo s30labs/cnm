@@ -24,7 +24,7 @@
   debug: msg="ID = {{ localhost_id_dev.stdout }}"
   tags: cnm-provision
 
-- name: Get Device (cmd)
+- name: Set Device (cmd)
   debug: msg="CMD = /opt/crawler/bin/ws/api-set-device -m -a 127.0.0.1 -p name={{ ansible_hostname }},domain={{ ansible_domain }},ip={{ ansible_default_ipv4.address }},type=Appliance,snmpversion=2,snmpcommunity=public"
   tags: cnm-provision
 

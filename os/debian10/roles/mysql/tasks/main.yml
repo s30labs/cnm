@@ -9,7 +9,7 @@
 
 - name: Install packages
   apt:
-    name: [ 'libdbd-mysql-perl', 'mariadb-client', 'mariadb-server', 'mariadb-common', 'default-libmysqlclient-dev', 'php7.3-mysql', 'python-mysqldb' ]
+    name: [ 'libdbd-mysql-perl', 'mariadb-client', 'mariadb-server', 'mariadb-common', 'default-libmysqlclient-dev', 'php7.4-mysql', 'python-mysqldb' ]
     state: present
     force: yes
   become: true

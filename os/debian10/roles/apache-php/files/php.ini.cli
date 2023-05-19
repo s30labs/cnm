@@ -756,7 +756,7 @@ user_dir =
 ; Directory in which the loadable extensions (modules) reside.
 ; http://php.net/extension-dir
 ;extension_dir = "./"
-extension_dir = "/usr/lib/php/20180731/"
+extension_dir = "/usr/lib/php/20190902/"
 ; On windows:
 ;extension_dir = "ext"
 

@@ -10,7 +10,7 @@
 
 - name: Install packages
   apt:
-    name: [ 'slapd', 'ldap-utils', 'libldap-2.4-2', 'libnss-ldap', 'libpam-ldap', 'php7.3-ldap' ]
+    name: [ 'slapd', 'ldap-utils', 'libldap-2.4-2', 'libnss-ldap', 'libpam-ldap', 'php7.4-ldap' ]
     state: present
     force: yes
   become: true

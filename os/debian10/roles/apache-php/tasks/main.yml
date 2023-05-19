@@ -18,9 +18,10 @@
   apt_repository: repo="{{ cnm_apt_repo }}" state=present
   tags: apache-php
 
+# FML FALTA php-propro-dev
 - name: Install packages
   apt:
-    name: [ 'apache2', 'apache2-dev', 'libapache2-mod-perl2', 'libapache2-mod-php7.3', 'php7.3-dba', 'php-db-dataobject', 'php-fpdf', 'php-mail', 'php-net-smtp', 'php-net-socket', 'php-pear', 'php7.3', 'php7.3-cli', 'php7.3-common', 'php7.3-dev', 'php7.3-gd', 'php7.3-mysql', 'php7.3-curl', 'php7.3-xsl', 'php7.3-ldap', 'php7.3-imap', 'php7.3-mbstring', 'php-raphf', 'php-raphf-dev', 'php-propro', 'php-propro-dev', 'php-apcu', 'php-pecl-http']
+    name: [ 'apache2', 'apache2-dev', 'libapache2-mod-perl2', 'libapache2-mod-php7.4', 'php7.4-dba', 'php-db', 'php-fpdf', 'php-mail', 'php-net-smtp', 'php-net-socket', 'php-pear', 'php7.4', 'php7.4-cli', 'php7.4-common', 'php7.4-dev', 'php7.4-gd', 'php7.4-mysql', 'php7.4-curl', 'php7.4-xsl', 'php7.4-ldap', 'php7.4-imap', 'php7.4-mbstring', 'php-raphf', 'php-raphf-dev', 'php-propro', 'php-apcu', 'php-pecl-http']
     state: present
     force: yes
   become: true
@@ -101,18 +102,22 @@
   when: cnm_http_proxy.stat.exists == 0
   tags: apache-php
 
-- name: logrotate
+- name: logrotate (rotation of cgi log file)
   copy: src=httpd.logrotate dest=/etc/logrotate.d/httpd  owner=root group=root mode=0600
   tags: apache-php
 
+- name: logrotate (change apache2 user owner and group)
+  shell: sed -i 's/create 640 root adm/create 640 www-data www-data/g' /etc/logrotate.d/apache2
+  tags: apache-php
+
 - name: PHP Apache config file
-  copy: src=php.ini.apache dest=/etc/php/7.3/apache2/php.ini  owner=root group=root mode=0644
+  copy: src=php.ini.apache dest=/etc/php/7.4/apache2/php.ini  owner=root group=root mode=0644
   tags: apache-php
   notify:
    - restart apache2
 
 - name: PHP CLI config file
-  copy: src=php.ini.cli dest=/etc/php/7.3/cli/php.ini  owner=root group=root mode=0644
+  copy: src=php.ini.cli dest=/etc/php/7.4/cli/php.ini  owner=root group=root mode=0644
   tags: apache-php
 
 
