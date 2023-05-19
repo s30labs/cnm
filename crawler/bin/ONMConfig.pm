@@ -372,7 +372,7 @@ sub my_ip {
 	my $r=`/sbin/ifconfig $if`;
 
 	my $ip='';
-	if ( $os->{'Release'} !~ /10/ ) {
+	if ( $os->{'Release'} =~ /8/ ) {
 		$r=~/inet\s+addr\:(\d+\.\d+\.\d+\.\d+)\s+/;
 		$ip=$1;
 	}

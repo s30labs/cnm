@@ -17,7 +17,9 @@ use Data::Dumper;
 @ISA = qw(Exporter);
 
 #-------------------------------------------------------------------------------------------
-my $DIR_PERL_MODULES='/opt/cnm-extras/perl_modules';
+my $DIR_PERL8_MODULES='/opt/cnm-extras/perl_modules';
+my $DIR_PERL11_MODULES='/opt/cnm-extras/perl_modules11';
+
 #-------------------------------------------------------------------------------------------
 my $RM='/bin/rm';
 my $CP='/bin/cp';
@@ -856,10 +858,10 @@ my %PERL_MODULE_NAMES=(
 sub perl_module_install {
 my ($module_name)=@_;
 
-   my $dir_modules=$DIR_PERL_MODULES;
+   my $dir_modules=$DIR_PERL8_MODULES;
 	my $info = get_os_version();
-	if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
-		$dir_modules=$DIR_PERL_MODULES;
+	if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /11/) ) {
+		$dir_modules=$DIR_PERL11_MODULES;
 	}
 
 
@@ -1225,10 +1227,10 @@ sub do_init_store  {
 #-------------------------------------------------------------------------------------------
 sub do_perl_module_check_all  {
 
-   my $dir_modules=$DIR_PERL_MODULES;
+   my $dir_modules=$DIR_PERL8_MODULES;
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
-      $dir_modules=$DIR_PERL_MODULES;
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /11/) ) {
+      $dir_modules=$DIR_PERL11_MODULES;
    }
 
 
@@ -1319,10 +1321,10 @@ sub install_perl_module  {
 my $module_name=shift;
 
    my $CWD = getcwd;
-   my $dir_modules=$DIR_PERL_MODULES;
+   my $dir_modules=$DIR_PERL8_MODULES;
    my $info = get_os_version();
-   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /10/) ) {
-      $dir_modules=$DIR_PERL_MODULES;
+   if ( ($info->{'Distributor ID'} =~ /debian/i) && ($info->{'Release'} =~ /11/) ) {
+      $dir_modules=$DIR_PERL11_MODULES;
    }
 
    chdir $dir_modules;
