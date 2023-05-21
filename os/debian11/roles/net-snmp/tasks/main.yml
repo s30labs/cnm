@@ -19,7 +19,7 @@
   tags: net-snmp
 
 - name: Extract from source
-  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian10/src/net-snmp/net-snmp-5.9.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian11/src/net-snmp/net-snmp-5.9.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Configure

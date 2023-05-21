@@ -149,7 +149,7 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 # 07. Se instalan paquetes de Debian y modulos de PERL
 #-------------------------------------------------------------------------------------------
 my $cwd = cwd();
-chdir('/opt/cnm/os/debian10');
+chdir('/opt/cnm/os/debian11');
 `ln -s /usr/bin/python3.9 /usr/bin/python`;
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
 print "Ejecutando $cmd ...\n";
