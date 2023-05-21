@@ -51,6 +51,7 @@ my $dbh=$STORE->open_db();
 #-----------------------------------------------------------------------
 my $PATH_RRD_BASE='/opt/data/rrd/elements';
 my %FILES_IN_DB_ACTIVE=();
+my %NOSNMP=();
 my %DEVICES=();
 
 if ($LIST) {
@@ -59,11 +60,16 @@ if ($LIST) {
 	if (scalar (@$r) == 0) {
 		die "NO HAY dispositivos con metricas en BBDD\n";
 	} 
-	foreach my $d (@$r) {   $FILES_IN_DB_ACTIVE{$d->[5]} = {'id_dev'=>$d->[0], 'dname'=>$d->[1], 'ip'=>$d->[2], 'mname'=>$d->[3], 'label'=>$d->[4], 'dstatus'=>$d->[6], 'mstatus'=>$d->[7]}; }
+	foreach my $d (@$r) {   
+		$FILES_IN_DB_ACTIVE{$d->[5]} = {'id_dev'=>$d->[0], 'dname'=>$d->[1], 'ip'=>$d->[2], 'mname'=>$d->[3], 'label'=>$d->[4], 'dstatus'=>$d->[6], 'mstatus'=>$d->[7]}; 
+	}
+
+	$r=$STORE->get_from_db($dbh,'id_device,ip,name,domain,counter','alerts',' mname="mon_snmp"');
+   foreach my $d (@$r) { $NOSNMP{$d->[1]} = 1; }
 
 
-
-	my @FILES_OLD = `find $PATH_RRD_BASE -mmin +180 -type f`;
+	my @FILES_OLD = `find $PATH_RRD_BASE -mmin +40 -type f`;
+	#my @FILES_OLD = `find $PATH_RRD_BASE -mmin +180 -type f`;
 	#find /opt/data/rrd/elements/ -mmin +180 -type f -ls
 	foreach my $f (@FILES_OLD) {
    	chomp $f;
@@ -74,7 +80,11 @@ if ($LIST) {
       	if (exists $FILES_IN_DB_ACTIVE{$x}) {
 				if (($FILES_IN_DB_ACTIVE{$x}->{'dstatus'}==0) && ($FILES_IN_DB_ACTIVE{$x}->{'mstatus'}==0)) {
 	         	print "METRICA: $x >> $FILES_IN_DB_ACTIVE{$x}->{'ip'}\t$FILES_IN_DB_ACTIVE{$x}->{'label'}\n";
-   	      	if ($x=~/(\d+)\//) { $DEVICES{$1}=$FILES_IN_DB_ACTIVE{$x}->{'ip'}.'-'.$FILES_IN_DB_ACTIVE{$x}->{'dname'}; }
+   	      	if ($x=~/(\d+)\//) { 
+						my $data = $FILES_IN_DB_ACTIVE{$x}->{'ip'}.'-'.$FILES_IN_DB_ACTIVE{$x}->{'dname'};
+						if (exists $NOSNMP{$FILES_IN_DB_ACTIVE{$x}->{'ip'}}) { $data .= '-NOSNMP'; }
+						$DEVICES{$1}=$data; 
+					}
 				}
       	}
 			else { 
