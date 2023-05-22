@@ -112,7 +112,14 @@ my %load=(  	'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
 #13248 ?        Ss    12:40 [mail_manager.1000.notificationsd.20]
 # 3047 ?        Ss     0:04 [notificationsd.010.notificationsd.60]
 
-#--------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+my $OS=os_version();
+$OS->{'Release'}+=0;
+my ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mysql', 'mysql');
+my ($CMD_INIT_HTTPD,$HTTPD) = ('/etc/init.d/apache2', 'apache2');
+if ($OS->{'Release'}>=10) { ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mariadb', 'mariadb'); }
+
+#-------------------------------------------------------------------------------------------
 my $role_info = get_role_info();
 if (pre_watch($store,$role_info)>0) { 
 	# Desactivo el bloqueo y termino
@@ -120,24 +127,7 @@ if (pre_watch($store,$role_info)>0) {
 	exit;
 }
 
-
-#my $ACTIVE = 1;
-#if ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'passive')) { $ACTIVE = 0; }
-##print Dumper($role_info);
-#
-## Revisar que procesos hay que arrancar en passive-ha
-#
-#if (! $ACTIVE) { 
-#
-#	%running=(  'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
-#               'snmpd'=>0, 'snmptrapd'=>0,
-#               'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0 );
-#	%load=(  'syslog-ng'=>0, 'httpd'=>0, 'mysql'=>0, 'smbd'=>0, 'nmbd'=>0,
-#               'snmpd'=>0, 'snmptrapd'=>0,
-##               'actionsd'=>0, 'trap_manager'=>0, 'mail_manager'=>0  );
-#}
-
-
+#-------------------------------------------------------------------------------------------
 my $ACTIVE = 1;
 if (exists $role_info->{'ROLE'}) {
    if (lc $role_info->{'ROLE'} eq 'passive') {
@@ -156,13 +146,6 @@ if (exists $role_info->{'ROLE'}) {
 
    }
 }
-
-
-#-------------------------------------------------------------------------------------------
-my $OS=os_version();
-my ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mysql', 'mysql');
-my ($CMD_INIT_HTTPD,$HTTPD) = ('/etc/init.d/apache2', 'apache2');
-if ($OS->{'Release'}>=10) { ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mariadb', 'mariadb'); }
 
 #-------------------------------------------------------------------------------------------
 # Se chequea el punto de montaje de mdata
@@ -735,7 +718,7 @@ my ($store,$role_info)=@_;
 
          if ($check_mysql !=0) { return 3; }
          `/opt/cnm/crawler/bin/support/cnm-repair-db`;
-         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_mysql=$check_mysql)");
+         $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_mysql=$check_mysql");
       }
       # CNM role = passive-ha
       # -------------------------------------------------------------------------
@@ -749,7 +732,7 @@ my ($store,$role_info)=@_;
          }
 
          if ($check_mysql ==0) { return 3; }
-         $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_mysql=$check_mysql)");
+         $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_mysql=$check_mysql");
       }
 		else {
       	$store->log('warning',"cnm-watch:: ROLE tiene un valor incorrecto ($role_info->{'ROLE'}) - Revisar /cfg/onm.role");
@@ -761,6 +744,7 @@ my ($store,$role_info)=@_;
 	# Debian8 sin lxc, incluye drbd
 	# ----------------------------------------------------------------------------
    my $drbd_role = `drbdadm role store|cut -d'/' -f1`; # primary | secundary
+	chomp $drbd_role;
 	
    # CNM role == active, passive
 	# -------------------------------------------------------------------------
@@ -799,7 +783,7 @@ my ($store,$role_info)=@_;
 
 		#`/opt/cnm/crawler/bin/support/cnm-repair-db`;
 
-      $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role)");
+      $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role OSv=$OS->{'Release'}");
 	}
 
    # CNM role = passive-ha
@@ -836,7 +820,7 @@ my ($store,$role_info)=@_;
          $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] drbd_role NO ES SECUNDARIO ($drbd_role)");
          return 1;
       }
-      $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role)");
+      $store->log('info',"cnm-watch:: pre_watch [CNM=PASIVE] check_store=$check_store check_mysql=$check_mysql drbd_role=$drbd_role OSv=$OS->{'Release'}");
    }
    else {
       $store->log('warning',"cnm-watch:: ROLE tiene un valor incorrecto ($role_info->{'ROLE'}) - Revisar /cfg/onm.role");
