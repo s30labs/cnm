@@ -54,8 +54,11 @@
   apt_repository: repo="deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bullseye stable" state=present update_cache=yes
   tags: cnm-docker
 #
-- name: Install docker package 23.0.6
-  apt: name=docker-ce=5:23.0.6-1~debian.11~bullseye state=present force=yes
+- name: Install docker packages (24.0.1|2.18.1-1)
+  apt: 
+    name: [ 'docker-ce=5:24.0.1-1~debian.11~bullseye', 'docker-ce-cli=5:24.0.1-1~debian.11~bullseye', 'docker-ce-rootless-extras=5:24.0.1-1~debian.11~bullseye', 'docker-compose-plugin=2.18.1-1~debian.11~bullseye' ]
+    state: present
+    force: yes
   tags: cnm-docker
 
 ...
