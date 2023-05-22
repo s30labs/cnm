@@ -8,7 +8,7 @@ use strict;
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 require Exporter;
 
-@EXPORT_OK = qw(%CFG $FILE_CONF conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc);
+@EXPORT_OK = qw(%CFG $FILE_CONF conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc os_version);
 @EXPORT = @EXPORT_OK;
 @ISA = qw(Exporter);
 $VERSION = '1.00';
@@ -368,7 +368,7 @@ my ($file,$path)=@_;
 sub my_ip {
 
 	my $if=my_if();
-	my $os=_os_version();
+	my $os=os_version();
 	my $r=`/sbin/ifconfig $if`;
 
 	my $ip='';
@@ -400,7 +400,7 @@ sub my_if {
 }
 
 #----------------------------------------------------------------------------
-sub _os_version {
+sub os_version {
 
    my %os_info=();
    my @out=`lsb_release -ir`;

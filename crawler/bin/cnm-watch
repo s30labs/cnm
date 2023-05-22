@@ -13,6 +13,7 @@ use CNMScripts::CNMAPI;
 use MCNM;
 use Time::Local;
 use Digest::MD5 qw(md5_hex);
+use Data::Dumper;
 
 #-------------------------------------------------------------------------------------------
 my $VERSION='1.0';
@@ -20,6 +21,7 @@ my $VERSION='1.0';
 my $rc;
 my $FILE_CONF='/cfg/onm.conf';
 my $MAX_OPEN_FILES=8192;
+my $FILE_STATS = '/tmp/pid.stats';
 
 #-------------------------------------------------------------------------------------------
 my $ip=my_ip();
@@ -157,6 +159,12 @@ if (exists $role_info->{'ROLE'}) {
 
 
 #-------------------------------------------------------------------------------------------
+my $OS=os_version();
+my ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mysql', 'mysql');
+my ($CMD_INIT_HTTPD,$HTTPD) = ('/etc/init.d/apache2', 'apache2');
+if ($OS->{'Release'}>=10) { ($CMD_INIT_MYSQL,$MYSQL) = ('/etc/init.d/mariadb', 'mariadb'); }
+
+#-------------------------------------------------------------------------------------------
 # Se chequea el punto de montaje de mdata
 # Si no esta montado, se monta y se hace un workset de todos los cids definidos
 # Si esta montado no se hace nada
@@ -209,144 +217,156 @@ if (! -d "$Crawler::MDATA_PATH/scripts") {
 
 #--------------------------------------------------------------------------------------
 my %LOAD_VALUES=();
-my ($httpd,$httpd_rc)=('apache2','/etc/init.d/apache2');
 
-my @res=`/bin/ps -eo pid,bsdtime,etime,args`;
+my @res=`/bin/ps -eo pid,bsdtime,etime,args | grep -E '$MYSQL|$HTTPD|syslog-ng|smbd|nmbd|notificationsd|actionsd|trap_manager|mail_manager|snmpd|snmptrapd' | grep -v grep`;
+my @PIDS=();
 foreach my $k (@res) {
 	$k=~s/^\s+//;
 	my ($pid,$bsdtime,$etime,@rest) = split (/\s+/,$k);
+	push @PIDS, $pid;
 	my $args = join (' ', @rest);
 
 	# Chequeo si el proceso esta corriendo
 	if ($args=~/grep/) { next; }
    if ($args=~/syslog-ng/) {  
-		my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'syslog-ng'}=$value;
-		if ($value > $LOAD_LEVEL) {
-   		$store->log('info',"cpu-load::[WARN] ELIMINO PID $pid syslog-ng LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-		}
-		else { $running{'syslog-ng'} += 1; }
+		$running{'syslog-ng'} += 1;	
+#		my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'syslog-ng'}=$value;
+#		if ($value > $LOAD_LEVEL) {
+#   		$store->log('info',"cpu-load::[WARN] ELIMINO PID $pid syslog-ng LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#		}
+#		else { $running{'syslog-ng'} += 1; }
 	}
-   elsif ($args=~/$httpd/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		if (! exists $LOAD_VALUES{'httpd'}) { $LOAD_VALUES{'httpd'}=$value; }
-		else { $LOAD_VALUES{'httpd'}+=$value; }
-
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid httpd  LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'httpd'} += 1; }
+   elsif ($args=~/$HTTPD/) {  
+		$running{'httpd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		if (! exists $LOAD_VALUES{'httpd'}) { $LOAD_VALUES{'httpd'}=$value; }
+#		else { $LOAD_VALUES{'httpd'}+=$value; }
+#
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid httpd  LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'httpd'} += 1; }
 	}
-   elsif ($args=~/mysql/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		# Registro datos de mysqld
-      if  ($args=~/sbin/) { $LOAD_VALUES{'mysql'}=$value; }
-      if ($value > $LOAD_LEVEL) {
-         #$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
-			#kill 9, $pid;
-
-         #if ($min % 10 == 0) {
-            $store->log('info',"cpu-load::[WARN] **HIGH** mysql PID $pid LOAD=$value (>$LOAD_LEVEL)\n");
-         #}
-
-      }
-		else { $running{'mysql'} += 1; }
+   elsif ($args=~/$MYSQL/) {  
+		$running{'mysql'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		# Registro datos de mysqld
+#      if  ($args=~/sbin/) { $LOAD_VALUES{'mysql'}=$value; }
+#      if ($value > $LOAD_LEVEL) {
+#         #$store->log('info',"cnm-watch::[WARN] ELIMINO PID $pid mysql LOAD=$value (>$LOAD_LEVEL)\n");
+#			#kill 9, $pid;
+#         #if ($min % 10 == 0) {
+#            $store->log('info',"cpu-load::[WARN] **HIGH** mysql PID $pid LOAD=$value (>$LOAD_LEVEL)\n");
+#         #}
+#      }
+#		else { $running{'mysql'} += 1; }
 	}
    elsif ($args=~/smbd/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid smbd LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'smbd'} += 1; }
+		$running{'smbd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid smbd LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'smbd'} += 1; }
 	}
    elsif ($args=~/nmbd/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid nmbd LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'nmbd'} += 1; }
+		$running{'nmbd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid nmbd LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'nmbd'} += 1; }
 	}
    elsif ($args=~/notificationsd\.010/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'notif-010'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.010 LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'notificationsd.010'} += 1; }
+		$running{'notificationsd.010'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'notif-010'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.010 LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'notificationsd.010'} += 1; }
 	}
    elsif ($args=~/notificationsd\.020/) {
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-      $LOAD_VALUES{'notif-020'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.020 LOAD=$value (>$LOAD_LEVEL)\n");
-         kill 9, $pid;
-      }
-      else { $running{'notificationsd.020'} += 1; }
+		$running{'notificationsd.020'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#      $LOAD_VALUES{'notif-020'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.020 LOAD=$value (>$LOAD_LEVEL)\n");
+#         kill 9, $pid;
+#      }
+#      else { $running{'notificationsd.020'} += 1; }
    }
    elsif ($args=~/notificationsd\.040/) {
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-      $LOAD_VALUES{'notif-040'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.040 LOAD=$value (>$LOAD_LEVEL)\n");
-         kill 9, $pid;
-      }
-      else { $running{'notificationsd.040'} += 1; }
+		$running{'notificationsd.040'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#      $LOAD_VALUES{'notif-040'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid notificationsd.040 LOAD=$value (>$LOAD_LEVEL)\n");
+#         kill 9, $pid;
+#      }
+#      else { $running{'notificationsd.040'} += 1; }
    }
    elsif ($args=~/\[actionsd/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'actionsd'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid actionsd LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'actionsd'} += 1; }
+		$running{'actionsd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'actionsd'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid actionsd LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'actionsd'} += 1; }
 	}
    elsif ($args=~/trap_manager/) {  
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'trap-manager'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid trap_manager LOAD=$value (>$LOAD_LEVEL)\n");
-			kill 9, $pid;
-      }
-		else { $running{'trap_manager'} += 1; }
+		$running{'trap_manager'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'trap-manager'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid trap_manager LOAD=$value (>$LOAD_LEVEL)\n");
+#			kill 9, $pid;
+#      }
+#		else { $running{'trap_manager'} += 1; }
 	}
    elsif ($args=~/mail_manager/) {
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'mail-manager'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid mail_manager LOAD=$value (>$LOAD_LEVEL)\n");
-         kill 9, $pid;
-      }
-      else { $running{'mail_manager'} += 1; }
+		$running{'mail_manager'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'mail-manager'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid mail_manager LOAD=$value (>$LOAD_LEVEL)\n");
+#         kill 9, $pid;
+#      }
+#      else { $running{'mail_manager'} += 1; }
    }
    elsif ($args=~/snmpd/) {
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'snmpd'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmpd LOAD=$value (>$LOAD_LEVEL)\n");
-         kill 9, $pid;
-      }
-      else { $running{'snmpd'} += 1; }
+		$running{'snmpd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'snmpd'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmpd LOAD=$value (>$LOAD_LEVEL)\n");
+#         kill 9, $pid;
+#      }
+#      else { $running{'snmpd'} += 1; }
    }
    elsif ($args=~/snmptrapd/) {
-      my $value=get_cpu_load($bsdtime,$etime,$args);
-		$LOAD_VALUES{'snmptrapd'}=$value;
-      if ($value > $LOAD_LEVEL) {
-         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmptrapd LOAD=$value (>$LOAD_LEVEL)\n");
-         kill 9, $pid;
-      }
-      else { $running{'snmptrapd'} += 1; }
+		$running{'snmptrapd'} += 1;
+#      my $value=get_cpu_load($bsdtime,$etime,$args);
+#		$LOAD_VALUES{'snmptrapd'}=$value;
+#      if ($value > $LOAD_LEVEL) {
+#         $store->log('info',"cpu-load::[WARN] ELIMINO PID $pid snmptrapd LOAD=$value (>$LOAD_LEVEL)\n");
+#         kill 9, $pid;
+#      }
+#      else { $running{'snmptrapd'} += 1; }
    }
 }
 
-my $txt='';
-foreach my $k (sort keys %LOAD_VALUES) { $txt .= " $k=".sprintf("%.3f",$LOAD_VALUES{$k}); }
-$store->log('info',"cpu-load:: LOAD_VALUES >> $txt");
+#my $txt='';
+#foreach my $k (sort keys %LOAD_VALUES) { $txt .= " $k=".sprintf("%.3f",$LOAD_VALUES{$k}); }
+#$store->log('info',"cpu-load:: LOAD_VALUES >> $txt");
 
 # snmpd/snmptrapd --------------------------------------------
 if (! $running{'snmpd'}) {
@@ -373,13 +393,13 @@ if ( (! $running{'smbd'}) || (! $running{'nmbd'}) ) {
 
 # httpd ------------------------------------------------------
 if (! $running{'httpd'})  {
-   $rc=system ("$httpd_rc restart");
-   $store->log('notice',"cnm-watch::[WARN] RESTART: $httpd");
+   $rc=system ("$CMD_INIT_HTTPD restart");
+   $store->log('notice',"cnm-watch::[WARN] RESTART: $HTTPD");
 }
 
 # mysql ----------------------------------------------------------
 if (! $running{'mysql'})  {
-   $rc=system ("/etc/init.d/mysql restart");
+   $rc=system ("$CMD_INIT_MYSQL restart");
    $store->log('notice',"cnm-watch::[WARN] RESTART: mysql");
 }
 
@@ -447,7 +467,7 @@ foreach my $cid (keys %$params) {
 
       #-------------------------------------------------------------------------------------------
 
-      $store->log('info',"+++++++check ip=$ip cid=$cid hidx=$hidx");
+      $store->log('debug',"+++++++check ip=$ip cid=$cid hidx=$hidx");
 
 		$store=Crawler::Store->new(	db_server=>$params->{$cid}->{'db_server'},
 												db_name=>$params->{$cid}->{'db_name'},
@@ -629,124 +649,16 @@ $store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
 #-------------------------------------------------------------------------------------------
 #docker remove stopped containers -> docker rm $(docker ps -a -q)
 #-------------------------------------------------------------------------------------------
-#my @cids = `docker ps -a | awk '/Removal In Progress/ {print \$1}'`;
-#foreach my $id (@cids) {
-#        chomp $id;
-#        my $cmd = "docker rm $id 2>&1";
-#        my $r = `$cmd`;
-#        $r =~ s/\r/ /g;
-#        $r =~ s/\n/ /g;
-#        $store->log('info',"DOCKER (Removal In Progress): $cmd ($r)");
-#}
-#
-
-#45 minutes ago      Created
-#About an hour ago   Created
-# For debugging purposes.
-#CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS                  PORTS               NAMES
-#4c55ab20bc88        microsoft/mssql-tools   "/opt/mssql-tools/bi…"   3 seconds ago       Created                                     goofy_lamarr
-#ee3341ccb8e7        saphana                 "bash -c /mnt/sql/33…"   3 seconds ago       Up Less than a second                       quizzical_joliot
-
-#my $do_prune=0;
-#my @lines = `docker ps -a`;
-#foreach my $lx (@lines) {
-#	chomp $lx;
-#	if (($lx=~/Removal In Progress/) || ($lx=~/minute.*?\s+.*?Created/)){		
-#		#if ($lx=~/^(\S+)\s+/) {
-#			my @p = split (/\s/,$lx);
-#			my $id = $p[0];
-#			my $cmd = "docker rm --force $id 2>&1";
-#			my $r = `$cmd`;
-#			$store->log('info',"DOCKER RM >> $cmd >> $lx");
-#		#}
-#		#$store->log('info',"DOCKER PRUNE CANDIDATE >> $lx");
-#		#$do_prune=1;
-#	}
-#}
-
-
-
-
-
-#if ($do_prune) {
-#	my $cmd = "docker container prune --force --filter \"until=45s\" 2>&1";
-#	my @rx=`$cmd`;
-#	foreach my $l (@rx) {
-#		chomp $l;
-#		$store->log('info',"DOCKER PRUNE >> $l");
-#	}
-#}
-
-#my @lines = `docker ps -a --filter "status=created"`;
-#foreach my $lx (@lines) {
-#   chomp $lx;
-#   my @p = split (/\s/,$lx);
-#   my $id = $p[0];   
-#	if ($id =~ /CONTAINER/) { next; }
-#
-#   my $date_created = `docker inspect -f '{{ .Created }}' $id`;
-#   #2020-05-01T01:18:15.579887027Z
-#   
-#   if ($date_created =~ /(\d{4})\-(\d{2})\-(\d{2})T(\d{2})\:(\d{2})\:(\d{2})/) {
-#		
-#      my ($sec,$min,$hour,$mday,$mon,$year) = ($6,$5,$4,$3,$2,$1);
-#      $year -= 1900;
-#      $mon -= 1;
-#		$hour += $gmt_offset_in_hours;
-#      my $tc = timelocal( $sec, $min, $hour, $mday, $mon, $year );
-#		my $tdiff = $ts-$tc;
-#      if ($tdiff>300) {
-#	 		my $cmd = "docker rm --force $id 2>&1";
-#         my $r = `$cmd`;
-#         $store->log('info',"DOCKER RM ($tdiff $ts|$tc) >> $cmd >> $lx");         
-#      }
-#		else {
-#			$store->log('info',"DOCKER OK ($tdiff $ts|$tc) >> $lx");
-#		}
-#   }
-#}
-#
-
-
-
-
-#my @lines = `docker ps -a --filter "status=created"`;
-#my $cnt = scalar(@lines)-1;
-#if ($cnt>=2) {
-#	$store->log('info',"***FML**** created containers counter = $cnt -----");
-#	foreach my $l (@lines) {
-#		chomp $l;
-#		$store->log('info',"***FML**** $l");
-#	}
-#	my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
-#  	$store->log('info',"EXEC DOCKER PRUNE CREATED $cmd");
-#  	my @rx=`$cmd`;
-#	foreach my $l (@rx) {
-#   	chomp $l;
-#     	$store->log('info',"DOCKER PRUNE >> $l");
-#  	}
-#}
-#else {
-#	@lines = `docker ps -a --filter "status=removing"`;
-#	$cnt = scalar(@lines)-1;
-#	if ($cnt>0) {
-#		$store->log('info',"***FML**** removing containers counter = $cnt -----");
-#   	my $cmd = "docker container prune --force --filter \"until=30s\" 2>&1";
-#   	$store->log('info',"EXEC DOCKER PRUNE REMOVING $cmd");
-#   	my @rx=`$cmd`;
-#   	foreach my $l (@rx) {
-#      	chomp $l;
-#      	$store->log('info',"DOCKER PRUNE >> $l");
-#   	}
-#	}
-#}
-
-
-
-
 $store->wait_for_docker('status=created', 'prune');
 $store->wait_for_docker('status=removing', 'prune');
 
+
+#-------------------------------------------------------------------------------------------
+# Calculo de CPU para la siguiente iteracion
+#-------------------------------------------------------------------------------------------
+#my $all_pids=join(',',@PIDS);
+#$rc = system ("/usr/bin/pidstat -p $all_pids -u -h 40 1 > $FILE_STATS");
+#$store->log('info',"cnm-watch:: Generated $FILE_STATS");
 
 #-------------------------------------------------------------------------------------------
 # Desactivo el bloqueo
@@ -785,17 +697,18 @@ my ($store,$role_info)=@_;
 	}
 
 	my ($check_mysql,$check_store)=(1,1);
-	my $os=check_os();
+	#my $os=check_os();
 
 	# Debian6 (No hay drbd ni lxc)
 	# ----------------------------------------------------------------------------
-	if ($os eq 'deb6') { 
-      $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+	#if ($os eq 'deb6') { 
+	if ($OS->{'Release'} == 6) { 
+      $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
       if ($check_mysql !=0) {
          $store->log('info',"cnm-watch:: pre_watch deb6 MYSQL NO ARRANCADO  ($?)");
-         system("/etc/init.d/mysql restart");
+         system("$CMD_INIT_MYSQL restart");
          $store->log('info',"cnm-watch:: pre_watch deb6 SE ARRANCA MYSQL ($?)");
-         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
       }
 		return 0; 
 	}
@@ -812,12 +725,12 @@ my ($store,$role_info)=@_;
       # CNM role == active o passive
       # -------------------------------------------------------------------------
       if ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'active' || lc $role_info->{'ROLE'} eq 'passive')) {
-         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
          if ($check_mysql !=0) {
             $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] MYSQL NO ARRANCADO  ($?)");
-            system("/etc/init.d/mysql restart");
+            system("$CMD_INIT_MYSQL restart");
             $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE ARRANCA MYSQL ($?)");
-            $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+            $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
          }
 
          if ($check_mysql !=0) { return 3; }
@@ -828,11 +741,11 @@ my ($store,$role_info)=@_;
       # -------------------------------------------------------------------------
 		elsif ((exists $role_info->{'ROLE'}) && (lc $role_info->{'ROLE'} eq 'passive-ha')) {
          # Parar procesos de CNM
-         $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+         $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
          if ($check_mysql == 0) {
-            system("/etc/init.d/mysql stop");
+            system("$CMD_INIT_MYSQL stop");
             $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE PARA MYSQL ($?)");
-            $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+            $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
          }
 
          if ($check_mysql ==0) { return 3; }
@@ -874,12 +787,12 @@ my ($store,$role_info)=@_;
          $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE MONTA STORE ($?)");
 			$check_store = system("mountpoint -q /store");
 		}
-      $check_mysql = system("/etc/init.d/mysql status > /dev/null");
+      $check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
 		if ($check_mysql !=0) { 
          $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] MYSQL NO ARRANCADO  ($?)");
-         system("/etc/init.d/mysql restart");
+         system("$CMD_INIT_MYSQL restart");
          $store->log('info',"cnm-watch:: pre_watch [CNM=ACTIVE] SE ARRANCA MYSQL ($?)");
-			$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+			$check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
 		}
 		if ($check_store !=0) { return 2; }
 		if ($check_mysql !=0) { return 3; }
@@ -896,11 +809,11 @@ my ($store,$role_info)=@_;
       # DRBD role == secundary => Revisar que estáodo parado
       if ($drbd_role =~ /primary/i) {
          # Parar procesos de CNM
-			$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+			$check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
 			if ($check_mysql == 0) {
-	         system("/etc/init.d/mysql stop");
+	         system("$CMD_INIT_MYSQL stop");
    	      $store->log('warning',"cnm-watch:: pre_watch [CNM=PASIVE] SE PARA MYSQL ($?)");
-				$check_mysql = system("/etc/init.d/mysql status > /dev/null");
+				$check_mysql = system("$CMD_INIT_MYSQL status > /dev/null");
 			}
 
 			$check_store = system("mountpoint -q /store");
