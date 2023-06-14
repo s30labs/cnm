@@ -39,7 +39,7 @@ global $dbc;
    // RELLENAMOS LOS DATOS DEL HASH ANTERIOR
    read_cfg_file($cfg_file,$db_data);
    $data = array(
-      'phptype'  => 'mysql',
+      'phptype'  => 'mysqli',
       'username' => $db_data['DB_USER'],
       'password' => $db_data['DB_PWD'],
       'hostspec' => $db_data['DB_SERVER'],
@@ -53,6 +53,7 @@ global $dbc;
 		$dbc->setFetchMode(DB_FETCHMODE_ASSOC);
 		$dbc->query("SET CHARACTER SET UTF8");
 		$dbc->query("SET NAMES UTF8");
+		depura('mysql_session_abreBD:'," OK dbc=$dbc");
    }
 }
 
@@ -108,6 +109,7 @@ global $dbc;
    }else{
 		$dbc=$_SESSION['DBC'];
 	}
+	return true;
 } // end mysql_session_open()
 
 
@@ -120,7 +122,7 @@ global $dbc;
 function mysql_session_close() {
 
 	depura('mysql_session_close:','IN');
-	return 1;
+	return true;
 } // end mysql_session_close()
 
 
@@ -131,15 +133,21 @@ function mysql_session_close() {
 function mysql_session_select($SID) {
 global $dbc;
 
-	depura('mysql_session_select:','IN');
 	$query  = "SELECT value FROM sessions_table WHERE SID = '$SID' AND expiration > ". time();
+	depura('mysql_session_select:',"IN | $query");
 	$result = $dbc->query($query);
 
-	if (@PEAR::isError($result)) { depura('mysql_session_select: ',$result->getMessage());}
+	if (@PEAR::isError($result)) { 
+		depura('mysql_session_select: ',$result->getMessage());
+		return '';
+	}
 	if (($result->fetchInto($r)) && ($r['value']) ) {
 		depura('SSV',"**SSV 2** QUERY == $query || VALUE == {$r['value']}");
 		session_decode($r['value']);
 	}
+	
+	return $SID;
+
 } // end mysql_session_select()
 
 
@@ -181,6 +189,8 @@ depura('SSV',"**SSV** QUERY == $query");
 		if (@PEAR::isError($result)){depura('mysql_session_write: ',$result->getMessage()); }
 	}
 */
+
+	return true;
 } // end mysql_session_write()
 	
 //--------------------------------------------------------------------------
@@ -220,6 +230,7 @@ global $dbc,$timeout;
 		if (@PEAR::isError($result)){depura('mysql_session_write: ',$result->getMessage()); }
 	}
 
+	return true;
 } // end mysql_session_write()
 	
 //--------------------------------------------------------------------------
@@ -233,6 +244,7 @@ global $dbc;
 	$query  = "DELETE FROM sessions_table WHERE SID = '$SID'";
 	$result = $dbc->query($query);
 	if (@PEAR::isError($result)) { depura ('mysql_session_destroy error:',$result->getMessage());	}
+	return true;
 	
 } // end mysql_session_destroy()
 

@@ -8,7 +8,7 @@ use strict;
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 require Exporter;
 
-@EXPORT_OK = qw(%CFG $FILE_CONF conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc);
+@EXPORT_OK = qw(%CFG $FILE_CONF conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc os_version);
 @EXPORT = @EXPORT_OK;
 @ISA = qw(Exporter);
 $VERSION = '1.00';
@@ -43,7 +43,7 @@ my %CFG = (
 
    'factor_iid' => ['0.1'],
    'factor_snmp' => ['2'],
-   'factor_latency' => ['0.8'],
+   'factor_latency' => ['1.2'],
    'factor_xagent' => ['2'],
 
 	'db_server' => ['localhost'],
@@ -368,11 +368,11 @@ my ($file,$path)=@_;
 sub my_ip {
 
 	my $if=my_if();
-	my $os=_os_version();
+	my $os=os_version();
 	my $r=`/sbin/ifconfig $if`;
 
 	my $ip='';
-	if ( $os->{'Release'} !~ /10/ ) {
+	if ( $os->{'Release'} =~ /8/ ) {
 		$r=~/inet\s+addr\:(\d+\.\d+\.\d+\.\d+)\s+/;
 		$ip=$1;
 	}
@@ -400,7 +400,7 @@ sub my_if {
 }
 
 #----------------------------------------------------------------------------
-sub _os_version {
+sub os_version {
 
    my %os_info=();
    my @out=`lsb_release -ir`;

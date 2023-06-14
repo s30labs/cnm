@@ -1,6 +1,6 @@
 <?php
 
-define("LOG_PREFIX", "cnm");
+define("LOG_PREFIX", "cnm-api");
 
 /**
  * keeps the utilities used in DSProcessor

@@ -1014,6 +1014,8 @@ $nparts = count($endpoint_parts);
 // Endpoints que no necesitan token para funcionar
 $a_endpoint_nosession = array('embed','auth');
 
+$sid='';
+
 // Petición sin sesión
 if (in_array($endpoint,$a_endpoint_nosession) OR ($endpoint=='multi' AND $_SERVER["REQUEST_METHOD"]=='GET')){
    $dbc=CNMAPI::connectDB();

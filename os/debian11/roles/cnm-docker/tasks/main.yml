@@ -1,0 +1,64 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: cnm-docker
+
+- name: Se asigna repositorio
+  apt_repository: repo="{{ cnm_apt_repo }}" state=present
+  tags: cnm-docker
+
+- name: Install packages
+  apt:
+    name: [ 'apt-transport-https', 'ca-certificates', 'curl', 'gnupg2', 'software-properties-common' ]
+    state: present
+    force: yes
+  become: true
+  tags: cnm-docker
+
+#sudo install -m 0755 -d /etc/apt/keyrings
+#curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+#sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+- name: Install docker GPG Key
+  shell: sudo install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg && sudo chmod a+r /etc/apt/keyrings/docker.gpg
+  tags: cnm-docker
+
+# echo \
+#  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+#  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+#  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+- name: Install docker keyrings (2)
+  shell: echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  tags: cnm-docker
+
+
+##curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+#- name: Install docker apt key
+#  shell: curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo apt-key add -
+#  tags: cnm-docker
+
+#Verify with:
+#sudo apt-key fingerprint 0EBFCD88
+
+#- name: Add docker repository
+#  command: sudo add-apt-repository \
+#   "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+#   $(lsb_release -cs) \
+#   stable"
+#  tags: cnm-docker
+#
+#deb [arch=amd64] https://download.docker.com/linux/debian jessie stable
+
+- name: Se asigna repositorio
+  apt_repository: repo="deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bullseye stable" state=present update_cache=yes
+  tags: cnm-docker
+#
+- name: Install docker packages (24.0.1|2.18.1-1)
+  apt: 
+    name: [ 'docker-ce=5:24.0.1-1~debian.11~bullseye', 'docker-ce-cli=5:24.0.1-1~debian.11~bullseye', 'docker-ce-rootless-extras=5:24.0.1-1~debian.11~bullseye', 'docker-compose-plugin=2.18.1-1~debian.11~bullseye' ]
+    state: present
+    force: yes
+  tags: cnm-docker
+
+...

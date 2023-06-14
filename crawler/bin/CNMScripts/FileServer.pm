@@ -29,9 +29,11 @@ my ($class,%arg) =@_;
    $self->{_host} = $arg{host} || '';
    $self->{_port} = $arg{port} || '22';
    $self->{_user} = $arg{user} || '';
+   $self->{_domain} = $arg{domain} || '';
    $self->{_pwd} = $arg{pwd} || '';
    $self->{_timeout} = $arg{timeout} || 20;
-   $self->{_remote_dir} = $arg{remote_dir} || '/';
+   $self->{_remote_dir} = $arg{remote_dir} || '/none';
+   $self->{_local_dir} = $arg{local_dir} || '/none';
    $self->{_action} = $arg{action} || {};
    $self->{_remote} = $arg{remote} || undef;	#Connection Object handler
 
@@ -83,6 +85,17 @@ my ($self,$user) = @_;
 }
 
 #----------------------------------------------------------------------------
+# domain
+#----------------------------------------------------------------------------
+sub domain {
+my ($self,$domain) = @_;
+   if (defined $domain) {
+      $self->{_domain}=$domain;
+   }
+   else { return $self->{_domain}; }
+}
+
+#----------------------------------------------------------------------------
 # pwd
 #----------------------------------------------------------------------------
 sub pwd {
@@ -113,6 +126,17 @@ my ($self,$remote_dir) = @_;
       $self->{_remote_dir}=$remote_dir;
    }
    else { return $self->{_remote_dir}; }
+}
+
+#----------------------------------------------------------------------------
+# local_dir
+#----------------------------------------------------------------------------
+sub local_dir {
+my ($self,$local_dir) = @_;
+   if (defined $local_dir) {
+      $self->{_local_dir}=$local_dir;
+   }
+   else { return $self->{_local_dir}; }
 }
 
 #----------------------------------------------------------------------------
@@ -164,9 +188,11 @@ my ($self)=@_;
    my $host = $self->host();
    my $port = $self->port();
    my $user = $self->user();
+   my $domain = $self->domain();
    my $pwd = $self->pwd();
    my $connect_timeout = $self->timeout();
    my $remote_dir = $self->remote_dir();
+   my $local_dir = $self->local_dir();
    my $action = $self->action();
 
 	my $rc=0;
@@ -181,13 +207,40 @@ my ($self)=@_;
 		if ($sftp->error) { $rc=1; }
    }
 
-	elsif ($proto=~/smb/i) {
+   elsif ($proto=~/smb3/i) {
 
-		my $workgroup = "";
-		my $smb = new Filesys::SmbClient( username  => $user, password  => $pwd, workgroup => $workgroup, debug => 0);
-		$self->remote($smb);
+		$remote_dir =~ s/^\///;
+		if ($local_dir eq '/none') { 
+			$local_dir = '/mnt/'.$host.'/'.$remote_dir; 
+			$self->local_dir($local_dir);
+		}
 
-	}	
+     	if (! -d $local_dir) { `mkdir -p $local_dir`; }
+
+		my $domain_str = ($domain eq '') ? '' : "domain=$domain";
+	
+     	my $cmd_mount = "mount -v -t cifs -o vers=3.0,username=$user,password=$pwd,$domain_str //$host/$remote_dir $local_dir 2>&1";
+
+		my $check_mount_cmd = "findmnt -n -o TARGET $local_dir";
+		my $is_mounted = `$check_mount_cmd 2>&1`;
+		chomp $is_mounted;
+		if ($is_mounted eq $local_dir) {
+			$self->log('debug',"MOUNTED PREVIOUSLY ($local_dir)");
+		}
+		else {
+			my $x = `$cmd_mount`;
+			$self->log('debug',"MOUNTING $host/$remote_dir -> $local_dir  ($x)");
+		}
+
+	}
+
+   elsif ($proto=~/smb/i) {
+
+      my $workgroup = "";
+      my $smb = new Filesys::SmbClient( username  => $user, password  => $pwd, workgroup => $workgroup, debug => 0);
+      $self->remote($smb);
+
+   }
 
 
 	$self->err_num($rc);
@@ -231,6 +284,39 @@ my ($self)=@_;
 		$self->err_str($rcstr);
      	if ($sftp->error) { $rc=3; }
 	}
+
+   elsif ($proto=~/smb3/i) {
+
+		my $local_dir =  $self->local_dir();	
+	   my $rcx = opendir (DIR,$local_dir);
+      if ( ! $rcx) {
+			$rc = 10;
+         $self->err_str("**ERROR** EN OPENDIR $local_dir ($!)");
+			return;
+      }
+
+   	while ( my $filename = readdir(DIR) ) {
+
+			my %item=('filename'=>'', 'longname'=>'', 'type'=>'', 'size'=>'', 'atime'=>'', 'atime_str'=>'');
+         $item{'filename'} = $filename;
+         $item{'longname'} = "$remote_dir/$filename";
+         if (($item{'filename'} eq '.') || ($item{'filename'} eq '..')) { next; }
+
+			my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = stat("$local_dir/$filename");
+
+			$item{'hlinks'} = $nlink;
+			if ($item{'hlinks'}>1) { $item{'type'}='d' }
+         else { $item{'type'}='f' }
+
+         $item{'size'} = $size;
+         $item{'atime'} = $mtime;
+         $item{'atime_str'} = localtime($mtime);
+
+			push @files,\%item;
+
+		}
+
+   }
 
 	elsif ($proto=~/smb/i) {
 
@@ -347,6 +433,32 @@ my ($self,$from,$to)=@_;
 	}
 
    return $ok;
+}
+
+#----------------------------------------------------------------------------
+# close
+#----------------------------------------------------------------------------
+sub close {
+my ($self)=@_;
+
+   my $proto = $self->proto();
+	my $local_dir = $self->local_dir();
+	if (($local_dir eq '/') || ($local_dir eq '/mnt')) {
+		$self->log('warning',"**ERROR** Not allowed unmounting $local_dir");
+		return; 
+	}
+
+   if ($proto=~/smb3/i) {
+		my $cmd = "umount -flv $local_dir 2>&1";
+		my $x = `$cmd`;
+		chomp $x;
+		if ($x !~ /unmounted/) {
+			 $self->log('warning',"**ERROR** unmounting $local_dir ($x) ($cmd)");
+		}
+#print "cmd=$cmd >> ($x)\n";		
+   }
+
+   return; 
 }
 
 

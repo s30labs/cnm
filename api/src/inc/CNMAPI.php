@@ -1,9 +1,10 @@
 <?php
 
 include_once('inc/Store.php');
+include_once('inc/CNMUtils.php');
 require_once('/usr/share/pear/DB.php');
 
-define("LOG_PREFIX", "cnm-api");
+//define("LOG_PREFIX", "cnm-api");
 
 class CNMAPI {
 

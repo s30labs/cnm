@@ -3593,7 +3593,7 @@ my ($self,$filter,$action)=@_;
 
    my $in_wait=1;
 	if ((! defined $filter) || ($filter eq '')) { $filter = 'status=created'; }
-	my $max_level = ($filter=~/status=created/) ? 10 : 1;
+	my $max_level = ($filter=~/status=created/) ? 3 : 1;
 	my $ts = time();
    while ($in_wait) {
 
@@ -3620,12 +3620,14 @@ my ($self,$filter,$action)=@_;
 
 				$t = $ts - $tcreated;
 				$containers{$cid}=$t;
-				$self->log('debug',"wait_for_docker:: DOCKER CONTAINER $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created");
+				$self->log('debug',"wait_for_docker:: -DEBUG- DOCKER CONTAINER $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created");
 
   		 	}
-			if ($t>=10) {  
+			if ($t>=15) {  
 				$counter += 1; 
-				if ((defined $action) && ($action eq 'prune')) {
+				$self->log('info',"wait_for_docker:: DOCKER CONTAINER SLOW $cid with $filter ($t sec.) | name = $name | image=$image | status=$status_raw | created=$created | $l");
+				#if ((defined $action) && ($action eq 'prune')) {
+				if ((defined $action) && ($action eq 'prune') && ($filter ne 'status=created')) {
 
 					my $cmd = "docker rm --force $cid 2>&1";
                $self->log('info',"wait_for_docker:: DOCKEREXEC RM $name ($cid) with $filter (time in creation = $t) cmd=$cmd");

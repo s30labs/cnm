@@ -14,16 +14,16 @@ my $USAGE = <<USAGE;
 API Scripts - Add Device (POST)
 (c) s30labs
 
-$fpth[$#fpth] [-d debug|info] [-c cid] [-m] -a host/ip [-p name=a,domain=b,ip=c,status=d ....]
+$fpth[$#fpth] [-d debug|info] [-c cid] [-m] -a host/ip [-p name=a,domain=b,ip=c,status=d ....] [-e cnm_page_size=100]
 $fpth[$#fpth] -h  : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
 my $log_mode=3;
 my %opts=();
-getopts("hmvd:c:a:p:",\%opts);
+getopts("hmvd:c:a:p:e:",\%opts);
 if ($opts{h}) { die $USAGE;}
-if (! $opts{a}) { die $USAGE;}
+#if (! $opts{a}) { die $USAGE;}
 
 my $host_ip='localhost';
 my $log_level= (defined $opts{d}) ? $opts{d} : 'info';
@@ -32,6 +32,14 @@ my $prov_metrics = (defined $opts{m}) ? 1 : 0;
 
 my @fields=();
 if (defined $opts{p}) { @fields=split(',',$opts{p}); }
+my %extra=();
+if (defined $opts{e}) { 
+	my @e = split(',',$opts{e});
+	foreach my $kv (@e) {
+		my ($k,$v) = split ('=',$kv);
+		$extra{$k} = $v;
+	}
+}
 
 #// Campos disponibles:
 #// - name           => nombre
@@ -67,13 +75,16 @@ if ($opts{v}) { print "**>> sid=$sid\n"; }
 
 my $class='';
 my $endpoint='devices.json';
-my $response = $api->ws_get($class,$endpoint);
+my $response = $api->ws_get($class,$endpoint,\%extra);
 
 if (scalar(@fields)==0) { print Dumper($response); }
 elsif (scalar(@$response)==0) { print "0\n"; }
 else {
-	foreach my $field (@fields) {
-		print $response->[0]->{$field}."\n";
+	foreach my $h (@$response) {
+		foreach my $field (@fields) {
+			print $h->{$field}." | ";
+		}
+		print "\n";
 	}
 }
 

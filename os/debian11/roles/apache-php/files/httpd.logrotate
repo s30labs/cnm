@@ -1,0 +1,10 @@
+/var/www/logs/error_cgi.log {
+	copytruncate
+   notifempty
+   daily
+   rotate 7
+   postrotate
+   /bin/kill -USR1 `cat /var/www/logs/httpd.pid 2>/dev/null` 2> /dev/null || true
+   endscript
+}
+

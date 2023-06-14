@@ -1727,6 +1727,7 @@ my ($self,$myenv)=@_;
 	$ENV{'CNM_TAG_CALLER'} =~ s/\[(crawler\.\d+)\.\S+/$1/g;
 	$ENV{'CNM_TAG_CALLER'} =~ s/\[(notificationsd\.\d+)\.\S+/$1/g;
 	$ENV{'CNM_TAG_CALLER'} .= '.'.int(10000*rand);
+	$ENV{'CNM_TAG_CALLER'} .= '.'.$$;
 	if ((defined $myenv) && (ref($myenv) eq 'HASH')) {
 		foreach my $k (keys %$myenv) { $ENV{$k} = $myenv->{$k}; }
 	}

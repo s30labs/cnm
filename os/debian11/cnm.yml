@@ -1,0 +1,29 @@
+---
+# This playbook deploys the whole application stack in this site.
+- name: CNM Core System (Deploy and configuration)
+  hosts: all
+  remote_user: root
+
+  roles:
+    - base
+    - layout
+    - cnm-cfg
+    - apache-php
+    - mysql
+    - net-snmp
+    - syslog-ng
+    - rrdtool
+
+    - exim4
+    - ntp
+    - ldap
+    - impacket
+    - smb
+
+    - cnm-schema
+    - cnm-runtime
+
+    - cnm-docker
+
+    - cnm-sp
+    - cnm-provision
