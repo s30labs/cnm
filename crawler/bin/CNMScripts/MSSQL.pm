@@ -26,7 +26,7 @@ my ($class,%arg) =@_;
 
 
    my $self=$class->SUPER::new(%arg);
-   $self->{_cmd} = $arg{cmd} || "docker run --rm --stop-timeout __TIMEOUT__ __CONTAINER_NAME__ microsoft/mssql-tools /opt/mssql-tools/bin/sqlcmd -C -y 0 -l 2 -S ";
+   $self->{_cmd} = $arg{cmd} || "docker run --rm --stop-timeout __TIMEOUT__ __CONTAINER_NAME__ microsoft/mssql-tools:stable /opt/mssql-tools/bin/sqlcmd -C -y 0 -l 2 -S ";
    $self->{_host} = $arg{host} || '';
    $self->{_port} = $arg{port} || '1433';
    $self->{_user} = $arg{user} || '';
