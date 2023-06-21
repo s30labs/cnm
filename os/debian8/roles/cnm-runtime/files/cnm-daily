@@ -4,7 +4,7 @@ echo "PASO 1: cnm-daily ..."
 /opt/crawler/bin/cnm-daily > /tmp/cnm-daily.log 2>&1
 
 echo "PASO 2: cnm-check-provision ..."
-/opt/crawler/bin/check-provision -r > /tmp/cnm-check-provision.log 2>&1
+/opt/crawler/bin/cnm-check-provision -r > /tmp/cnm-check-provision.log 2>&1
 
 echo "PASO 3: backup ..."
 /usr/bin/php /var/www/html/onm/inc/Backup.php action=backup database=all > /tmp/cnm-backup.log 2>&1
