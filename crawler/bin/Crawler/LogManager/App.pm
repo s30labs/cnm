@@ -615,7 +615,16 @@ my ($self,$lapse,$task)=@_;
             $dbh=$store->open_db(); $self->dbh($dbh); $store->dbh($dbh);
          }
          ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
-         if ($ok) {
+
+         # -----------------------------------------------------------------------
+         # Si no hay link, no se ejecutan las tareas
+         my $if=my_if();
+         my $link_error=$self->check_if_link($if);
+         if ($link_error > 0) {
+            $self->log('warning',"do_task::[WARN] **NO LINK** (error=$link_error)");
+         }
+
+         if (($ok) && ($link_error <= 0)) {
 
 				$self->log_tmark();
 				my $x=0;
@@ -714,11 +723,20 @@ my ($self,$lapse,$task)=@_;
             $self->check_configuration();
          }
 
+         # -----------------------------------------------------------------------
+         # Si no hay link, no se ejecutan las tareas
+         my $if=my_if();
+         my $link_error=$self->check_if_link($if);
+         if ($link_error > 0) {
+            $self->log('warning',"do_task::[WARN] **NO LINK** (error=$link_error)");
+				sleep 5;
+				next;
+         }
 
          my $store=$self->store();
          ($dbh,$ok)=$self->chk_conex($dbh,$store,'alerts');
          if (! $ok) {
-				sleep 10;
+				sleep 5;
 				next;
 			}
 
