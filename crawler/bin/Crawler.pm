@@ -2984,7 +2984,11 @@ my ($self,$lock_file) = @_;
 sub shared_write {
 my ($self,$data,$fout) = @_;
 
-   open (F, ">$fout");
+   my $rc = open (F, ">$fout");
+	if (! $rc) {
+		$self->log('warning',"shared_write:: FILE OPEN ERROR $fout ($!)");
+		return;
+	}
 	while ( my ($k,$v)=each %$data) {
 		$v=~s/\n/ /g;
       print F "$k=$v\n";
@@ -3002,7 +3006,12 @@ my ($self,$fout) = @_;
 
    my %data=();
    if (-f $fout) {
-      open (F, "<$fout");
+      my $rc = open (F, "<$fout");
+	   if (! $rc) {
+   	   $self->log('warning',"shared_read:: FILE OPEN ERROR $fout ($!)");
+      	return \%data;
+   	}
+
       while (<F>) {
          chomp;
 			my ($k,$v)=split(/=/,$_,2);
