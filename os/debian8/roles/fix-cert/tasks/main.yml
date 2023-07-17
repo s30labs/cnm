@@ -1,6 +1,6 @@
 ---
 #- name: http repository assignment 
-#  apt_repository: repo="deb http://software.s30labs.com/repositorio8/ stable main contrib" state=present
+#  apt_repository: repo="deb https://software.s30labs.com/repositorio8/ stable main contrib" state=present
 #  tags: fix-cert
 
 #- name: Install packages

@@ -60,7 +60,7 @@ my $DEBUG = ($opts{d}) ? 1 : 0;
 my $os=check_os();
 my $www_user = ($os eq 'fc') ? 'apache' : 'www-data';
 create_dir('-p','/cfg/','770',"root:$www_user");
-prepare_ansible();
+#prepare_ansible();
 
 #-------------------------------------------------------------------------------------------
 # Se valida la configuracion actual
@@ -577,7 +577,7 @@ sub prepare_ansible {
 # CNM Global Vars
 
 key: gpl
-cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+cnm_repo: "deb https://software.s30labs.com/repositorio8/ stable main contrib"
 drbd_partition: $DRBD_PARTITION
 ntpserver: pool.ntp.org
 mtu: 1450
