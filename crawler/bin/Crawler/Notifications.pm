@@ -2266,7 +2266,7 @@ my $ev=$TASKS{$key}->{'ev'};
 				my $id_metric = $x->[0][1];
 
 	         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
-   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>$id_metric, 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
+   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>$id_metric, 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>$tnow  });
 
             # Si es un monitor de multiples severidades tengo que borrar el fichero de marca.
             # Basta con chequear que exista el fichero.
@@ -3872,7 +3872,7 @@ my ($self,$desc,$mode)=@_;
 		# Solo se hace si $alert_counter>0 (store_alert ha hecho el paso de 0 a 1)
 		# wsize puede definir ounter con valores de -5, -10 en dispositivos con baja/muy baja sensibilidad.
 		if ($alert_counter>0) {
-	      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
+	      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>0, 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
 		}
    	$self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date alert_counter=$alert_counter");
 

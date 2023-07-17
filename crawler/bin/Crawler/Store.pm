@@ -1940,7 +1940,7 @@ my $rres;
    if (exists $data->{id_metric})  { $table{id_metric} = $data->{id_metric}; }
 
    # $table{correlated} ----------------------------------
-   $table{correlated} = (defined $data->{correlated}) ? $data->{correlated} : '';
+   $table{correlated} = (defined $data->{correlated}) ? $data->{correlated} : 0;
   
    # $table{hidx} --------------------------------------
    #$table{hidx} = (defined $data->{hidx}) ? $data->{hidx} : 1;
