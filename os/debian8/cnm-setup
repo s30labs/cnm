@@ -70,32 +70,32 @@ foreach my $feat (@features) {
    get_feature($feat->{'name'},$feat->{'url'});
 }
 
-#-------------------------------------------------------------------------------------------
-# 02. Se crea /cfg/cnm_vars.yml si no existe. 
-#     Necesario al actualizar un sistema previo (instalado con cnm-install)
-#-------------------------------------------------------------------------------------------
-my $DRBD_PARTITION='/dev/sda6';
-my $CNM_CFG_DIR='/cfg';
-my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
-my $CNM_VARS = <<"CNMVARS";
----
-# CNM Global Vars
-
-key: gpl
-cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
-drbd_partition: $DRBD_PARTITION
-ntpserver: pool.ntp.org
-mtu: 1450
-
-CNMVARS
-
-
-if (! -d $CNM_CFG_DIR) { system ("/bin/mkdir -p $CNM_CFG_DIR"); }
-if (! -f $CNM_VARS_FILE) {
-  open (F,">$CNM_VARS_FILE");
-  print F $CNM_VARS;
-  close F;
-}
+##-------------------------------------------------------------------------------------------
+## 02. Se crea /cfg/cnm_vars.yml si no existe. 
+##     Necesario al actualizar un sistema previo (instalado con cnm-install)
+##-------------------------------------------------------------------------------------------
+#my $DRBD_PARTITION='/dev/sda6';
+#my $CNM_CFG_DIR='/cfg';
+#my $CNM_VARS_FILE='/cfg/cnm_vars.yml';
+#my $CNM_VARS = <<"CNMVARS";
+#---
+## CNM Global Vars
+#
+#key: gpl
+#cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+#drbd_partition: $DRBD_PARTITION
+#ntpserver: pool.ntp.org
+#mtu: 1450
+#
+#CNMVARS
+#
+#
+#if (! -d $CNM_CFG_DIR) { system ("/bin/mkdir -p $CNM_CFG_DIR"); }
+#if (! -f $CNM_VARS_FILE) {
+#  open (F,">$CNM_VARS_FILE");
+#  print F $CNM_VARS;
+#  close F;
+#}
 
 #-------------------------------------------------------------------------------------------
 # 03. Se crea /cfg/ansible.hosts si no existe.

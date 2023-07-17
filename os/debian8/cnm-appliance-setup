@@ -50,6 +50,7 @@ getopts("hism:z:r:",\%opts);
 if ($opts{h}) { die $USAGE;}
 my $DRBD_PARTITION='/dev/sda6';
 if ($opts{z}) { $DRBD_PARTITION=$opts{z}; }
+elsif ($opts{s}) { $DRBD_PARTITION=''; }
 my $BRANCH = 'master';
 if ($opts{m}) { $BRANCH=$opts{m}; }
 my $REV='';
@@ -129,7 +130,7 @@ my $CNM_VARS = <<"CNMVARS";
 # CNM Global Vars
 
 key: gpl
-cnm_repo: "deb http://software.s30labs.com/repositorio8/ stable main contrib"
+cnm_repo: "deb https://software.s30labs.com/repositorio8/ stable main contrib"
 drbd_partition: $DRBD_PARTITION
 ntpserver: pool.ntp.org
 mtu: 1450
