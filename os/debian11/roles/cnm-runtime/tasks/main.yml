@@ -38,6 +38,10 @@
     - /store/www-user/automation
   tags: cnm-runtime
 
+- name: magic.gif -> /store/www-user/background
+  copy: src=magic.gif dest=/store/www-user/background/magic.gif  owner=www-data group=www-data mode=0644
+  tags: cnm-runtime
+
 - name: crontab
   copy: src=crontab dest=/etc/crontab  owner=root group=root mode=0640
   tags: cnm-runtime
