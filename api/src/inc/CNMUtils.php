@@ -21,7 +21,7 @@ class CNMUtils {
     public static function info_log($file, $line, $message) {
 
       $dbgTrace = debug_backtrace();
-      $fx=$dbgTrace[1]['function'];
+      $fx = (isset($dbgTrace[1]['function'])) ?  $dbgTrace[1]['function'] : '';
 		$datetime = date("D M d H:i:s Y");
 		$data = "[$datetime] [info] ".LOG_PREFIX. " {$file}:{$line}:$fx : {$message} \n";
 		file_put_contents('/var/log/apache2/cnm_gui.log', $data, FILE_APPEND);

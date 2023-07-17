@@ -1027,7 +1027,7 @@ else {
    $headers = apache_request_headers();
    $sid = (array_key_exists('Authorization',$headers))?$headers['Authorization']:'';
    showTime($sid);
-   session_id($sid);
+   //fmldeb11 session_id($sid);
 }
 
 // --------------------------------------------------------------------------------------------
@@ -1068,7 +1068,7 @@ switch ($_SERVER["REQUEST_METHOD"]) {
 switch($content_type) {
    case 'json':
         	//echo json_encode($output);
-			if($output['rc']==1){
+			if (isset($output['rc']) and $output['rc']==1) {
 			// if($output['status']==1){
 				CNMAPI::jsonResponseHeader($output,400);
 			}
