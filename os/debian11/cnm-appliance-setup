@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #-------------------------------------------------------------------------------------------
-# Fichero: cnm-appliance-setup (Debian 10) 
+# Fichero: cnm-appliance-setup (Debian 11) 
 # Los pasos a seguir para instalar CNM son:
 # a. Ejcutar cnm-install -i -a root_pwd -b onm_pwd -n user [-m pro] [-r rev_number]
 # b. Ejecutar /opt/crawler/bin/support/chk-host
@@ -50,7 +50,7 @@ my $REV='';
 if ($opts{r}) { $REV=$opts{r}; }
 
 #-------------------------------------------------------------------------------------------
-# Valida que es Debian10. En caso contrario termina.
+# Valida que es Debian11. En caso contrario termina.
 #-------------------------------------------------------------------------------------------
 my %os_info=();
 my @out=`lsb_release -ir`;
@@ -60,26 +60,30 @@ foreach my $l (@out) {
 	$os_info{$k}=$v;
 }
 
-if ( ($os_info{'Distributor ID'} !~ /debian/i) || ($os_info{'Release'} !~ /11/) ) {
+if ($os_info{'Distributor ID'} !~ /debian/i) {
 	print Dumper(\%os_info);
 	die "Not a Debian distro ...\n";
 }
+if ($os_info{'Release'} !~ /11/) {
+	print Dumper(\%os_info);
+	die "Not a Debian 11 distro ...\n";
+}
+
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
 #-------------------------------------------------------------------------------------------
-`apt-get install -y --allow-unauthenticated openssh-server`;
-`apt-get install -y --allow-unauthenticated git vim sudo gnupg2`;
+`apt-get install -y openssh-server`;
+`apt-get install -y git vim sudo gnupg2`;
 
-# ansible 2.9
-#`apt-get install -y --allow-remove-essential --allow-change-held-packages `;
-`apt-get install gnupg2 curl wget -y --allow-unauthenticated`;
-
-`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu focal main" > /etc/apt/sources.list.d/ansible.list`;
-system ("apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367");
+# ansible 2.10.8
+`apt-get install -y gnupg2 curl wget`;
+system ("curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x93C4A3FD7BB9C367' | gpg --dearmor > /etc/apt/trusted.gpg.d/ansible-archive-keyring.gpg");
+`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu bionic main" > /etc/apt/sources.list.d/ansible.list`;
 `apt-get update`;
-`apt-get install -y --allow-unauthenticated ansible`;
+`apt-get install -y ansible`;
+
 
 #-------------------------------------------------------------------------------------------
 # 01. Git config
@@ -92,6 +96,7 @@ system ("$GIT config --global http.sslVerify false");
 system ("$GIT config --global commit.template /opt/cnm/.gitmessage");
 system ("$GIT config --global core.editor vim");
 system ("$GIT config --global push.default simple"); #No sube los branches (si no hay que poner matching).
+system ("$GIT config --global pull.rebase false");
 
 #-----------------------------------------------------
 # 02. Clone/checkout repos: cnm, cnm-os, cnm-mibs, cnm-lang, cnm-sp
@@ -144,13 +149,13 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
   close F;
 }
 
-
 #-------------------------------------------------------------------------------------------
 # 07. Se instalan paquetes de Debian y modulos de PERL
 #-------------------------------------------------------------------------------------------
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian11');
 `ln -s /usr/bin/python3.9 /usr/bin/python`;
+
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
 print "Ejecutando $cmd ...\n";
 `$cmd`;
