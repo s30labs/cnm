@@ -72,7 +72,7 @@ if ($os_info{'Release'} !~ /11/) {
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
-# 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim)
+# 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim, cpanminus)
 #-------------------------------------------------------------------------------------------
 `apt-get install -y openssh-server`;
 `apt-get install -y git vim sudo gnupg2`;
@@ -84,6 +84,7 @@ system ("curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x93C4A3
 `apt-get update`;
 `apt-get install -y ansible`;
 
+`apt-get install -y cpanminus`;
 
 #-------------------------------------------------------------------------------------------
 # 01. Git config
@@ -127,6 +128,7 @@ my $CNM_VARS = <<"CNMVARS";
 key: gpl
 ntpserver: pool.ntp.org
 mtu: 1450
+ansible_python_interpreter: /usr/bin/python3
 
 CNMVARS
 
@@ -155,7 +157,6 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian11');
 `ln -s /usr/bin/python3.9 /usr/bin/python`;
-
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
 print "Ejecutando $cmd ...\n";
 `$cmd`;
