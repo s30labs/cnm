@@ -1,0 +1,24 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: host-network
+
+- name: Set interfaces file
+  template: src=interfaces.j2 dest=/etc/network/interfaces
+  when: ipaddress is defined and netmask is defined and gateway is defined and interface is defined
+  tags: host-network
+
+- name: Restart networking 
+  command: /etc/init.d/networking restart
+  when: ipaddress is defined and netmask is defined and gateway is defined and interface is defined
+  tags: host-network
+
+
+## The primary network interface
+#allow-hotplug {{ interface }}
+#iface {{ interface }} inet static
+#   address {{ ipaddr }}
+#   netmask {{ netmask }}
+#   gateway {{ gateway }}
+
+...

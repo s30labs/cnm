@@ -338,7 +338,7 @@ if ( 	$net_restart &&
 }
 
 my $cwd = cwd();
-chdir('/opt/cnm/os/debian8');
+chdir('/opt/cnm/os/debian11');
 
 # NTP reconfigure
 if ($ntp_restart) {  
