@@ -3,11 +3,6 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: cnm-cfg
 
-# Add specified repository into sources list.
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: cnm-cfg
-  
 - name: Check /cfg/onm.conf
   stat: path=/cfg/onm.conf
   register: onm_conf

@@ -3,16 +3,12 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: cnm-schema
 
-# Add specified repository into sources list.
-- name: Se asigna repositorio
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: cnm-schema
-
 - name: Install packages
   apt:
-    name: [ 'python-mysqldb' ]
+    name: [ 'python3-mysqldb' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: cnm-schema
 

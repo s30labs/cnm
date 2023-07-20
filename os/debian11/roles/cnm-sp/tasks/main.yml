@@ -3,12 +3,7 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: cnm-sp
 
-# Add specified repository into sources list.
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: cnm-sp
-
-- name: Se asigna repositorio
+- name: Se asigna repositorio de fuentes
   debug: msg="Usando repositorio {{ cnm_git_repo }}"
   tags: cnm-sp
   

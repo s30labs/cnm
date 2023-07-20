@@ -14,13 +14,8 @@
 #    var: ntpserver
 #  tags: ntp
 
-# Add specified repository into sources list.
-- name: Configure repository 
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: ntp
-
 - name: Install packages
-  apt: name=ntpdate state=present force=yes
+  apt: name=ntpdate state=present force=yes update_cache=yes
   tags: ntp
 
 - name: Configure cron.hourly

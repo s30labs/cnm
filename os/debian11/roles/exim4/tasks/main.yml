@@ -3,16 +3,12 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: exim4
 
-# Add specified repository into sources list.
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: exim4
-
 - name: Install packages
   apt:
     name: [ 'exim4', 'exim4-base', 'exim4-config', 'exim4-daemon-light' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: rrdtool
   
