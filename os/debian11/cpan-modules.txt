@@ -248,7 +248,7 @@ YAML						1.30
 HTML::Strip				2.12
 Authen::SASL			2.16
 Mail::IMAPClient		3.43
-#perl::ldap				0.68
+Net::LDAP				0.68
 Test::Fatal				0.017
 Test::Needs				0.002010
 Test::Warnings			0.031
