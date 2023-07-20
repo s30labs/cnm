@@ -120,7 +120,7 @@ Locale::Maketext::Lexicon	1.00
 Log::Dispatch			2.71
 MLDBM						2.05
 Module::Refresh		0.18
-#Module::Versions::Report	1.06
+#Module::Versions::Report	1.06 --> Se instala, pero al hacer el validate sale como no instalado
 Regexp::Common			2017060201
 UNIVERSAL::require	0.19
 Text::Reform			1.20
@@ -242,7 +242,7 @@ Types::Serialiser		1.01
 JSON::MaybeXS			1.004005
 WWW::Telegram::BotAPI	0.12
 Excel::Writer::XLSX	1.11
-#HTML::TableExtract	2.15
+#HTML::TableExtract	2.15	---> No detecta la instalacion
 YAML						1.30
 #Filesys::SmbClient	3.2
 HTML::Strip				2.12
