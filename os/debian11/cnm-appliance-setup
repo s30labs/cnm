@@ -74,15 +74,26 @@ if ($os_info{'Release'} !~ /11/) {
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim, cpanminus)
 #-------------------------------------------------------------------------------------------
+`apt-get update`;
 `apt-get install -y openssh-server`;
 `apt-get install -y git vim sudo gnupg2`;
 
 # ansible 2.10.8
 `apt-get install -y gnupg2 curl wget`;
-system ("curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x93C4A3FD7BB9C367' | gpg --dearmor > /etc/apt/trusted.gpg.d/ansible-archive-keyring.gpg");
-`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu bionic main" > /etc/apt/sources.list.d/ansible.list`;
-`apt-get update`;
-`apt-get install -y ansible`;
+#system ("curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x93C4A3FD7BB9C367' | gpg --dearmor > /etc/apt/trusted.gpg.d/ansible-archive-keyring.gpg");
+#`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu bionic main" > /etc/apt/sources.list.d/ansible.list`;
+#`apt-get update`;
+
+`apt-get install -y python python3 python3-minimal python3-pip ansible`;
+my $pv = `pip3 --version`;
+chomp $pv;
+my $pip_version=0;
+my $extra_option='';
+#pip 23.2.1 from /usr/local/lib/python3.9/dist-packages/pip (python 3.9)
+if ($pv=~/pip (\d+\.\d+\.\d+) from/) { $pip_version=$1; $pip_version=~s/\.//g; $pip_version+=0; }
+if ($pip_version>=2321) { $extra_option='--root-user-action=ignore'; }
+`python3 -m pip install $extra_option --upgrade pip`;
+`python3 -m pip install $extra_option --upgrade ansible`;
 
 `apt-get install -y cpanminus`;
 
