@@ -77,7 +77,7 @@ function api_get_auth_token() {
       // Hay otra sesión activa => Se le pasa ese SID
       if($result['cont']!= 0){
          $sid = $result['obj'][0]['SID'];
-         session_id($sid);
+         //fmldeb11  session_id($sid);
       }
       // mysql_session_garbage_collect();
       define('SESIONPHP',session_id());
