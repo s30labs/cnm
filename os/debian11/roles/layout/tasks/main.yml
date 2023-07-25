@@ -3,12 +3,6 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: layout
 
-# Add specified repository into sources list.
-- name: Se asigna repositorio
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: layout
-  
-
 - name: Verify base directories [/store, /store/data, /cfg, /opt/cnm-mibs]
   file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
   with_items:

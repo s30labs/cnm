@@ -1,11 +1,13 @@
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
+  tags: impacket
 
 - name: Install packages
   apt:
     name: [ 'python3-pip' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: impacket
 

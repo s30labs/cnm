@@ -1,9 +1,6 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
-
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
   tags: rrdtool
 
 - name: Install packages
@@ -11,6 +8,7 @@
     name: [ 'librrd8', 'librrds-perl', 'rrdtool' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: rrdtool
   

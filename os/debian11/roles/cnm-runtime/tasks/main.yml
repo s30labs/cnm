@@ -1,10 +1,6 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
-
-# Add specified repository into sources list.
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
   tags: cnm-runtime
 
 - name: Verify directories
