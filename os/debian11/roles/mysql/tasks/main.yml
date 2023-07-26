@@ -12,6 +12,10 @@
   become: true
   tags: mysql
 
+- name: Create /store/mysql_tmp
+  file: path=/store/mysql_tmp state=directory owner=mysql group=root mode=0755
+  tags: mysql
+
 - name: Start MySQL service
   become: yes
   become_user: root
