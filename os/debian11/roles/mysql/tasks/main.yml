@@ -39,15 +39,26 @@
   notify:
   - restart mysql
 
-- name: Create my.cnf file for runtime operation
+- name: Create 50-server.cnf config file 
   become: yes
   become_user: root
   become_method: sudo
-  template: src=my.cnf.j2 dest=/etc/mysql/my.cnf owner=root group=root mode=0600
-  when: db_root_password is defined
+  template: src=50-server.cnf.j2 dest=/etc/mysql/mariadb.conf.d/50-server.cnf owner=root group=root mode=0644
+  when: db_max_connections is defined
   tags: mysql
   notify:
   - restart mysql
+
+- name: MariaDb config Files
+  copy: src="{{ item }}" dest="/etc/mysql/mariadb.conf.d/{{ item }}"  owner=root group=root mode=0644
+  with_items:
+    - 50-client.cnf
+    - 50-mysql-clients.cnf
+    - 50-mysqld_safe.cnf
+    - 60-galera.cnf
+  tags: mysql
+  notify:
+   - restart mysql
 
 - name: delete anonymous MySQL server user for localhost
   action: mysql_user user="" host=localhost state="absent"
