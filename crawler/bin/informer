@@ -65,9 +65,15 @@ if (exists $opts{f}) {
 	$text=$transport->slurp_file($opts{f});
 }
 
-my $files = {};
+my %files = ();
 if ((exists $opts{a}) && (exists $opts{b})) {
-
+	my @fichs = split(/\;/,$opts{a});
+	my @types = split(/\;/,$opts{b});
+	my $i=0;
+	foreach my $f (@fichs) { 
+		$files{$f} = $types[$i]; 
+		$i++;
+	}
 }
 $transport->log('debug',"param_to=$param_to");
 
@@ -77,7 +83,7 @@ foreach my $to (@DEST_VECTOR) {
       $transport->log('debug',"TX-EMAIL:: to=$to subject=$SUBJECT");
 		my $rc = $transport->notify_by_transport(
 			$Crawler::Transport::NOTIF_EMAIL, 
-			{'dest'=>$to, 'subject'=>$SUBJECT, 'txt'=>$text, 'files'=>$files }
+			{'dest'=>$to, 'subject'=>$SUBJECT, 'txt'=>$text, 'files'=>\%files }
 		);
 		if (defined $rc) { 
 			if ($rc==0) { print "[OK] RC=$rc\n"; }
