@@ -12,6 +12,41 @@
   become: true
   tags: mysql
 
+- name: Verify paths for persistance data (/store/mysql|/store/mysql_tmp|/store/data)
+  file: path={{ item.path }} state=directory owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+  with_items:
+    - { path: '/store/mysql', owner: 'mysql', group: 'mysql',  mode: '0775' }
+    - { path: '/store/mysql_tmp', owner: 'mysql', group: 'mysql', mode: '0755' }
+    - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
+  tags: mysql
+
+- name: Check if directory /var/lib/mysql exists
+  stat: path=/var/lib/mysql
+  register: var_lib_mysql
+  tags: mysql
+
+- name: Check if directory /var/lib/mysql is empty
+  shell: "ls -A /var/lib/mysql/ | wc -l"
+  register: num_files
+  tags: mysql
+
+- name: Move if dir and not empty /var/lib/mysql -> /store/mysql
+  shell: mv /var/lib/mysql/* /store/mysql 2>/dev/null
+  when: var_lib_mysql.stat.exists and var_lib_mysql.stat.isdir and num_files.stdout != "0"
+  tags: mysql
+
+- name: Create symlink /var/lib/mysql -> /store/mysql
+  file: path='/var/lib/mysql' src='/store/mysql' state=link owner=root group=root mode='0777' force=true
+  tags: mysql
+
+
+- name: Verify base symlinks
+  file: path={{ item.path }} src={{ item.src }} state=link owner=root group=root mode={{ item.mode }}
+  with_items:
+    - { path: '/opt/data', src: '/store/data', mode: '0777' }
+  tags: mysql
+
+
 - name: Start MySQL service
   become: yes
   become_user: root
@@ -39,15 +74,26 @@
   notify:
   - restart mysql
 
-- name: Create my.cnf file for runtime operation
+- name: Create 50-server.cnf config file 
   become: yes
   become_user: root
   become_method: sudo
-  template: src=my.cnf.j2 dest=/etc/mysql/my.cnf owner=root group=root mode=0600
-  when: db_root_password is defined
+  template: src=50-server.cnf.j2 dest=/etc/mysql/mariadb.conf.d/50-server.cnf owner=root group=root mode=0644
+  when: db_max_connections is defined
   tags: mysql
   notify:
   - restart mysql
+
+- name: MariaDb config Files
+  copy: src="{{ item }}" dest="/etc/mysql/mariadb.conf.d/{{ item }}"  owner=root group=root mode=0644
+  with_items:
+    - 50-client.cnf
+    - 50-mysql-clients.cnf
+    - 50-mysqld_safe.cnf
+    - 60-galera.cnf
+  tags: mysql
+  notify:
+   - restart mysql
 
 - name: delete anonymous MySQL server user for localhost
   action: mysql_user user="" host=localhost state="absent"
