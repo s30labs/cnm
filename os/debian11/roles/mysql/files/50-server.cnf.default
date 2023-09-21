@@ -16,7 +16,7 @@ user                    = mysql
 pid-file                = /run/mysqld/mysqld.pid
 basedir                 = /usr
 datadir                 = /var/lib/mysql
-tmpdir                  = /tmp
+tmpdir                  = /store/mysql_tmp
 lc-messages-dir         = /usr/share/mysql
 lc-messages             = en_US
 skip-external-locking
@@ -33,16 +33,19 @@ bind-address            = 127.0.0.1
 # * Fine Tuning
 #
 
-#key_buffer_size        = 128M
-#max_allowed_packet     = 1G
+key_buffer_size         = 256M
+max_allowed_packet      = 64M
 #thread_stack           = 192K
-#thread_cache_size      = 8
+thread_cache_size       = 384
 # This replaces the startup script and checks MyISAM tables if needed
 # the first time they are touched
 #myisam_recover_options = BACKUP
-#max_connections        = 100
-#table_cache            = 64
-
+max_connections         = 300
+table_cache             = 200
+join_buffer_size        = 2M
+innodb_log_file_size    = 1G
+#max_heap_table_size -> Max size of memory table
+max_heap_table_size     = 512M
 #
 # * Logging and Replication
 #
@@ -102,6 +105,7 @@ collation-server      = utf8mb4_general_ci
 # Most important is to give InnoDB 80 % of the system RAM for buffer use:
 # https://mariadb.com/kb/en/innodb-system-variables/#innodb_buffer_pool_size
 #innodb_buffer_pool_size = 8G
+innodb_buffer_pool_size = 4G
 
 # this is only for embedded server
 [embedded]

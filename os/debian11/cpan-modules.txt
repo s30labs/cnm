@@ -313,3 +313,4 @@ Exporter::Tiny			1.006002
 List::MoreUtils::XS	0.430
 Regexp::IPv6			0.03
 Cpanel::JSON::XS		4.37
+#HTML::TableExtract	2.15 ***Comentado porque falla el validate aunque se instale ok. Necesario en un crawler-app

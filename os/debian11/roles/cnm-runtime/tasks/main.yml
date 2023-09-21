@@ -9,17 +9,15 @@
     - /var/log/tmark
   tags: cnm-runtime
  
-- name: Verify directories
+- name: Verify directory /var/www/logs
   file: path=/var/www/logs state=directory owner=root group=www-data mode=0755
-  with_items:
-    - /var/www/log
   tags: cnm-runtime
 
 - name: Verify /var/www/logs/error_cgi.log
   file: path=/var/www/logs/error_cgi.log state=touch owner=www-data group=www-data mode=0755
   tags: cnm-runtime
 
-- name: Verify www-user directories
+- name: Verify www-user/www-files directories
   file: path={{ item }} state=directory owner=www-data group=www-data mode=0777
   with_items:
     - /store/www-user/background
@@ -32,10 +30,15 @@
     - /store/www-user/file_storage_repository
     - /store/www-user/calendar
     - /store/www-user/automation
+    - /store/www-files/tasks
   tags: cnm-runtime
 
 - name: magic.gif -> /store/www-user/background
   copy: src=magic.gif dest=/store/www-user/background/magic.gif  owner=www-data group=www-data mode=0644
+  tags: cnm-runtime
+
+- name: Verify directory /opt/containers/impacket
+  file: path=/opt/containers/impacket/ state=directory owner=root group=root mode=0755
   tags: cnm-runtime
 
 - name: crontab
@@ -173,7 +176,11 @@
 # Legacy tasks directory
 
 - name: Legacy tasks directory
-  file: path=/var/www/html/onm/files/tasks state=directory owner=www-data group=www-data mode=0755 recurse=yes
+  file: path=/var/www/html/onm/files state=directory owner=www-data group=www-data mode=0755 recurse=yes
+  tags: cnm-runtime
+
+- name: Check /var/www/html/onm/files/tasks  link
+  file: src=/store/www-files/tasks dest=/var/www/html/onm/files/tasks state=link owner=www-data group=www-data
   tags: cnm-runtime
 
 ...
