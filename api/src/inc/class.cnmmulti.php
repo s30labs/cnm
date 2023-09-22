@@ -523,7 +523,7 @@ Array
 		   $iface = 'eth0';
 		   $file = '/cfg/onm.if';
 		   if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
-		   $local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+		   $local_ip = chop(`/sbin/ifconfig $iface|/bin/grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\.){3}[0-9]*'`);
 		   return $local_ip;
 		}
 
