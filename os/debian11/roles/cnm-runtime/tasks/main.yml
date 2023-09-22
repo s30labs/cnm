@@ -17,7 +17,7 @@
   file: path=/var/www/logs/error_cgi.log state=touch owner=www-data group=www-data mode=0755
   tags: cnm-runtime
 
-- name: Verify www-user/www-files directories
+- name: Verify /store/www-user and /store/www-files directories
   file: path={{ item }} state=directory owner=www-data group=www-data mode=0777
   with_items:
     - /store/www-user/background
@@ -182,5 +182,15 @@
 - name: Check /var/www/html/onm/files/tasks  link
   file: src=/store/www-files/tasks dest=/var/www/html/onm/files/tasks state=link owner=www-data group=www-data
   tags: cnm-runtime
+
+
+- name: Check /var/www/html/onm/user links
+  file: src=/store/www-user/{{ item }} dest=/var/www/html/onm/user/{{ item }} state=link owner=www-data group=www-data
+  with_items:
+    - file_storage_repository
+    - calendar
+    - automation
+  tags: cnm-runtime
+
 
 ...
