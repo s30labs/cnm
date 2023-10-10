@@ -20,40 +20,49 @@ function update_ip($ip){
 
 	$sqlUpdate="UPDATE alerts_store SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
 	$resultUpdate = $enlace->query($sqlUpdate);
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
-print "$sqlUpdate\n";
 	$sqlUpdate="UPDATE alerts SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
 	$resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE cfg_views SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
+
 
    $sqlUpdate="UPDATE cfg_user2view SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE cfg_views2views SET cid_ip_view='$ip' WHERE cid_ip_view='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE cfg_views2views SET cid_ip_subview='$ip' WHERE cid_ip_subview='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE cnm.cfg_cnms  SET host_ip='$ip' WHERE hidx=1";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE alerts_read SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
    $sqlUpdate="UPDATE alert2user SET cid_ip='$ip' WHERE cid_ip='$ip_old'";
    $resultUpdate = $enlace->query($sqlUpdate);
-print "$sqlUpdate\n";
+	print "$sqlUpdate\n";
+	if (@PEAR::isError($resultUpdate)) { print "**ERROR**\n"; }
 
 }
 
