@@ -790,11 +790,13 @@ Array
 				'subtype' => '',
 				'deviceid' => '',
 				'metricid' => '',
+				'profile' => '',
          );
 			// Contemplamos los campos de sistema que ha incluido el usuario en la búsqueda
          foreach($this->a_input_data as $key => $value){
             if(array_key_exists($key,$a_system_fields)){
                $a_system_fields[$key] = $value;
+					CNMUtils::debug_log(__FILE__, __LINE__, "a_system_fields >> $key : $value");
             }
          }
 
@@ -915,7 +917,7 @@ Array
 				}
 				// status=0
 				else{
-					CNMUtils::debug_log(__FILE__, __LINE__, "(b) a_value=$a_value");
+					CNMUtils::debug_log(__FILE__, __LINE__, "(b) a_value=$value");
 					list($oper,$value) = $this->parsevalue($value);
 					if(in_array($key,$a_scape_fields)) $cond.=$key.$oper."'".$value."'";
 					else $cond.=$key.$oper.$value;
