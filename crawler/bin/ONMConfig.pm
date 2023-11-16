@@ -5,16 +5,18 @@
 ########################################################################################################
 package ONMConfig;
 use strict;
+use Cwd;
 use vars qw(@EXPORT @ISA @EXPORT_OK $VERSION);
 require Exporter;
 
-@EXPORT_OK = qw(%CFG $FILE_CONF conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc os_version);
+@EXPORT_OK = qw(%CFG $FILE_CONF $FILE_VERSION_INSTALLED conf_base get_role_info set_role_info get_env_from_file find_file my_ip get_rrd_path check_version my_ip my_if is_lxc os_version set_cnm_version);
 @EXPORT = @EXPORT_OK;
 @ISA = qw(Exporter);
 $VERSION = '1.00';
 
 #--------------------------------------------------------------------------
 $ONMConfig::FILE_CONF='/cfg/onm.conf'; 
+$ONMConfig::FILE_VERSION_INSTALLED='/cfg/onm.installed'; 
 
 #--------------------------------------------------------------------------
 my %CFG = (
@@ -457,6 +459,39 @@ sub is_lxc {
 	chomp $x;
 	if ($x>0) { $rc=1; }
 	return $rc;
+}
+
+
+#----------------------------------------------------------------------------
+# Set version file
+#----------------------------------------------------------------------------
+sub set_cnm_version {
+
+	my %cnm_dirs = ( 
+
+		'cnm-engine' => '/opt/cnm/',
+		'cnm-support' => '/opt/cnm-sp/',
+		'cnm-mibs' => '/opt/cnm-mibs/',
+		'cnm-mibs-pro' => '/opt/cnm-mibs-pro/',
+		'cnm-enterprise' => '/opt/custom_pro/',
+		'cnm-enterprise-001' => '/opt/custom_pro001/',
+		'cnm-enterprise-002' => '/opt/custom_pro002/',
+		'cnm-enterprise-003' => '/opt/custom_pro003/',
+		'cnm-enterprise-004' => '/opt/custom_pro004/',
+	);
+
+	my $current_dir =  getcwd;
+	my $version='';
+	open (my $fh, '>', $ONMConfig::FILE_VERSION_INSTALLED);
+	foreach my $k (sort keys %cnm_dirs) {
+		my $fx = $cnm_dirs{$k}.'.git/config';
+		if (-f $fx) {
+			$version = `cd $cnm_dirs{$k} && /usr/bin/git describe --tags`;
+			print $fh "$k=$version";
+		}
+	}
+	close $fh;
+	chdir $current_dir;
 }
 
 #----------------------------------------------------------------------------
