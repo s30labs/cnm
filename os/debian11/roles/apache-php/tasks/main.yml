@@ -168,24 +168,11 @@
   notify:
    - restart apache2
 
-- name: 000-default -> sites-enabled
-  template: src=000-default.j2 dest=/etc/apache2/sites-enabled/000-default owner=root group=root mode=0644
+- name: 000-default -> sites-available/000-default.conf
+  template: src=000-default.j2 dest=/etc/apache2/sites-available/000-default.conf owner=root group=root mode=0644
   tags: apache-php
   notify:
    - restart apache2
-
-#FML: No le veo el sentido
-#- name: Verify 000-default -> sites-enabled
-#  copy: src=000-default dest=/etc/apache2/sites-enabled/000-default  owner=root group=root mode=0644
-#  tags: apache-php
-#  notify:
-#   - restart apache2
-
-#- name: ssl.conf -> /etc/apache2/mods-available/
-#  copy: src=ssl.conf dest=/etc/apache2/mods-available/ssl.conf  owner=root group=root mode=0644
-#  tags: apache-php
-#  notify:
-#   - restart apache2
 
 - meta: flush_handlers
 
