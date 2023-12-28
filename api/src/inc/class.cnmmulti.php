@@ -321,9 +321,11 @@ Array
 
 			$data = array('__VALUES__'=>'');
 			$sep = '';
-			foreach((array)$a_flobal_devices_custom_types as $field_id => $a_field_data){
-				$data['__VALUES__'].=$sep."('$field_id','{$a_field_data['field_descr']}',{$a_field_data['field_type']})";
-				$sep=',';
+			if (isset($a_flobal_devices_custom_types)) {
+				foreach((array)$a_flobal_devices_custom_types as $field_id => $a_field_data){
+					$data['__VALUES__'].=$sep."('$field_id','{$a_field_data['field_descr']}',{$a_field_data['field_type']})";
+					$sep=',';
+				}
 			}
 			$result = doQuery('insert_mem_global_devices_custom_types',$data);
 		
@@ -335,8 +337,10 @@ Array
          $result = doQuery('drop_mem_global_devices_custom_data',$data);
 
 			$data = array('__CONDITION__'=>'');
-			foreach((array)$a_flobal_devices_custom_types as $field_id => $a_field_data){
-				$data['__CONDITION__'].=",`$field_id` varchar(255) CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL DEFAULT '-'";
+			if (isset($a_flobal_devices_custom_types)) {
+				foreach((array)$a_flobal_devices_custom_types as $field_id => $a_field_data){
+					$data['__CONDITION__'].=",`$field_id` varchar(255) CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL DEFAULT '-'";
+				}
 			}
          $result = doQuery('create_mem_global_devices_custom_data',$data);
 
@@ -519,7 +523,7 @@ Array
 		   $iface = 'eth0';
 		   $file = '/cfg/onm.if';
 		   if(file_exists($file) and false!=file_get_contents($file)) $iface = chop(file_get_contents($file));
-		   $local_ip = chop(`/sbin/ifconfig $iface|grep 'inet addr'|cut -d ":" -f2|cut -d " " -f1`);
+		   $local_ip = chop(`/sbin/ifconfig $iface|/bin/grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | /bin/grep -Eo '([0-9]*\.){3}[0-9]*'`);
 		   return $local_ip;
 		}
 

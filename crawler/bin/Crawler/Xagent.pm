@@ -435,11 +435,11 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
             mkdir $output_dir;
          }
 
-         open (D, ">$output_dir/$ftemp");
+         open (my $fh, ">", "$output_dir/$ftemp");
          foreach my $d (@{$DATA_DIFF{$cid_mode_subtype_subtable}}) {
-            print D $d->{'iddev'}.';',$d->{'iid'}.';'.$d->{'data'}."\n";
+            print $fh $d->{'iddev'}.';',$d->{'iid'}.';'.$d->{'data'}."\n";
          }
-         close D;
+         close $fh;
          rename "$output_dir/$ftemp","$output_dir/$f";
          $self->log('debug',"do_task::[DEBUG] Creado fichero $output_dir/$f");
       }
@@ -1927,12 +1927,13 @@ sub file2var {
 my ($self,$file)=@_;
 
 	my $content='';
-   my $rc = open INPUT, "<$file";
+	my $fh;
+   my $rc = open $fh, "<", $file;
 	if (! $rc) { $self->log('debug',"file2var::[WARN] Error al abrir $file ($!)"); }
 	else {
 	   local undef $/;
-   	$content = <INPUT>;
-   	close INPUT;
+   	$content = <$fh>;
+   	close $fh;
 	}
    return $content;
 

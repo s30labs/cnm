@@ -3,16 +3,12 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: ldap
 
-# Add specified repository into sources list.
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
-  tags: ldap
-
 - name: Install packages
   apt:
     name: [ 'slapd', 'ldap-utils', 'libldap-2.4-2', 'libnss-ldap', 'libpam-ldap', 'php7.4-ldap' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: ldap
   

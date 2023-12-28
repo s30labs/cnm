@@ -419,9 +419,9 @@ my $m;
 
 # print "FF=$file ($name)\n";
 	local undef $/;
-	open (F, "<$file");
-	chomp($m=<F>);
-	close F;
+	open (my $fh, "<", $file);
+	chomp($m = <$fh>);
+	close $fh;
 
 	$m=~s/--HOST_NAME--/$name/g;
 

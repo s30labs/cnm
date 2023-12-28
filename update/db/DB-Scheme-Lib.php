@@ -438,7 +438,8 @@ global $enlace;
 		$fileFullPath = "$dirBase/$file";
 
 		_debug("clear_script:: $file",__LINE__,'DBG','cfg_monitor_agent_script_update');
-		clear_script($r['script']);
+		//clear_script($r['script']);
+		clear_script($file);
 
       $fsize = filesize($fileFullPath);
       $fdate = filemtime($fileFullPath);

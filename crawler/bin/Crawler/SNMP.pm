@@ -535,14 +535,15 @@ sub check_mapping   {
 my ($self, $actual_md5) = @_;
 
 	my $change=0;
+	my $fh;
 
 	# Contiene una linea con el hash.
-   if (! open(K,"<$FILE_CACHE_MAPPING_MD5"))  {
+   if (! open($fh, "<", $FILE_CACHE_MAPPING_MD5))  {
 		$self->log('warning',"check_mapping::[ERROR] Al abrir el fichero $FILE_CACHE_MAPPING_MD5 en lectura " );
 		return $change;	
 	}
-   my $last_md5=<K>;
-   close K;
+   my $last_md5=<$fh>;
+   close $fh;
    chomp $last_md5;
 
 	if ($actual_md5 ne $last_md5) { $change=1; }
@@ -724,12 +725,13 @@ $self->log('debug',"do_task::[DEBUG ID=$task_id] CAMBIO RESPONSE =$rx");
 	         mkdir "$Crawler::MDATA_PATH/output/$cid";
    	      mkdir $output_dir;
       	}
-
-         open (D, ">$output_dir/$ftemp");
+			
+			my $fh;
+         open ($fh, ">", "$output_dir/$ftemp");
          foreach my $d (@{$DATA_DIFF{$cid_mode_subtype_subtable}}) {
-            print D $d->{'iddev'}.';',$d->{'iid'}.';'.$d->{'data'}."\n";
+            print $fh $d->{'iddev'}.';',$d->{'iid'}.';'.$d->{'data'}."\n";
          }
-         close D;
+         close $fh;
          rename "$output_dir/$ftemp","$output_dir/$f";
          $self->log('debug',"do_task::[DEBUG] Creado fichero $output_dir/$f");
       }

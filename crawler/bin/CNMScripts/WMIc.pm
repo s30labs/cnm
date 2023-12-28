@@ -59,7 +59,7 @@ my ($class,%arg) =@_;
 	my $working_dir = '/opt/containers/impacket';
 	my $docker_image = 'impacket:debian-11.3-slim';
    #$self->{_cmd} = $arg{cmd} || "docker run -v /opt/containers/impacket:$working_dir --rm --name __CONTAINER_NAME__ -t $docker_image $working_dir/wmiquery.py -rpc-auth-level integrity ";
-	$self->{_cmd} = $arg{cmd} || "export LD_LIBRARY_PATH=/opt/cnm-extras/openssl-3.1.0 && /usr/local/bin/wmiquery.py -rpc-auth-level integrity ";
+	$self->{_cmd} = $arg{cmd} || "/usr/local/bin/wmiquery.py -rpc-auth-level integrity ";
 	$self->{_working_dir} = $working_dir;
    $self->{_host} = $arg{host} || '';
    $self->{_user} = $arg{user} || '';

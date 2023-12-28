@@ -1,37 +1,35 @@
 ---
 # This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
-
-- name: Verify repository
-  apt_repository: repo="{{ cnm_apt_repo }}" state=present
   tags: net-snmp
-  
+
 - name: Install packages
   apt:
     name: ['gcc', 'make', 'autoconf', 'libperl-dev', 'snmpsim' ]
     state: present
     force: yes
+    update_cache: yes
   become: true
   tags: net-snmp
 
-- name: Create /tmp/src/net-snmp/net-snmp-5.9
-  file: path=/tmp/src/net-snmp/net-snmp-5.9 state=directory owner=root group=root mode=0640
+- name: Create /tmp/src/net-snmp/net-snmp-5.9.1
+  file: path=/tmp/src/net-snmp/net-snmp-5.9.1 state=directory owner=root group=root mode=0640
   tags: net-snmp
 
 - name: Extract from source
-  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian11/src/net-snmp/net-snmp-5.9.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian11/src/net-snmp/net-snmp-5.9.1.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Configure
-  command: ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" chdir=/tmp/src/net-snmp/net-snmp-5.9  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Make
-  command: make chdir=/tmp/src/net-snmp/net-snmp-5.9  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: make chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Make install
-  command: make install chdir=/tmp/src/net-snmp/net-snmp-5.9  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: make install chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 

@@ -168,7 +168,7 @@ use constant ACTIVE  => 1;
 use constant TERMINATED  => 2;
 use constant DONE  => 3;
 
-my $MAX_TASK_ACTIVE_PER_CPU=2;
+my $MAX_TASK_ACTIVE_PER_CPU=1.5;
 my $MAX_TASK_TIMEOUT=10;
 
 #----------------------------------------------------------------------------
@@ -898,7 +898,7 @@ my ($self,$lapse,$range)=@_;
 			   $self->get_current_alerts();
 			   #----------------------------------------------------------------------------
 				my $num_cpus=$self->num_cpus();
-				my $MAX_TASK_ACTIVE=$num_cpus*$MAX_TASK_ACTIVE_PER_CPU;
+				my $MAX_TASK_ACTIVE = int($num_cpus*$MAX_TASK_ACTIVE_PER_CPU);
       		$self->task_loop($MAX_TASK_ACTIVE,$MAX_TASK_TIMEOUT);
 
 			   #----------------------------------------------------------------------------
@@ -2266,7 +2266,7 @@ my $ev=$TASKS{$key}->{'ev'};
 				my $id_metric = $x->[0][1];
 
 	         #Se actualiza notif_alert_clear (notificationsd evalua si hay que enviar aviso)
-   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>$id_metric, 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>''  });
+   	      $store->store_notif_alert($dbh, 'clr', { 'id_alert'=>$id_alert, 'id_device'=>$id_dev, 'id_alert_type'=>$id_alert_type, 'cause'=>$cause, 'name'=>$host_name, 'domain'=>'', 'ip'=>$host_ip, 'notif'=>$notif, 'mname'=>$mname, 'watch'=>$watch_name, 'id_metric'=>$id_metric, 'type'=>$type, 'severity'=>$sev, 'event_data'=>$ev, 'date'=>$tnow  });
 
             # Si es un monitor de multiples severidades tengo que borrar el fichero de marca.
             # Basta con chequear que exista el fichero.
@@ -2580,6 +2580,7 @@ my ($self)=@_;
    my $dir_shared=$Crawler::MDATA_PATH.'/shared';
    if (! -d $dir_shared) { mkdir $dir_shared; }
 
+	my $tnow=time;
    #----------------------------------------------------------------------------
    # ALERTAS SIMPLES + window  ==> Las incluyo en el vector de tareas %TASKS
    #----------------------------------------------------------------------------
@@ -2612,7 +2613,7 @@ my ($self)=@_;
 
       my $fout=$dir_shared.'/_ipc_'.$KEY;
       $self->shared_init($fout);
-      $TASKS{$KEY} = { 'out'=>$fout, 'task_status'=>IDLE, 'host_ip'=>$a->[2], 'hname'=>$a->[0], 'hdomain'=>$a->[1], 'id_alert_type'=>$id_alert_type, 'counter'=>$a->[4], 'name'=>$mname, 'watch'=>$a->[6], 'type'=>$a->[7], 'severity'=>$a->[8], 'id_alert'=>$a->[9], 'id_dev'=>$a->[10], 'id_ticket'=>$a->[11], 'cause'=>$a->[12], 'notif'=>$a->[13], 'mname'=>$mname, 'result'=>'UNK', 'extra'=>'', 'id_metric'=>$a->[14], 'subtype'=>$a->[15], 'jfile'=>'', 'date'=>$a->[16], 'critic'=>$a->[17], 'serial'=>$serial };
+      $TASKS{$KEY} = { 'out'=>$fout, 'task_status'=>IDLE, 'host_ip'=>$a->[2], 'hname'=>$a->[0], 'hdomain'=>$a->[1], 'id_alert_type'=>$id_alert_type, 'counter'=>$a->[4], 'name'=>$mname, 'watch'=>$a->[6], 'type'=>$a->[7], 'severity'=>$a->[8], 'id_alert'=>$a->[9], 'id_dev'=>$a->[10], 'id_ticket'=>$a->[11], 'cause'=>$a->[12], 'notif'=>$a->[13], 'mname'=>$mname, 'result'=>'UNK', 'extra'=>'', 'id_metric'=>$a->[14], 'subtype'=>$a->[15], 'jfile'=>'', 'date'=>$a->[16], 'critic'=>$a->[17], 'serial'=>$serial, 'fork_ts'=>$tnow, 'pid'=>0 };
 
       $TASKS{$KEY}->{'host_name'}=join('.', $a->[0], $a->[1]);
    }
@@ -2646,7 +2647,7 @@ my ($self)=@_;
 	}
 	%DEVICES_NOT_SNMP = map { $_->[0] => $_->[1] } @$not_snmp;
 
-	my $tnow=time;
+	#my $tnow=time;
 	foreach my $f (@crawler_alerts) {
 		chomp $f;
 
@@ -2756,6 +2757,8 @@ my ($self)=@_;
 			$calert->{'counter'}=-1;
 			$calert->{'jfile'}=$f;
 			$calert->{'date'}=time;
+			$calert->{'fork_ts'}=$tnow;
+			$calert->{'pid'}=0;
 			if ($severity==4) {$calert->{'counter'}=-5;}
 			$self->shared_init($fout);
 			$TASKS{$key}=$calert; 
@@ -2891,8 +2894,11 @@ my ($self,$desc,$store)=@_;
 	my $mname = $desc ->{'mname'};
 	my $id_dev = $desc ->{'id_dev'};
 	my $ip = $desc ->{'host_ip'};
+	$KEY=$id_dev.'.'.$mname;
 
-eval {	
+   $self->log('info',"chk_alert::[INFO] -DBG- START $KEY IP=$ip MNAME=$mname TYPE=$type");
+
+#eval {	
    #-------------------------------------------------------------------------------------------
    # METRICAS SNMP
    #-------------------------------------------------------------------------------------------
@@ -2978,16 +2984,21 @@ eval {
    #-------------------------------------------------------------------------------------------
    my $info='';
    foreach my $r (@RESULTS) {  $info .= join (' ',@$r) . " ; ";  }
+	$info =~ s/\n/ /g;
+	$info =~ s/\r/ /g;
 
-	$KEY=$id_dev.'.'.$mname;
+	#$KEY=$id_dev.'.'.$mname;
 
 	my $dev=join('. ',@$ev);
+	$dev =~ s/\n/ /g;
+	$dev =~ s/\r/ /g;
+
    $self->log('info',"chk_alert::[INFO] RES $KEY IP=$ip MNAME=$mname TYPE=$type RC=$RC DATA_OUT=@$DATA_OUT ($info) err_num=$err_num err_str=$err_str | EV=$dev");
 
    #$IS_POST = $self->is_post_chk_alert($desc,$RC,$DATA_OUT);
 
-};
-if ($@) { $self->log('info',"chk_alert::EXCEPTION en chk_alert ($@)");}
+#};
+#if ($@) { $self->log('info',"chk_alert::EXCEPTION en chk_alert ($@)");}
 
 	return ($RC,$DATA_OUT,$IS_POST,$severity,$err_num,$err_str);
 }
@@ -3399,9 +3410,10 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
    	   $self->log('info',"task_loop:: **end child** rc=$rc ($?)");
    	}
 	};
-		
+	
+	my $global_cnt=0;	
    while ($t < $tlast) {
-
+		
 		my $tdif=$tlast-$t;
 		$self->log('debug',"task_loop::[DEBUG] DONE = $done TOTAL=$TOTAL_TASKS TIMEOUT en $tdif secs. (TOTAL=$total_timeout secs)");
       if ($done == $TOTAL_TASKS) {
@@ -3416,28 +3428,44 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 		my $num_checks=0;
       my $done_current=0;
       foreach my $key (keys %$tasks) {
-			
+									
+			my $fork_ts = time;
          if ($tasks->{$key}->{'task_status'} != IDLE) { next; }
-         if ($current_tasks >= $max_task_active) { last;}
+         if ($current_tasks >= $max_task_active) { 
+				$self->log('info',"task_loop:: ===>> START_CHILD_WAIT $current_tasks gte $max_task_active");
+				last;
+			}
 
 			# Miro si es una tarea que se puede serializar y actuo en consecuencia
 			my @serialized=();
-         if ($tasks->{$key}->{'serial'} ne '') {
+			my $serial = $tasks->{$key}->{'serial'};
+         #if ($tasks->{$key}->{'serial'} ne '') {
+         if ($serial ne '') {
 				foreach my $k (keys %$tasks) {	
-					if ($tasks->{$k}->{'serial'} eq $tasks->{$key}->{'serial'}) {  push @serialized, $k; }
+					if ($tasks->{$k}->{'serial'} eq $tasks->{$key}->{'serial'}) {  
+						push @serialized, $k; 
+						$tasks->{$k}->{'fork_ts'} = $fork_ts;
+					}
 				}
 			}
-			else { push @serialized, $key; }
+			else { 
+				push @serialized, $key; 
+				$tasks->{$key}->{'fork_ts'} = $fork_ts;
+			}
 
          my $ns=scalar(@serialized);
-         $num_checks+=$ns;
+         $num_checks += $ns;
+			$global_cnt += $ns;
+
+			#my $depura_key = join(';', @serialized);
+			#$self->log('info',"task_loop:: ===>> START_CH_PRE [$depura_key] num_checks=$num_checks current_tasks=$current_tasks done_current=$done_current  max_task_active=$max_task_active");
 
 			$self->log_tmark();
 			$self->log('warning',"task_loop::[ERROR] En fork: $!") unless defined (my $child = fork());
 			#Child
          if ($child == 0) {
-
-			  	$self->log('info',"task_loop:: ===>> START_CHILD PID=$$ NUM_CHECKS=$ns [$num_checks|$TOTAL_TASKS]");
+			
+			  	$self->log('info',"task_loop:: ===>> START_CHILD PID=$$ NUM_CHECKS=$ns|$max_task_active [$global_cnt|$TOTAL_TASKS] ($serial)");
 								
 				eval {
 					my $store=$self->store();	
@@ -3483,7 +3511,11 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 			else {
 				foreach my $ks (@serialized) {
 		         $tasks->{$ks}->{'task_status'} = ACTIVE;
+		         $tasks->{$ks}->{'pid'} = $child;
    		      $current_tasks += 1;
+					#$self->log('info',"task_loop:: ===>> START_CH_ACTIVE $ks [$current_tasks|$TOTAL_TASKS]");
+					#my $depura_key = join(';', @serialized);
+					$self->log('info',"task_loop:: ===>> START_CH_ACTIVE PID=$child [$current_tasks|$TOTAL_TASKS] $ns|$num_checks|$max_task_active");
 				}
 			}
       }
@@ -3503,13 +3535,36 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
          foreach my $key (keys %$tasks) {
 
             if ($tasks->{$key}->{'task_status'} == TERMINATED) { next; }
+
+				my $pid = $tasks->{$key}->{'pid'};
+
             my $fout = $tasks->{$key}->{'out'};
             if (-f $fout) { $tasks->{$key}->{'task_status'} = DONE;  }
-            if ($tasks->{$key}->{'task_status'} != DONE) {  next; }
-            if ($tasks->{$key}->{'task_status'} == ACTIVE) { next; }
+
+				if ( ($tasks->{$key}->{'task_status'} != DONE) || ($tasks->{$key}->{'task_status'} == ACTIVE)) {
+					my $time_in_fork = $t - $tasks->{$key}->{'fork_ts'};
+					my $fts = $tasks->{$key}->{'fork_ts'};
+					$self->log('debug',"task_loop:: DEBUG --- PID=$pid key=$key t=$t fork_ts=$fts time_in_fork=$time_in_fork");
+         	  	if ($time_in_fork > 90) {
+						$self->log('info',"task_loop:: END_CHECK DEBUG PID=$pid KEY=$key **ERROR** time_in_fork=$time_in_fork | DONE=$done done_current=$done_current current_tasks=$current_tasks");
+						if ($pid=~/^\d+$/) { 
+							my $rx = kill 9, $pid; 
+							$self->log('info',"task_loop:: END_CHECK KILL PID=$pid ($rx) KEY=$key");
+						}
+						$tasks->{$key}->{'task_status'} = IDLE;
+						$done_current +=1;
+            		$done +=1;
+						$TOTAL_TASKS += 1;
+					}
+					next;
+				}
+
+            #if ($tasks->{$key}->{'task_status'} != DONE) {  next; }
+            #if ($tasks->{$key}->{'task_status'} == ACTIVE) { next; }
+
             if ($done_current == $current_tasks) { last; }
             if ($done == $TOTAL_TASKS) { last; }
-				$self->log('info',"task_loop:: END_CHECK KEY=$key DONE=$done done_current=$done_current current_tasks=$current_tasks");
+				$self->log('info',"task_loop:: END_CHECK PID=$pid KEY=$key DONE=$done done_current=$done_current current_tasks=$current_tasks");
             # $tasks->{$key}->{'result'} = $self->shared_read($fout);
             my $result = $self->shared_read($fout);
 
@@ -3817,7 +3872,7 @@ my ($self,$desc,$mode)=@_;
 		# Solo se hace si $alert_counter>0 (store_alert ha hecho el paso de 0 a 1)
 		# wsize puede definir ounter con valores de -5, -10 en dispositivos con baja/muy baja sensibilidad.
 		if ($alert_counter>0) {
-	      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>'', 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
+	      $store->store_notif_alert($dbh, 'set', { 'id_alert'=>$alert_id, 'id_device'=>$id_dev, 'id_alert_type'=>$M{'id_alert_type'}, 'cause'=>$M{'cause'}, 'name'=>$M{'name'}, 'domain'=>$M{'domain'}, 'ip'=>$M{'ip'}, 'notif'=>0, 'mname'=>$M{'mname'}, 'watch'=>$M{'watch'}, 'id_metric'=>$M{'id_metric'}, 'type'=>$M{'type'}, 'severity'=>$severity, 'event_data'=>$M{'event_data'}, 'date'=>$alert_date  });
 		}
    	$self->log('info',"set_alert_fast:: **SET** $key ($mode) $desc->{type} [HOST=$desc->{hname}|DOM=$desc->{hdomain}|IP=$M{ip}|MNAME=$M{mname}|W=$monitor|EV=$M{event_data}|SEV=$severity|CAUSE=$M{cause}|WSIZE=$M{wsize} (IDALERT=$alert_id|IDMETRIC=$desc->{id_metric}) mode=$mode alert_date=$alert_date alert_counter=$alert_counter");
 

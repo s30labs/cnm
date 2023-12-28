@@ -1,2 +1,3 @@
 ROLE = active
 ACTIVE_ADDRESS =
+DRBD = no
