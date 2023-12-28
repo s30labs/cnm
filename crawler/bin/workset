@@ -140,6 +140,11 @@ foreach my $cid (keys %$params) {
 				$store->log('info',"Procesando [$cnt | $total] host_ip=$host_ip cid=$cid id_dev=$id_dev ");
 				$store->store_crawler_work($dbh,$id_dev,$TNOW,$cid);
 			}
+		   #-------------------------------------------------------------------
+   		#Se generan los ficheros idx correspondientes para los crawlers
+   		#-------------------------------------------------------------------
+   		$store->consolidate_work_tables($dbh);
+
 		}
 
 		#-------------------------------------------------------------------------------------------

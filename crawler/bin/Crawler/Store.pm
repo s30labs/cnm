@@ -819,12 +819,12 @@ my $rv=undef;
    # Compongo la condicion de Insert/Update (PK=ip+host_idx, K=id_dev) ------------
    # Opciones  a) id_dev  b) ip+host_idx --------------------------------
    my %table=();
-   if ( (exists $data->{'network'}) && ($data->{'network'}=~/\d+\.\d+.\d+.\d+\/\d+/)) { 
+   if ( (defined $data->{'network'}) && ($data->{'network'}=~/\d+\.\d+.\d+.\d+\/\d+/)) { 
 		$table{'network'} = $data->{'network'}; 
 	}
 	else {
-		if (!exists $data->{'network'}) { $data->{'network'}=''; }
-		$self->log('warning',"store_cfg_network::[WARN] ERROR conel parametro network ($data->{'network'})");
+		if (!defined $data->{'network'}) { $data->{'network'}=''; }
+		$self->log('info',"store_cfg_network:: No definido el atributo network ($data->{'network'})");
 		return;
 	}
 
@@ -951,7 +951,7 @@ my $new_id_dev;
    $description .= $lang->{'_ip'}.': '.$ip."\n";
    $description .= $lang->{'_snmpcommunity'}.': '.$rres->[0][4]."\n";
 	my $mac_info='-';
-	if ($rres->[0][6] != 0) { 
+	if ($rres->[0][6] ne '') { 
 		$mac_info=$rres->[0][6].' ('.$rres->[0][7].')';
 	}
    $description .= $lang->{'_mac'}.': '.$mac_info."\n";
@@ -5338,7 +5338,7 @@ my ($what,$from,$where,$sql,$rv);
 	#-------------------------------------------------------------------
    #Se generan los ficheros idx correspondientes para los crawlers
 	#-------------------------------------------------------------------
-   $self->consolidate_work_tables($dbh);
+   #$self->consolidate_work_tables($dbh);
 
 }
 
@@ -7522,7 +7522,7 @@ sub get_default_metrics2device {
 my ($self,$dbh,$id_dev)=@_;
 my ($company,$item);
 
-   #@ProvisionLite::default_metrics=();
+   @ProvisionLite::default_metrics=();
    my $values='include,lapse,type,subtype';
    my $table='prov_default_metrics2device';
    my $rres=sqlSelectAll($dbh,$values,$table,"id_dev=$id_dev");

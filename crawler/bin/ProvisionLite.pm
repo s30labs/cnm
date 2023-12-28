@@ -855,6 +855,7 @@ my $store_flag=1;
 	$ProvisionLite::NUM_REMOTE_ALERTS_ASSIGNED=0;			
 	# -------------------------------------------------------------------------------------
 	my $cnt=0;
+	my $total_devices = scalar(@DEVICES);
 	foreach my $device (@DEVICES) {
 		$cnt++;
 		my $ID_DEV=0;
@@ -883,65 +884,66 @@ my $store_flag=1;
 #		$SNMP->snmp_prepare_info($device);
 #		$device->{'version'}=$SNMP_VERSION;
 
+		if ($device->{'version'} eq '') { $device->{'version'}=0; }	
 		my $SNMP_VERSION = 0;
 
 		$device->{'host_ip'}=$device->{'ip'};
 
 
 		my ($rc, $rcstr) = (0,'');
-		if ($device->{'entity'} == 0) {
+		if ((! defined $device->{'entity'}) ||  ($device->{'entity'} == 0)) {
 
-		if ($device->{'version'} == 3) {
+			if ($device->{'version'} == 3) {
 
-			my $id_profile=$device->{'community'};
-			if ($id_profile eq '') {
-				$self->log('warning',"prov_do_set_device_metric::[WARN] DEVICE=$device->{'full_name'} SE ESPECIFICA SNMP V3 SIN ID_PROFILE");
-			}
-			else {
-				my $v3 = $STORE->get_profiles_snmpv3($dbh,[$id_profile]);
-				$device->{'sec_name'}=$v3->{$id_profile}->{'sec_name'};
-				$device->{'sec_level'}=$v3->{$id_profile}->{'sec_level'};
-				$device->{'auth_proto'}=$v3->{$id_profile}->{'auth_proto'};
-				$device->{'auth_pass'}=$v3->{$id_profile}->{'auth_pass'};
-				$device->{'priv_proto'}=$v3->{$id_profile}->{'priv_proto'};
-				$device->{'priv_pass'}=$v3->{$id_profile}->{'priv_pass'};
-			}
-		}
-
-
-      $SNMP->store($STORE);
-      $SNMP->dbh($dbh);
-      ($rc, $rcstr) = $SNMP->snmp_mib2_system($device);
-
-		# ------------------------------------------------------------
-		# Si el host esta incluido en el fichero /cfg/snmp-forced-hosts.conf
-		# se provisiona como si respondiera a snmp.
-		# ------------------------------------------------------------
-		$ProvisionLite::SNMP_FORCED=0;
-		my $FILE_SNMP_FORCED='/cfg/snmp-forced-hosts.conf';
-		if (-f $FILE_SNMP_FORCED) {
-			open (S,"<$FILE_SNMP_FORCED");
-			while (<S>) {
-				chomp;
-				$_=~s/^\s*(\S+)\s*$/$1/;
-				if ($_ eq $device->{'host_ip'}) {
-					$ProvisionLite::SNMP_FORCED=1;
-	   			$self->log('debug',"prov_do_set_device_metric::[DEBUG] DEVICE=$device->{'full_name'} [$device->{'host_ip'}] ***SNMP_FORCED***");
-					last;
+				my $id_profile=$device->{'community'};
+				if ($id_profile eq '') {
+					$self->log('warning',"prov_do_set_device_metric::[WARN] DEVICE=$device->{'full_name'} SE ESPECIFICA SNMP V3 SIN ID_PROFILE");
+				}
+				else {
+					my $v3 = $STORE->get_profiles_snmpv3($dbh,[$id_profile]);
+					$device->{'sec_name'}=$v3->{$id_profile}->{'sec_name'};
+					$device->{'sec_level'}=$v3->{$id_profile}->{'sec_level'};
+					$device->{'auth_proto'}=$v3->{$id_profile}->{'auth_proto'};
+					$device->{'auth_pass'}=$v3->{$id_profile}->{'auth_pass'};
+					$device->{'priv_proto'}=$v3->{$id_profile}->{'priv_proto'};
+					$device->{'priv_pass'}=$v3->{$id_profile}->{'priv_pass'};
 				}
 			}
+
+
+	      $SNMP->store($STORE);
+   	   $SNMP->dbh($dbh);
+      	($rc, $rcstr) = $SNMP->snmp_mib2_system($device);
+
+			# ------------------------------------------------------------
+			# Si el host esta incluido en el fichero /cfg/snmp-forced-hosts.conf
+			# se provisiona como si respondiera a snmp.
+			# ------------------------------------------------------------
+			$ProvisionLite::SNMP_FORCED=0;
+			my $FILE_SNMP_FORCED='/cfg/snmp-forced-hosts.conf';
+			if (-f $FILE_SNMP_FORCED) {
+				open (S,"<$FILE_SNMP_FORCED");
+				while (<S>) {
+					chomp;
+					$_=~s/^\s*(\S+)\s*$/$1/;
+					if ($_ eq $device->{'host_ip'}) {
+						$ProvisionLite::SNMP_FORCED=1;
+	   				$self->log('debug',"prov_do_set_device_metric::[DEBUG] DEVICE=$device->{'full_name'} [$device->{'host_ip'}] ***SNMP_FORCED***");
+						last;
+					}
+				}
+			}
+			# ------------------------------------------------------------
+
+	      if (($rc == 0) || ($ProvisionLite::SNMP_FORCED)) {
+   	      $SNMP_VERSION = $device->{'version'};
+      	   $ProvisionLite::NO_SNMP_RESPONSE=0;
+      	}
+      	else {  $ProvisionLite::NO_SNMP_RESPONSE=1;  }
+
 		}
-		# ------------------------------------------------------------
 
-      if (($rc == 0) || ($ProvisionLite::SNMP_FORCED)) {
-         $SNMP_VERSION = $device->{'version'};
-         $ProvisionLite::NO_SNMP_RESPONSE=0;
-      }
-      else {  $ProvisionLite::NO_SNMP_RESPONSE=1;  }
-
-		}
-
-
+		
 		$self->log('debug',"prov_do_set_device_metric::[DEBUG] DEVICE=$device->{'full_name'} IP=$device->{ip} C=$device->{community} SNMP_VERSION=$SNMP_VERSION");
 
 		if (! $SNMP_VERSION) {
@@ -1077,6 +1079,7 @@ my $store_flag=1;
 #3: Desde asistente -> Genera Plantilla (Resetea metricas)
 #4: Desde inventario .csv
 
+		$self->log('info',"prov_do_set_device_metrics::[INFO] PROCESANDO ID_DEV=$ID_DEV $device->{'full_name'} ($cnt|$total_devices) ($in->{'init'})");
 
       #--------------------------------------------------------------------------------
       # init=11 ==>  Solo se da de alta el dispositivo. 
@@ -1088,7 +1091,8 @@ my $store_flag=1;
       #--------------------------------------------------------------------------------
       my $recalculate = ((exists $in->{'fast'}) && ($in->{'fast'}>0))? 0 : 1;
       if ($recalculate) {
-print "======================================prov_device_app_metrics===========================\n";
+print "====================================== prov_device_app_metrics ($cnt|$total_devices) ===========================\n";
+			#$self->log('info',"prov_do_set_device_metrics::[INFO] PROCESANDO ID_DEV=$ID_DEV ($cnt|$total_devices)");
          $self->prov_device_app_metrics($ID_DEV);
       }
 
@@ -1120,17 +1124,6 @@ print "======================================prov_device_app_metrics============
 
 			# No se hace nada mas
 			next;
-
-#         @ProvisionLite::default_metrics=();
-#         %ProvisionLite::assigned_watches = ();
-#         %ProvisionLite::assigned_status = ();
-#         $STORE->get_default_metrics2device($dbh,$ID_DEV);
-
-
-#         my @TEMPLATE=();
-#         $self->default2template_metrics($device,$SNMP_VERSION,$ID_DEV,\@ProvisionLite::default_metrics,\@TEMPLATE);
-#         $STORE->store_template_metrics($dbh,$ID_DEV,\@TEMPLATE);
-#         $self->log('debug',"prov_do_set_device_metric::[DEBUG] INICIALIZA PLANTILLA DE METRICAS (NO EXISTE)");
 
 		}
 	
@@ -1663,6 +1656,10 @@ print Dumper(\@TEMPLATE);
    	#Se generan los ficheros idx correspondientes para los crawlers
    	$STORE->store_crawler_work($dbh,$id_dev,$tnow,$cid);
 	}
+   #-------------------------------------------------------------------
+   #Se generan los ficheros idx correspondientes para los crawlers
+   #-------------------------------------------------------------------
+   $STORE->consolidate_work_tables($dbh);
 
 	
 	$self->rcstr("END\n",0);
@@ -2825,9 +2822,11 @@ print "----------------------------------------------------------------------\n"
 print Dumper($rREMOTE_ALERTS);
 print "----------------------------------------------------------------------\n";
 
-
+	my $total_devices = scalar(@id_dev_dst);
+	my $cnt=0;
    foreach my $id_dev (@id_dev_dst) {
 
+		$cnt += 1;
       #-------------------------------------------------------------------------------
       # Para cada $id_dev destino chequeo las diferentes metricas de la plantilla origen
       #-------------------------------------------------------------------------------
@@ -2839,7 +2838,7 @@ print "----------------------------------------------------------------------\n"
 
       my ($n1,$n2,$n3)=(scalar(@$rMETRIC_SNMP), scalar(@$rMETRIC_LATENCY), scalar(@$rMETRIC_AGENT));
 		my $totp = $n1+$n2+$n3;
-      $self->log('info',"clone_template_metrics:: [$id_dev_src >> $id_dev] TOTAL EN PLANTILLA ORIGEN=$totp  (SNMP=$n1, LATENCY=$n2, XAGENT=$n3)");
+      $self->log('info',"clone_template_metrics:: [$id_dev_src >> $id_dev] ($cnt|$total_devices) TOTAL EN PLANTILLA ORIGEN=$totp  (SNMP=$n1, LATENCY=$n2, XAGENT=$n3)");
       #-------------------------------------------------------------------------------
       # SNMP
       #-------------------------------------------------------------------------------
@@ -3274,6 +3273,7 @@ my ($self,$enterprise_list,$rparams)=@_;
 
    my $SNMP=$self->snmp();
 
+	if ($rparams->{'version'} eq '') { $rparams->{'version'}=0; }
    my %SNMPCFG = ();
    my $id_dev=$rparams->{'id_dev'};
    $SNMPCFG{'host_ip'}=$rparams->{'ip'};
@@ -3294,7 +3294,7 @@ my ($self,$enterprise_list,$rparams)=@_;
       $SNMPCFG{'priv_pass'}=$rres->[0][5];
    }
 
-   if ($SNMPCFG{'version'} !~ /\d+/) {
+   if ( ($SNMPCFG{'version'} !~ /\d+/) || ($SNMPCFG{'version'} == 0) ) {
 		$self->log('warning',"prov_device_app_metrics_snmp::[WARN] Version SNMP Incorrecta ($SNMPCFG{'version'}) de $SNMPCFG{'host_ip'} ID_DEV=$id_dev");
 		return;
 	}
@@ -3333,7 +3333,7 @@ print "--------------SNMP_CHECK_VECTOR---------------\n";
 print Dumper($check_vector);
 
       while (my ($k,$v)=each %$check_vector) {
-         #print "++++ID_DEV=$id_dev\t$k == $v\n";
+         print "++++ID_DEV=$id_dev\t$k == $v ---------------------------------------------------\n";
          # Si el range buscado (en este caso la MIB) esta asoportada
          # se provisionan las aplicaciones y metricas correspondientes
          if ($v) {
@@ -3426,7 +3426,7 @@ print "------------------------------ VALIDO_METRICA ($cfg) $subtype -----------
 						}
 					}
 					else {
-						$self->log('debug',"prov_device_app_metrics_snmp::[DEBUG] ---SNMP MET: SIN VALIDAR $subtype POR CFG=$cfg ID_DEV=$id_dev RANGE=$k (N1=$n1 N2=$n2)");
+						$self->log('info',"prov_device_app_metrics_snmp::[DEBUG] ---SNMP MET: SIN VALIDAR $subtype POR CFG=$cfg ID_DEV=$id_dev RANGE=$k (N1=$n1 N2=$n2)");
 					}
 
                # Si coinciden los contadores, responde a todos los valores de la tabla
