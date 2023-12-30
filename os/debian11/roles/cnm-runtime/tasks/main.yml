@@ -183,6 +183,10 @@
   file: src=/store/www-files/tasks dest=/var/www/html/onm/files/tasks state=link owner=www-data group=www-data
   tags: cnm-runtime
 
+- name: Verify directory /var/www/html/onm/user/
+  file: path=/var/www/html/onm/user state=directory owner=root group=www-data mode=0755
+  tags: cnm-runtime
+
 
 - name: Check /var/www/html/onm/user links
   file: src=/store/www-user/{{ item }} dest=/var/www/html/onm/user/{{ item }} state=link owner=www-data group=www-data

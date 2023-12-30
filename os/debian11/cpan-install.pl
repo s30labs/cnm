@@ -60,8 +60,14 @@ sub install_module {
 	my $cmd = "cpanm -f -v $modulo > /tmp/$modulo.log 2>&1";
 	system($cmd);
 	$instmod = ExtUtils::Installed->new();
-	$instmod->validate($modulo);
-   my $vinst = $instmod->version($modulo) || "N/A";
+
+	my $vinst = "N/A";
+	eval {
+   	$instmod->validate($modulo);
+	};
+	if ($@) { print " ++No validation++ "; }
+	else { $vinst = $instmod->version($modulo) || "N/A"; }
+
    my $mismatch='';
    if ($version ne $vinst) { $mismatch='**VER**'; }
    print "INSTALLED $vinst|$version $mismatch\t$modulo\n";
