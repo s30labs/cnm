@@ -589,6 +589,7 @@ my ($self,$lapse,$task)=@_;
 
    my $ok=1;
    my $RELOAD_FILE='/var/www/html/onm/tmp/syslog.reload';
+	$self->reload_file($RELOAD_FILE);
 	$self->check_configuration();
    my $log_level=$self->log_level();
 
@@ -692,6 +693,7 @@ my ($self,$lapse,$task)=@_;
 
    my $ok=1;
    my $RELOAD_FILE='/var/www/html/onm/tmp/syslog.reload';
+	$self->reload_file($RELOAD_FILE);
    $self->check_configuration();
    my $log_level=$self->log_level();
 
