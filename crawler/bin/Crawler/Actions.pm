@@ -1881,6 +1881,7 @@ my ($self,$script,$params,$dbdata,$f,$tag,$dbh)=@_;
 
 			if (exists $credentials->{$ip}) {
 				foreach my $v (keys %{$credentials->{$ip}}) {
+					if ($v=~/pwd/) { $credentials->{$ip}->{$v} = "'".$credentials->{$ip}->{$v}."'"; }
 					my $k="\\".$v;
 		   		$exec_vector->{'params'}=~s/$k/$credentials->{$ip}->{$v}/;
 				}
@@ -1951,7 +1952,8 @@ $self->log('info',"_start_external_cmd:: [$tag] ID=$id_qactions EXEC APP RAW ip=
 
 	         if (exists $credentials->{$ip}) {
    	         foreach my $v (keys %{$credentials->{$ip}}) {
-         	$self->log('warning',"_start_external_cmd:: [$tag] **DEBUG** IP=$ip v=$v VALOR=$credentials->{$ip}->{$v}  ($exec_vector->{'params'})");
+						if ($v=~/pwd/) { $credentials->{$ip}->{$v} = "'".$credentials->{$ip}->{$v}."'"; }
+         			$self->log('info',"_start_external_cmd:: [$tag] **DEBUG** IP=$ip v=$v VALOR=$credentials->{$ip}->{$v}  ($exec_vector->{'params'})");
 						my $k="\\".$v;
       	         $exec_vector->{'params'}=~s/$k/$credentials->{$ip}->{$v}/;
          	   }
@@ -2023,6 +2025,7 @@ $self->log('warning',"_start_external_cmd:: [$tag] **DEBUG*** $finuse -> $f ($!)
 
          if (exists $credentials->{$ip}) {
             foreach my $v (keys %{$credentials->{$ip}}) {
+					if ($v=~/pwd/) { $credentials->{$ip}->{$v} = "'".$credentials->{$ip}->{$v}."'"; }
 					my $k="\\".$v;
                $exec_vector->{'params'}=~s/$k/$credentials->{$ip}->{$v}/;
             }

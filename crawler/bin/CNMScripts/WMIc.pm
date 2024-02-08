@@ -213,11 +213,13 @@ sub set_credentials {
 my ($self) = @_;
 
 	my $u = $self->user();
-	my $p = $self->pwd();
+	my $p0 = $self->pwd();
 	my $d = $self->domain();
 	#my $c = $u.'%'.$p;
 	#if ($d ne '') { $c = "$d\\$u%$p"; }
 
+	my $p = quotemeta($p0);
+	$self->log('info',"set_credentials_wmic >> p0=$p0 | p=$p");
 	my $c = $u.':'.$p;
 	if ($d ne '') { $c = "$d\/$u:$p"; }
 
@@ -364,7 +366,8 @@ my ($self,$wsql_file)=@_;
 
 	my $wsql_file_path = $self->working_dir().'/'.$wsql_file;
 	
-   my $wmic = $cmd.' -namespace \''.$self->namespace().'\' -file '.$wsql_file_path.' \''.$self->credentials().'@'.$self->host().'\'';
+   #my $wmic = $cmd.' -namespace \''.$self->namespace().'\' -file '.$wsql_file_path.' \''.$self->credentials().'@'.$self->host().'\'';
+   my $wmic = $cmd.' -namespace \''.$self->namespace().'\' -file '.$wsql_file_path.' '.$self->credentials().'@'.$self->host();
 
    #$self->wait_for_docker();
    #$self->log('info',"DOCKERRUN >> impacket/wmiquery");
@@ -375,10 +378,12 @@ my ($self,$wsql_file)=@_;
 
    @lines = split (/\n/, $stdout);
 
-$stdout=~s/\n/ /g;
-$stdout=~s/\r/ /g;
-my $stdout300 = substr $stdout,0,300;
-$self->log('info',"get_raw_data >> stdout=$stdout300");
+#$stdout=~s/\n/ /g;
+#$stdout=~s/\r/ /g;
+#my $stdout300 = substr $stdout,0,300;
+foreach my $l (@lines) {
+	$self->log('info',"get_raw_data >> $n1 stdout=$l");
+}
 
 	if ($lines[2] =~ /^\[-\]\s+(.+)$/) {
 		my $err_msg = $1;
@@ -425,13 +430,21 @@ my ($self,$wsql_file,$iid)=@_;
 	my $newdata=0;
 	while ($more_lines) {
 		
+		my $num_lines = scalar @$lines;
+		$self->log('debug',"get_wmi_counters >> NUM LINES1=$num_lines");
+		if ($num_lines == 0) { last; }
+
 		# Skips query
+		# In multi-query cases in "no response" cases queries are in sucessive lines
+		$lines->[0]=~s/^\s+//;
 		my $wql=substr $lines->[0],0,4;
-		if ((defined $wql) && ($wql eq 'WQL>')) {
-		#if ($lines->[0] =~ /^WQL\>/) { 
+		while ((defined $wql) && ($wql eq 'WQL>')) {
 			$self->log('debug',"get_wmi_counters >> START BLOQUE ELIMINO WSQL $lines->[0]");
-			shift @$lines; 
+			shift @$lines;
+	      $lines->[0]=~s/^\s+//;
+	      $wql=substr $lines->[0],0,4;
 		}
+
 
 		# Parse header
 		@k=();
