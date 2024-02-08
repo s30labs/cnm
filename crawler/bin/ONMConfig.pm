@@ -486,7 +486,7 @@ sub set_cnm_version {
 	foreach my $k (sort keys %cnm_dirs) {
 		my $fx = $cnm_dirs{$k}.'.git/config';
 		if (-f $fx) {
-			$version = `cd $cnm_dirs{$k} && /usr/bin/git describe --tags`;
+			$version = `cd $cnm_dirs{$k} && /usr/bin/git describe --tags --always`;
 			print $fh "$k=$version";
 		}
 	}
