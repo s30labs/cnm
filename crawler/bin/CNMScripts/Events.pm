@@ -476,16 +476,16 @@ if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
 		$self->log('info',"FMLFML id_app=$id_app $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
 }
 
-if ($id_app eq '333333001055') {
-   $self->log('info',"**DEBUG** FML333333001055 $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
-}
+#if ($id_app eq '333333001055') {
+#   $self->log('info',"**DEBUG** FML333333001055 $pat->{'patterns'} >> pattern_type=$pat->{'pattern_type'} $pat->{'npatterns'} <> $num_ok  >> all_patterns_ok=$all_patterns_ok");
+#}
 
 		if (! $all_patterns_ok) { next; }
 
-if ($id_app eq '333333001055') {
-	$self->log('info',"**DEBUG** FML333333001055 line=$l->[3]");
-	$self->log('info',"**DEBUG** FML333333001055 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
-}
+#if ($id_app eq '333333001055') {
+#	$self->log('info',"**DEBUG** FML333333001055 line=$l->[3]");
+#	$self->log('info',"**DEBUG** FML333333001055 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
+#}
 
 		# OPER = sum >> SUMA DE DATOS
 		if ($params->{'oper'} =~ /sum/i) {
