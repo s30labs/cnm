@@ -515,10 +515,10 @@ my ($self,$file,$vector)=@_;
 # INPUT:
 #     $file : Fichero csv con un separador especial y con la primera fila indicando los campos.
 #     $vector : Vector de dispositivos (fichero csv)
-#               nombre.dominio,ip,community,version,tipo,sysoid
-#
-# name&|&domain&|&ip&|&sysloc&|&sysdesc&|&sysoid&|&type&|&status&|&community&|&version&|&perfil_organizativo&|&host_idx&|&wbem_user&|&wbem_pwd&|&columna13&|&columna11&|&columna12&|&columna14&|&columna15&|&columna16&|&columna18&|&columna19
-#portatil_fml&|&&|&10.1.254.70&|&Desconocido&|&Desconocido&|&Desconocido&|&xagent-register&|&0&|&public&|&1&|&&|&1&|&&|&&|&n.a&|&-&|&-&|&-&|&-&|&-&|&-&|&
+# 		Campos Fijos (15): 
+#		NOMBRE&|&DOMINIO&|&IP&|&LOCALIZACION&|&DESCRIPCION&|&OID&|&MAC&|&CRIT&|&TIPO&|&ESTADO&|&COMUNIDAD&|&VERSION&|&PERFIL ORGANIZATIVO&|&GESTOR&|&GEODATA&|&
+# 		Campos de Usuario (n): A continuación de los campos fijos
+#		PROVEEDOR&|&FABRICANTE&|&RESPONSABE INTERNO&|&DESCRIPCION
 #
 # OUTPUT:
 #-------------------------------------------------------------------------------
@@ -541,7 +541,7 @@ my ($self,$file,$vector,$separator)=@_;
       my $col='columna'.$i->[0];
 		my $n=uc $i->[1];
       $name2columnax{$n}=$col;
-		#$self->log('info',"get_devices_from_csv_web **FML0o** N=$n COL=$col ");
+		$self->log('debug',"get_devices_from_csv_web **FML0o** N=$n COL=$col ");
    }
 
 	# Contiene los campos de usuario presentes en el fichero
@@ -560,14 +560,14 @@ my ($self,$file,$vector,$separator)=@_;
 		}
 		else {
       	if (! scalar @d) {next; }
-#$self->log('info',"get_devices_from_csv_web ($dir_base$file):: $d[0] $d[1] $d[2] $d[8] $d[9] $d[6] $d[5]");
+			$self->log('debug',"get_devices_from_csv_web ($dir_base$file):: $d[0] $d[1] $d[2] $d[8] $d[9] $d[6] $d[5]");
       	#push @$vector, { name=>$d[0], domain=>$d[1], ip=>$d[2], community=>$d[8], version=>$d[9], type=>$d[6], sysoid=>$d[5] };
 
 			for my $i ($nfixed..$ncols-1) {
 				if (!$d[$i]){$d[$i]='-';}
 				my $col_name=uc $custom_in_file{$i}; #a105
 				my $columnax=$name2columnax{$col_name};
-#$self->log('info',"get_devices_from_csv_web **FML0** I=$i col_name=$col_name columnax=$columnax D=$d[$i]");
+				$self->log('debug',"get_devices_from_csv_web **FML0** I=$i col_name=$col_name columnax=$columnax D=$d[$i]");
 				$custom{$columnax}=$d[$i];
 			}
 
