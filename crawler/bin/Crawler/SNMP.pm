@@ -567,9 +567,12 @@ my ($self,$ts,$range,$sanity_lapse)=@_;
    my $ts0=$self->log_tmark();
    if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
-		$self->start_crawler($range);
+		#$self->start_crawler($range);
+
       $self->log('info',"do_task::[INFO] SANITY START");
-      exit(0);
+      my $MAX_OPEN_FILES=8192;
+      exec("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/crawler -s -c $range");
+      #Despues del exec no se puede ponr nada porque se genera un warning
    }
 }
 
