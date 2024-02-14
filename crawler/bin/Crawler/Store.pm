@@ -824,7 +824,7 @@ my $rv=undef;
 	}
 	else {
 		if (!defined $data->{'network'}) { $data->{'network'}=''; }
-		$self->log('info',"store_cfg_network:: No definido el atributo network ($data->{'network'})");
+		$self->log('debug',"store_cfg_network:: No definido el atributo network ($data->{'network'})");
 		return;
 	}
 
@@ -993,7 +993,7 @@ my $new_id_dev;
          $description.=": ".$href."\n";
       }
       else {
-	      $description.=": ".$rres1->[0][0]."\n";
+			if (defined $rres1->[0][0]) { $description.=": ".$rres1->[0][0]."\n"; }
 		}
    }
    # 3. Obtener los perfiles organizativos a los que pertenece el dispositivo
