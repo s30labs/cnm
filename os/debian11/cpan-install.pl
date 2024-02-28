@@ -57,7 +57,7 @@ sub install_module {
 	}
 
 	print "MODULO: [ Installing ... ] $modulo ";
-	my $cmd = "cpanm -f -v $modulo > /tmp/$modulo.log 2>&1";
+	my $cmd = "cpanm --notest -f -v $modulo > /tmp/$modulo.log 2>&1";
 	system($cmd);
 	$instmod = ExtUtils::Installed->new();
 
