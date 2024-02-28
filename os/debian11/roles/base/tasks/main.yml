@@ -17,6 +17,10 @@
   become: true
   tags: base
 
+- name: Install PARI and Math::Pari perl module
+  command: /opt/cnm/os/debian11/install-pari.sh > /tmp/install-pari.out 2>&1 creates=/tmp/src/pari/Math-Pari-2.030523/libPARI/libPARI.a
+  tags: base
+
 - name: Install PERL modules
   shell: /opt/cnm/os/debian11/cpan-install.pl -i > /tmp/cpan-install.out 2>&1
   tags: base
