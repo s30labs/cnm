@@ -196,7 +196,7 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
@@ -350,7 +350,7 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__TABLE__/$tabname/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
@@ -453,7 +453,7 @@ my ($self,$dbh,$params)=@_;
    $SQL =~ s/__TQUERY__/$tquery/;
 
 
-   $self->log('info',"**DEBUG** dbCmd >> $SQL | now-$lapse");
+   $self->log('debug',"**DEBUG** dbCmd >> $SQL | now-$lapse");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
@@ -568,7 +568,7 @@ my ($self,$dbh,$params)=@_;
 	$SQL =~ s/__ALL_PATTERNS__/$all_patterns/;
    $SQL =~ s/__LAPSE__/$lapse/;
 
-   $self->log('info',"**DEBUG** dbCmd >> $SQL");
+   $self->log('debug',"**DEBUG** dbCmd >> $SQL");
 
    $res = $self->dbSelectAll($dbh,$SQL);
    if ($self->err_num() != 0) {
