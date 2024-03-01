@@ -9539,7 +9539,8 @@ my ($self,$dbh,$logfile,$source,$offset)=@_;
    #ej: logp_333333001020_idocs_03_errors_from_sap
    $logfile=~s/\-/_/g;
    my $table = 'logp_'.$source.'_'.$logfile;
-	if ((!defined $offset) || ($offset !~ /^\d+$/) || ($offset<86400)) {
+	#if ((!defined $offset) || ($offset !~ /^\d+$/) || ($offset<86400)) {
+	if ((!defined $offset) || ($offset !~ /^\d+$/)) {
 		$offset = 86400;
 	}
 	my $tdiff = time()-$offset;
@@ -9549,7 +9550,7 @@ my ($self,$dbh,$logfile,$source,$offset)=@_;
 
    my $rres=sqlDelete($dbh, $table, $where);
 
-   $self->log('debug',"delete_from_buffer_table::[DEBUG] $libSQL::cmd");
+   $self->log('debug',"delete_from_buffer_table::[DEBUG] offset=$offset $libSQL::cmd");
    if ($libSQL::err) {
       $self->manage_db_error($dbh,"clear_app_data_buffer");
    }
