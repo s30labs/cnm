@@ -55,7 +55,7 @@
   tags: mysql
 
 - name: Se actualiza la clave de root para todas las cuentas
-  mysql_user: name=root host={{ item }} password={{ db_root_password }} priv=*.*:ALL,GRANT
+  mysql_user: name=root host={{ item }} password={{ db_root_password }} priv=*.*:ALL,GRANT column_case_sensitive=false
   with_items:
      - "{{ ansible_hostname }}"
      - 127.0.0.1
@@ -96,7 +96,7 @@
    - restart mysql
 
 - name: delete anonymous MySQL server user for localhost
-  action: mysql_user user="" host=localhost state="absent"
+  action: mysql_user user="" host=localhost state="absent" column_case_sensitive=false
   tags: mysql
 
 - name: remove the MySQL test database
@@ -111,7 +111,7 @@
   tags: mysql
 
 - name: Create onm user and set privileges
-  mysql_user: name={{db_user}} password={{db_pwd}} host=localhost priv=*.*:ALL,GRANT state=present
+  mysql_user: name={{db_user}} password={{db_pwd}} host=localhost priv=*.*:ALL,GRANT state=present column_case_sensitive=false
   tags: mysql
 
 - name: logrotate config
