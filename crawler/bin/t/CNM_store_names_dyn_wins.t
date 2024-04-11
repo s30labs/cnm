@@ -8,6 +8,7 @@ use Getopt::Long;
 use Data::Dumper;
 use ONMConfig;
 use Crawler::Store;
+use ProvisionLite;
 use libSQL;
 
 #-------------------------------------------------------------------------------------------
@@ -35,7 +36,31 @@ my $dbh=$store->open_db();
 my $id_dev = $ARGV[0] || 14;
 # Local prototype
 #check_dyn_names_wins($store,$dbh);
-$store->check_dyn_names_wins($dbh);
+my $prov = $store->check_dyn_names_wins($dbh);
+if (scalar (@$prov)>0) { 
+	my $ids = join(',', @$prov);
+
+	my $CMD='/opt/cnm/crawler/bin/plite -r __ID_DEV__ -t 0 -f';
+	$CMD=~s/__ID_DEV__/$ids/;
+	print "$CMD\n";
+
+	my $log_level='debug';
+	my $log_mode=3;
+	my $provision=ProvisionLite->new(log_level=>$log_level, log_mode=>$log_mode, cfg=>$rCFG);
+	$provision->init();
+	my $STORE=$provision->istore();
+	my $dbh=$provision->dbh();
+	$provision->prov_do_set_device_metric({'id_dev'=>$ids, 'init'=>0, 'cid'=>'default', 'fast'=>1});
+}
+
+#172.17.62.144 TPVM8D
+#my ($wins_name,$stored_ip)=('TPVM8D','172.17.62.143');
+#my ($wins_name,$stored_ip)=('TPVM52','172.17.62.144');
+
+#my ($wins_name,$stored_ip)=('TPVC25','172.17.62.90');
+#my ($new_ip,$name) = check_dyn_name_wins($dbh,$wins_name,$stored_ip);
+#print "wins_name=$wins_name stored_ip=$stored_ip new_ip=$new_ip\n";
+
 
 #-------------------------------------------------------------------------------------------
 $store->close_db($dbh);
@@ -99,13 +124,64 @@ print "**LOCAL***\n";
 		push @changes, [$new_ip,$name];
 	}
 
-
-	if (scalar(@changes)>0) {
-		my $sql="UPDATE devices SET ip=? WHERE name=? AND dyn=2";
-   	my $rv=sqlCmd_fast($dbh,\@changes,$sql);
-		if ($libSQL::err) {
-			$self->log('error',"check_dyn_names_wins:: Error updating devices [$libSQL::err] >> $libSQL::errstr ");
-		}
-	}
+print Dumper(\@changes);
+#	if (scalar(@changes)>0) {
+#		my $sql="UPDATE devices SET ip=? WHERE name=? AND dyn=2";
+#   	my $rv=sqlCmd_fast($dbh,\@changes,$sql);
+#		if ($libSQL::err) {
+#			$self->log('error',"check_dyn_names_wins:: Error updating devices [$libSQL::err] >> $libSQL::errstr ");
+#		}
+#	}
 
 }
+
+
+sub check_dyn_name_wins {
+my ($dbh,$wins_name,$stored_ip) = @_;
+
+	my $file_cfg_wins='/cfg/onm.wins';
+
+   if (! -f $file_cfg_wins) {
+      #$self->log('error',"check_dyn_names_wins:: Can't access file $file_cfg_wins");
+      return;
+   }
+
+   my $wins_server = '';
+   open (F, "<$file_cfg_wins");
+   while (<F>) {
+      chomp;
+      $wins_server = $_;
+   }
+   close F;
+
+   if ($wins_server eq '') {
+      #$self->log('error',"check_dyn_names_wins:: Bad data in file $file_cfg_wins");
+      return;
+   }
+
+	my ($new_ip,$name) = ($stored_ip,$wins_name);
+   my $cmd = "nmblookup -U $wins_server -R $wins_name | grep -v $wins_server";
+print "$cmd\n";
+   my $l = `$cmd`;
+	chomp $l;
+print "$l\n";
+	if ($l =~ /(\d+\.\d+\.\d+\.\d+) (\w+)\<00\>/) { 
+		($new_ip,$name) = ($1,$2);
+      if ($stored_ip ne $new_ip) { 
+			my $sql = "UPDATE devices SET ip='__IP__' WHERE name='__NAME__' AND dyn=2";
+			$sql =~ s/__IP__/$new_ip/g;
+			$sql =~ s/__NAME__/$name/g;
+print "$sql\n";
+   	   my $rv=sqlCmd($dbh,$sql);
+print "$rv\n";
+      	if ($libSQL::err) {
+      #   	$self->log('error',"check_dyn_name_wins:: Error updating device $name >> $new_ip  [$libSQL::err] >> $libSQL::errstr ");
+print "Error updating device $name >> $new_ip  [$libSQL::err] >> $libSQL::errstr\n";
+      	}
+		}
+	}
+	return ($new_ip,$name);	
+
+}
+
+sub _

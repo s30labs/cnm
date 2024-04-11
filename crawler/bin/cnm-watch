@@ -10,6 +10,7 @@ use ONMConfig;
 use Crawler::Store;
 use Crawler::SNMP;
 use CNMScripts::CNMAPI;
+use ProvisionLite;
 use MCNM;
 use Time::Local;
 use Digest::MD5 qw(md5_hex);
@@ -628,6 +629,20 @@ foreach my $n (sort keys %$dyn_vector) {
    $store->log('info',"cnm-watch:: DYN_NAMES **IP CHANGE** $n old=$db_ip new=$new_ip [$rc] $rcstr");
 }
 $store->log('info',"cnm-watch:: DYN_NAMES TOTAL=$total CHANGES=$changes");
+
+
+#-------------------------------------------------------------------------------------------
+# WINS dynamic IP hosts (dyn=2)
+#-------------------------------------------------------------------------------------------
+my $prov = $store->check_dyn_names_wins($dbh);
+if (scalar (@$prov)>0) {
+   my $ids = join(',', @$prov);
+   my $provision=ProvisionLite->new(log_level=>'debug', log_mode=>1, cfg=>$rCFG);
+   $provision->init();
+   $provision->prov_do_set_device_metric({'id_dev'=>$ids, 'init'=>0, 'cid'=>'default', 'fast'=>1});
+}
+
+
 
 #-------------------------------------------------------------------------------------------
 #docker remove stopped containers -> docker rm $(docker ps -a -q)

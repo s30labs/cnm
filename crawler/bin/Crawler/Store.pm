@@ -7643,6 +7643,7 @@ my ($self,$dbh,$id_dev)=@_;
    #select columna3 from devices_custom_data where id_dev=431;
    $rres = $self->get_from_db_cmd($dbh,"SELECT $field FROM devices_custom_data WHERE id_dev=$id_dev");
 
+	if ($rres->[0][0] eq '-') { return; }
    my $file_metrics = join ('/', $file_path, $rres->[0][0]);
    if (! -f $file_metrics) {
 		$self->log('warning',"set_template_metrics_by_custom_file::[WARN] NO EXISTE file_metrics=$file_metrics");
@@ -7697,11 +7698,13 @@ my ($self,$dbh,$id_dev)=@_;
 			#$self->log('debug',"set_template_metrics_by_custom_file::**DEPURA** label_like=$label_like >> label=$label");
 			if ( ($subtype eq $r->{'subtype'}) && ($type eq $r->{'type'}) && ($label=~/$label_like/)) { 
 				$rule_status = 0;
+				#Si en el fichero hay definido monitor, se asocia el monitor definido en el fichero.
+				if ($r->{'watch'} ne '') { $watch = $r->{'watch'}; }
 				last;
 			}
 		}
 
-		$self->log('debug',"set_template_metrics_by_custom_file::id=$id_template_metric status=$status ($rule_status) label=$label");
+		$self->log('debug',"set_template_metrics_by_custom_file::id=$id_template_metric status=$status ($rule_status) label=$label watch=$watch");
 
 		my %table = ('watch'=>$watch, 'status'=>$rule_status);
 		my $condition="id_template_metric=$id_template_metric AND mname='$mname'";
@@ -10100,16 +10103,16 @@ my ($self,$dbh) = @_;
    my $file_dyn_names='/cfg/names.dyn.wins';
    my $file_cfg_wins='/cfg/onm.wins';
 
-   my @hosts=();
    my %host2ip=();
+   my %ip2host=();
    my $db_dyn_stored=$self->get_device($dbh,{'dyn'=>2},'id_dev,name,ip');
 
    if (scalar(@$db_dyn_stored)==0) { return; }
 
    open (F,">$file_dyn_names");
    foreach my $x (@$db_dyn_stored) {
-      push @hosts, $x->[1];
-      $host2ip{$x->[1]} = $x->[2];
+      $host2ip{$x->[1]} = { 'ip' => $x->[2], 'id_dev'=>$x->[0] };
+      $ip2host{$x->[2]} = { 'name' => $x->[1], 'id_dev'=>$x->[0] };
       print F join (';', $x->[1], $x->[2])."\n";
    }
    close F;
@@ -10131,28 +10134,78 @@ my ($self,$dbh) = @_;
       $self->log('error',"check_dyn_names_wins:: Bad data in file $file_cfg_wins");
       return;
    }
-   my $all_names = join (' ', @hosts);
+   my $all_names = join ' ', keys %host2ip;
    my $cmd = "nmblookup -U $wins_server -R $all_names | grep -v $wins_server";
+   $self->log('debug',"check_dyn_names_wins:: CMD=$cmd");
    my @res = `$cmd`;
-   my @changes = (); # ip,name
+	my %wins=();
+	my @prov=();
    foreach my $l (@res) {
       chomp $l;
       #1.1.1.1 PCHOST1<00>
       if ($l !~ /(\d+\.\d+\.\d+\.\d+) (\w+)\<00\>/) { next; }
       my ($new_ip,$name) = ($1,$2);
-      if ($host2ip{$name} eq $new_ip) { next; }
+		$wins{$name}=$new_ip;	
+	
+      if ($host2ip{$name}->{'ip'} eq $new_ip) { next; }
 
-      $self->log('info',"check_dyn_names_wins:: Host $name changed IP to $new_ip");
-      push @changes, [$new_ip,$name];
-   }
+		my $aip=$host2ip{$name}->{'ip'};
+      $self->log('info',"check_dyn_names_wins:: EN BBDD $name >> $aip");
 
-   if (scalar(@changes)>0) {
-      my $sql="UPDATE devices SET ip=? WHERE name=? AND dyn=2";
-      my $rv=sqlCmd_fast($dbh,\@changes,$sql);
-      if ($libSQL::err) {
-         $self->log('error',"check_dyn_names_wins:: Error updating devices [$libSQL::err] >> $libSQL::errstr ");
+
+      my $sql = "UPDATE devices SET ip='__IP__' WHERE name='__NAME__' AND dyn=2";
+      $sql =~ s/__IP__/$new_ip/g;
+      $sql =~ s/__NAME__/$name/g;
+		my $rv=sqlCmd($dbh,$sql);
+
+		# A. New IP is not in DDBB --> Updating IP
+		if ($libSQL::err == 0) {
+         push @prov, $host2ip{$name}->{'id_dev'};
+         $self->log('info',"check_dyn_names_wins:: Host $name changed IP to $new_ip [UPDATE OK] (1) [$libSQL::err]");
       }
+
+		# B. New IP is in DDBB with other name --> Updating name
+		elsif ($libSQL::err == 1062) {
+			$sql = "UPDATE devices SET name='__NAME__' WHERE ip='__IP__' AND dyn=2";
+	      $sql =~ s/__IP__/$new_ip/g;
+     		$sql =~ s/__NAME__/$name/g;
+     		$rv=sqlCmd($dbh,$sql);
+			if ($libSQL::err) {
+				$self->log('error',"check_dyn_names_wins:: Host $name changed IP to $new_ip [**UPDATE ERROR**] (2) [$libSQL::err] >> $libSQL::errstr ");
+			}
+			else {
+	         push @prov, $ip2host{$new_ip}->{'id_dev'};
+     		   $self->log('info',"check_dyn_names_wins:: Host $name changed IP to $new_ip [UPDATE OK] (2) [$libSQL::err]");
+     		}
+		}
+		else {
+     		$self->log('error',"check_dyn_names_wins:: Host $name changed IP to $new_ip [**UPDATE ERROR**] (1) [$libSQL::err] >> $libSQL::errstr");
+		}
    }
+
+	#select name,ip,count(*) from devices where dyn=2 group by name having count(*)>1;	
+	my %find_duplicates=();
+	$db_dyn_stored=$self->get_device($dbh,{'dyn'=>2},'id_dev,name,ip');
+   foreach my $x (@$db_dyn_stored) {
+      if (!exists $find_duplicates{$x->[1]}) { $find_duplicates{$x->[1]} = [ $x->[2] ]; }
+      else { push @{$find_duplicates{$x->[1]}}, $x->[2]; }
+   }
+	foreach my $n (sort keys %find_duplicates){
+		if (scalar @{$find_duplicates{$n}} == 1) { next; }
+		foreach my $xip (@{$find_duplicates{$n}}) {
+			if ($wins{$n} eq $xip) {			
+	      	$self->log('info',"check_dyn_names_wins:: DUPLICATE OK $n >> $xip");
+			}
+			else {
+				my $where = "name='$n' AND ip='$xip' AND dyn=2";
+				my $r = $self->delete_from_db($dbh,'devices',$where);
+            $self->log('info',"check_dyn_names_wins:: DUPLICATE NOK $n >> $xip ($where) [$r]");
+         }
+		}
+	}
+
+	return \@prov;
+
 }
 
 
