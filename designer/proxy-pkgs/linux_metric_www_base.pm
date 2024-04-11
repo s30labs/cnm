@@ -48,6 +48,7 @@ $linux_metric_www_base::SCRIPT_NAME = 'linux_metric_www_base.pl';
 		'p01' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '2', '__PARAM_PREFIX__' => '-ip', '__PARAM_DESCR__' => 'IP Address', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-u', '__PARAM_DESCR__' => 'URL', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'Pattern', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-timeout', '__PARAM_DESCR__' => 'Timeout', '__PARAM_VALUE__' => '10', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		},
 
 	# ----------------------------
@@ -62,7 +63,7 @@ Sus parámetros de ejecución son:
  linux_metric_www_base.pl -ip 86.109.126.250
  linux_metric_www_base.pl -n www -d s30labs.com
  linux_metric_www_base.pl -name www -domain s30labs.com
- linux_metric_www_base.pl -u http://www.s30labs.com -pattern cnm
+ linux_metric_www_base.pl -u http://www.s30labs.com -pattern cnm [-timeout 15]
  linux_metric_www_base.pl -u http://www.s30labs.com -l
  linux_metric_www_base.pl -h
 
@@ -76,6 +77,8 @@ Sus parámetros de ejecución son:
       URL sobre la que se hace la peticion
  -pattern
       Patron de busqueda.  Contiene una cadena de texto que se busca dentro del contenido de la pagina.
+ -timeout
+      Timeout.  Por defecto 10 seg
  -v, -verbose
       Muestra informacion extra(debug)
  -h, -help
