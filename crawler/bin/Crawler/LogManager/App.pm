@@ -926,7 +926,7 @@ $self->log('debug',"get_app_data:: app=$xx");
    $self->err_num(0);
 
    my $cmd = $app->{'cmd'};
-   $self->log('info',"get_app_data:: CAPTURE by $cmd");
+   #$self->log('info',"get_app_data:: CAPTURE by $cmd");
 
 	my $ok;
 	my $data=[];
@@ -1010,6 +1010,13 @@ $self->log('debug',"get_app_data:: app=$xx");
 #			my $logfile_temp = $app_flush{$app_id}.'_temp';
 #         $store->clear_app_data($dbh,$logfile_temp,$app_id);
 #      }
+
+my $happ_name = (exists $h->{$app_id}->{'app_name'}) ? $h->{$app_id}->{'app_name'} : '';
+my $hcapture_mode = (exists $h->{$app_id}->{'capture_mode'}) ? $h->{$app_id}->{'capture_mode'} : '';
+my $hcapture_offset = (exists $h->{$app_id}->{'capture_offset'}) ? $h->{$app_id}->{'capture_offset'} : '';
+$self->log('info',"get_app_data:: CAPTURE BY $app_id >> $task_cfg_file app_name=$happ_name capture_mode=$hcapture_mode capture_offset=$hcapture_offset");
+
+
 
 		# flush ==> Elimina en contenido de la table antes de volver a insertar
 		# buffer ==> Elimina los valores previos a capture_offset (automantiene la cantidad de datos)
