@@ -88,7 +88,8 @@ my $IDX_PATH='/opt/data/idx';
 $Crawler::MDATA_PATH='/opt/data/mdata';
 $Crawler::TMARK_PATH='/var/log/tmark';
 #$Crawler::SANITY_LAPSE=86400;  #24h
-$Crawler::SANITY_LAPSE=43200;  #12h
+#$Crawler::SANITY_LAPSE=43200;  #12h
+$Crawler::SANITY_LAPSE=21600;  #6h
 
 #----------------------------------------------------------------------------
 #my %MAX_METRICS_PER_CRAWLER= ( '60'=> 60, '300'=> 400, '3600'=> 4000, '86400'=> 10000 );

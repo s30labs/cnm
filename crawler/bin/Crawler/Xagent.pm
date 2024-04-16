@@ -308,7 +308,8 @@ my $ok=0;
 
    $self->init_tmark();
    #my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(3600));
-	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(43200)); #+12h
+	#my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(43200)); #+12h
+	my $sanity_lapse = $Crawler::SANITY_LAPSE + int(rand(21600)); #+6h
 
    #Ajustes de real_lapse
    my $real_lapse = $self->real_lapse($lapse);
@@ -388,7 +389,9 @@ $self->log('debug',"do_task::[DUMPER] proxies=$dump1");
 			$self->task_id($task_id);
 
 #DBG--
-         $self->log('info',"do_task:: ========== START_TASK $task_id ($task_name)" );
+			my $stype = (exists $desc->{subtype}) ? $desc->{subtype} : '';
+			my $file_rrd = (exists $desc->{file}) ? $desc->{file} : '';
+         $self->log('info',"do_task:: ========== START_TASK $task_id ($task_name | $stype | $file_rrd)" );
 #/DBG--
 
          if (($desc->{'cfg'} == 2) && ($desc->{'iid'} eq 'U')) {
@@ -899,7 +902,7 @@ my ($data,$t);
 		
    else {
 #DBG--
-$self->log('info',"mod_xagent_get:: TAREA=$task_id [$desc->{'name'}] class=$desc->{class} script=$desc->{script} items=$desc->{items} VAL=@$values** EV=@$ev");
+$self->log('debug',"mod_xagent_get:: TAREA=$task_id [$desc->{'name'}] class=$desc->{class} script=$desc->{script} items=$desc->{items} VAL=@$values** EV=@$ev");
 #/DBG--
 
 		if (scalar (@$values) ==0) {
@@ -1255,7 +1258,7 @@ my ($self,$desc)=@_;
 	# OJO $file_rrd solo es valido si la llamada es desde do_task.
 	# dede chk_metric no es correcto el valor de $desc->{file}
 	my $file_rrd='/opt/data/rrd/elements/'.$desc->{file};
-	$self->log('info',"core_xagent_get:: CNM_TAG_RRD_FILE=$file_rrd*******CNM_TAG_SUBTYPE=$subtype");
+	$self->log('debug',"core_xagent_get:: CNM_TAG_RRD_FILE=$file_rrd*******CNM_TAG_SUBTYPE=$subtype");
 
    #-------------------------------------------------------------------
    # METRICAS SIN IIDS
@@ -1512,7 +1515,7 @@ $self->log('debug',"do_task::[****] BUCLE tagi=$tagi (task_idx=$task_idx)");
 		foreach my $tagi (@all_metric_tags) { push @values,-1;  push @iids, -1; }
 	}
 
-   $self->log('info',"core_xagent_get::[INFO ID=$task_id] VALUES=@values IIDS=@iids");
+   $self->log('debug',"core_xagent_get::[INFO ID=$task_id] VALUES=@values IIDS=@iids");
 
    return (\@iids,\@values);
 }
@@ -1766,7 +1769,7 @@ my ($self,$myenv)=@_;
 				$cmd = "/usr/bin/sudo -E -u $proxy_user  $file_script_range $params";
 			}
 
-	      $self->log('info',"execScript [$proxy_host]:: **START** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
+	      $self->log('info',"execScript [$proxy_host]:: SCRIPT_START $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
 
 			if ($self->_params_ok($params)) {
 				$ENV{'PERL_CAPTURE_TINY_TIMEOUT'}=$timeout-5;
@@ -1775,7 +1778,7 @@ my ($self,$myenv)=@_;
 			}
 			else { ($stdout, $stderr, $rc) = ('', "***ERROR DE CREDENCIALES** ($params)",20); }
 
-	      $self->log('debug',"execScript [$proxy_host]:: **END** $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
+	      $self->log('debug',"execScript [$proxy_host]:: SCRIPT_END $subtype|$task_id proxy=$proxy_type Timeout=$timeout CMD=$cmd CNM_TAG_IP=$ENV{'CNM_TAG_IP'} CNM_TAG_CALLER=$ENV{'CNM_TAG_CALLER'}");
 
 			$self->stdout($stdout);
 			$self->stderr($stderr);
@@ -1900,7 +1903,7 @@ my ($self,$myenv)=@_;
 
 	#debug
 	$stdout =~ s/\n/\./g;
-	$self->log('info',"execScript [$proxy_host]:: **RESULT** $task_id RESPONSE=$stdout");
+	$self->log('info',"execScript [$proxy_host]:: SCRIPT_END $task_id RESPONSE=$stdout");
 
 
 	if (scalar(@errors)>0) {
@@ -1908,7 +1911,7 @@ my ($self,$myenv)=@_;
       $self->err_str("[ERROR] en execScript [$proxy_host] $task_id por STDERR RC=$err_string");
       $self->err_num(100);
  
-		$self->log('info',"execScript [$proxy_host]:: $task_id EN STDERR >> $err_string");
+		$self->log('info',"execScript [$proxy_host]:: SCRIPT_END $task_id EN STDERR >> $err_string");
 	}
 
    # Al terminar, elimino todos los hijos
