@@ -168,7 +168,7 @@ use constant ACTIVE  => 1;
 use constant TERMINATED  => 2;
 use constant DONE  => 3;
 
-my $MAX_TASK_ACTIVE_PER_CPU=1.5;
+my $MAX_TASK_ACTIVE_PER_CPU=1;
 my $MAX_TASK_TIMEOUT=10;
 
 #----------------------------------------------------------------------------
@@ -677,20 +677,24 @@ my ($self,$ts,$range,$sanity_lapse,$mode)=@_;
    #if ($ts-$ts0>$Crawler::SANITY_LAPSE) {
    if ($ts-$ts0>$sanity_lapse) {
       $self->init_tmark();
+		my $MAX_OPEN_FILES=8192;
 		if ($mode eq 'mail') {
-			$rc=system ("/opt/crawler/bin/mail_manager");
+			$self->log('info',"do_task::[INFO] SANITY START mail_manager");
+			exec("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/mail_manager");
 		}
 		else {
-			$rc=system ("/opt/crawler/bin/notificationsd -t $mode");
+			$self->log('info',"do_task::[INFO] SANITY START $mode");
+			exec("ulimit -n $MAX_OPEN_FILES && /opt/crawler/bin/notificationsd -t $mode");
 		}
+		#Despues del exec no se puede ponr nada porque se genera un warning
 
-      if ($rc==0) {
-         $self->log('info',"do_task::[INFO] SANITY $mode ($rc)");
-      }
-      else {
-         $self->log('warning',"do_task::**WARN** SANITY $mode ($rc) ($!)");
-      }
-      exit(0);
+      #if ($rc==0) {
+      #   $self->log('info',"do_task::[INFO] SANITY $mode ($rc)");
+      #}
+      #else {
+      #   $self->log('warning',"do_task::**WARN** SANITY $mode ($rc) ($!)");
+      #}
+      #exit(0);
    }
 }
 
@@ -883,11 +887,6 @@ my ($self,$lapse,$range)=@_;
       	   $self->init_vectors();
 				my $dir_shared=$Crawler::MDATA_PATH.'/shared';
 				$self->shared_clean($dir_shared);
-
-			   #----------------------------------------------------------------------------
-				# Check dynamic hosts modifications
-			   #----------------------------------------------------------------------------
-				$store->check_dyn_names_wins($dbh);
 
 			   #----------------------------------------------------------------------------
 				# GESTION DE ALERTAS DE SEVERIDAD != 4
