@@ -29,7 +29,10 @@ my $db_name=$rCFG->{db_name}->[0];
 my $db_user=$rCFG->{db_user}->[0];
 my $db_pwd=$rCFG->{db_pwd}->[0];
 
-my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd);
+my $log_level='debug';
+my $log_mode=3;
+
+my $store=Crawler::Store->new(db_server=>$db_server,db_name=>$db_name,db_user=>$db_user,db_pwd=>$db_pwd, log_level=>$log_level, log_mode=>$log_mode);
 $store->store_path($store_path);
 my $dbh=$store->open_db();
 #-------------------------------------------------------------------------------------------
@@ -44,8 +47,6 @@ if (scalar (@$prov)>0) {
 	$CMD=~s/__ID_DEV__/$ids/;
 	print "$CMD\n";
 
-	my $log_level='debug';
-	my $log_mode=3;
 	my $provision=ProvisionLite->new(log_level=>$log_level, log_mode=>$log_mode, cfg=>$rCFG);
 	$provision->init();
 	my $STORE=$provision->istore();
