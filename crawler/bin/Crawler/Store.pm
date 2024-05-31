@@ -10103,11 +10103,12 @@ my ($self,$dbh) = @_;
    my $file_dyn_names='/cfg/names.dyn.wins';
    my $file_cfg_wins='/cfg/onm.wins';
 
+	my @prov=();
    my %host2ip=();
    my %ip2host=();
    my $db_dyn_stored=$self->get_device($dbh,{'dyn'=>2},'id_dev,name,ip');
 
-   if (scalar(@$db_dyn_stored)==0) { return; }
+   if (scalar(@$db_dyn_stored)==0) { return \@prov; }
 
    open (F,">$file_dyn_names");
    foreach my $x (@$db_dyn_stored) {
@@ -10119,7 +10120,7 @@ my ($self,$dbh) = @_;
 
    if (! -f $file_cfg_wins) {
       $self->log('error',"check_dyn_names_wins:: Can't access file $file_cfg_wins");
-      return;
+      return \@prov;
    }
 
    my $wins_server = '';
@@ -10132,14 +10133,13 @@ my ($self,$dbh) = @_;
 
    if ($wins_server eq '') {
       $self->log('error',"check_dyn_names_wins:: Bad data in file $file_cfg_wins");
-      return;
+      return \@prov;
    }
    my $all_names = join ' ', keys %host2ip;
    my $cmd = "nmblookup -U $wins_server -R $all_names | grep -v $wins_server";
    $self->log('debug',"check_dyn_names_wins:: CMD=$cmd");
    my @res = `$cmd`;
 	my %wins=();
-	my @prov=();
    foreach my $l (@res) {
       chomp $l;
       #1.1.1.1 PCHOST1<00>
