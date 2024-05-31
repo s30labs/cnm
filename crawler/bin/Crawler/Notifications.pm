@@ -3411,6 +3411,9 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 	};
 	
 	my $global_cnt=0;	
+   my $current_tasks=0;
+   my $done_current=0;
+
    while ($t < $tlast) {
 		
 		my $tdif=$tlast-$t;
@@ -3419,13 +3422,13 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 			$self->log('debug',"task_loop::[DEBUG] TERMINO task_loop");
 			last;
 		}
-			
+					
       #------------------------------------
       # Lanzo procesos
       #------------------------------------
-      my $current_tasks=0;
+      #my $current_tasks=0;
+      #my $done_current=0;
 		my $num_checks=0;
-      my $done_current=0;
       foreach my $key (keys %$tasks) {
 									
 			my $fork_ts = time;
@@ -3438,7 +3441,6 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 			# Miro si es una tarea que se puede serializar y actuo en consecuencia
 			my @serialized=();
 			my $serial = $tasks->{$key}->{'serial'};
-         #if ($tasks->{$key}->{'serial'} ne '') {
          if ($serial ne '') {
 				foreach my $k (keys %$tasks) {	
 					if ($tasks->{$k}->{'serial'} eq $tasks->{$key}->{'serial'}) {  
@@ -3456,7 +3458,7 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
          $num_checks += $ns;
 			$global_cnt += $ns;
 
-			#my $depura_key = join(';', @serialized);
+			my $all_serial = join(';', @serialized);
 			#$self->log('info',"task_loop:: ===>> START_CH_PRE [$depura_key] num_checks=$num_checks current_tasks=$current_tasks done_current=$done_current  max_task_active=$max_task_active");
 
 			$self->log_tmark();
@@ -3464,7 +3466,7 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 			#Child
          if ($child == 0) {
 			
-			  	$self->log('info',"task_loop:: ===>> START_CHILD PID=$$ NUM_CHECKS=$ns|$max_task_active [$global_cnt|$TOTAL_TASKS] ($serial)");
+			  	$self->log('info',"task_loop:: ===>> START_CHILD PID=$$ NUM_CHECKS=$ns|$max_task_active [$global_cnt|$TOTAL_TASKS] ($all_serial)");
 								
 				eval {
 					my $store=$self->store();	
@@ -3518,53 +3520,64 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 				}
 			}
       }
-		
+				
       #------------------------------------
       $t=time;
 		if ($current_tasks == 0) {
 			$self->log('warning',"task_loop::[ERROR] TERMINO POR NO TENER TAREA (DONE = $done)");
 			last;
 		}
-			
+					
+      #------------------------------------
+      # Obtengo resultados 
+      #------------------------------------
       while ($t < $tlast) {
-			$self->log('debug',"task_loop::[DEBUG] DONE=$done done_current=$done_current current_tasks=$current_tasks");
+			#DEBUG----------------------------------------------------------------
+			my @v_all_active=();
+			foreach my $key (keys %$tasks) {
+				if ($tasks->{$key}->{'task_status'} == ACTIVE) { push @v_all_active,$key; }
+			}
+			my $all_active = join(';', @v_all_active);
+			$self->log('info',"task_loop::[PROGRESS] DONE=$done|$TOTAL_TASKS done_current=$done_current current_tasks=$current_tasks ACTIVE=$all_active");
+			#---------------------------------------------------------------------
+
          if ($done_current == $current_tasks) { last; }
          if ($done == $TOTAL_TASKS) { last; }
 			
          foreach my $key (keys %$tasks) {
 
             if ($tasks->{$key}->{'task_status'} == TERMINATED) { next; }
+            if ($tasks->{$key}->{'task_status'} == IDLE) { next; }
 
 				my $pid = $tasks->{$key}->{'pid'};
-
             my $fout = $tasks->{$key}->{'out'};
             if (-f $fout) { $tasks->{$key}->{'task_status'} = DONE;  }
 
-				if ( ($tasks->{$key}->{'task_status'} != DONE) || ($tasks->{$key}->{'task_status'} == ACTIVE)) {
+				if ($tasks->{$key}->{'task_status'} == ACTIVE) {
+
 					my $time_in_fork = $t - $tasks->{$key}->{'fork_ts'};
 					my $fts = $tasks->{$key}->{'fork_ts'};
 					$self->log('debug',"task_loop:: DEBUG --- PID=$pid key=$key t=$t fork_ts=$fts time_in_fork=$time_in_fork");
          	  	if ($time_in_fork > 90) {
-						$self->log('info',"task_loop:: END_CHECK DEBUG PID=$pid KEY=$key **ERROR** time_in_fork=$time_in_fork | DONE=$done done_current=$done_current current_tasks=$current_tasks");
-						if ($pid=~/^\d+$/) { 
+						if (($pid=~/^\d+$/) && ($pid>0)) {
 							my $rx = kill 9, $pid; 
 							$self->log('info',"task_loop:: END_CHECK KILL PID=$pid ($rx) KEY=$key");
 						}
-						$tasks->{$key}->{'task_status'} = IDLE;
-						$done_current +=1;
-            		$done +=1;
-						$TOTAL_TASKS += 1;
+						if ($tasks->{$key}->{'task_status'} != IDLE) {
+							$self->log('info',"task_loop:: END_CHECK DEBUG PID=$pid KEY=$key **ERROR** time_in_fork=$time_in_fork | DONE=$done done_current=$done_current current_tasks=$current_tasks");
+							$tasks->{$key}->{'task_status'} = IDLE;
+							#$tasks->{$key}->{'task_status'} = DONE;
+							$done_current +=1;
+         	   		$done +=1;
+							$TOTAL_TASKS += 1;
+						}
 					}
 					next;
 				}
 
-            #if ($tasks->{$key}->{'task_status'} != DONE) {  next; }
-            #if ($tasks->{$key}->{'task_status'} == ACTIVE) { next; }
-
             if ($done_current == $current_tasks) { last; }
             if ($done == $TOTAL_TASKS) { last; }
 				$self->log('info',"task_loop:: END_CHECK PID=$pid KEY=$key DONE=$done done_current=$done_current current_tasks=$current_tasks");
-            # $tasks->{$key}->{'result'} = $self->shared_read($fout);
             my $result = $self->shared_read($fout);
 
 				# RC, DATA_OUT, is_post, ev, watch
@@ -3582,11 +3595,18 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
             $done_current +=1;
             $done +=1;
          }
-
+			
 			#Esta espera el fundamental para no consumir toda la CPU 
          #sleep 2;
 			select(undef, undef, undef, 0.5);
          $t=time;
+
+
+			if ($done_current>0) {
+				$current_tasks = $max_task_active-$done_current;
+				$done_current=0;
+				last; 
+			}
       }
 
    }
@@ -3603,7 +3623,7 @@ my ($self,$max_task_active,$max_task_timeout)=@_;
 
 #----------------------------------------------------------------------------
 # task_serialize
-# IN:
+# IN
 #  $tasks -> Vector de tareas
 #----------------------------------------------------------------------------
 sub task_serialize {
