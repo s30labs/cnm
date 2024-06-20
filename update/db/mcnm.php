@@ -442,7 +442,7 @@ function _DB(){
    // $dsn = array('phptype'=>'mysql','username'=>'root','password'=>'s30labs1234','hostspec'=>'localhost','database'=>'cnm');
 
 	$cred = get_db_credentials();
-   $dsn = array('phptype'=>'mysql','username'=>'onm','hostspec'=>'localhost','database'=>'cnm');
+   $dsn = array('phptype'=>'mysqli','username'=>'onm','hostspec'=>'localhost','database'=>'cnm');
 	$dsn['password'] = $cred["CNM_DB_PASSWORD"];
 	$dsn['hostspec'] = $cred["CNM_DB_SERVER"];
 	$dbc = @DB::Connect($dsn,TRUE);
