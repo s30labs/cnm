@@ -27,7 +27,7 @@ function grid2csv($xml,$mode=0){
 	);
 
 	// Eliminamos los caracteres de control
-	$xml = ereg_replace('[[:cntrl:]]', '', $xml);
+	$xml = preg_replace('/[[:cntrl:]]/', '', $xml);
 
    $o_xml = (array) simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
 
