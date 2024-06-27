@@ -10,6 +10,7 @@ use Crawler::SNMP;
 use Crawler::Analysis;
 use NetAddr::IP;
 use ONMConfig;
+use Encode;
 my $FILE_CONF='/cfg/onm.conf';
 my $rcfgbase=conf_base($FILE_CONF);
 
@@ -42,6 +43,12 @@ my $rcfgbase=conf_base($FILE_CONF);
 
    $analysis->get_iftable({'ip'=>$SNMPCFG{'host_ip'}});
    $analysis->get_ifip({'ip'=>$SNMPCFG{'host_ip'}});
+
+   #---------------------------------------------------------------
+	$SNMPCFG{'sysdesc'}  = encode("utf8", $SNMPCFG{'sysdesc'});
+	$SNMPCFG{'sysname'}  = encode("utf8", $SNMPCFG{'sysname'});
+	$SNMPCFG{'sysloc'}  = encode("utf8", $SNMPCFG{'sysloc'});
+	$SNMPCFG{'enterprise'}  = encode("utf8", $SNMPCFG{'enterprise'});
 
    #---------------------------------------------------------------
    print "$SNMPCFG{'sysdesc'}\n";
