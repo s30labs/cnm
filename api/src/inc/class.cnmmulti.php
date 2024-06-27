@@ -86,6 +86,8 @@
 			$result = doQuery('get_multi_cnm_list',$data);
 			$a_remote_cnm = $result['obj'];
 
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
+
 			// Array que va a contener los campos de usuario globales
 			$a_global_devices_custom_data = array();
 
@@ -108,6 +110,7 @@
 					$data = array('__HIDX__'=>$cnm['hidx'],'__CID__'=>$cnm['cid'],'__CID_IP__'=>$cnm['host_ip'],'__TLAST__'=>time(),'__STATUS__'=>'1000');
 					$result = doQuery('update_multi_cnm_status_nook',$data);
 
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: **ERROR** ${cnm['host_ip']}");
 				}
 				// Si ha ido ok ponerlo en cnm_status
 				else{
@@ -118,6 +121,7 @@
 					$data = array('__HIDX__'=>$cnm['hidx'],'__CID__'=>$cnm['cid'],'__CID_IP__'=>$cnm['host_ip'],'__TLAST__'=>time(),'__STATUS__'=>'0');
 					$result = doQuery('update_multi_cnm_status_ok',$data);
 
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
 
 					// //////////////////////////////////////////////////////////////////////// //
 					// DEVICES_CUSTOM_TYPES & DEVICES_CUSTOM_DATA => GLOBAL_DEVICES_CUSTOM_DATA //
@@ -177,6 +181,8 @@ Array
 						// SQL == DELETE FROM alerts_remote WHERE cid='[remote_cid]' AND cid_ip='[remote_cid_ip]'
 			         $data   = array('__CID__'=>$cnm['cid'],'__CID_IP__'=>$cnm['host_ip']);
 			         $result = doQuery('delete_multi_alerts_remote',$data);
+
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
 			
 /*
 						// 2. INSERT
@@ -188,6 +194,7 @@ Array
 								'__CAUSE__'=>$a['cause'],'__EVENT_DATA__'=>$a['event_data'],'__CORRELATED__'=>$a['correlated'],'__CORRELATED_BY__'=>$a['correlated_by'],
 								'__CID__'=>$cnm['cid'],'__CID_IP__'=>$cnm['host_ip'],'__TICKET_DESCR__'=>$a['ticket_descr']);
 				         $result = doQuery('insert_multi_local_alerts',$data);
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
 						}
 */	
                   // 2. INSERT MULTIPLE
@@ -195,11 +202,13 @@ Array
                   $sep = '';
                   foreach($a_data_cnm['data']['alerts'] as $a){
 							foreach($a as $k => $v) $a[$k] = $dbc->escapeSimple($v);
+							if ($a['date'] === '') { $a['date']=0; }
                      $data['__VALUES__'].=$sep."('{$a['id_alert']}','{$a['id_metric']}','{$a['id_device']}','{$a['severity']}','{$a['counter']}','{$a['mname']}','{$a['watch']}','{$a['ack']}','{$a['id_ticket']}','{$a['type']}','{$a['date']}','{$a['name']}','{$a['domain']}','{$a['ip']}','{$a['label']}','{$a['cause']}','{$a['event_data']}','{$a['correlated']}','{$a['correlated_by']}','{$cnm['cid']}','{$cnm['host_ip']}','{$a['ticket_descr']}','{$a['mode']}','{$a['critic']}')";
                      $sep=',';
                   }
                   if($data['__VALUES__']!='')$result = doQuery('insert_multi_alerts_remote',$data);
 		
+//CNMUtils::info_log(__FILE__, __LINE__, "cnmmulti put:: RC={$result['rc']} RCSTR={$result['rcstr']} {$a_res['rcstr']} SQL={$result['query']}");
 
 						// /////////////////////////////// //
 						// ALERT2USER => ALERT2USER_REMOTE //
