@@ -14,6 +14,7 @@ use Net::Curl::Easy qw(:constants);
 use bytes;
 use HTML::LinkExtor;
 use Time::HiRes qw(gettimeofday tv_interval);
+use JSON;
 
 my $VERSION = '1.00';
 #-------------------------------------------------------------------------------------------
@@ -297,20 +298,31 @@ my ($self,$desc)=@_;
 		$easy->setopt( CURLOPT_HEADERFUNCTION, \&cb_header );
       $easy->setopt( CURLOPT_FILE, \$easy->{body} );
 
-    $easy->setopt( CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36' );
+		# Cloud Tokens
+		my $info_token='';
+      if (exists $desc->{'profile'}->{'ProfileType'}) {
+         my $access_token=$self->get_access_token($desc);
+         my @headers = (
+            "Authorization: Bearer $access_token"
+         );
+         $easy->setopt(CURLOPT_HTTPHEADER, \@headers);
+			$info_token='WITH TOKEN';
+      }
+
+    	$easy->setopt( CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36' );
 
 #    $easy->setopt( CURLOPT_TIMEOUT, 300 );
-    $easy->setopt( CURLOPT_CONNECTTIMEOUT, $timeout );
+    	$easy->setopt( CURLOPT_CONNECTTIMEOUT, $timeout );
 #    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
-    $easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
+    	$easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
 #    $easy->setopt( CURLOPT_ENCODING, 'gzip,deflate' ) if $has_zlib;
-    $easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
+    	$easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
 #    $easy->setopt( CURLOPT_COOKIEFILE, '' );
 #    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
 
       $easy->perform();
 
-      $self->log('info',"mon_http_base (curl) >> GET url=$url_mod");
+      $self->log('info',"mon_http_base (curl) >> GET URL $info_token = $url_mod");
 
 		alarm(0);
    };
@@ -362,6 +374,7 @@ my ($self,$desc)=@_;
    my @links = $parser->links();
    $results{'nlinks'} = scalar(@links);
 
+$results{'body'} = $content;
    return \%results;
 }
 
@@ -432,6 +445,54 @@ my ($self,$desc)=@_;
 
 }
 
+#----------------------------------------------------------------------------
+sub get_access_token {
+my ($self,$desc)=@_;
+
+   $self->err_num(0);
+   $self->err_str('');
+   my $timeout= $self->timeout();
+	my $access_token='';
+
+	if (! exists $desc->{'profile'}->{'ProfileType'}) { return $access_token; }
+
+	if ($desc->{'profile'}->{'ProfileType'} =~ /AZURE/i) {
+
+		my $resource = 'https://management.azure.com/';
+		if ( 	(! exists $desc->{'profile'}->{'Credentials'}->{'TenantId'}) ||
+				(! exists $desc->{'profile'}->{'Credentials'}->{'ClientId'}) ||
+				(! exists $desc->{'profile'}->{'Credentials'}->{'ClientSecret'}) ) { return $access_token; }
+
+		my $tenant_id = $desc->{'profile'}->{'Credentials'}->{'TenantId'};
+		my $client_id = $desc->{'profile'}->{'Credentials'}->{'ClientId'};
+		my $client_secret = $desc->{'profile'}->{'Credentials'}->{'ClientSecret'};
+
+		my $ua = LWP::UserAgent->new;
+		my $url = "https://login.microsoftonline.com/$tenant_id/oauth2/token";
+
+		my %form = (
+    		grant_type    => 'client_credentials',
+    		client_id     => $client_id,
+    		client_secret => $client_secret,
+    		resource      => $resource,
+		);
+
+		my $response = $ua->post($url, \%form);
+
+		if ($response->is_success) {
+			my $content = decode_json($response->decoded_content);
+		   $access_token = $content->{access_token};
+			$self->log('warning',"get_access_token:: TOKEN OK");
+		} 
+		else {
+			my $err_str=$response->status_line;
+			$self->err_str($err_str);
+			$self->log('warning',"get_access_token:: **ERROR** $err_str");
+		}
+	}
+
+	return $access_token;
+}
 
 
 1;
