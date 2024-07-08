@@ -1096,7 +1096,7 @@ $DBScheme = array(
 		'domain'=>"varchar(30) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'ip'=>"varchar(22) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'sysloc'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Desconocido'",
-		'sysdesc'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Desconocido'",
+		'sysdesc'=>"varchar(512) character set utf8 collate utf8_spanish_ci default 'Desconocido'",
 		'sysoid'=>"varchar(255) character set utf8 collate utf8_spanish_ci default 'Desconocido'",
 			'txml'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
 		'type'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
@@ -1388,7 +1388,7 @@ $DBScheme = array(
   		'ref'=>"text character set utf8 collate utf8_spanish_ci NOT NULL",
   		'date_store'=>"int(11) NOT NULL",
 		'login_name'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
-  		'event_data'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+  		'event_data'=>"varchar(2048) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'PRIMARY KEY  (`id_dev`,`id_alert`)'=>'',
       'KEY `id_ticket` (`id_ticket`)'=>''
    ),
