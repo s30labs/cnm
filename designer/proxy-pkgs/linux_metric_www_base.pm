@@ -49,6 +49,7 @@ $linux_metric_www_base::SCRIPT_NAME = 'linux_metric_www_base.pl';
 		'p02' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-u', '__PARAM_DESCR__' => 'URL', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		'p03' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-pattern', '__PARAM_DESCR__' => 'Pattern', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		'p04' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-timeout', '__PARAM_DESCR__' => 'Timeout', '__PARAM_VALUE__' => '10', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
+		'p05' => { '__HPARAM__' => '', '__PARAM_TYPE__' => '0', '__PARAM_PREFIX__' => '-cfg', '__PARAM_DESCR__' => 'Config File', '__PARAM_VALUE__' => '', '__SCRIPT__' => $linux_metric_www_base::SCRIPT_NAME },
 		},
 
 	# ----------------------------
@@ -61,9 +62,9 @@ Sus parámetros de ejecución son:
 
  linux_metric_www_base.pl -id 1
  linux_metric_www_base.pl -ip 86.109.126.250
- linux_metric_www_base.pl -n www -d s30labs.com
- linux_metric_www_base.pl -name www -domain s30labs.com
- linux_metric_www_base.pl -u http://www.s30labs.com -pattern cnm [-timeout 15]
+ linux_metric_www_base.pl -n www -d s30labs.com [-cfg credentials.json]
+ linux_metric_www_base.pl -name www -domain s30labs.com [-cfg credentials.json]
+ linux_metric_www_base.pl -u http://www.s30labs.com -pattern cnm [-timeout 15] [-cfg credentials.json]
  linux_metric_www_base.pl -u http://www.s30labs.com -l
  linux_metric_www_base.pl -h
 
@@ -79,6 +80,8 @@ Sus parámetros de ejecución son:
       Patron de busqueda.  Contiene una cadena de texto que se busca dentro del contenido de la pagina.
  -timeout
       Timeout.  Por defecto 10 seg
+ -cfg
+      Fichero de credenciales.  Fichero JSON con las credenciales necesarias para la conexión. Debe estar el areaa de ficheros de configuración de CNM.
  -v, -verbose
       Muestra informacion extra(debug)
  -h, -help
