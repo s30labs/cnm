@@ -56,6 +56,10 @@ $VERSION = '1.00';
 #----------------------------------------------------------------------------
 %CNMScripts::RESULTS=();
 @CNMScripts::RESULTS=();
+#----------------------------------------------------------------------------
+$CNMScripts::CONFIG_FILES_DIR = '/store/www-user/file_storage_repository';
+$CNMScripts::AUTOMATION_FILES_DIR = '/store/www-user/automation';
+$CNMScripts::CALENDAR_FILES_DIR = '/store/www-user/calendar';
 
 #----------------------------------------------------------------------------
 my %LOG_PRIORITY = ( 'debug' => 0, 'info' => 1, 'notice' => 2, 'warning' => 3,
@@ -1520,6 +1524,26 @@ my ($self,$lapse)=@_;
 
 }
 
+#--------------------------------------------------------------------
+sub get_config_files_dir {
+my ($self)=@_;
+
+	return $CNMScripts::CONFIG_FILES_DIR;
+}
+
+#--------------------------------------------------------------------
+sub get_automation_files_dir {
+my ($self)=@_;
+
+   return $CNMScripts::AUTOMATION_FILES_DIR;
+}
+
+#--------------------------------------------------------------------
+sub get_calendar_files_dir {
+my ($self)=@_;
+
+   return $CNMScripts::CALENDAR_FILES_DIR;
+}
 
 #----------------------------------------------------------------------------
 # UTILIDADES
