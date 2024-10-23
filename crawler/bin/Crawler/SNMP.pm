@@ -2677,6 +2677,19 @@ my ($self,$desc,$ip)=@_;
       my $iid = $IF2IP{$ip};
       if (exists $IF2MAC{$iid}) { $mac = $IF2MAC{$iid}; }
    }
+   else {
+      my %unique_macs=();
+		my $first_mac='';
+      foreach my $iid (sort {$a <=> $b} keys %IF2MAC) { 
+			my $m=$IF2MAC{$iid};
+#print "MAC=$m\n";
+			if ($m=~/^(\w{2}\:\w{2}\:\w{2})/) { 
+				$unique_macs{$1}=1; 
+				if ($first_mac eq '') { $first_mac=$m; }
+			} 
+		}
+      if (scalar(keys %unique_macs)==1) { $mac = $first_mac; } 
+   }
 
 	if ($mac eq '-') { return ($mac,$mac_vendor); }
 
