@@ -8198,15 +8198,15 @@ my $condition='';
 # Descripcion:
 #----------------------------------------------------------------------------
 sub delete_metric_by_id {
-my ($self,$dbh,$id_metric)=@_;
+my ($self,$dbh,$id_metric_all)=@_;
 my ($rres,$condition)=([],'');
 
-   if (defined $id_metric) { $condition="id_metric in ($id_metric)"; }
+   if (defined $id_metric_all) { $condition="id_metric in ($id_metric_all)"; }
    else { return undef; }
 
-	$self->log('debug',"delete_metric_by_id::[DEBUG] ID=$id_metric");
+	$self->log('debug',"delete_metric_by_id::[DEBUG] ID=$id_metric_all");
 	# Elimina las relaciones con las vistas de la metrica en cuestion
-	$rres=sqlDelete($dbh,'cfg_views2metrics',"id_metric in ($id_metric)");
+	$rres=sqlDelete($dbh,'cfg_views2metrics',"id_metric in ($id_metric_all)");
    if ($libSQL::err) {
       $self->error($libSQL::err);
       $self->errorstr($libSQL::errstr);
@@ -8217,9 +8217,9 @@ my ($rres,$condition)=([],'');
    }
 
 	# Elimina de otras tablas .......
-   my $values='m.id_dev,m.name,m.type,m.subtype,d.ip,m.file';
+   my $values='m.id_dev,m.name,m.type,m.subtype,d.ip,m.file,m.id_metric';
    my $tables='metrics m, devices d';
-   my $where="m.id_dev=d.id_dev and id_metric in ($id_metric)";
+   my $where="m.id_dev=d.id_dev and id_metric in ($id_metric_all)";
    $rres=sqlSelectAll($dbh,$values,$tables,$where);
 
    foreach my $m (@$rres) {
@@ -8230,7 +8230,9 @@ my ($rres,$condition)=([],'');
       my $subtype=$m->[3];
       my $ip=$m->[4];
       my $frrd='/opt/data/rrd/elements/'.$m->[5];
+      my $id_metric=$m->[6];
 
+		$self->log('debug',"delete_metric_by_id::[DEBUG] BUCLE >> id_metric=$id_metric id_dev=$id_dev mname=$mname type=$type subtype=$subtype ip=$ip frrd=$frrd");
       #Elimina de alerts y alerts_store (Los datos del alerts_store ya no son consistentes)
       if ($id_dev && $mname) {
 		   $rres=sqlDelete($dbh,'alerts',"id_device=$id_dev and mname='$mname'");
@@ -8266,6 +8268,7 @@ my ($rres,$condition)=([],'');
 				$self->manage_db_error($dbh,"delete_metric_by_id");
       	   return undef;
       	}
+			$self->log('debug',"delete_metric_by_id::[DEBUG] metric2snmp >> id_metric=$id_metric");
          $rres=sqlDelete($dbh,'metric2snmp',"id_metric in ($id_metric)");
          if ($libSQL::err) {
             $self->error($libSQL::err);
@@ -8283,6 +8286,7 @@ my ($rres,$condition)=([],'');
 
      # Elimina la info de metric2latency
       elsif ($type eq 'latency'){
+			$self->log('debug',"delete_metric_by_id::[DEBUG] metric2latency >> id_metric=$id_metric");
          $rres=sqlDelete($dbh,'metric2latency',"id_metric in ($id_metric)");
          if ($libSQL::err) {
             $self->error($libSQL::err);
@@ -8317,11 +8321,13 @@ my ($rres,$condition)=([],'');
          if (! $rc) {
 				$self->log('warning',"delete_metric_by_id::[ERROR] ERROR al borrar RRD $frrd");
 			}
+			else { $self->log('debug',"delete_metric_by_id::[DEBUG] RRD >> $frrd"); }
       }
 
 	}
 
 	# Elimina la metrica de la tabla metrics
+	$self->log('debug',"delete_metric_by_id::[DEBUG] $TAB_METRICS_NAME >> $condition");
    $rres=sqlDelete($dbh,"$TAB_METRICS_NAME","$condition");
    if ($libSQL::err) {
       $self->error($libSQL::err);

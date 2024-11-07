@@ -480,8 +480,8 @@ foreach my $cid (keys %$params) {
 
 		#-------------------------------------------------------------------------------------------
 		# Borro los metricas a eliminar.
-		# Especifico un maximo de 500 por precaucion
-		$store->delete_metrics ($dbh, {status=>3}, 500 );
+		# Especifico un maximo de 50 por carga
+		$store->delete_metrics ($dbh, {status=>3}, 50 );
 		$store->delete_metric_relations ($dbh);
 
 
