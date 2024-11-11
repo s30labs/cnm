@@ -979,6 +979,7 @@ my ($self, $type, $range, $lapse, $callback) = @_;
       open (F,">$fpid");
       print F "$$\n";
       close F;
+		chmod 0664, $fpid;
    }
 
    sigprocmask(SIG_UNBLOCK,$signals);  # unblock signals
