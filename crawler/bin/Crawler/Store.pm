@@ -1915,7 +1915,8 @@ my $rres;
 	$table{watch} = $monitor;
 	
    # $table{event_data} --------------------------------
-	$table{event_data} = (defined $data->{event_data}) ? $data->{event_data} : undef;
+	# event_data size in alerts is 2048
+	$table{event_data} = (defined $data->{event_data}) ? substr($data->{event_data},0,2047) : undef;
 
    # $table{mname} --------------------------------
    $table{mname} = $data->{mname};
@@ -2487,7 +2488,7 @@ my ($self,$dbh,$type,$data)=@_;
    if (defined $data->{'notif'}) { $table{'notif'}=$data->{'notif'}; }
    if (defined $data->{'mname'}) { $table{'mname'}=$data->{'mname'}; }
    if (defined $data->{'watch'}) { $table{'watch'}=$data->{'watch'}; }
-   if (defined $data->{'event_data'}) { $table{'event_data'}=$data->{'event_data'}; }
+   if (defined $data->{'event_data'}) { $table{'event_data'} = substr($data->{'event_data'},0,2047); }
    if (defined $data->{'ack'}) { $table{'ack'}=$data->{'ack'}; }
    if (defined $data->{'id_ticket'}) { $table{'id_ticket'}=$data->{'id_ticket'}; }
    if (defined $data->{'severity'}) { $table{'severity'}=$data->{'severity'}; }
