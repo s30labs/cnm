@@ -418,6 +418,11 @@ my ($self,$esp_base,$values)=@_;
 	%Crawler::FXM::Intermediate=();
 	my $subtype=$self->subtype();
 
+	$esp_base =~ s/&gt;/>/g;
+	$esp_base =~ s/&lt;/</g;
+	$esp_base =~ s/&ge;/>=/g;
+	$esp_base =~ s/&le;/<=/g;
+
    $self->log('debug',"parse_fx:: [fx_IF] IN subtype=$subtype esp_base=$esp_base values=@$values");
 	while ($esp_base =~ /IF\((.*?),(.*?),(.*?)\)/g) {
 		
