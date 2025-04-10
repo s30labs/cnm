@@ -894,7 +894,7 @@ my $new_id_dev;
    if (defined $data->{'community'}) {$table{'community'}=$data->{'community'};}
    if (defined $data->{'version'}) {$table{'version'}=$data->{'version'};}
    if (defined $data->{'mode'}) {$table{'mode'}=$data->{'mode'};}
-   if (defined $data->{'mac'}) {$table{'mac'}=$data->{'mac'};}
+   if (defined $data->{'mac'}) {$table{'mac'} = substr($data->{'mac'}, 0, 17);}
    if (defined $data->{'mac_vendor'}) {$table{'mac_vendor'}=$data->{'mac_vendor'};}
    if (defined $data->{'critic'}) {$table{'critic'}=$data->{'critic'};}
 
