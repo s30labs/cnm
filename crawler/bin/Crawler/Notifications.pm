@@ -4602,14 +4602,27 @@ my ($self,$dbh)=@_;
 
 	#Almaceno en @rok el id_alert de las METRICAS OK sin relacion 1->1 alertas-metricas (alertas remotas o especiales: mon_snmp, mon_xagent...)
 	#Se contempla tambien mon_icmp porque se sumariza disp_icmp y mon_icmp al generar la alerta.
-   $res=$store->get_from_db( $dbh, 'distinct(a.id_alert)', 'alerts a, metrics m', "a.cid=\'$cid\' and m.id_dev = a.id_device and a.mname in (\'mon_icmp\',\'mon_snmp\',\'mon_wbem\',\'mon_xagent\')", '' );
+   #$res=$store->get_from_db( $dbh, 'distinct(a.id_alert)', 'alerts a, metrics m', "a.cid=\'$cid\' and m.id_dev = a.id_device and a.mname in (\'mon_icmp\',\'mon_snmp\',\'mon_wbem\',\'mon_xagent\')", '' );
+	
+	#FML 20250722 - Divido los casos xxx_icmp y mon_snmp (teniendo en cuenta que es facil que esten repetidas)
+	my %relation1n=();
+   $res=$store->get_from_db( $dbh, 'distinct(a.id_alert)', 'alerts a, metrics m', "a.cid=\'$cid\' and m.id_dev = a.id_device and a.mname like \'%_icmp\' and m.subtype=a.subtype", '' );
    my $e2=$store->error();
    if ($e2) {
       my $e = "ERROR=($e2) ".$store->errorstr().'  ('.$store->lastcmd().' )';
       $self->log('warning',"chk_integrity::[WARN] $e");
    }
-   foreach my $v (@$res) { push @rok, $v->[0]; }
+	foreach my $v (@$res) { $relation1n{$v->[0]} = 1; }
 
+   $res=$store->get_from_db( $dbh, 'distinct(a.id_alert)', 'alerts a, metrics m', "a.cid=\'$cid\' and m.id_dev = a.id_device and a.mname = \'mon_snmp\'", '' );
+   my $e2b=$store->error();
+   if ($e2b) {
+      my $e = "ERROR=($e2b) ".$store->errorstr().'  ('.$store->lastcmd().' )';
+      $self->log('warning',"chk_integrity::[WARN] $e");
+   }
+   foreach my $v (@$res) { $relation1n{$v->[0]} = 1; }
+
+   foreach my $k (keys %relation1n) { push @rok, $k; }
 
    $res=$store->get_from_db( $dbh, 'distinct(a.id_alert)', 'alerts a, metrics m', "a.cid=\'$cid\' and m.id_dev = a.id_device and a.type in (\'snmp-trap\',\'email\',\'syslog\',\'api\')", '' );
    my $e3=$store->error();
