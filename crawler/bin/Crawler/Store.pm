@@ -881,7 +881,10 @@ my $new_id_dev;
    if ($data->{'domain'}) {$table{'domain'}= lc $data->{'domain'};}
 
    if (defined $data->{'sysloc'}) {$table{'sysloc'}=$data->{'sysloc'};}
-   if (defined $data->{'sysdesc'}) {$table{'sysdesc'}=$data->{'sysdesc'};}
+
+   $data->{'sysdesc'} =~ s/\n/ /g;
+   $data->{'sysdesc'} =~ s/\r/ /g;
+   if (defined $data->{'sysdesc'}) {$table{'sysdesc'} = substr($data->{'sysdesc'}, 0, 250);}
    if (defined $data->{'sysoid'}) {$table{'sysoid'}=$data->{'sysoid'};}
    elsif (defined $data->{'oid'}) {$table{'sysoid'}=$data->{'sysoid'};}
    if (defined $data->{'enterprise'}) {$table{'enterprise'}=$data->{'enterprise'};}
@@ -5183,7 +5186,7 @@ my ($what,$from,$where,$sql,$rv);
    }
 	# ---------------------------------------------------------
 
-   $what='d.name,d.domain,d.ip,d.version,d.community as credentials,m.id_dev,m.id_dest,m.id_metric,m.name as mname,m.type,m.subtype,m.label,m.host,m.top_value,m.file,m.mtype,m.mode,m.module,m.watch,m.severity,m.host_idx,m.iid,m.subtable,m.lapse,c.oid,t.get_iid,t.cfg,t.esp,d.status,t.descr as cause,t.params';
+   $what='d.name,d.domain,d.ip,d.version,d.community as credentials,m.id_dev,m.id_dest,m.id_metric,m.name as mname,m.type,m.subtype,m.label,m.host,m.top_value,m.file,m.mtype,m.mode,m.module,m.watch,m.severity,m.host_idx,m.iid,m.subtable,m.lapse,m.items,c.oid,t.get_iid,t.cfg,t.esp,d.status,t.descr as cause,t.params';
    $from='devices d,metrics m, metric2snmp c, cfg_monitor_snmp t';
    $where="d.status in (0,2) and m.status=0 and m.type='snmp' and d.id_dev=$id_dev and d.id_dev=m.id_dev and m.id_metric=c.id_metric and m.subtype=t.subtype ";
 
@@ -5204,13 +5207,14 @@ my ($what,$from,$where,$sql,$rv);
 		#snmpv3
 		if ( ($l->[3]==3) && (exists $v3prof{$l->[4]}) ) { $l->[4]=$v3prof{$l->[4]}; }
 
-		my @xitems=split(/\|/,$l->[24]);
+		#FML 2026/02/09 Se incluye en la consulta m.items oid pasa a ser el indice 25
+		my @xitems=split(/\|/,$l->[25]);
 		$nitems = scalar(@xitems);
 		push @$l,$nitems,$cid,$tnow;
 		push @data, [@$l,@$l];
 	}
 
-   $sql="INSERT INTO cnm.work_snmp (name,domain,ip,version,credentials,id_dev,id_dest,id_metric,mname,type,subtype,label,host,top_value,file,mtype,mode,module,watch,severity,host_idx,iid,subtable,lapse,oid,get_iid,cfg,esp,status,cause,params,nitems,cid,date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE  name=?, domain=?, ip=?, version=?, credentials=?, id_dev=?, id_dest=?, id_metric=?, mname=?, type=?, subtype=?, label=?, host=?, top_value=?, file=?, mtype=?, mode=?, module=?, watch=?, severity=?, host_idx=?, iid=?, subtable=?, lapse=?, oid=?, get_iid=?, cfg=?, esp=?, status=?, cause=?, params=?, nitems=?, cid=?, date=?";
+   $sql="INSERT INTO cnm.work_snmp (name,domain,ip,version,credentials,id_dev,id_dest,id_metric,mname,type,subtype,label,host,top_value,file,mtype,mode,module,watch,severity,host_idx,iid,subtable,lapse,items,oid,get_iid,cfg,esp,status,cause,params,nitems,cid,date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE  name=?, domain=?, ip=?, version=?, credentials=?, id_dev=?, id_dest=?, id_metric=?, mname=?, type=?, subtype=?, label=?, host=?, top_value=?, file=?, mtype=?, mode=?, module=?, watch=?, severity=?, host_idx=?, iid=?, subtable=?, lapse=?, items=?, oid=?, get_iid=?, cfg=?, esp=?, status=?, cause=?, params=?, nitems=?, cid=?, date=?";
    $rv=sqlCmd_fast($dbh,\@data,$sql);
 
 	# ---------------------------------------------------------
@@ -5680,7 +5684,7 @@ $self->log('debug',"work_table_to_file:: crawler_idx=$crawler_idx idx=$idx");
 	#---------------------------------------------------------
 	if ($table eq 'work_snmp') {
 
-      $rres=sqlSelectAll($dbh,'ip,name,domain,id_dev,id_metric,iid,cause,mode,module,watch as monitor,mtype,mname,severity,type,subtype,watch,version,credentials,get_iid,oid,cfg,file,esp,subtable,status,top_value,params,cid',"cnm.$table","crawler_idx=$crawler_idx",'');
+      $rres=sqlSelectAll($dbh,'ip,name,domain,id_dev,id_metric,iid,cause,mode,module,watch as monitor,mtype,mname,severity,type,subtype,watch,version,credentials,get_iid,oid,cfg,file,esp,subtable,status,top_value,params,cid,items',"cnm.$table","crawler_idx=$crawler_idx",'');
 
       $self->error($libSQL::err);
       $self->errorstr($libSQL::errstr);
@@ -5699,7 +5703,7 @@ $self->log('debug',"work_table_to_file:: FILE=$fdata1");
       foreach my $l (@$rres) {
 			my $host_name=$l->[1].'.'.$l->[2];
 			my $subtable=sprintf("%03d", $l->[23]);
-			my %h=('host_ip'=>$l->[0], 'host_name'=>$host_name, 'hname'=>$l->[1], 'hdomain'=>$l->[2], 'iddev'=>$l->[3], 'idmetric'=>$l->[4], 'iid'=>$l->[5], 'cause'=>$l->[6], 'mode'=>$l->[7], 'module'=>$l->[8], 'watch'=>$l->[9], 'mtype'=>$l->[10], 'name'=>$l->[11], 'severity'=>$l->[12], 'type'=>$l->[13], 'subtype'=>$l->[14], 'watch'=>$l->[15], 'version'=>$l->[16], 'get_iid'=>$l->[18], 'oid'=>$l->[19], 'cfg'=>$l->[20], 'file'=>$l->[21], 'esp'=>$l->[22], 'subtable'=>$subtable, 'status'=>$l->[24], 'top_value'=>$l->[25], 'params'=>$l->[26], 'cid'=>$l->[27]);
+			my %h=('host_ip'=>$l->[0], 'host_name'=>$host_name, 'hname'=>$l->[1], 'hdomain'=>$l->[2], 'iddev'=>$l->[3], 'idmetric'=>$l->[4], 'iid'=>$l->[5], 'cause'=>$l->[6], 'mode'=>$l->[7], 'module'=>$l->[8], 'watch'=>$l->[9], 'mtype'=>$l->[10], 'name'=>$l->[11], 'severity'=>$l->[12], 'type'=>$l->[13], 'subtype'=>$l->[14], 'watch'=>$l->[15], 'version'=>$l->[16], 'get_iid'=>$l->[18], 'oid'=>$l->[19], 'cfg'=>$l->[20], 'file'=>$l->[21], 'esp'=>$l->[22], 'subtable'=>$subtable, 'status'=>$l->[24], 'top_value'=>$l->[25], 'params'=>$l->[26], 'cid'=>$l->[27], 'items'=>$l->[28]);
 			if ($l->[16] eq '3') { $h{'credentials'}=$l->[17]; }
 			else {$h{'community'}=$l->[17]; }
 			
@@ -8506,7 +8510,10 @@ my $rv=undef;
    if (defined $data->{domain}) {$table{domain}= lc $data->{domain};}
    if (defined $data->{ip}) {$table{ip}=$data->{ip};}
    if (defined $data->{sysloc}) {$table{sysloc}=$data->{sysloc};}
-   if (defined $data->{sysdesc}) {$table{sysdesc}=$data->{sysdesc};}
+   $data->{'sysdesc'} =~ s/\n/ /g;
+   $data->{'sysdesc'} =~ s/\r/ /g;
+   if (defined $data->{'sysdesc'}) {$table{'sysdesc'} = substr($data->{'sysdesc'}, 0, 250);}
+   #if (defined $data->{sysdesc}) {$table{sysdesc}=$data->{sysdesc};}
    if (defined $data->{sysoid}) {$table{sysoid}=$data->{sysoid};}
    if (defined $data->{txml}) {$table{txml}=$data->{txml};}
    if (defined $data->{type}) {$table{type}=$data->{type};}
