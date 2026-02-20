@@ -2668,7 +2668,7 @@ shtml/mod_avisos_documentacion.shtml	->	mod_avisos_documentacion.php
 			// Crear un nuevo tipo de dispositivo
 			'create_devices_custom_types'=>"INSERT INTO devices_custom_types (descr,tipo) VALUES ('__DESCR__',__TIPO__)",
 			'create_devices_custom_data'=>"ALTER TABLE devices_custom_data ADD COLUMN __COLUMNA__ varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default '-'",
-			'create_devices_custom_datatext'=>"ALTER TABLE devices_custom_data ADD COLUMN __COLUMNA__ text character set utf8 collate utf8_spanish_ci NOT NULL",
+			'create_devices_custom_datatext'=>"ALTER TABLE devices_custom_data ADD COLUMN __COLUMNA__ text character set utf8 collate utf8_spanish_ci NOT NULL default '-'",
 			// Modificar un tipo de dispositivo
 			'mod_devices_custom_types'=>"UPDATE devices_custom_types SET descr='__DESCR__',tipo=__TIPO__ WHERE id=__ID__",
 			// Borrar un tipo de dispositivo
