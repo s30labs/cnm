@@ -2346,10 +2346,25 @@ $self->log('debug',"mod_snmp_walk::[DEBUG ID=$task_id] CACHESET KEY=$key RC=$rc 
    #-------------------------------------------------------------------
 	# Control de errores
 	my $rc=$self->err_num();
+	my $zitems='NA';
 	if ($rc != 0) {
-		if (ref($values) eq "ARRAY") { $res=$values;  }
+		#FML 2026/02/05 Caso particular: esp_cpu_avg_mibhost tiene dos valores de untrada y uno de salida
+		if ($desc->{'subtype'} eq 'esp_cpu_avg_mibhost') { $res=['U']; }
+		#FML 2026/02/05 Caso particular: esp_arp_mibii_cnt tiene tres valores de untrada y uno de salida
+		elsif ($desc->{'subtype'} eq 'esp_arp_mibii_cnt') { $res=['U']; }
+		#FML 2026/02/05 Caso particular: esp_arp_mibii_cnt tiene dos valores de untrada y N de salida (N=Num. CPUs)
+		elsif ($desc->{'subtype'} eq 'esp_cpu_mibhost') { 
+			$zitems=$desc->{'items'};
+			my @it = split (/\|/, $desc->{'items'});
+			my $j=scalar(@it);	
+			my @itu = ();
+			foreach (@it) { push @itu, 'U'; }
+			$res = \@itu;
+		}
+
+		elsif (ref($values) eq "ARRAY") { $res=$values;  }
 		else { $res=['U'];  }
-      $self->log('warning',"mod_snmp_walk::[WARN ID=$task_id] RC=$rc VAL=@$res oid=$desc->{oid}");
+      $self->log('warning',"mod_snmp_walk::[WARN ID=$task_id] RC=$rc VAL=@$res oid=$desc->{oid} items=$zitems");
    }
 	elsif (! defined $values) {
 		$self->log('warning',"mod_snmp_walk::[WARN ID=$task_id] RC=$rc VAL=UNDEF oid=$desc->{oid}");

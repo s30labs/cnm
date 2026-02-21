@@ -130,7 +130,9 @@ $DBSchemeCNM = array(
 		'nitems'=>"int(11) NOT NULL default '1'",
 
 		//temporal mientras existan rrds
-		'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
+		//'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
+
+		'items'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
 
       'PRIMARY KEY  (`mname`,`id_dev`,`cid`)'=>'',
       'KEY `k_id_work` (`id_work`)'=>''
@@ -182,7 +184,7 @@ $DBSchemeCNM = array(
 		'nitems'=>"int(11) NOT NULL default '1'",
 
       //temporal mientras existan rrds
-      'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
+      //'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
 
       'PRIMARY KEY  (`mname`,`id_dev`,`cid`)'=>'',
       'KEY `k_id_work` (`id_work`)'=>''
@@ -245,7 +247,7 @@ $DBSchemeCNM = array(
 		'nitems'=>"int(11) NOT NULL default '1'",
 
       //temporal mientras existan rrds
-      'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
+      //'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
 
 		'timeout'=>"int(11) NOT NULL default '30'",
 
@@ -305,7 +307,7 @@ $DBSchemeCNM = array(
 
 
       //temporal mientras existan rrds
-      'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
+      //'file'=>"varchar(255) character set utf8 collate utf8_spanish_ci default NULL",
 
       'PRIMARY KEY  (`mname`,`id_dev`,`cid`)'=>'',
       'KEY `k_id_work` (`id_work`)'=>''
