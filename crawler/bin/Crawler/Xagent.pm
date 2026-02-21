@@ -697,7 +697,8 @@ $self->log('debug',"chk_metric::[DUMPER] proxies=$dump1");
    # El parametro de entrada es mname (metrica instanciada) pero en la consulta de cfg_monitor_agent necesitamos el subtype
    # Si cfg=1 (sin iids) => subtype = mname
    # Si cfg=2 (con iids) => subtype = mname sin la info de iids
-	$rres=$store->get_from_db( $dbh, 'iid,file', 'metrics', "name=\'$mname\'");
+	#$rres=$store->get_from_db( $dbh, 'iid,file', 'metrics', "name=\'$mname\'");
+	$rres=$store->get_from_db( $dbh, 'm.iid,m.file', 'metrics m, devices d', "m.id_dev=d.id_dev and  d.ip=\'$ip\' and  m.name=\'$mname\'");
 	my ($iid,$file)=('ALL','');
 	if (scalar @$rres > 0) {
 		$iid=$rres->[0][0];
