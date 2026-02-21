@@ -7,7 +7,6 @@ $VERSION='1.00';
 use strict;
 use Crawler::SNMP;
 
-
 #----------------------------------------------------------------------------
 # insert into cfg_monitor_snmp (subtype,class,lapse,descr,items,oid,get_iid) values ('traffic_mibii_if', 'MIB-II', 300, 'TRAFICO EN INTERFAZ ', 'Bits RX|Bits TX','.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID','./support/iid_mibii_if');
 #----------------------------------------------------------------------------
@@ -31,7 +30,6 @@ my %snmpcfg=();
 
    # Miro si existe ifName y se pueden sacar datos de trafico del ifXTable -----------------------------
    my %IFNAME=();
-   #my $IFHC=0;
    my %IFHC=();
 
    #------------------------------------------------------
@@ -46,15 +44,24 @@ my %snmpcfg=();
 	$snmpcfg{'sec_level'}= $device->{'sec_level'};
 
    $snmpcfg{'oid'}='ifName_ifHCInOctets_ifHCOutOctets';
-   #$snmpcfg{'last'}='ifInMulticastPkts';
+   #$snmpcfg{'oid'}='ifName_ifInMulticastPkts_ifInBroadcastPkts';
    $snmpcfg{'last'}='ifHCOutMulticastPkts';
 
    my $res=$snmp->core_snmp_table(\%snmpcfg);
+
+	#Check if $res = [ '1:@:U:@:0:@:0' ] and then try with ifAlias
+	if ($res->[0] =~ /\d+\:\@\:U/) {
+		$snmpcfg{'oid'}='ifAlias_ifHCInOctets_ifHCOutOctets';
+		$res=$snmp->core_snmp_table(\%snmpcfg);
+	}
+
    #------------------------------------------------------
 
 	for my $l ( @$res ) {
       my ($id,$name,$in,$out)=split(':@:',$l);
+		$name=~s/^\s*(.*)$/$1/g;
 		$IFNAME{$id}=$name;
+		
 		if ( (defined $in) && (defined $out) ) { 
 			# Testeo que el valor devuelto es un numero porque se pueden dar situaciones
 			# curiosas. Dispositivo que responde a parte de la MIB extendida pero no a 
@@ -141,29 +148,8 @@ my %snmpcfg=();
 
 		my $descr=$snmp->hex2ascii($descr1);
 
-		#if ( ($Metrics::Base::Subset) && (&Metrics::Base::skip_interface($id,$type)) ) {next;}	
-
-#      $data{'label'}="Trafico $descr (".$device->{'full_name'}.')' ;
-#      $data{'items'}="Bits rx ($id)|Bits tx ($id)";
-#      $data{'oid'}=$data_global->{'oid'};
-#      $data{'oid'}=~s/IID/$id/g;
-#      $data{'name'}=$data_global->{'subtype'}.'-'.$id;
-#
-#      $data{'mtype'}=$data_global->{'mtype'};
-#      $data{'vlabel'}=$data_global->{'vlabel'};
-#      $data{'mode'}=$data_global->{'mode'};
-#      $data{'top_value'}=$data_global->{'top_value'};
-#      $data{'get_iid'}=$data_global->{'get_iid'};
-#      $data{'module'}=$data_global->{'module'};
-#      $data{'iid'}=$id;
-#      push (@mdata, \%data);
-#
-
-      #$data_global->{'label'}="Trafico $descr (".$device->{'full_name'}.')' ;
-      #$data_global->{'items'}="Bits rx ($id)|Bits tx ($id)";
       $data_global->{'label'}="$metric_label $descr (".$device->{'full_name'}.')' ;
 
-#      $data_global->{'items'}=$metric_items .' ('.$id.')';
 		my @vmiid=();
 		my @vmi=split(/\|/,$metric_items);
 		foreach my $x (@vmi) { push @vmiid, $x.' - '.$itable.' ('.$id.')'; }
@@ -174,7 +160,6 @@ my %snmpcfg=();
 
 	}
 	
-	#return \@mdata;
 	return \%mdata;
 }
 
