@@ -209,7 +209,8 @@ my ($self) = @_;
 		$ssh_opts{'password'}=$credentials->{'password'};
 	}
 	elsif (exists $credentials->{'key_file'}) {
-		$ssh_opts{'key_path'} = ($credentials->{'key_file'}==1) ? '/etc/ssh/ssh_host_rsa_key' : $credentials->{'key_file'};
+		#$ssh_opts{'key_path'} = ($credentials->{'key_file'}==1) ? '/etc/ssh/ssh_host_rsa_key' : $credentials->{'key_file'};
+		$ssh_opts{'key_path'} = $credentials->{'key_file'};
 		if (exists $credentials->{'passphrase'}) { $ssh_opts{'passphrase'}=$credentials->{'passphrase'}; }
 	}
 	else {
