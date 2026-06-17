@@ -1,0 +1,30 @@
+#!/bin/bash -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+#x=`cat /cfg/onm.conf | perl -ne 'if (/DB_PWD/) {chomp; @d=split; print "$d[2]\n";}'`
+#mysqlcheck -u onm -p$x --auto-repair onm > /tmp/rclocal.log 2>&1
+#mysqlcheck -u onm -p$x --auto-repair cnm >> /tmp/rclocal.log 2>&1
+
+if [[ ! $(pgrep cnm-watch) ]]; then rm -f /opt/crawler/bin/watch.lock >/dev/null 2>&1; fi
+echo -n "Starting rc.local >> " > /tmp/rclocal.log
+date >> /tmp/rclocal.log
+/opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1 &
+
+CNM_IF=`cat /cfg/onm.if`
+CNM_IP=`ifconfig $CNM_IF | perl -ne 'if (/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { print "$1\n"; }'`
+export MIBS=ALL
+/usr/bin/snmptrap -v 2c -c public $CNM_IP '' CNM-NOTIFICATIONS-MIB::cnmNotifUpMsg CNM-NOTIFICATIONS-MIB::cnmNotifCode.0 i "1" CNM-NOTIFICATIONS-MIB::cnmNotifMsg.0 s "$0" CNM-NOTIFICATIONS-MIB::cnmNotifKey.0 s ""
+
+#test -f /etc/cnm-custom-start.sh && /etc/cnm-custom-start.sh
+
+exit 0

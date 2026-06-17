@@ -1,0 +1,117 @@
+#------------------------------------------------
+# Fichero de Configuracon de ONM
+# $Id: onm.conf,v 1.3 2004/02/18 13:58:16 fml Exp $
+#------------------------------------------------
+HOST_IDX=0
+HOST_NAME={{ ansible_hostname }}
+# Se pueden incluir multiples urls de servidor separadas por comas.
+WWW_SERVER_URL=
+
+#------------------------------------------------
+# PROCESOS LOCALES
+#------------------------------------------------
+PROC_SYSLOG=YES
+PROC_SYSLOG_CMD=/etc/init.d/syslog-ng
+
+PROC_WWW=YES
+PROC_WWW_CMD=/etc/init.d/httpd
+
+PROC_DB=YES
+PROC_DB_CMD=/etc/init.d/mysqld
+
+PROC_CRAWLER=YES
+PROC_CRAWLER_CMD=/etc/init.d/crawlerd
+
+PROC_NOTIFICATIONS=YES
+PROC_NOTIFICATIONS_CMD=/etc/init.d/notificationsd
+
+PROC_GENERATE=YES
+PROC_GENERATE_CMD=/opt/crawler -i
+
+#------------------------------------------------
+# METRICAS POR PROCESO (no tocar)
+#------------------------------------------------
+MAX_60=60
+MAX_300=450
+MAX_3600=4000
+MAX_86400=10000
+
+#------------------------------------------------
+# MODO  DE ALMACENAMIENTO
+#------------------------------------------------
+MODE_DB=0
+
+#------------------------------------------------
+# MODO GRAFICAS (sql/rrd)
+#------------------------------------------------
+FLOT_MODE = rrd
+
+#------------------------------------------------
+# BASE DE DATOS
+#------------------------------------------------
+#DB_SERVER = 127.0.0.1
+DB_SERVER = localhost
+DB_NAME = onm
+DB_USER = onm
+DB_PWD = {{ db_pwd }}
+DB_TYPE = mysql
+
+#------------------------------------------------
+# DISK LAYOUT
+#------------------------------------------------
+#DISK = host_name:host_idx:disk:path remoto:path montado en master
+DISK = cnm-devel:0:0:/opt/data/rrd/:/opt/data/rrd/
+
+#------------------------------------------------
+# RUTAS DE FICHEROS
+#------------------------------------------------
+#DEV_PATH = /opt/data/discover/
+XML_PATH = /opt/crawler/conf/
+CONF_PATH = /opt/crawler/conf/
+TXML_PATH = /opt/crawler/conf/txml/
+APP_PATH = /opt/crawler/conf/apps/
+DEV_PATH = /opt/crawler/conf/devices/
+STORE_PATH = /opt/data/rrd/
+DATA_PATH = /opt/data/rrd/elements/
+
+#------------------------------------------------
+# AVISOS POR CORREO
+#------------------------------------------------
+NOTIF_LAPSE = 60
+NOTIF_MX = __NOTIF_MX__
+NOTIF_MX_PORT = 25
+NOTIF_MX_TLS = 0
+NOTIF_MX_AUTH = 0
+NOTIF_MX_AUTH_USER =
+NOTIF_MX_AUTH_PWD =
+NOTIF_FROM = __NOTIF_FROM__
+NOTIF_FROM_NAME = __NOTIF_FROM_NAME__
+NOTIF_SUBJECT = ALERTA-CNM
+
+#------------------------------------------------
+# AVISOS POR SMS
+#------------------------------------------------
+NOTIF_SERIAL_PORT = /dev/ttyS0
+NOTIF_PIN = 
+
+
+#------------------------------------------------
+# CONFIGURACION DEL PUERTO SERIE
+#------------------------------------------------
+#SERIAL_PORT_BAUDRATE = 9600
+SERIAL_PORT_BAUDRATE = 19200
+SERIAL_PORT_PARITY = none
+SERIAL_PORT_DATABITS = 8
+SERIAL_PORT_STOPBITS = 1
+#SERIAL_PORT_HANDSHAKE = xoff
+SERIAL_PORT_HANDSHAKE = none
+
+
+UPDATE_SERVER_TYPE = custom
+UPDATE_SERVER_NAME = http://software.s30labs.com
+UPDATE_PROXY_USE = no
+UPDATE_PROXY_VALUE = 111
+UPDATE_PROXY_PORT = 
+UPDATE_PROXY_USER = 
+UPDATE_PROXY_KEY = 
+UPDATE_SERVER_DEFAULT = http://software.s30labs.com

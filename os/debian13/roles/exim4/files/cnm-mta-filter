@@ -1,0 +1,5 @@
+# Exim filter
+  if $header_from: contains "pp@kk.com"
+  then
+    save /opt/data/filtered/$message_id
+  endif

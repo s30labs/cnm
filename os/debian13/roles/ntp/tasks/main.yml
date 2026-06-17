@@ -1,0 +1,25 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: ntp
+
+#- name: probando1
+#  shell: grep lxc /proc/1/cgroup|wc -l
+#  register: is_lxc
+#  tags: ntp
+#
+#- name: probando2
+#  debug:
+#    var: is_lxc.stdout
+#    var: ntpserver
+#  tags: ntp
+
+- name: Install packages
+  apt: name=ntpsec-ntpdig state=present force=yes update_cache=yes
+  tags: ntp
+
+- name: Configure cron.hourly
+  template: src=ntpdate.j2 dest=/etc/cron.hourly/ntpdate mode=755
+  tags: ntp
+
+...

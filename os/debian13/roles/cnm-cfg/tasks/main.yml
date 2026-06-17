@@ -1,0 +1,51 @@
+---
+# This playbook contains common plays that will be run on all nodes.
+- include_vars: /cfg/cnm_vars.yml
+  tags: cnm-cfg
+
+- name: Check /cfg/onm.conf
+  stat: path=/cfg/onm.conf
+  register: onm_conf
+  tags: cnm-cfg
+
+- name: Set default /cfg/onm.conf
+  template: src=onm.conf.j2 dest=/cfg/onm.conf
+  when: onm_conf.stat.exists is defined and onm_conf.stat.exists==0
+  tags: cnm-cfg
+
+- name: Set /cfg/onm.conf permissions
+  file: path=/cfg/onm.conf owner=root group=www-data mode=0664
+  tags: cnm-cfg
+
+
+- name: Check /cfg/onm.if
+  stat: path=/cfg/onm.if
+  register: onm_if
+  tags: cnm-cfg
+
+- name: Set /cfg/onm.if if not exists
+  template: src=onm.if.j2 dest=/cfg/onm.if
+  when: onm_if.stat.exists is defined and onm_if.stat.exists==0
+  tags: cnm-cfg
+
+
+- name: Set /cfg/onm.role if not exists
+  copy: src=onm.role.default dest=/cfg/onm.role owner=root group=www-data mode=0664 force=no
+  tags: cnm-cfg
+
+- name: Set /cfg/onm.operation if not exists
+  copy: src=onm.operation.default dest=/cfg/onm.operation owner=root group=www-data mode=0644 force=no
+  tags: cnm-cfg
+
+
+- name: Check /cfg/key
+  stat: path=/cfg/key
+  register: cfg_key
+  tags: cnm-cfg
+
+- name: Set /cfg/key
+  template: src=key.j2 dest=/cfg/key
+  when: cfg_key.stat.exists is defined and cfg_key.stat.exists==0
+  tags: cnm-cfg
+
+...

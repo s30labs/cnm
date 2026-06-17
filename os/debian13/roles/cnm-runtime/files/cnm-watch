@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/opt/crawler/bin/cnm-watch > /dev/null 2>&1

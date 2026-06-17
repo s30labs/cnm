@@ -1,0 +1,60 @@
+#! /bin/sh -e
+### BEGIN INIT INFO
+# Provides:           snmptrapd
+# Required-Start:     $network $local_fs
+# Required-Stop:      $network $local_fs
+# Default-Start:      2 3 4 5
+# Default-Stop:       0 6
+# Short-Description:  SNMP agents
+# Description:        NET SNMP (Simple Network Management Protocol) Agents
+### END INIT INFO
+#
+# Author:    Jochen Friedrich <jochen@scram.de>
+#
+set -e
+
+test -x /usr/sbin/snmptrapd || exit 0
+
+# Reads config file (will override defaults above)
+[ -r /etc/default/snmpd ] && . /etc/default/snmpd
+
+#fml (paso de /etc/default/snmpd)
+TRAPDOPTS='-M /usr/share/snmp/mibs:/opt/data/app-data/mibs_private:/opt/data/mibs000:/opt/data/mibs002 -m ALL -Ls 1 -p /var/run/snmptrapd.pid'
+TRAPDRUN=yes
+
+# Cd to / before starting any daemons.
+cd /
+
+case "$1" in
+  start)
+    echo -n "Starting network management services:"
+   if [ "$TRAPDRUN" = "yes" -a -f /etc/snmp/snmptrapd.conf ]; then
+	start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
+	    -- $TRAPDOPTS -F "%V|%DATE>>%y%m%l %02.2h:%02.2j:%02.2k; HOST>>%A; IPv1>>%a; NAMEv1>>%A; IPv2>>%b; NAMEv2>>%B; OID>>%N; TRAP>>%w.%q; DESC>>%W; VDATA>>%v\n" 
+	echo -n " snmptrapd"
+    fi
+    echo "."
+    ;;
+  stop)
+    echo -n "Stopping network management services:"
+    start-stop-daemon --quiet --stop --oknodo --exec /usr/sbin/snmptrapd
+    echo -n " snmptrapd"
+    echo "."
+    ;;
+  restart)
+    echo -n "Restarting network management services:"
+    start-stop-daemon --quiet --stop --retry 10 --oknodo --exec /usr/sbin/snmptrapd
+    # Allow the daemons time to exit completely.
+    if [ "$TRAPDRUN" = "yes" -a -f /etc/snmp/snmptrapd.conf ]; then
+   	start-stop-daemon --quiet --start --exec /usr/sbin/snmptrapd  \
+       -- $TRAPDOPTS -F "%V|%DATE>>%y%m%l %02.2h:%02.2j:%02.2k; HOST>>%A; IPv1>>%a; NAMEv1>>%A; IPv2>>%b; NAMEv2>>%B; OID>>%N; TRAP>>%w.%q; DESC>>%W; VDATA>>%v\n"
+   	echo -n " snmptrapd"
+    fi
+    echo "."
+    ;;
+  *)
+    echo "Usage: /etc/init.d/snmpd {start|stop|restart}"
+    exit 1
+esac
+
+exit 0

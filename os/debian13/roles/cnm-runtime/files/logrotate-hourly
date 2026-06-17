@@ -1,0 +1,6 @@
+#!/bin/sh
+
+test -x /usr/sbin/logrotate || exit 0
+/usr/sbin/logrotate /etc/logrotate-hourly.conf
+
+/usr/bin/logger -p cron.info -t 'cron.hourly' "RUN logrotate-hourly"
