@@ -3,7 +3,7 @@
 
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -44,12 +44,12 @@ function update_tips_monitor(){
 
 		$sql1 = "UPDATE tips SET id_ref='$monitor' WHERE id_ref='$id_alert_type' AND tip_type='id_alert_type'";
 		$result1 = $enlace->query($sql1);
-		if (@PEAR::isError($result1)){
+		if (CNM_isError($result1)){
 			print"ERROR: ".$result->getMessage()."\n";
 		}
 	}
 
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR: ".$result->getMessage()."\n";
       exit;
    }

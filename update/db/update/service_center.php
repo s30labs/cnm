@@ -3,7 +3,7 @@
 // Programa que inserta en BBDD las tablas extra_sc_level y extra_sc_contact para usarse en el service center
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 // MODULO QUE CONTIENE LOS DATOS DE LAS TABLAS

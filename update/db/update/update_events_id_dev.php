@@ -3,7 +3,7 @@
 
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 

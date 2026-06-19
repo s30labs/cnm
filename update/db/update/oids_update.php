@@ -3,7 +3,7 @@ ini_set('memory_limit','1024M');
 set_include_path('.:/usr/share/php:/usr/share/pear:/var/www/html/onm/inc:/opt/php-utils');
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA LEER DATOS DE CONFIGURACION DE CNM
 require_once('/update/db/DB-Scheme-Lib.php');
 //require_once '/var/www/html/onm/inc/progress_bar/Manager.php';
@@ -41,8 +41,10 @@ CREATE TABLE `oid_tree` (
 
 
 	   // NOS CONECTAMOS A LA BBDD
-	   $enlace = @DB::Connect($data,TRUE);
-	   if (@PEAR::isError($enlace)) {
+	   //$enlace = @DB::Connect($data,TRUE);
+	   //if (@PEAR::isError($enlace)) {
+	   $enlace = CNM_DB::Connect($data,TRUE);
+	   if (CNM_isError($enlace)) {
 	      echo("UPDATE OIDs : CONNECT [ERROR]");
 	      exit;
 	   }else {
@@ -88,7 +90,8 @@ CREATE TABLE `oid_tree` (
 		      $sqlQuery = "INSERT INTO oid_tree (oid_n,oid_s,oid_n_parent) VALUES $values ON DUPLICATE KEY UPDATE oid_s = VALUES(oid_s),oid_n_parent = VALUES(oid_n_parent)";
          	// print "$sqlQuery\n";
 		   	$result=$enlace->query($sqlQuery);
-	         if (@PEAR::isError($result)) {
+	         //if (@PEAR::isError($result)) {
+				if (CNM_isError($result)) {
 	            echo("No se ha podido insertar los datos en la BBDD,MSG==".$result->getMessage().",SQL==$sqlQuery\n");
 	            //exit;
 	         }
@@ -104,7 +107,8 @@ CREATE TABLE `oid_tree` (
          $sqlQuery = "INSERT INTO oid_tree (oid_n,oid_s,oid_n_parent) VALUES $values ON DUPLICATE KEY UPDATE oid_s = VALUES(oid_s),oid_n_parent = VALUES(oid_n_parent)";
          // print "$sqlQuery\n";
          $result=$enlace->query($sqlQuery);
-         if (@PEAR::isError($result)) {
+         //if (@PEAR::isError($result)) {
+			if (CNM_isError($result)) {
             echo("No se ha podido insertar los datos en la BBDD,MSG==".$result->getMessage().",SQL==$sqlQuery\n");
             //exit;
          }
@@ -130,7 +134,8 @@ CREATE TABLE `oid_tree` (
 			echo "ELEMENTO: $i\n";
          // print "$sqlQuery\n";
 		   $result=$enlace->query($sqlQuery);
-			if (@PEAR::isError($result)) {
+			//if (@PEAR::isError($result)) {
+			if (CNM_isError($result)) {
 	      	//echo("No se ha podido insertar los datos en la BBDD,MSG==".$result->getMessage().",SQL==$sqlQuery\n");
 		      //exit;
 				echo $values."\n";

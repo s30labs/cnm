@@ -5,7 +5,7 @@
 
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -129,7 +129,7 @@ function redo_tips_monitor(){
 	   $data_tip=array(  '__ID_REF__' => $mon['monitor'], '__TIP_TYPE__'=>'id_alert_type', '__NAME__'=>'CNM-Info','__TIP_CLASS__'=>'1', '__DESCR__'=>$tip_descr, '__DATE__'=>time());
 		$sql_tip_create_update = "INSERT INTO tips (descr,id_ref,tip_type,date,name,tip_class) VALUES ('$tip_descr','{$mon['monitor']}','id_alert_type',$date,'CNM-Info','1_') ON DUPLICATE KEY UPDATE descr='$tip_descr', date=$date, tip_class='1', id_ref='{$mon['monitor']}', tip_type='id_alert_type', name='CNM-Info'";
 		$result_sql_tip_create_update = $enlace->query($sql_tip_create_update);
-	   if (@PEAR::isError($result_sql_tip_create_update)) {
+	   if (CNM_isError($result_sql_tip_create_update)) {
 	      print"ERROR: ".$result_sql_tip_create_update->getMessage()."\n";
    	}
 	}

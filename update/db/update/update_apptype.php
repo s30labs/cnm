@@ -2,7 +2,7 @@
 // Programa que actualiza el campo apptype de la tabla alert_type
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -68,12 +68,12 @@ function update_apptype_monitor(){
          $sqlu="UPDATE alert_type SET apptype=(SELECT apptype FROM cfg_monitor WHERE monitor='$mname') WHERE id_alert_type=$id_alert_type";
       }
 		$resultu = $enlace->query($sqlu);
-		if (@PEAR::isError($resultu)){
+		if (CNM_isError($resultu)){
 			print"ERROR: ".$resultu->getMessage()."\n";
 		}
 	}
 
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR: ".$result->getMessage()."\n";
       exit;
    }
@@ -88,67 +88,67 @@ function update_apptype_latency(){
 
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.WWW' WHERE subtype='mon_http'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.POP3' WHERE subtype='mon_pop3'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.IMAP4' WHERE subtype='mon_imap'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.SMTP' WHERE subtype='mon_smtp'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.DNS' WHERE subtype='mon_dns'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.TCP' WHERE subtype='mon_tcp'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.SSH' WHERE subtype='mon_ssh'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
 	$sqlu="UPDATE cfg_monitor SET apptype='IPSERV.SNMP' WHERE subtype='mon_snmp'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
    
    $sqlu="UPDATE cfg_monitor SET apptype='IPSERV.SMB' WHERE subtype='mon_smb'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor SET apptype='IPSERV.NTP' WHERE subtype='mon_ntp'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor SET apptype='IPSERV.LDAP' WHERE subtype='mon_ldap'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 }
@@ -161,31 +161,31 @@ function update_apptype_xagent(){
 
    $sqlu="UPDATE cfg_monitor_agent SET apptype='BBDD.MYSQL' WHERE apptype='BBDD-Mysql'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor_agent SET apptype='SO.WINDOWS' WHERE apptype='SO-Win'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor_agent SET apptype='SO.LINUX' WHERE apptype='SO-Linux'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor_agent SET apptype='IPSERV.POP3' WHERE apptype='APP-Correo'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 
    $sqlu="UPDATE cfg_monitor_agent SET apptype='NET.BASE' WHERE apptype='RED'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 }
@@ -199,7 +199,7 @@ function update_apptype_apps(){
 
    $sqlu="UPDATE cfg_monitor_apps SET apptype='NET.BASE' WHERE apptype='RED'";
    $resultu = $enlace->query($sqlu);
-   if (@PEAR::isError($resultu)){
+   if (CNM_isError($resultu)){
       print"ERROR: ".$resultu->getMessage()."\n";
    }
 

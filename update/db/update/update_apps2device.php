@@ -3,7 +3,7 @@
 
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 // CLASE NECESARIA PARA GENERAR EL TOKEN
@@ -23,12 +23,12 @@ function update_cfg_app2device(){
 
 		$sql1 = "INSERT INTO cfg_app2device (aname,ip,id_dev,who) VALUES ('$aname','$ip',$id_dev,0) ON DUPLICATE KEY UPDATE aname='$aname', ip='$ip', id_dev=$id_dev, who=0";
 		$result1 = $enlace->query($sql1);
-		if (@PEAR::isError($result1)){
+		if (CNM_isError($result1)){
 			print"ERROR: ".$result->getMessage()."\n";
 		}
 	}
 
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR: ".$result->getMessage()."\n";
       exit;
    }

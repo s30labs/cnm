@@ -2,7 +2,7 @@
 // Programa que rellena el campo type de alert_type
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -20,7 +20,7 @@ global $enlace;
    print "SE VAN A ACTUALIZAR LOS MONITORES DE TIPO SNMP\n";
 	$sql="SELECT a.subtype,b.class FROM alert_type a, cfg_monitor_snmp b WHERE a.type='snmp' AND a.subtype=b.subtype";
 	$result = $enlace->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR AL OBTENER LOS DATOS DE MONITORES SNMP: ".$result->getMessage()."\n";
       exit;
    }
@@ -36,7 +36,7 @@ global $enlace;
    print"SE VAN A ACTUALIZAR LOS MONITORES DE TIPO LATENCY\n";
    $sql="SELECT a.subtype,b.subtype AS class FROM alert_type a, cfg_monitor b WHERE a.type='latency' AND a.subtype=b.monitor";
    $result = $enlace->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR AL OBTENER LOS DATOS DE MONITORES LATENCY: ".$result->getMessage()."\n";
       exit;
    }

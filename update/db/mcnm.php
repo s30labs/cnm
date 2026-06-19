@@ -1,6 +1,6 @@
 #!/usr/bin/php -q
 <?php
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 require_once('/update/db/DB-Scheme-Lib.php');
 
 // Funciones adicionales
@@ -445,8 +445,10 @@ function _DB(){
    $dsn = array('phptype'=>'mysqli','username'=>'onm','hostspec'=>'localhost','database'=>'cnm');
 	$dsn['password'] = $cred["CNM_DB_PASSWORD"];
 	$dsn['hostspec'] = $cred["CNM_DB_SERVER"];
-	$dbc = @DB::Connect($dsn,TRUE);
-	if (@PEAR::isError($dbc)){
+	//$dbc = @DB::Connect($dsn,TRUE);
+	//if (@PEAR::isError($dbc)){
+   $dbc = CNM_DB::Connect($dsn,TRUE);
+   if (CNM_isError($dbc)){
 		echo "PROBLEMAS AL CONECTARSE A LA BBDD\n";
 	}else{
 		$dbc->setFetchMode(DB_FETCHMODE_ASSOC);

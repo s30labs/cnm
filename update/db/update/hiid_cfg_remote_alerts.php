@@ -2,7 +2,7 @@
 // Programa que modifica la estructura de la tabla cfg_remote_alerts de la BBDD de CNM
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -19,7 +19,7 @@ global $enlace;
    // Se rellena el campo hiid
    $sql="SELECT id_remote_alert FROM cfg_remote_alerts";
    $result = $enlace->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR AL RELLENAR EL CAMPO hiid : ".$result->getMessage()."\n";
       exit;
    }

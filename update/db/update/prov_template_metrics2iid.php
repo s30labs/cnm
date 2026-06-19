@@ -2,7 +2,7 @@
 // Programa que modifica la estructura de la tabla prov_template_metrics2iid de la BBDD de CNM
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -26,7 +26,7 @@ global $enlace;
 
 	$sql="ALTER TABLE prov_template_metrics2iid ADD hiid varchar(32) collate utf8_spanish_ci NOT NULL default 'none'";
 	$result = $enlace->query($sql);
-	if (@PEAR::isError($result)) {
+	if (CNM_isError($result)) {
 		print"ERROR AL INTRODUCIR EL CAMPO hiid: ".$result->getMessage()." (Existe ????)\n";
 		//Si en la tabla ya existe el campo hiid puede que nos interese seguir ejecutando el script
 		//exit;
@@ -35,7 +35,7 @@ global $enlace;
 	// 2. Se rellena el campo hiid
 	$sql="SELECT id_tm2iid,iid FROM prov_template_metrics2iid";
    $result = $enlace->query($sql);
-	if (@PEAR::isError($result)) {
+	if (CNM_isError($result)) {
       print"ERROR AL RELLENAR EL CAMPO hiid : ".$result->getMessage()."\n";
       exit;
    }
@@ -50,13 +50,13 @@ global $enlace;
 	// 3. Se cambia la clave a (id_template_metric,hiid)
    $sql="ALTER TABLE prov_template_metrics2iid drop PRIMARY KEY";
    $result = $enlace->query($sql);
-	if (@PEAR::isError($result)) {
+	if (CNM_isError($result)) {
       print"ERROR AL QUITAR LA CLAVE PRIMARIA\n";
       // exit;
    }
    $sql="ALTER TABLE prov_template_metrics2iid ADD PRIMARY KEY (id_template_metric,hiid)";
    $result = $enlace->query($sql);
-	if (@PEAR::isError($result)) {
+	if (CNM_isError($result)) {
       print"ERROR AL PONER LA NUEVA CLAVE PRIMARIA\n";
       // exit;
    }
@@ -64,7 +64,7 @@ global $enlace;
 	// 4. Se cambia el tipo del campo iid a text
 	$sql="ALTER TABLE prov_template_metrics2iid CHANGE iid iid text";
    $result = $enlace->query($sql);
-	if (@PEAR::isError($result)) {
+	if (CNM_isError($result)) {
       print"ERROR AL CAMBIAR DEL TIPO EL CAMPO IID\n";
       exit;
    }

@@ -2,7 +2,7 @@
 // Programa que modifica la estructura de la tabla cfg_register_transports de la BBDD de CNM
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -22,7 +22,7 @@ global $enlace;
 	// 1. Se obtienen todos los destinos definidos en la BBDD en el formato antiguo
 	$sql="SELECT destino,id_notification_type FROM cfg_notifications";
    $result = $enlace->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR AL OBTENER LOS DATOS DE cfg_notifications: ".$result->getMessage()."\n";
       exit;
    }

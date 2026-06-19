@@ -5,7 +5,8 @@ definidas en el fichero DB-Scheme-Create.php a la BBDD de CNM
 */
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
+require_once('/update/db/CNM_DB.php');
 // CLASE CON LA FUNCIÓN DE DEPURACIÓN
 require_once('/update/db/CNMUtils.php');
 
@@ -216,7 +217,7 @@ global $enlace;
 			$AND = 'AND';
 		}
       $resultQueryDel=$enlace->query($sqlDel);
-      if (@PEAR::isError($resultQueryDel)) {
+      if (CNM_isError($resultQueryDel)) {
          // _debug("No se ha podido borrar la entrada en la tabla $tableName.||QUERY=>$sqlDel",__LINE__,'ERR','delete_from_table');
       }
       else{
@@ -306,8 +307,9 @@ function connectDB($db_params){
 global $enlace;
 
    // NOS CONECTAMOS A LA BBDD
-   $enlace = @DB::Connect($db_params,TRUE);
-	if (@PEAR::isError($enlace)) {
+   //$enlace = @DB::Connect($db_params,TRUE);
+   $enlace = CNM_DB::Connect($db_params,TRUE);
+	if (CNM_isError($enlace)) {
 		_debug("Conexion BBDD [NOOK] phptype=>{$db_params['phptype']} username=>{$db_params['username']} password=>{$db_params['password']} hostspec=>{$db_params['hostspec']} database=>{$db_params['database']} || USERINFO = ".$enlace->getUserInfo(),__LINE__,'ERR','connectDB');
 		exit;
    }else {
@@ -335,7 +337,7 @@ global $enlace;
 
 	$sqlTablas="SHOW TABLES";
 	$resultTablas=$enlace->query($sqlTablas);
-   if (@PEAR::isError($resultTablas)) {
+   if (CNM_isError($resultTablas)) {
       _debug("No se ha podido obtener la informacion de las tablas de la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','DataInit');
 		exit;
    }else{
@@ -368,14 +370,14 @@ global $enlace;
 		// Se borra el procedimiento
 		$queryDrop = "DROP PROCEDURE IF EXISTS $id";
 		$resultQueryDrop=$enlace->query($queryDrop);
-      if (@PEAR::isError($resultQueryDrop)) {
+      if (CNM_isError($resultQueryDrop)) {
 			_debug("No se ha podido borrar el procedimiento $id||CMD=>$queryDrop || USERINFO = ".$resultQueryDrop->getUserInfo(),__LINE__,'ERR','ProcedureInit');
 		}
 		else{
 			_debug("Se ha borrado el procedimiento $id",__LINE__,'DBG','ProcedureInit');
 			// Se crea el procedimiento	
 			$resultQueryCreate=$enlace->query($queryCreate);
-      	if (@PEAR::isError($resultQueryCreate)){
+      	if (CNM_isError($resultQueryCreate)){
 				_debug("No se ha podido crear el procedimiento $id||CMD=>$queryCreate || USERINFO = ".$resultQueryCreate->getUserInfo(),__LINE__,'ERR','ProcedureInit');
 			}
 			else{
@@ -390,7 +392,7 @@ global $enlace;
 	$local_ip = get_local_ip();
 	$queryProcedure = "CALL $procedure('default','$local_ip')";
 	$resultQueryProcedure=$enlace->query($queryProcedure);
-	if (@PEAR::isError($resultQueryProcedure)) {
+	if (CNM_isError($resultQueryProcedure)) {
         _debug("No se ha podido ejecutar el procedimiento $procedure||CMD=>$queryProcedure || USERINFO = ".$resultQueryProcedure->getUserInfo(),__LINE__,'ERR','ProcedureInit');
      }else{
 		_debug("Se ha ejecutado el procedimiento $procedure",__LINE__,'DBG','ProcedureInit');
@@ -450,7 +452,7 @@ global $enlace;
 		$fdata = $enlace->escapeSimple(file_get_contents($fileFullPath));
       $queryInsert="INSERT INTO cfg_monitor_agent_script (script,size,date,script_data,custom) VALUES ('$file',$fsize,$fdate,'$fdata',0) ON DUPLICATE KEY UPDATE size=$fsize,date=$fdate,script_data='$fdata'";
 		$resultInsert=$enlace->query($queryInsert);
-      if (@PEAR::isError($resultInsert)) {
+      if (CNM_isError($resultInsert)) {
          _debug("No se ha podido insertar los datos del script $file ||CMD=>$queryInsert || USERINFO = ".$resultInsert->getUserInfo(),__LINE__,'ERR','cfg_monitor_agent_script_update');
       }else{
          _debug("Se ha almacenado/modificado correctamente el script $file",__LINE__,'DBG','cfg_monitor_agent_script_update');
@@ -467,7 +469,7 @@ global $enlace;
 		$signature                   = sha1($script_data);
 		$query_2 = "UPDATE cfg_monitor_agent_script SET signature='$signature' WHERE id_cfg_monitor_agent_script=$id_cfg_monitor_agent_script";
 		$result_2=$enlace->query($query_2);
-		if (@PEAR::isError($result_2)) {
+		if (CNM_isError($result_2)) {
          _debug("No se ha podido actualizar el campo signature del script $script||CMD=>$query_2 || USERINFO = ".$result_2->getUserInfo(),__LINE__,'ERR','cfg_monitor_agent_script_update');
       }else{
          _debug("Se ha actualizado el campo signature del script $script",__LINE__,'DBG','cfg_monitor_agent_script_update');
@@ -945,7 +947,7 @@ global $enlace;
 	// Obtener la estructura de la tabla
    $sqlShowCreate="SHOW CREATE TABLE $nombreTabla";
    $resultShowCreate=$enlace->query($sqlShowCreate);
-   if (@PEAR::isError($resultShowCreate)) {
+   if (CNM_isError($resultShowCreate)) {
       _debug("No se ha podido obtener informacion de la tabla $nombreTabla || USERINFO = ".$resultShowCreate->getUserInfo(),__LINE__,'ERR','_checkTable');
       return;
    }else{
@@ -1093,7 +1095,7 @@ return;
 */
       // print "$sqlTot\n";
       $resultModificarTupla=$enlace->query($sqlTot);
-		if (@PEAR::isError($resultModificarTupla)){
+		if (CNM_isError($resultModificarTupla)){
          _debug("Error al ejecutar $sqlTot (USERINFO = ".$resultModificarTupla->getUserInfo().")",__LINE__,'ERR','_DataInitTable');
       }
 
@@ -1125,7 +1127,7 @@ return;
             $sqlCascade = "INSERT INTO {$struct['cascade_table']} $sql_cascade_insert ON DUPLICATE KEY UPDATE $sql_cascade_update";
             // print "$sqlCascade\n";
             $resultSqlCascade=$enlace->query($sqlCascade);
-		      if (@PEAR::isError($resultSqlCascade AND $nombreTabla!='cfg_remote_alerts')){
+		      if (CNM_isError($resultSqlCascade AND $nombreTabla!='cfg_remote_alerts')){
 		         _debug("Error al ejecutar $sqlCascade (USERINFO = ".$resultSqlCascade->getUserInfo().")",__LINE__,'ERR','_DataInitTable');
 		      }
          }
@@ -1146,8 +1148,15 @@ global $enlace;
    $sql2="SELECT id_cfg_op FROM cfg_organizational_profile WHERE descr='Global'";
    $result2=$enlace->query($sql2);
    $result2->fetchInto($r2);
-   $id_cfg_op=$r2['id_cfg_op'];
 
+   // CORRECCIÓN PHP8: $r2 puede ser null si el perfil 'Global' aún no existe
+   // (se crea en _cfg_organizational_profile_init(), que se llama después de esta función)
+   if (is_null($r2) || !isset($r2['id_cfg_op'])) {
+      _debug("cid=$cid id_cfg_op=NULL (cfg_organizational_profile 'Global' no existe todavía)",__LINE__,'DBG','DataInit');
+      return;
+   }
+
+   $id_cfg_op=$r2['id_cfg_op'];
 	_debug("cid=$cid id_cfg_op=$id_cfg_op",__LINE__,'DBG','DataInit');
 
 
@@ -1213,7 +1222,7 @@ global $enlace;
 	// OBTENEMOS LAS TABLAS QUE HAY EN LA BBDD
 	$sqlTablas="SHOW TABLES";
 	$resultTablas=$enlace->query($sqlTablas);
-	if (@PEAR::isError($resultTablas)) {
+	if (CNM_isError($resultTablas)) {
 		_debug("No se ha podido obtener informacion de las tablas en la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','SchemeInit');
 		exit;
    }else{
@@ -1253,7 +1262,7 @@ global $enlace;
 		if (substr($TblAEliminar,0,6)=='extra_'){	continue;}
 		$sqlDelTabla="DROP TABLE $TblAEliminar";
 		$resultDelTabla=$enlace->query($sqlDelTabla);
-	   if (@PEAR::isError($resultDelTabla)) {
+	   if (CNM_isError($resultDelTabla)) {
 			_debug("No se ha podido borrar la tabla $TblAEliminar||CMD=>$sqlDelTabla",__LINE__,'ERR','SchemeInit');
 	   }else{
 			_debug("Se ha borrado la tabla $TblAEliminar",__LINE__,'DBG','SchemeInit');
@@ -1280,7 +1289,7 @@ global $enlace;
 
 	$sqlShowCreate="SHOW CREATE TABLE $nombreTabla";
 	$resultShowCreate=$enlace->query($sqlShowCreate);
-   if (@PEAR::isError($resultShowCreate)) {
+   if (CNM_isError($resultShowCreate)) {
 		_debug("No se ha podido obtener informacion de la tabla $nombreTabla || USERINFO = ".$resultShowCreate->getUserInfo(),__LINE__,'ERR','_checkTable');
 		return;
 	}else{
@@ -1359,7 +1368,7 @@ global $enlace;
 	// PROCEDEMOS A ELIMINAR LAS COLUMNAS QUE NO DEBEN ESTAR EN LA TABLA DE LA BBDD 
 	$sqlShowCreate="SHOW CREATE TABLE $nombreTabla";
 	$resultShowCreate=$enlace->query($sqlShowCreate);
-   if (@PEAR::isError($resultShowCreate)) {
+   if (CNM_isError($resultShowCreate)) {
 		_debug("No se ha podido obtener informacion de la tabla $nombreTabla || USERINFO = ".$resultShowCreate->getUserInfo(),__LINE__,'ERR','_checkTable');
 		return;
 	}else{
@@ -1448,7 +1457,7 @@ global $enlace;
 	}
 
 	$resultDelCol=$enlace->query($sqlDelCol);
-   if (@PEAR::isError($resultDelCol)) {
+   if (CNM_isError($resultDelCol)) {
 		_debug("No se ha podido eliminar la columna $ColAEliminar de la tabla $nombreTabla||CMD=>$sqlDelCol || USERINFO = ".$resultDelCol->getUserInfo(),__LINE__,'ERR','_dropColumn');
    }else{
 		_debug("Se ha eliminado correctamente la columna $ColAEliminar de la tabla $nombreTabla",__LINE__,'DBG','_dropColumn');
@@ -1471,7 +1480,7 @@ global $enlace;
 
 	$sqlModify="ALTER TABLE $nombreTabla CHANGE $nombreColumnaEst $nombreColumnaEst $descripcionColumnaEst";
 	$resultModify=$enlace->query($sqlModify);
-   if (@PEAR::isError($resultModify)) {
+   if (CNM_isError($resultModify)) {
 		_debug("No se ha podido modificar la columna $nombreColumnaEst de la tabla $nombreTabla||CMD=>$sqlModify || USERINFO = ".$resultModify->getUserInfo(),__LINE__,'ERR','_alterColumn');
    }else{
 		_debug("Se ha modificado la columna $nombreColumnaEst de la tabla $nombreTabla",__LINE__,'DBG','_alterColumn');
@@ -1508,7 +1517,7 @@ global $enlace;
 	$sqlAddCol="ALTER TABLE $nombreTabla ADD $nombreColumnaEst $descripcionColumnaEst";
 
 	$resultAddCol=$enlace->query($sqlAddCol);
-   if (@PEAR::isError($resultAddCol)) {
+   if (CNM_isError($resultAddCol)) {
 		_debug("No se ha podido crear la columna $nombreColumnaEst de la tabla $nombreTabla||CMD=>$sqlAddCol || USERINFO = ".$resultAddCol->getUserInfo(),__LINE__,'ERR','_addColumn');
    }else{
 		_debug("Se ha creado la columna $nombreColumnaEst de la tabla $nombreTabla",__LINE__,'DBG','_addColumn');
@@ -1537,7 +1546,7 @@ global $enlace;
 		else{
 	      $sqlDrop="DROP TABLE $nombreTabla";
 	      $resultDrop=$enlace->query($sqlDrop);
-	      if (@PEAR::isError($resultDrop)) {
+	      if (CNM_isError($resultDrop)) {
 	         _debug("No se ha podido eliminar la tabla $nombreTabla||CMD=>$sqlDrop || USERINFO = ".$resultDrop->getUserInfo(),__LINE__,'ERR','_dropTable');
 	      }
 			else{
@@ -1553,7 +1562,7 @@ global $enlace;
 	      else{
 	         $sqlDrop="DROP TABLE $nombreTabla";
 	         $resultDrop=$enlace->query($sqlDrop);
-	         if (@PEAR::isError($resultDrop)) {
+	         if (CNM_isError($resultDrop)) {
 	            _debug("No se ha podido eliminar la tabla $nombreTabla||CMD=>$sqlDrop || USERINFO = ".$resultDrop->getUserInfo(),__LINE__,'ERR','_dropTable');
 	         }
 	         else{
@@ -1601,7 +1610,7 @@ global $enlace;
 
 	//print $sqlAdd;	
 	$resultAdd=$enlace->query($sqlAdd);
-   if (@PEAR::isError($resultAdd)) {
+   if (CNM_isError($resultAdd)) {
 		_debug("No se ha podido crear la tabla $nombreTabla||CMD=>$sqlAdd || USERINFO = ".$resultAdd->getUserInfo(),__LINE__,'ERR','_addTable');
    }else{
 		_debug("Se ha creado la tabla $nombreTabla",__LINE__,'DBG','_addTable');
@@ -1622,7 +1631,7 @@ global $enlace;
 
 	$sql1="SELECT subtype,class,lapse,descr,items,oid,oidn,oid_info,lapse,get_iid,label,module,mtype,vlabel,mode,top_value FROM cfg_monitor_snmp WHERE subtype like 'custom%'";	
 	$result1=$enlace->query($sql1);
-	if (@PEAR::isError($result1)){
+	if (CNM_isError($result1)){
 		return 1;
    }
 	$contenidoTabla.="<?\n";
@@ -1700,7 +1709,7 @@ $DBModDataCNM = array(
 			if($infoTabla['condition']!='') $sqlTot.=" AND {$infoTabla['condition']}";
 	      // print "$sqlTot\n";
          $resultModificarTupla=$enlace->query($sqlTot);
-			if (@PEAR::isError($resultModificarTupla)){
+			if (CNM_isError($resultModificarTupla)){
 	         _debug("Error al ejecutar $sqlTot (USERINFO = ".$resultModificarTupla->getUserInfo().")",__LINE__,'ERR','DataModInit');
 	      }
 		}
@@ -1728,7 +1737,7 @@ $DBModDataCNM = array(
 			$sqlTot.=")";
          // print "$sqlTot\n";
          $resultModificarTupla=$enlace->query($sqlTot);
-			if (@PEAR::isError($resultModificarTupla)){
+			if (CNM_isError($resultModificarTupla)){
 	         _debug("Error al ejecutar $sqlTot (USERINFO = ".$resultModificarTupla->getUserInfo().")",__LINE__,'ERR','DataModInit');
 	      }
       }
@@ -1748,7 +1757,7 @@ global $enlace;
 		);
 	foreach ($array_limpieza as $sql){
 	   $result=$enlace->query($sql);
-	   if (@PEAR::isError($result)) {
+	   if (CNM_isError($result)) {
 	      _debug("No se ha podido limpiar la tabla tips al ejecutar $sql || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_limpiar_tips');
 	      exit;
 	   }else{
@@ -1764,7 +1773,7 @@ global $enlace;
 
    $sqlTablas="SHOW TABLES";
    $resultTablas=$enlace->query($sqlTablas);
-   if (@PEAR::isError($resultTablas)) {
+   if (CNM_isError($resultTablas)) {
       _debug("No se ha podido obtener la informacion de las tablas de la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','table_charset_latin1');
       exit;
    }else{
@@ -1780,7 +1789,7 @@ global $enlace;
 		// Mirar si tiene ya charset latin1
 		$sqlCheckCharset="SHOW CREATE TABLE $tabla";
 	   $resultCheckCharset=$enlace->query($sqlCheckCharset);
-   	if (@PEAR::isError($resultCheckCharset)) {
+   	if (CNM_isError($resultCheckCharset)) {
       	// _debug("No se ha podido obtener informacion de la tabla $tabla",__LINE__,'ERR','table_charset_latin1');
       	continue;
    	}else{
@@ -1804,7 +1813,7 @@ global $enlace;
 
       $sqlAlterTabla="ALTER TABLE $tabla charset=latin1";
       $resultAlterTabla=$enlace->query($sqlAlterTabla);
-      if (@PEAR::isError($resultAlterTabla)) {
+      if (CNM_isError($resultAlterTabla)) {
 			if($resultAlterTabla->getCode()=='-18'){
 			}else{
 	         _debug("No se ha podido cambiar el charset a latin1 de la tabla $tabla de la BBDD {$db_params['database']} || USERINFO = ".$resultAlterTabla->getUserInfo(),__LINE__,'ERR','table_charset_latin1');
@@ -1825,7 +1834,7 @@ global $enlace;
 
 	// $result=$enlace->query("SELECT hidx,cid,descr,db1_name,db1_server,db1_pwd,db1_user,db2_name,db2_server,db2_pwd,db2_user FROM cfg_cnms WHERE host_ip='$local_ip'");
 	$result=$enlace->query("SELECT * FROM cfg_cnms WHERE host_ip='$local_ip'");
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       // _debug("No se ha podido obtener la informacion de los cnms en la BBDD cnm",__LINE__,'ERR','_cnms');
       // exit;
    }else{
@@ -1867,7 +1876,7 @@ global $enlace;
 	);
 	connectDB($dbi_params);
    $result=$enlace->query('CREATE DATABASE IF NOT EXISTS cnm');
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       _debug("No se ha podido crear la BBDD cnm || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_create_cnm_database');
       exit;
    }else{
@@ -1875,7 +1884,7 @@ global $enlace;
    }
 
    $result=$enlace->query('CREATE DATABASE IF NOT EXISTS onmgraph');
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       _debug("No se ha podido crear la BBDD onmgraph || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_create_onmgraph_database');
       exit;
    }else{
@@ -1904,7 +1913,7 @@ global $enlace;
 	
 	   $qCreate = "CREATE DATABASE IF NOT EXISTS $db1_name";
 	   $rqCreate=$enlace->query($qCreate);
-	   if (@PEAR::isError($rqCreate)) {
+	   if (CNM_isError($rqCreate)) {
 	      _debug("No se ha podido crear la BBDD $db1_name || USERINFO = ".$rqCreate->getUserInfo(),__LINE__,'ERR','_create_clients_databases');
 	      exit;
 	   }else{
@@ -1913,7 +1922,7 @@ global $enlace;
 
       $qPrivileges= "GRANT ALL PRIVILEGES ON `$db1_name`.* TO '$db1_user'@'$db1_host' IDENTIFIED BY '$db1_pass' WITH GRANT OPTION";
 	   $rqPrivileges=$enlace->query($qPrivileges);
-	   if (@PEAR::isError($rqPrivileges)){
+	   if (CNM_isError($rqPrivileges)){
 	      _debug("No se ha podido dar los privilegios al usuario $db1_user en la BBDD $db1_name ($qPrivileges) || USERINFO = ".$rqPrivileges->getUserInfo(),__LINE__,'ERR','_create_clients_databases');
 	      exit;
 	   }else{

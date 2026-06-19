@@ -2,7 +2,7 @@
 // Programa que modifica la estructura de la tabla devices_custom_data de la BBDD de CNM
 
 // CLASE NECESARIA PARA MANEJAR LA COMUNICACION CON LA BBDD
-require_once('/usr/share/pear/DB.php');
+//require_once('/usr/share/pear/DB.php');
 // CLASE NECESARIA PARA REALIZAR LA CONEXION CON LA BBDD
 require_once("/update/db/DB-Scheme-Lib.php");
 
@@ -21,7 +21,7 @@ global $enlace;
    print"SE VAN A OBTENER LOS CAMPOS DE devices_custom_data\n";
 	$sql="SHOW columns FROM devices_custom_data WHERE Field like '%columna%'";
    $result = $enlace->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       print"ERROR AL OBTENER LOS CAMPOS DE devices_custom_data: ".$result->getMessage()."\n";
       exit;
    }
@@ -34,7 +34,7 @@ global $enlace;
 	foreach($a_field as $field){
 		$sql = "ALTER TABLE devices_custom_data change $field $field varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default '-'";
    	$result = $enlace->query($sql);
-   	if (@PEAR::isError($result)) {
+   	if (CNM_isError($result)) {
 	      print"ERROR AL ACTUALIZAR EL CAMPO $field. SQL = $sql. FALLO: ".$result->getMessage()."\n";
 	   }
 	}
