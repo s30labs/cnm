@@ -21,7 +21,9 @@ date >> /tmp/rclocal.log
 /opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1 &
 
 CNM_IF=`cat /cfg/onm.if`
-CNM_IP=`ifconfig $CNM_IF | perl -ne 'if (/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { print "$1\n"; }'`
+#CNM_IP=`ifconfig $CNM_IF | perl -ne 'if (/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { print "$1\n"; }'`
+CNM_IP=$(ip -4 -o addr show "$CNM_IF" | awk '{print $4}' | cut -d/ -f1)
+
 export MIBS=ALL
 /usr/bin/snmptrap -v 2c -c public $CNM_IP '' CNM-NOTIFICATIONS-MIB::cnmNotifUpMsg CNM-NOTIFICATIONS-MIB::cnmNotifCode.0 i "1" CNM-NOTIFICATIONS-MIB::cnmNotifMsg.0 s "$0" CNM-NOTIFICATIONS-MIB::cnmNotifKey.0 s ""
 

@@ -5,7 +5,7 @@
 
 - name: Install packages
   apt:
-    name: [ 'librrd8', 'librrds-perl', 'rrdtool' ]
+    name: [ 'librrds-perl', 'rrdtool' ]
     state: present
     force: yes
     update_cache: yes

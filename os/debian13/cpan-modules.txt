@@ -61,7 +61,7 @@ Schedule::Cron			1.05
 DBI						1.643
 #DBD::mysql				4.050
 DBD::MariaDB			1.23
-Crypt::SSLeay			0.72
+# [drop-trixie] Crypt::SSLeay			0.72
 Config::Tiny			2.30
 Class::Inspector		1.36
 Test::ClassAPI			1.07
@@ -152,29 +152,29 @@ Unicode::Stringprep	1.105
 Net::SSLeay				1.94
 IO::Socket::SSL		2.085
 Net::IDN::Nameprep	1.102
-Net::IDN::Encode		2.500
+# [drop-trixie] Net::IDN::Encode		2.500
 XML::Filter::BufferText	1.01
 XML::SAX::Writer		0.57
 Convert::ASN1			0.34
 Class::Loader			2.03
-Convert::ASCII::Armour	1.4
+# [drop-trixie] Convert::ASCII::Armour	1.4
 Digest::BubbleBabble	0.02
 Crypt::Blowfish		2.14
 Crypt::CBC				3.04
 Math::Pari				2.030523
-Crypt::Random			1.54
-Crypt::Primes			0.50
-Data::Buffer			0.04
+# [drop-trixie] Crypt::Random			1.54
+# [drop-trixie] Crypt::Primes			0.50
+# [drop-trixie] Data::Buffer			0.04
 Digest::MD2				2.04
 Sort::Versions			1.62
-Crypt::DES				2.07
-Tie::EncryptedHash	1.8
-Crypt::RSA				1.99
+# [drop-trixie] Crypt::DES				2.07
+# [drop-trixie] Tie::EncryptedHash	1.8
+# [drop-trixie] Crypt::RSA				1.99
 String::CRC32			2.100
 Math::GMP				2.25
 Class::ErrorHandler	0.04
-Crypt::DES_EDE3		0.01
-Convert::PEM			0.08
+# [drop-trixie] Crypt::DES_EDE3		0.01
+# [drop-trixie] Convert::PEM			0.08
 Math::BigInt			2.003002
 #Math::BigRat			0.2624	---> No detecta la instalacion
 Math::BigRat			0.2624
@@ -185,9 +185,9 @@ Test::Script			1.29
 File::Which				1.27
 Math::BigInt::Pari	1.3014
 Math::BigInt::GMP		1.7001
-Crypt::DH				0.07
-Crypt::DSA				1.17
-Net::SSH::Perl			2.142
+# [drop-trixie] Crypt::DH				0.07
+# [drop-trixie] Crypt::DSA				1.17
+# [drop-trixie] Net::SSH::Perl			2.142
 IPC::Shareable			1.13
 common::sense			3.75
 JSON::XS					4.03
@@ -219,7 +219,7 @@ List::MoreUtils		0.430
 Parse::RecDescent		1.967015
 Net::IMAP::Simple		1.2212
 Net::IMAP::Simple::SSL	1.3
-Net::Whois::Raw		2.99038
+# [drop-trixie] Net::Whois::Raw		2.99038
 HTTP::CookieJar		0.014
 LWP						6.76
 #WWW::Curl				4.17
@@ -233,7 +233,7 @@ Data::Dump				1.25
 Class::MethodMaker	2.24
 YAML::LibYAML			0.89
 Capture::Tiny			0.48
-Net::RawIP				0.25
+# [drop-trixie] Net::RawIP				0.25
 IO::Capture				0.05
 JSON::PP					4.16
 Expect					1.36
@@ -252,7 +252,6 @@ HTML::TableExtract	2.15
 YAML						1.31
 #Filesys::SmbClient	3.2
 HTML::Strip				2.12
-Authen::SASL			2.1700
 Mail::IMAPClient		3.43
 Net::LDAP				0.68
 Test::Fatal				0.017
@@ -261,33 +260,23 @@ Test::Warnings			0.033
 Test::Memory::Cycle	1.06
 Test::Output			1.034
 Test::Taint				1.08
-Test::Script			1.29
 Test::More::UTF8		0.05
 Test::YAML				1.07
 Module::Build::Tiny	0.047
 Moo						2.005005
 Path::Tiny				0.144
-Carp::Assert::More	2.4.0
-HTTP::Server::Simple	0.52
 Test::Pod				1.52
 Test::Requires			0.11
 Test::RequiresInternet	0.05
 Test::SharedFork		0.35
 IPC::Run					20231003.0
-Class::Inspector		1.36
 Task::Weaken			1.06
 XML::Parser::Lite		0.722
 Time::ParseDate		2015.103
-Params::Util			1.102
 File::Copy::Recursive	0.45
 File::chmod				0.42
-Path::Tiny				0.144
 B::COW					0.007
-Cache::Simple::TimedExpiry	0.27
-Class::ReturnValue	0.55
-JSON::PP					4.16
 Test::Differences		0.71
-Test::Memory::Cycle	1.06
 Devel::GlobalDestruction	0.14
 Dist::CheckConflicts	0.11
 Module::Runtime		0.016
@@ -308,10 +297,8 @@ Mock::Sub				1.09
 Data::Structure::Util	0.16
 IO::Event				0.813
 Crypt::Password::Util	0.17
-File::Copy::Recursive	0.45
 File::Flock::Retry		0.632
 File::Slurper			0.014
-List::MoreUtils		0.430
 Exporter::Tiny			1.006002
 List::MoreUtils::XS	0.430
 Regexp::IPv6			0.03

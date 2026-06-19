@@ -13,17 +13,18 @@
   tags: smb
   
 - name: Config Files
-  copy: src=smb.conf dest=/etc/samba/smb.conf  owner=root group=root mode=0640
+  copy: src=smb.conf dest=/etc/samba/smb.conf owner=root group=root mode=0640
   tags: smb
   notify:
-   - restart smbd
+    - restart smbd
+    - restart nmbd
 
-- name: restart nmbd
-  command: systemctl restart nmbd
-  tags: smb
-
-- name: restart smbd
-  command: systemctl restart smbd
-  tags: smb
+#- name: restart nmbd
+#  command: systemctl restart nmbd
+#  tags: smb
+#
+#- name: restart smbd
+#  command: systemctl restart smbd
+#  tags: smb
 
 ...

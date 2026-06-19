@@ -36,7 +36,6 @@
 
 - name: Custom Config File
   copy: src=syslog-ng-custom.conf dest=/etc/syslog-ng/syslog-ng-custom.conf force=no owner=root group=root mode=0640
-  when: 
   tags: syslog-ng
   notify:
    - restart syslog-ng

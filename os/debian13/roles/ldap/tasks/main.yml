@@ -5,7 +5,7 @@
 
 - name: Install packages
   apt:
-    name: [ 'slapd', 'ldap-utils', 'libldap2', 'libnss-ldap', 'libpam-ldap', 'php-ldap' ]
+    name: [ 'ldap-utils', 'php-ldap' ]
     state: present
     force: yes
     update_cache: yes

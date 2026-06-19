@@ -5,7 +5,7 @@
 
 - name: Install packages
   apt:
-    name: ['gcc', 'make', 'autoconf', 'libperl-dev', 'snmpsim' ]
+    name: ['gcc', 'make', 'autoconf', 'libperl-dev', 'snmpsim', 'libssl-dev' ]
     state: present
     force: yes
     update_cache: yes
@@ -17,21 +17,29 @@
   tags: net-snmp
 
 - name: Extract from source
-  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian11/src/net-snmp/net-snmp-5.9.1.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  command: tar -C /tmp/src/net-snmp -xzvf /opt/cnm-extras/debian13/src/net-snmp/net-snmp-5.9.1.tar.gz creates=/opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Configure
-  command: ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  shell: ./configure --with-perl-modules --prefix=/opt/snmp --with-sys-contact="cnm-admin" --with-sys-location="CNM Room" --with-default-snmp-version="3" --with-logfile="/var/log/snmpd.log" --with-persistent-directory="/var/net-snmp" > /var/log/cnm/net-snmp-build.log 2>&1
+  args:
+    chdir: /tmp/src/net-snmp/net-snmp-5.9.1
+    creates: /opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Make
-  command: make chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  shell: make >> /var/log/cnm/net-snmp-build.log 2>&1
+  args:
+    chdir: /tmp/src/net-snmp/net-snmp-5.9.1
+    creates: /opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
 
 - name: Make install
-  command: make install chdir=/tmp/src/net-snmp/net-snmp-5.9.1  creates=/opt/snmp/lib/libnetsnmpagent.so.40
+  shell: make install >> /var/log/cnm/net-snmp-build.log 2>&1
+  args:
+    chdir: /tmp/src/net-snmp/net-snmp-5.9.1
+    creates: /opt/snmp/lib/libnetsnmpagent.so.40
   tags: net-snmp
-
 
 - name: Create directory /etc/snmp
   file: path=/etc/snmp state=directory owner=root group=root mode=0755

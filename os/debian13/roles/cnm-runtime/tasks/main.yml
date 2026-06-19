@@ -80,15 +80,15 @@
   copy: src=cnm-watch dest=/etc/cron.fast/cnm-watch  owner=root group=root mode=0755
   tags: cnm-runtime
 
-- name: Check if drbd is mounted
-  shell: cat /proc/mounts |grep drbd1|wc -l
-  register: drbd_mounted
-  tags: cnm-runtime
-
-- name: Remove mysql from startup
-  command: update-rc.d -f mysql remove
-  when: drbd_mounted.stdout=="1"
-  tags: cnm-runtime
+#- name: Check if drbd is mounted
+#  shell: cat /proc/mounts |grep drbd1|wc -l
+#  register: drbd_mounted
+#  tags: cnm-runtime
+#
+#- name: Remove mysql from startup
+#  command: update-rc.d -f mysql remove
+#  when: drbd_mounted.stdout=="1"
+#  tags: cnm-runtime
 
 - name: crawler -> logrotate
   copy: src=crawler.logrotate dest=/etc/logrotate.d/crawler  owner=root group=root mode=0640
@@ -124,6 +124,12 @@
 
 - name: /etc/ld.so.conf
   copy: src=ld.so.conf dest=/etc/ld.so.conf owner=root group=root mode=0644
+  register: ldsoconf
+  tags: cnm-runtime
+
+- name: Run ldconfig
+  command: ldconfig
+  when: ldsoconf is changed
   tags: cnm-runtime
 
 - name: /etc/rc.local
@@ -131,20 +137,27 @@
   tags: cnm-runtime
 
 - name: /etc/sudoers
-  copy: src=sudoers dest=/etc/sudoers owner=root group=root mode=0640
+  copy:
+    src: sudoers
+    dest: /etc/sudoers
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
   tags: cnm-runtime
+
 
 - name: /etc/rng-tools
   copy: src=rng-tools dest=/etc/default/rng-tools owner=root group=root mode=0640
   tags: cnm-runtime
 
-- name: /etc/udev/rules.d/z25_persistent-net.rules
-  copy: src=z25_persistent-net.rules dest=/etc/udev/rules.d/z25_persistent-net.rules owner=root group=root mode=0640
-  tags: cnm-runtime
+#- name: /etc/udev/rules.d/z25_persistent-net.rules
+#  copy: src=z25_persistent-net.rules dest=/etc/udev/rules.d/z25_persistent-net.rules owner=root group=root mode=0640
+#  tags: cnm-runtime
 
-- name: /etc/udev/rules.d/z45_persistent-net-generator.rules
-  copy: src=z45_persistent-net-generator.rules dest=/etc/udev/rules.d/z45_persistent-net-generator.rules owner=root group=root mode=0640
-  tags: cnm-runtime
+#- name: /etc/udev/rules.d/z45_persistent-net-generator.rules
+#  copy: src=z45_persistent-net-generator.rules dest=/etc/udev/rules.d/z45_persistent-net-generator.rules owner=root group=root mode=0640
+#  tags: cnm-runtime
 
 - name: /etc/security/limits.conf
   copy: src=limits.conf dest=/etc/security/limits.conf owner=root group=root mode=0640
@@ -158,8 +171,19 @@
   shell: /opt/cnm/crawler/bin/support/cnm-set-version -p{{ db_pwd }}
   tags: cnm-runtime
 
+#- name: Update OIDs
+#  shell: php /update/db/update/oids_update.php 2>&1 | tee /tmp/oids_update.log
+#  tags: cnm-runtime
+
 - name: Update OIDs
-  shell: php /update/db/update/oids_update.php 2>&1 | tee /tmp/oids_update.log
+  command: php /update/db/update/oids_update.php
+  register: oids_update
+  tags: cnm-runtime
+
+- name: Persistir log de oids_update
+  copy:
+    content: "{{ oids_update.stdout }}\n--- STDERR ---\n{{ oids_update.stderr }}"
+    dest: /store/tmp/oids_update.log
   tags: cnm-runtime
 
 

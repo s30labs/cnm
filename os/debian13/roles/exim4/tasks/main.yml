@@ -10,7 +10,7 @@
     force: yes
     update_cache: yes
   become: true
-  tags: rrdtool
+  tags: exim4
   
 - name: Create dir /opt/data/buzones/cnmnotifier/new
   file: path=/opt/data/buzones/cnmnotifier/new state=directory owner=www-data group=www-data mode=0775

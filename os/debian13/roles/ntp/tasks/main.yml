@@ -1,25 +1,48 @@
 ---
-# This playbook contains common plays that will be run on all nodes.
 - include_vars: /cfg/cnm_vars.yml
   tags: ntp
 
-#- name: probando1
-#  shell: grep lxc /proc/1/cgroup|wc -l
-#  register: is_lxc
-#  tags: ntp
-#
-#- name: probando2
-#  debug:
-#    var: is_lxc.stdout
-#    var: ntpserver
-#  tags: ntp
-
-- name: Install packages
-  apt: name=ntpsec-ntpdig state=present force=yes update_cache=yes
+- name: Install systemd-timesyncd
+  apt:
+    name: systemd-timesyncd
+    state: present
+    update_cache: yes
+  become: true
   tags: ntp
 
-- name: Configure cron.hourly
-  template: src=ntpdate.j2 dest=/etc/cron.hourly/ntpdate mode=755
+- name: Ensure timesyncd drop-in directory exists
+  file:
+    path: /etc/systemd/timesyncd.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
   tags: ntp
 
+- name: Configure NTP server for systemd-timesyncd
+  copy:
+    dest: /etc/systemd/timesyncd.conf.d/cnm.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Time]
+      NTP={{ ntpserver }}
+  become: true
+  notify: restart systemd-timesyncd
+  tags: ntp
+
+- name: Enable NTP synchronization
+  command: timedatectl set-ntp true
+  changed_when: false
+  become: true
+  tags: ntp
+
+- name: Remove legacy ntpdate cron job
+  file:
+    path: /etc/cron.hourly/ntpdate
+    state: absent
+  become: true
+  tags: ntp
 ...

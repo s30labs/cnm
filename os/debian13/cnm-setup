@@ -27,23 +27,31 @@ $fpth[$#fpth] -h
 
 -u : Update system installed with cnm-install
 -a : clave de root
--b : clave del usuario onm de BBDD
--m : Modo (branch)
--r : Revision
 -o : Store STDOUT and STDERR to file (/tmp/cnm-install-core.log)
 -h : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("houm:a:b:r:",\%opts);
+getopts("houa:",\%opts);
 if ($opts{h}) { die $USAGE;}
-my $BRANCH = 'master';
-if ($opts{m}) { $BRANCH=$opts{m}; }
-my $REV='';
-if ($opts{r}) { $REV=$opts{r}; }
 
-my $DB_ROOT_PWD = ($opts{a}) ? $opts{a} : 'cnmManag3r';
+#-------------------------------------------------------------------------------------------
+# Clave de root de BBDD:
+#   1) -a en linea de comandos
+#   2) /root/.my.cnf (seccion [client], campo password)
+#   3) error
+#-------------------------------------------------------------------------------------------
+my $DB_ROOT_PWD = $opts{a};
+
+if (!defined $DB_ROOT_PWD || $DB_ROOT_PWD eq '') {
+    $DB_ROOT_PWD = read_my_cnf('/root/.my.cnf');
+}
+
+if (!defined $DB_ROOT_PWD || $DB_ROOT_PWD eq '') {
+    die "ERROR: no hay clave de root de BBDD.\n"
+      . "Pasala con -a <clave> (primera instalacion) o asegurate de que existe /root/.my.cnf\n";
+}
 #-------------------------------------------------------------------------------------------
 my $REPO="software.s30labs.com";
 #-------------------------------------------------------------------------------------------
@@ -121,10 +129,12 @@ password=$DB_ROOT_PWD
 CNMMYDATA
 
 	if (! -f $CNM_INSTALL_MY_FILE) {
-  	open (F,">$CNM_INSTALL_MY_FILE");
- 	print F $CNM_MY_DATA;
-  	close F;
+    	open (my $fh,'>',$CNM_INSTALL_MY_FILE) or die "No puedo crear $CNM_INSTALL_MY_FILE: $!\n";
+    	print $fh $CNM_MY_DATA;
+    	close $fh;
+    	chmod 0600, $CNM_INSTALL_MY_FILE;
 	}
+
 }
 
 #-------------------------------------------------------------------------------------------
@@ -133,22 +143,81 @@ CNMMYDATA
 my %cfg_vars=();
 $cfg_vars{'db_root_password'} = $DB_ROOT_PWD;
 
-my $extra_vars='';
-if (scalar(keys %cfg_vars)>0) { 
-	$extra_vars='--extra-vars '; 
-	foreach my $k (keys %cfg_vars) {
-		$extra_vars.= "$k=$cfg_vars{$k} ";
-	}
+#my $extra_vars='';
+#if (scalar(keys %cfg_vars)>0) { 
+#	$extra_vars='--extra-vars '; 
+#	foreach my $k (keys %cfg_vars) {
+#		$extra_vars.= "$k=$cfg_vars{$k} ";
+#	}
+#}
+#
+#my $script_file = '/tmp/cnm-install-core.sh';
+#create_script($script_file);
+#my $cmd = "$script_file \"$extra_vars\"";
+#if ($opts{o}) {
+#	$cmd .= ' | tee /tmp/cnm-install-core.log';
+#}
+#print "$cmd\n\n";
+#exec "$cmd";
+
+# SEC 
+my $extra_vars = '';
+my $vars_file  = '/dev/shm/cnm_install_vars.yml';   # tmpfs: no persiste en disco
+
+if (scalar(keys %cfg_vars) > 0) {
+    open (my $vf,'>',$vars_file) or die "No puedo crear $vars_file: $!\n";
+    print $vf "---\n";
+    foreach my $k (sort keys %cfg_vars) {
+        (my $esc = $cfg_vars{$k}) =~ s/'/''/g;   # escape YAML single-quote
+        print $vf "$k: '$esc'\n";
+    }
+    close $vf;
+    chmod 0600, $vars_file;
+    $extra_vars = "--extra-vars \@$vars_file";
 }
 
 my $script_file = '/tmp/cnm-install-core.sh';
 create_script($script_file);
 my $cmd = "$script_file \"$extra_vars\"";
 if ($opts{o}) {
-	$cmd .= ' | tee /tmp/cnm-install-core.log';
+    $cmd .= ' | tee /tmp/cnm-install-core.log';
 }
 print "$cmd\n\n";
-exec "$cmd";
+
+# system + cleanup en vez de exec, para poder borrar el fichero de secretos
+system ($cmd);
+my $rc = $? >> 8;
+unlink $vars_file if -f $vars_file;
+exit $rc;
+
+
+#-------------------------------------------------------------------------------------------
+# Lee la clave de la seccion [client] de un fichero estilo my.cnf
+#-------------------------------------------------------------------------------------------
+sub read_my_cnf {
+my ($file) = @_;
+   return undef unless -f $file;
+   open (my $fh,'<',$file) or return undef;
+   my $in_client = 0;
+   my $pwd;
+   while (my $line = <$fh>) {
+      chomp $line;
+      $line =~ s/^\s+//; $line =~ s/\s+$//;
+      next if $line eq '' || $line =~ /^[#;]/;          # comentarios / vacias
+      if ($line =~ /^\[(.+)\]$/) {                       # cabecera de seccion
+         $in_client = (lc($1) eq 'client') ? 1 : 0;
+         next;
+      }
+      next unless $in_client;
+      if ($line =~ /^password\s*=\s*(.*)$/i) {
+         $pwd = $1;
+         $pwd =~ s/^["']//; $pwd =~ s/["']$//;           # quita comillas opcionales
+         last;
+      }
+   }
+   close $fh;
+   return $pwd;
+}
  
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
@@ -239,7 +308,7 @@ __DATA__
 #!/bin/bash
 
 dir1=$(pwd)
-cd /opt/cnm/os/debian11
+cd /opt/cnm/os/debian13
 ansible-playbook -c local -i /cfg/ansible.hosts $1 cnm.yml
 #cd $dir1
 

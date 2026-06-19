@@ -19,7 +19,20 @@
   command: pip install impacket --break-system-packages
   tags: impacket
 
-- name: Adjust timeout
-  command: sed -i 's/set_connect_timeout(30)/set_connect_timeout(5)/g' /usr/local/lib/python3.13/dist-packages/impacket/dcerpc/v5/transport.py
+#- name: Adjust timeout
+#  command: sed -i 's/set_connect_timeout(30)/set_connect_timeout(5)/g' /usr/local/lib/python3.13/dist-packages/impacket/dcerpc/v5/transport.py
+#  tags: impacket
+
+- name: Locate impacket transport.py
+  command: python3 -c "import impacket.dcerpc.v5.transport as t; print(t.__file__)"
+  register: impacket_transport
+  changed_when: false
+  tags: impacket
+
+- name: Adjust DCERPC connect timeout (30s -> 5s)
+  replace:
+    path: "{{ impacket_transport.stdout }}"
+    regexp: 'set_connect_timeout\(30\)'
+    replace: 'set_connect_timeout(5)'
   tags: impacket
 

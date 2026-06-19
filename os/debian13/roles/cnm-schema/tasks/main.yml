@@ -26,12 +26,25 @@
   mysql_db: login_user={{db_user}} login_password={{db_pwd}} state=dump name=cnm target=/store/tmp/backup_bbdd_cnm
   tags: cnm-schema
  
-- name: db-manage
-  shell: php /update/db/db-manage.php 2>&1 > /tmp/update_db.log
+#- name: db-manage
+#  shell: php /update/db/db-manage.php > /tmp/update_db.log 2>&1
+#  tags: cnm-schema
+#
+#- name: db-manage
+#  shell: cat /tmp/update_db.log 
+#  tags: cnm-schema
+
+- name: db-manage (aplica/actualiza esquema)
+  command: php db-manage.php
+  args:
+    chdir: /update/db
+  register: dbmanage
   tags: cnm-schema
 
-- name: db-manage
-  shell: cat /tmp/update_db.log 
+- name: Persistir log de db-manage
+  copy:
+    content: "{{ dbmanage.stdout }}\n--- STDERR ---\n{{ dbmanage.stderr }}"
+    dest: /store/tmp/update_db.log
   tags: cnm-schema
 
 ...

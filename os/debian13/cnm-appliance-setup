@@ -1,9 +1,6 @@
 #!/usr/bin/perl -w
 #-------------------------------------------------------------------------------------------
 # Fichero: cnm-appliance-setup (Debian 13) 
-# Los pasos a seguir para instalar CNM son:
-# a. Ejcutar cnm-install -i -a root_pwd -b onm_pwd -n user [-m pro] [-r rev_number]
-# b. Ejecutar /opt/crawler/bin/support/chk-host
 #-------------------------------------------------------------------------------------------
 use strict;
 use Getopt::Std;
@@ -12,8 +9,9 @@ use Data::Dumper;
 
 #-------------------------------------------------------------------------------------------
 BEGIN {
-  $ENV{'MIBS'}='ALL';
-  $ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+  	$ENV{'MIBS'}='ALL';
+  	$ENV{'PATH'}='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+	$ENV{'DEBIAN_FRONTEND'} = 'noninteractive';
 }
 
 #-------------------------------------------------------------------------------------------
@@ -28,64 +26,66 @@ my $USAGE = <<USAGE;
 CNM Installer $VERSION (c) s30labs
 
 $fpth[$#fpth] 
-$fpth[$#fpth] [-m master] [-r rev_number]
 $fpth[$#fpth] -h
 
--i : Solo drbd
--s : Sin drbd
--z : Especifica dispositivo para drbd [default /dev/sda6]
-
--m : Modo (branch)
--r : Revision
 -h : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hm:r:",\%opts);
+getopts("h",\%opts);
 if ($opts{h}) { die $USAGE;}
-my $BRANCH = 'master';
-if ($opts{m}) { $BRANCH=$opts{m}; }
-my $REV='';
-if ($opts{r}) { $REV=$opts{r}; }
 
 #-------------------------------------------------------------------------------------------
-# Valida que es Debian13. En caso contrario termina.
+# Valida que es Debian 13. Se usa /etc/os-release (parte de base-files, siempre presente)
+# en lugar de lsb_release, que requiere el paquete lsb-release (no garantizado en base minima).
 #-------------------------------------------------------------------------------------------
 my %os_info=();
-my @out=`lsb_release -ir`;
-foreach my $l (@out) {
-	chomp $l;
-	my ($k,$v)=split(/\:\s+/,$l);
-	$os_info{$k}=$v;
+open (my $osfh,'<','/etc/os-release') or die "No puedo leer /etc/os-release: $!\n";
+while (my $line = <$osfh>) {
+    chomp $line;
+    next unless $line =~ /^([A-Z_]+)=(.*)$/;
+    my ($k,$v) = ($1,$2);
+    $v =~ s/^"//; $v =~ s/"$//;          # quita comillas
+    $os_info{$k} = $v;
+}
+close $osfh;
+
+if (($os_info{'ID'} // '') !~ /^debian$/i) {
+    print Dumper(\%os_info);
+    die "Not a Debian distro ...\n";
+}
+if (($os_info{'VERSION_ID'} // '') ne '13') {
+    print Dumper(\%os_info);
+    die "Not a Debian 13 distro ...\n";
 }
 
-if ($os_info{'Distributor ID'} !~ /debian/i) {
-	print Dumper(\%os_info);
-	die "Not a Debian distro ...\n";
-}
-if ($os_info{'Release'} !~ /13/) {
-	print Dumper(\%os_info);
-	die "Not a Debian 13 distro ...\n";
-}
 
 
 #-------------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------------
 # 00. Paquetes minimos necesarios (openssh-server, ansible, git, vim, cpanminus)
 #-------------------------------------------------------------------------------------------
-`apt-get update`;
-`apt-get install -y openssh-server`;
-`apt-get install -y git vim sudo gnupg2`;
+#`apt-get update`;
+#`apt-get install -y openssh-server`;
+#`apt-get install -y git vim sudo gnupg2`;
+
+# update: solo aviso (un repo flaky no debe tumbar la instalacion)
+if (system("$APT_GET update") != 0) {
+    print "**WARN** 'apt-get update' devolvio error; continuo con la cache disponible\n";
+}
+run_or_die("$APT_GET install -y openssh-server git vim sudo gnupg2 curl wget");
+run_or_die("$APT_GET install -y python3 python3-minimal python3-pip ansible");
+run_or_die("$APT_GET install -y cpanminus");
 
 # ansible 2.10.8
-`apt-get install -y gnupg2 curl wget`;
+#`apt-get install -y gnupg2 curl wget`;
 #system ("curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x93C4A3FD7BB9C367' | gpg --dearmor > /etc/apt/trusted.gpg.d/ansible-archive-keyring.gpg");
 #`echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu bionic main" > /etc/apt/sources.list.d/ansible.list`;
 #`apt-get update`;
 
 #deb13 `apt-get install -y python python3 python3-minimal python3-pip ansible`;
-`apt-get install -y python3 python3-minimal python3-pip ansible`;
+#`apt-get install -y python3 python3-minimal python3-pip ansible`;
 my $pv = `pip3 --version`;
 chomp $pv;
 my $pip_version=0;
@@ -96,7 +96,7 @@ my $extra_option='';
 #`python3 -m pip install $extra_option --upgrade pip`;
 #`python3 -m pip install $extra_option --upgrade ansible`;
 
-`apt-get install -y cpanminus`;
+#`apt-get install -y cpanminus`;
 
 #-------------------------------------------------------------------------------------------
 # 01. Git config
@@ -166,9 +166,10 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 #-------------------------------------------------------------------------------------------
 # 07. Se instalan paquetes de Debian y modulos de PERL
 #-------------------------------------------------------------------------------------------
+run_or_die("$APT_GET install -y python3 python3-minimal python3-pip python-is-python3 ansible");
 my $cwd = cwd();
 chdir('/opt/cnm/os/debian13');
-if (! -l '/usr/bin/python') { `ln -s /usr/bin/python3.13 /usr/bin/python`; }
+#if (! -l '/usr/bin/python') { `ln -s /usr/bin/python3.13 /usr/bin/python`; }
 my $cmd = "ansible-playbook -c local -i /cfg/ansible.hosts --tags base cnm.yml | tee /tmp/cnm-install-role-base.log";
 print "Ejecutando $cmd ...\n";
 #`$cmd`;
@@ -218,3 +219,13 @@ my ($feature,$url) = @_;
 
 }
 
+#-------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
+sub run_or_die {
+my ($cmd) = @_;
+   print "+ $cmd\n";
+   my $rc = system($cmd);
+   if ($rc != 0) {
+      die "ERROR ejecutando: $cmd (rc=".($rc >> 8).")\n";
+   }
+}
