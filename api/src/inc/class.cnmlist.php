@@ -1268,8 +1268,15 @@ Array
 			}
 			$id_user_visible = implode(',',array_unique ($a_id_user));
 
-
+			$user_fields = '';
+         $comma_uf = ',';
+         $data_uf  = array();
+         $result_uf = doQuery('get_user_fields', $data_uf);
+         foreach($result_uf['obj'] as $r){
+            $user_fields .= $comma_uf."columna".$r['id'];
+         }
          $data  = array('__POSSTART__'=>($a_meta_fields['cnm_page']-1)*$a_meta_fields['cnm_page_size'],'__COUNT__'=>$a_meta_fields['cnm_page_size'],'__CONDITION__'=>$cond,'__ORDERBY__'=>$orderby, '__OUTPUT_FIELDS__'=>$output_fields,'__USER_FIELDS__'=>$user_fields,'__ID_USER__'=>$id_user_visible);
+
          // Se borra las tablas temporales t1 
          $result = doQuery('api_get_users_delete_temp',$data);
          // Se crea la tabla temporal t2 con los dispositivos y el numero de metricas

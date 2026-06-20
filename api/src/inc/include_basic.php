@@ -10,7 +10,7 @@ include_once('inc/MC.php');
 include_once('inc/session.php');
 session_set_save_handler('mysql_session_open','mysql_session_close','mysql_session_select','mysql_session_write','mysql_session_destroy','mysql_session_garbage_collect');
 session_start();
-include_once('/var/www/html/tphp/class.TemplatePower.inc.php');
+include_once('./tphp/class.TemplatePower.inc.php');
 // include_once('../tphp/class.TemplatePower.inc.php');
 include_once('inc/Metrics.php');
 include_once('inc/Store.php');

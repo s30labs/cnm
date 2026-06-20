@@ -2,7 +2,6 @@
 
 include_once('inc/Store.php');
 include_once('inc/CNMUtils.php');
-require_once('/usr/share/pear/DB.php');
 
 //define("LOG_PREFIX", "cnm-api");
 
@@ -33,8 +32,8 @@ class CNMAPI {
       		'database' => $db_data['DB_NAME'],
    		);
 	   	// NOS CONECTAMOS A LA BBDD
-   		$dbc = @DB::Connect($data,TRUE);
-   		if (@PEAR::isError($dbc)) {
+   		$dbc = CNM_DB::Connect($data,TRUE);
+   		if (CNM_isError($dbc)) {
 				throw new Exception("ERROR DE CONEXION"); 
    		}else {
       		$dbc->setFetchMode(DB_FETCHMODE_ASSOC);

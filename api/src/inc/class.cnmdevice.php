@@ -136,6 +136,7 @@
 
          // Obtener los campos de usuario definidos en el sistema
          $a_custom_fields = array();
+			$data = array();
          $result = doQuery('get_user_fields',$data);
          foreach($result['obj'] as $r){
 				$this->a_custom_fields[$r['descr']] = '-';
@@ -1254,6 +1255,7 @@ mysql> select * from devices_custom_types;
 			$name=$all_tags['_docdevicesummary'];
 			$sqlTip = "INSERT INTO tips (id_ref,tip_type,name,date,tip_class,descr) VALUES ('".$this->get_system_field('id')."','id_dev','$name','$date',1,'".$this->str2jsQM($descripcion)."') ON DUPLICATE KEY UPDATE date='$date',descr='".$this->str2jsQM($descripcion)."',name='$name' ";
 		   $dbc->query($sqlTip);
+			return array('rc'=>0, 'rcstr'=>'');
 		}
 
 		// Function: str2jsQM
@@ -1312,11 +1314,12 @@ mysql> select * from devices_custom_types;
 		   // print "<br>++++++++++++++++++++++++++++++++<br>";
 		   // print $params;
 		   // print "<br>++++++++++++++++++++++++++++++++<br>";
-		   $time=time();
-		   $aux_time=$time;
-	
-		   $h=md5("$time$action$elems");
-		   $hh=substr($h,1,8);
+			$time = time();
+			$aux_time = $time;
+			// uniqid(,true) añade microsegundos + entropía; mt_rand refuerza.
+			// Así dos acciones identicas en el mismo segundo NO colisionan.
+			$h = md5($time . $action . $elems . uniqid('', true) . mt_rand());
+			$hh = substr($h,1,8);
 
 		   $user=$_SESSION['LUSER'];
 		   $sql="INSERT INTO qactions (name,descr,action,cmd,params,auser,date_store,date_start,status,task,atype)
@@ -1324,7 +1327,7 @@ mysql> select * from devices_custom_types;
 		   // print "SQL ES == $sql";
 
 		   $result = $dbc->query($sql);
-		   if (@PEAR::isError($result)) {
+		   if (CNM_isError($result)) {
 		      $msg_error=$result->getMessage();
 		      $code_error=$result->getCode();
 		      CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** ($code_error) $msg_error ($sql)");

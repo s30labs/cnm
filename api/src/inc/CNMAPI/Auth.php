@@ -94,7 +94,7 @@ CNMUtils::info_log(__FILE__, __LINE__, "[API10] LOGIN_NAME=$LOGIN_NAME PASSWD=$P
       $_SESSION['PERFIL']      = $r['perfil'];
       $_SESSION['NUSER']       = $r['id_user'];
       $_SESSION['TIMEOUT']     = $r['timeout'];
-      $_SESSION['DBC']         = $dbc;
+      $_SESSION['DBC_PARAMS']  = get_dbc_params();
       $_SESSION['count']       = 4;
       $_SESSION['LUSER']       = $LOGIN_NAME;
       $_SESSION['local_cid']   = 'default';

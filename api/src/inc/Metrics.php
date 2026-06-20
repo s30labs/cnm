@@ -1,5 +1,4 @@
 <?php
-require_once('/usr/share/pear/DB.php');
 
 //--------------------------------------------------------------------------
 // Function: days_in_metric
@@ -156,7 +155,7 @@ global $dbc;
    if ($alert_type == 4) {
       $sql="SELECT expr,cause,severity FROM alert_type WHERE monitor='{$r['watch']}'";
 		$result = $dbc->query($sql);
-		if (@PEAR::isError($result)){
+		if (CNM_isError($result)){
    		$errmsg = $result->getUserInfo();
    		$errno = $result->getCode();
 			CNMUtils::info_log(__FILE__, __LINE__, "get_alert_monitor (4) QUERY [ERROR]: $errmsg CODE=$errno");
@@ -175,7 +174,7 @@ global $dbc;
 		$color_ico=($r['watch'])?'verde':'transp';
       $sql="SELECT expr,cause FROM alert_type WHERE monitor='{$r['watch']}'";
       $result = $dbc->query($sql);
-      if (@PEAR::isError($result)){
+      if (CNM_isError($result)){
          $errmsg = $result->getUserInfo();
          $errno = $result->getCode();
          CNMUtils::info_log(__FILE__, __LINE__, "get_alert_monitor (0) QUERY [ERROR]: $errmsg CODE=$errno");
@@ -191,7 +190,7 @@ global $dbc;
       $color_ico=($r['watch'])?'gris':'transp';
       $sql="SELECT expr,cause FROM alert_type WHERE monitor='{$r['watch']}'";
       $result = $dbc->query($sql);
-      if (@PEAR::isError($result)){
+      if (CNM_isError($result)){
          $errmsg = $result->getUserInfo();
          $errno = $result->getCode();
          CNMUtils::info_log(__FILE__, __LINE__, "get_alert_monitor QUERY [ERROR]: $errmsg CODE=$errno");

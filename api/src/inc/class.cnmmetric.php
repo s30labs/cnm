@@ -26,7 +26,7 @@
 			//Actualiza su estado a 3 para que sea eliminada por notificationsd
   			$sql="Update metrics set status=3, refresh=1 where id_metric in ($IDM)";
    		$result = $dbc->query($sql);
-   		if (@PEAR::isError($result)){
+   		if (CNM_isError($result)){
       		$a_res['msg']=$result->getMessage();
       		$a_res['rc']=$result->getCode();
       		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -36,7 +36,7 @@
 		   //Elimina las relaciones con las vistas de la metrica en cuestion
    		$sql="delete from cfg_views2metrics where id_metric in ($IDM)";
    		$result = $dbc->query($sql);
-   		if (@PEAR::isError($result)) {
+   		if (CNM_isError($result)) {
       		$a_res['msg']=$result->getMessage();
       		$a_res['rc']=$result->getCode();
       		CNMUtils::error_log(__FILE__, __LINE__, "delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -53,7 +53,7 @@
    		//Elimina de otras tablas .......
    		$sql="select m.id_dev,m.name,m.type,m.subtype,d.ip,m.file,m.id_metric,m.label,d.name as dev_name,d.domain from metrics m, devices d where m.id_dev=d.id_dev and id_metric in ($IDM)";
    		$result1 = $dbc->query($sql);
-   		if (@PEAR::isError($result1)) {
+   		if (CNM_isError($result1)) {
       		$a_res['msg']=$result->getMessage();
       		$a_res['rc']=$result->getCode();
       		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -79,7 +79,7 @@
 		         // Desactiva la metrica de la plantilla del dispositivo
       		   $sql="UPDATE prov_template_metrics2iid SET status=1 WHERE id_dev=$id_dev AND mname='$mname'";
          		$result = $dbc->query($sql);
-		         if (@PEAR::isError($result)){
+		         if (CNM_isError($result)){
       		      $a_res['msg']=$result->getMessage();
             		$a_res['rc']=$result->getCode();
             		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -87,14 +87,14 @@
 
 		         $sql="delete from alerts where id_device=$id_dev and mname='$mname'";
       		   $result = $dbc->query($sql);
-         		if (@PEAR::isError($result)) {
+         		if (CNM_isError($result)) {
 		            $a_res['msg']=$result->getMessage();
       		      $a_res['rc']=$result->getCode();
             		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
          		}
          		$sql="delete from alerts_store where id_device=$id_dev and mname='$mname'";
 		         $result = $dbc->query($sql);
-      		   if (@PEAR::isError($result)) {
+      		   if (CNM_isError($result)) {
             		$a_res['msg']=$result->getMessage();
 		            $a_res['rc']=$result->getCode();
       		      CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -103,7 +103,7 @@
 		         if ($id_metric) {
       		      $sql="delete from alerts_read where id_metric=$id_metric";
             		$result = $dbc->query($sql);
-            		if (@PEAR::isError($result)) {
+            		if (CNM_isError($result)) {
                		$a_res['msg']=$result->getMessage();
 		               $a_res['rc']=$result->getCode();
       		         CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -119,7 +119,7 @@
       	   	# otra metrica la causante, ya se vlveria a producir.
 	   	      $sql="delete from alerts where id_device=$id_dev and mname='mon_snmp'";
    	   	   $result = $dbc->query($sql);
-         		if (@PEAR::isError($result)){
+         		if (CNM_isError($result)){
 		            $a_res['msg']=$result->getMessage();
       		      $a_res['rc']=$result->getCode();
             		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -127,7 +127,7 @@
 
 		         $sql="delete from metric2snmp where id_metric in ($IDM)";
       		   $result = $dbc->query($sql);
-         		if (@PEAR::isError($result)) {
+         		if (CNM_isError($result)) {
 		            $a_res['msg']=$result->getMessage();
       		      $a_res['rc']=$result->getCode();
             		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -140,7 +140,7 @@
 		         if (($id_dev) && ($mname)) {
       		      $sql="delete from cnm.work_snmp where cid='$cid' and id_dev=$id_dev and mname='$mname'";
             		$result = $dbc->query($sql);
-            		if (@PEAR::isError($result)) {
+            		if (CNM_isError($result)) {
 		               $a_res['msg']=$result->getMessage();
       		         $a_res['rc']=$result->getCode();
             		   CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -153,7 +153,7 @@
       		elseif ($type == 'latency'){
 		         $sql="delete from metric2latency where id_metric in ($ID)";
       		   $result = $dbc->query($sql);
-         		if (@PEAR::isError($result)) {
+         		if (CNM_isError($result)) {
 		            $a_res['msg']=$result->getMessage();
       		      $a_res['rc']=$result->getCode();
             		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -166,7 +166,7 @@
 		         if (($id_dev) && ($mname)) {
       		      $sql="delete from cnm.work_latency where cid='$cid' and id_dev=$id_dev and mname='$mname'";
             		$result = $dbc->query($sql);
-		            if (@PEAR::isError($result)) {
+		            if (CNM_isError($result)) {
       		         $a_res['msg']=$result->getMessage();
             		   $a_res['rc']=$result->getCode();
                		CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -179,7 +179,7 @@
          		if (($id_dev) && ($mname)) {
 		            $sql="delete from cnm.work_xagent where cid='$cid' and id_dev=$id_dev and mname='$mname'";
       		      $result = $dbc->query($sql);
-            		if (@PEAR::isError($result)) {
+            		if (CNM_isError($result)) {
 		               $a_res['msg']=$result->getMessage();
       		         $a_res['rc']=$result->getCode();
             		   CNMUtils::error_log(__FILE__, __LINE__, "api_delete_metrics: error={$a_res['msg']} rc={$a_res['rc']} ($sql)");
@@ -230,7 +230,7 @@
 	      // print "SQL ES == $sql";
 
 	      $result = $dbc->query($sql);
-	      if (@PEAR::isError($result)) {
+	      if (CNM_isError($result)) {
 	         return 1;
 	      }else{
 	         return 0;

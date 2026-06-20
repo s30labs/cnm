@@ -74,7 +74,7 @@
 	      // print "SQL ES == $sql";
 
 	      $result = $dbc->query($sql);
-	      if (@PEAR::isError($result)) {
+	      if (CNM_isError($result)) {
 	         return 1;
 	      }else{
 	         return 0;

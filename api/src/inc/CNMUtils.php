@@ -100,8 +100,10 @@ class CNMUtils {
 			$content = fread($fh, filesize($lang_data_file));
 			$my_array = explode("\n", $content);
 			foreach($my_array as $line) {
-    			$tmp = explode('||', $line);
-    			$data[$tmp[0]] = $tmp[1];
+   			if ($line === '') continue;                    // saltar líneas vacías
+   			$tmp = explode('||', $line);
+   			if (!isset($tmp[1])) continue;                 // saltar líneas sin separador ||
+   			$data[$tmp[0]] = $tmp[1];
 			}
 			fclose($fh);
 		}

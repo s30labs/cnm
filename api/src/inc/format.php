@@ -114,10 +114,10 @@ function grid2array($xml,$mode=0){
    /////////////////////
    // Cuerpo del grid //
    /////////////////////
-	$a_row = (array)$o_xml['row'];
+	$a_row = isset($o_xml['row']) ? (array)$o_xml['row'] : array();
 
 	// Grid con una linea
-	if(is_array($a_row['cell'])){
+	if(isset($a_row['cell']) && is_array($a_row['cell'])){
 		$row = $a_row;
 		$a_cell = array();
 		$c_cell = 0;

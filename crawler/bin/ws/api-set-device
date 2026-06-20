@@ -99,7 +99,10 @@ my $response = $api->ws_post($class,$endpoint,\%row);
 #'rc' => 0,
 #'id' => '2',
 #'rcstr' => ''
-if ($response->{'rc'}!=0) {
+if (!exists $response->{'rc'}) {
+	die "**ERROR** en respuesta del API\n";
+}
+elsif ($response->{'rc'}!=0) {
 	print '**ERROR** al crear el dispositivo ['.$response->{'rc'}.'] - '.$response->{'rcstr'}."\n";
 	exit $response->{'rc'};
 }

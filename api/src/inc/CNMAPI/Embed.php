@@ -18,7 +18,7 @@ include_once('inc/Store.php');
 // curl -ki "https://10.2.254.222/onm/api/1.0/embed/metric/12.json?sizex=400&sizey=200"
 // ------------------------------------------------------------------------------
 function api_get_metric_graph($id) {
-   include_once('/var/www/html/tphp/class.TemplatePower.inc.php');
+   include_once('./tphp/class.TemplatePower.inc.php');
 
    $size_x    = (CNMUtils::get_param('sizex')!='')?CNMUtils::get_param('sizex')-20:'';
    if($size_x!='' AND $size_x<180) $size_x='400';

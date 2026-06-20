@@ -15,114 +15,6 @@ if (!class_exists('CNMAPI')) {
 else{
 
 	define('_hidx','');
-
-//	/*
-//	 * Function: cond2query()
-//	 * Input:
-//	 *    $k_cond => nombre del campo (ej: counter)
-//	 *    $v_cond => valor del campo  (ej: >50)
-//	 *    $a_table_descr => array( campo1=>tipo_campo1, campo2=>tipo_campo2, ...) Define el tipo de los campos de la BBDD de la tabla utilizada
-//	 *
-//	 * Output:
-//	 *    $cond  => Cadena SQL que corresponde a la busqueda del campo indicado
-//	 * Descr: Función que compone la condicion en formato SQL que debe utilizarse al realizar una busqueda en un grid
-//	*/
-//	function cond2query($k_cond,$v_cond,$a_table_descr=array()){
-//	   $aux_cuantos = $v_cond;
-//	   $a_simbol    = array('<','>','=','!');
-//	   $aux_cuantos = str_replace($a_simbol,'',$aux_cuantos);
-//	
-//	
-//	   // El campo existe en $a_table_descr
-//	   if(array_key_exists($k_cond,$a_table_descr)){
-//	      // El campo está definido como un entero
-//	      if($a_table_descr[$k_cond]=='int'){
-//	         if ((strpos($v_cond,'=')===false) AND (strpos($v_cond,'>')===false) AND (strpos($v_cond,'<')===false) AND (strpos($v_cond,'!')===false)){
-//	            $v_cond="=$v_cond";
-//	         }
-//	         elseif(strpos($v_cond,'!')!==false){
-//	            $v_cond=str_replace('!','!=',$v_cond);
-//	         }
-//	         $cond = " AND $k_cond $v_cond ";
-//	      }
-//	      // El campo esta definido como una cadena
-//	      else{
-//	         /*
-//	          * Tenemos en cuenta:
-//	          * !   : NOT LIKE %%
-//	          * =   : EQUAL
-//	          * 
-//	         */
-//				if(is_array($v_cond)){
-//               if(strpos($v_cond,'=')!==false)     $cond = " AND $k_cond IN (";
-//               elseif(strpos($v_cond,'!')!==false) $cond = " AND $k_cond NOT IN (";
-//               else                                $cond = " AND $k_cond IN (";
-//					
-//					$sep = '';
-//					foreach($v_cond as $foo => $_){
-//						if($_=='') continue;
-//						$cond.=$sep."'".str_replace(array('=','!'),'',$_)."'";
-//						$sep = ',';
-//					}
-//					$cond.=')';
-//				}else{
-//		         if(strpos($v_cond,'=')!==false)     $cond = " AND $k_cond LIKE '".str_replace('=','',$v_cond)."' ";
-//		         elseif(strpos($v_cond,'!')!==false) $cond = " AND $k_cond NOT LIKE '%".str_replace('!','',$v_cond)."%' ";
-//		         else                                $cond = " AND $k_cond LIKE '%$v_cond%' ";
-//				}
-//	      }
-//	   }
-//	   // En caso de no estar ese campo en $a_table_descr
-//	   else{
-//	      // En caso de ser un campo numérico 
-//	      if(is_numeric($aux_cuantos)){
-//	         if ((strpos($v_cond,'=')===false) AND (strpos($v_cond,'>')===false) AND (strpos($v_cond,'<')===false) AND (strpos($v_cond,'!')===false)){
-//	            $v_cond="=$v_cond";
-//	         }
-//	         elseif(strpos($v_cond,'!')!==false){
-//	            $v_cond=str_replace('!','!=',$v_cond);
-//	         }
-//	         $cond = " AND $k_cond $v_cond ";
-//	      }
-//	      // En caso de ser un campo de texto
-//	      else{
-//	         /*
-//	          * Tenemos en cuenta:
-//	          * !   : NOT LIKE %%
-//	          * =   : EQUAL
-//	          * 
-//	         */
-//	         if(strpos($v_cond,'=')!==false)     $cond = " AND $k_cond LIKE '".str_replace('=','',$v_cond)."' ";
-//	         elseif(strpos($v_cond,'!')!==false) $cond = " AND $k_cond NOT LIKE '%".str_replace('!','',$v_cond)."%' ";
-//	         else                                $cond = " AND $k_cond LIKE '%$v_cond%' ";
-//	      }
-//	   }
-//	   return $cond;
-//	}
-//
-//	// Función que obtiene la descripción de los campos de una tabla
-//	function DDBB_Table_Info($id_table){
-//	   global $dbc;
-//	   $return=array();
-//	   $result = $dbc->query("SHOW FIELDS FROM $id_table");
-//	   if (!@PEAR::isError($result)){
-//	      if(is_object($result)){
-//	         while ($result->fetchInto($r)){
-//	            $type = 'int';
-//	            if(strpos($r['Type'],'char')!==false)     $type = 'string';
-//	            elseif(strpos($r['Type'],'text')!==false) $type = 'string';
-//	            elseif(strpos($r['Type'],'blob')!==false) $type = 'string';
-//	
-//	            $return[$r['Field']] = $type;
-//	         }
-//	         $result->free();
-//	      }
-//	   }
-//	   return $return;
-//	}
-
-
-
 }
 
 $a_action_open = array();
@@ -1826,6 +1718,8 @@ Condición de búsqueda');
       $result = doQuery('get_all_metrics_create_temp1',$data);
 		CNMUtils::debug_log(__FILE__, __LINE__, "get_all_metrics_create_temp1 >> SQL={$result['query']}");
 
+		$a_table_descr = DDBB_Table_Info('t1');
+
 		// Se actualizan los campos severityred,severityorange y severityyellow
       $cond = " ";
       ////////////////////////
@@ -1934,8 +1828,8 @@ Condición de búsqueda');
       }
 	
 		$data  = array('__CONDITION__'=>$cond);
-      $result = doQuery('get_all_metrics_create_count',$data);
-      $cuantos = $result['obj'][0]['cuantos'];
+		$result = doQuery('get_all_metrics_create_count',$data);
+		$cuantos = isset($result['obj'][0]['cuantos']) ? $result['obj'][0]['cuantos'] : 0;
 
       if($mode==0) $tabla->showData($cuantos,$posStart);
       elseif($mode==3) return $tabla->xml();
@@ -2669,7 +2563,7 @@ Condición de búsqueda');
 
 	   $data   = array('__CONDITION__'=>$cond);
       $result = doQuery('get_tickets_create_count',$data);
-      $cuantos = $result['obj'][0]['cuantos'];
+		$cuantos = isset($result['obj'][0]['cuantos']) ? $result['obj'][0]['cuantos'] : 0;
 
       if($mode==0) $tabla->showData($cuantos,$posStart);
       else return  $tabla->xml();
@@ -3588,7 +3482,7 @@ global $dbc;
    // print "SQL ES == $sql";
 
    $result = $dbc->query($sql);
-   if (@PEAR::isError($result)) {
+   if (CNM_isError($result)) {
       $msg_error=$result->getMessage();
       CNMUtils::error_log(__FILE__, __LINE__, "**DBERROR** $msg_error ($sql)");
       return 1;

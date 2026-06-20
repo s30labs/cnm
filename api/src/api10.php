@@ -1002,7 +1002,7 @@ include_once('inc/CNMAPI/Reports.php');
 include_once('inc/class_table.php');
 include_once('inc/format.php');
 include_once('inc/mod_common.php');
-include_once('/var/www/html/tphp/class.TemplatePower.inc.php');
+include_once('./tphp/class.TemplatePower.inc.php');
 // --------------------------------------------------------------------------------------------
 
 $content_type = CNMUtils::get_param('content_type');
@@ -1021,14 +1021,27 @@ if (in_array($endpoint,$a_endpoint_nosession) OR ($endpoint=='multi' AND $_SERVE
    $dbc=CNMAPI::connectDB();
 }
 // Petición con sesión
+//else {
+//   session_set_save_handler('mysql_session_open','mysql_session_close','mysql_session_select','mysql_session_write','mysql_session_destroy','mysql_session_garbage_collect');
+//   session_start();
+//   $headers = apache_request_headers();
+//   $sid = (array_key_exists('Authorization',$headers))?$headers['Authorization']:'';
+//   showTime($sid);
+//   //fmldeb11 session_id($sid);
+//}
+
+// Petición con sesión
 else {
-   session_set_save_handler('mysql_session_open','mysql_session_close','mysql_session_select','mysql_session_write','mysql_session_destroy','mysql_session_garbage_collect');
-   session_start();
    $headers = apache_request_headers();
-   $sid = (array_key_exists('Authorization',$headers))?$headers['Authorization']:'';
+   $sid = (array_key_exists('Authorization',$headers)) ? $headers['Authorization'] : '';
+   session_set_save_handler('mysql_session_open','mysql_session_close','mysql_session_select','mysql_session_write','mysql_session_destroy','mysql_session_garbage_collect');
+   session_id($sid);        // ← establecer el SID ANTES de start
+   session_start();         // ← ahora carga la sesión correcta vía read()
    showTime($sid);
-   //fmldeb11 session_id($sid);
 }
+
+
+
 
 // --------------------------------------------------------------------------------------------
 $output = array ('errors' => array(), 'success'=>true);
