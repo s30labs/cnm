@@ -23,8 +23,8 @@
 #  command: /opt/cnm/os/debian13/install-pari.sh > /tmp/install-pari.out 2>&1 creates=/tmp/src/pari/Math-Pari-2.030523/libPARI/libPARI.a
 #  tags: base
 
-#- name: Install PERL modules
-#  shell: /opt/cnm/os/debian13/cpan-install.pl -i > /tmp/cpan-install.out 2>&1
-#  tags: base
+- name: Install PERL modules
+  shell: /opt/cnm/os/debian13/cpan-install.pl -i > /tmp/cpan-install.out 2>&1
+  tags: base
 
 ...
