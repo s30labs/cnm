@@ -139,7 +139,7 @@ bless {
          _store =>$arg{store} || '',
          _dbh =>$arg{dbh} || undef,
          _wsclient =>$arg{wsclient} || '',
-         _mode_flag =>$arg{mode_flag} || {'rrd' => 1, 'db' => 0, 'alert'=>1},
+         _mode_flag =>$arg{mode_flag} || {'rrd' => 1, 'db' => 0, 'spool' => 0, 'alert'=>1},
          _response =>$arg{'response'} || 'OK',
          _event_data => [],
          _data_out => [],
@@ -1389,6 +1389,7 @@ my $pid;
 
    my $cfg=$self->cfg();
 	my $mode_db=($cfg->{'mode_db'}->[0]=~/\d+/) ? $cfg->{'mode_db'}->[0] : 0;
+	my $mode_spool=($cfg->{'mode_spool'}->[0]=~/\d+/) ? $cfg->{'mode_spool'}->[0] : 0;
 	my $mode_rrd=($cfg->{'mode_rrd'}->[0]=~/\d+/) ? $cfg->{'mode_rrd'}->[0] : 1;
 	my $mode_alert = ($cfg->{'mode_alert'}->[0]=~/\d+/) ? $cfg->{'mode_alert'}->[0] : 1;
 
@@ -1428,22 +1429,22 @@ my $pid;
 
       if ($pid == 0) {
          $self->start_flag(1);
-         $self->log('info',"run:: crawler [range=$r|type=$type|lapse=$lapse] [mode_rrd=$mode_rrd mode_db=$mode_db mode_alert=$mode_alert] ($dpath)");
+         $self->log('info',"run:: crawler [range=$r|type=$type|lapse=$lapse] [mode_rrd=$mode_rrd mode_db=$mode_db mode_spool=$mode_spool mode_alert=$mode_alert] ($dpath)");
 
          my $log_level=$self->log_level();
 
          if ($type eq 'snmp') {
-            my $snmp=Crawler::SNMP->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert' => $mode_alert} );
+            my $snmp=Crawler::SNMP->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'spool' => $mode_spool, 'alert' => $mode_alert} );
 
             $snmp->do_task($lapse,$r);
          }
          elsif ($type eq 'latency') {
-            my $latency=Crawler::Latency->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert' => $mode_alert} );
+            my $latency=Crawler::Latency->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'spool' => $mode_spool, 'alert' => $mode_alert} );
 
             $latency->do_task($lapse,$r);
          }
          elsif ($type eq 'xagent') {
-            my $xagent=Crawler::Xagent->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'alert' => $mode_alert} );
+            my $xagent=Crawler::Xagent->new( store => $store, dbh => $dbh, store_path=>$spath, data_path=>$dpath, range=>$r, log_level=>$log_level, 'cfg'=>$cfg, mode_flag=>{'rrd' => $mode_rrd, 'db' => $mode_db, 'spool' => $mode_spool, 'alert' => $mode_alert} );
 
             $xagent->do_task($lapse,$r);
          }
@@ -3719,6 +3720,38 @@ my ($self,$filter,$action)=@_;
    }
 }
 
+#----------------------------------------------------------------------------
+# Objeto nulo: si Crawler::Spool no está disponible, begin/write/commit son
+# no-ops y la captura NO se ve afectada.
+#----------------------------------------------------------------------------
+{
+   package Crawler::Spool::Null;
+   sub new { bless {}, shift }
+   sub begin { 1 } sub write { 1 } sub commit { 1 } sub abort { 1 } sub recover { 0 }
+}
+
+#----------------------------------------------------------------------------
+# spool : escritura dual al spool de TimescaleDB, en paralelo al RRD.
+#         Una instancia por proceso crawler (crawler_id = range).
+#----------------------------------------------------------------------------
+sub spool {
+my ($self)=@_;
+   return $self->{_spool} if $self->{_spool};
+   eval {
+      require Crawler::Spool;
+      $self->{_spool}=Crawler::Spool->new(
+         path       => ($ENV{CNM_TS_SPOOL} || '/opt/data/spool/ts'),
+         crawler_id => $self->range(),
+         logger     => sub { $self->log(@_) },
+      );
+      $self->{_spool}->recover();
+   };
+   if ($@ || ! $self->{_spool}) {
+      $self->log('warning',"spool::[WARN] no disponible, se desactiva ($@)");
+      $self->{_spool}=Crawler::Spool::Null->new();
+   }
+   return $self->{_spool};
+}
 
 1;
 __END__

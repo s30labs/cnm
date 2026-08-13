@@ -69,6 +69,7 @@ my %CFG = (
 
 	'www_server_url' => [],
 	'mode_db' => ['0'],
+	'mode_spool' => ['0'],
 	'mode_rrd' => ['1'],
 	'mode_alert' => ['1'],
 
@@ -121,6 +122,7 @@ my $file=shift;
 
       # mode_flag
       if (/\bMODE_DB\s*\=\s*(.*)$/) {$CFG{'mode_db'}->[0]=$1;}
+      if (/\bMODE_SPOOL\s*\=\s*(.*)$/) {$CFG{'mode_spool'}->[0]=$1;}
       if (/\bMODE_RRD\s*\=\s*(.*)$/) {$CFG{'mode_rrd'}->[0]=$1;}
       if (/\bMODE_ALERT\s*\=\s*(.*)$/) {$CFG{'mode_alert'}->[0]=$1;}
 

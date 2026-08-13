@@ -632,8 +632,8 @@ my $NU=0;	#Numero de metricas a con respuesta=U
 
       $NM=scalar @task;
 		my $mode_flag=$self->mode_flag();
-		my ($a,$b,$c)=($mode_flag->{'rrd'}, $mode_flag->{'alert'}, $mode_flag->{'db'});
-		$self->log('info',"do_task::[INFO] -R- snmp.$lapse|IDX=$range|NM=$NM [rrd=$a alert=$b db=$c] LINK_ERROR=$link_error");
+		my ($a,$b,$c,$d)=($mode_flag->{'rrd'}, $mode_flag->{'alert'}, $mode_flag->{'db'}, $mode_flag->{'spool'});
+		$self->log('info',"do_task::[INFO] -R- snmp.$lapse|IDX=$range|NM=$NM [rrd=$a alert=$b db=$c spool=$d] LINK_ERROR=$link_error");
 
       my $tnext=$ts+$real_lapse;
 
@@ -642,6 +642,8 @@ my $NU=0;	#Numero de metricas a con respuesta=U
 		$NU=0;
 		%U=();
 		my $nt=0;
+
+		if ($mode_flag->{'spool'}) { $self->spool->begin($ts); }
       foreach my $desc (@task) {
 
 			$desc->{'lapse'}=$lapse;
@@ -691,6 +693,7 @@ $self->log('debug',"do_task::[DEBUG ID=$task_id] CAMBIO RESPONSE =$rx");
 			my $tp1=Time::HiRes::time();
          #----------------------------------------------------
 			my ($rv,$ev)=$self->modules_supported($desc);
+			if ($mode_flag->{'spool'}) { $self->spool->write($ts, $desc->{idmetric}, $rv, $desc->{iid}, $desc->{subtype}) if ref $rv eq 'ARRAY'; }
 			if ((defined $rv->[0]) && ($rv->[0] eq 'U')) {
 				$NU+=1;
 				my $ip=$desc->{'host_ip'};
@@ -748,6 +751,7 @@ $self->log('debug',"do_task::[DEBUG ID=$task_id] CAMBIO RESPONSE =$rx");
       	exit 0;
    	}
 
+		if ($mode_flag->{'spool'}) { $self->spool->commit(); }
 		$self->log_tmark();
       my $wait = $tnext - time;
       if ($wait < 0) {
