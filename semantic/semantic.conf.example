@@ -1,0 +1,54 @@
+# =============================================================================
+# semantic.conf — configuracion de la capa semantica de ESTA instalacion.
+#
+# Este fichero contiene lo ESPECIFICO DEL CLIENTE. El codigo (validador,
+# generador, col8) es comun a todas las instalaciones y NO debe llevar
+# incrustados paises, filtros ni nombres de BD.
+#
+# INSTALACION:
+#     cp semantic.conf.example /opt/data/semantic/semantic.conf
+#     (editar y ajustar a la realidad del cliente; chmod 0640)
+#
+# NO SUBIR A GIT el semantic.conf real: es del cliente. Al repo solo va este
+# .example. Formato: "clave = valor", '#' inicia comentario, listas por comas.
+# =============================================================================
+
+# --- Vocabulario geografico ------------------------------------------------
+# Codigos ISO-2 admitidos para 'geography', mas 'WW' (worldwide / multi-pais).
+# El validador rechaza cualquier valor fuera de esta lista: es lo que evita que
+# se cuelen variantes ('SP' por 'ES', 'EU', 'LATAM'...) que romperian el filtrado.
+# REGLA: solo paises a los que el cliente DA SERVICIO. Ni regiones ni continentes.
+geography_vocab = WW,ES,FR,US,DE,PT,MX
+
+# --- Deteccion de servidores (script col8) ---------------------------------
+# Patron SQL LIKE sobre devices.type que identifica un servidor. Necesario
+# porque el catalogo de tipos varia entre instalaciones.
+# Usar '%' para no filtrar por tipo (la lista blanca ISO-2 filtra igualmente).
+server_type_like = %erver%
+
+# ID del campo de usuario de dispositivo donde se guarda la geografia. NO es fijo
+# entre instalaciones: depende del orden en que se crearon los campos en el GUI.
+# Averiguar con:  SELECT id, descr FROM devices_custom_types ORDER BY id;
+# (en la instalacion de referencia resulto ser 8, pero es casual)
+geography_field_id = 8
+
+# Lista blanca de codigos ISO-2 admitidos al derivar col8 del nombre del
+# servidor. Si se deja vacio, se usa geography_vocab (quitando WW).
+# Sirve para ser mas restrictivo que el vocabulario general si hace falta.
+iso2_whitelist =
+
+# --- Base de datos de CNM --------------------------------------------------
+# Las credenciales NO van aqui: se pasan por linea de comandos (--db-user /
+# --db-pass) o por el ~/.my.cnf del usuario que ejecuta.
+db_name = onm
+db_host = 127.0.0.1
+db_port = 3306
+
+# --- Rutas -----------------------------------------------------------------
+# Directorio de DATOS del cliente (maestro, historico, backup, log).
+# Separado del codigo (/opt/cnm/semantic) para que actualizar el producto
+# nunca pueda tocar el trabajo semantico del cliente.
+data_dir = /opt/data/semantic
+
+# Nombre base del maestro (sin extension). Se usa para .csv y .xlsx.
+master_basename = cnm_roles_maestro

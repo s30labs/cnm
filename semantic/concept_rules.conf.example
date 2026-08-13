@@ -1,0 +1,44 @@
+# =============================================================================
+# concept_rules.conf — mapeo subtype -> concepto canónico (sem_metric_concept).
+# EXTERNAS al código. El cargador (cnm_load_concepts.pl) las expande a filas
+# por subtype real presente en metrics.
+#
+# Formato:  <match>|<selector>|<canonical_id>|<confidence>|<value_scale>|<origin>
+#
+#   match:
+#     family  el selector casa la FAMILIA del subtype = trozo antes del 1er '-'
+#             (p.ej. family|w_mon_tcp casa w_mon_tcp-XXXX pero NO w_mon_httprc-*)
+#     exact   el selector casa el subtype COMPLETO (para scripts custom_<hash>)
+#   selector: la familia o el subtype exacto.
+#   canonical_id: debe existir en sem_canonical_concept (se valida; FK).
+#   confidence: human_confirmed | ai_suggested | inherited   (def: inherited)
+#     -> las expansiones por 'family' son 'inherited' (heredan de la regla).
+#     -> 'exact' de un humano deliberado: 'human_confirmed'.
+#   value_scale: multiplicador crudo->canónico (def 1.0). ¡OJO unidades!
+#   origin: standard | custom   (def: custom — todo esto es cliente-específico)
+#
+# El cargador NUNCA carga confidence=ai_suggested (gate de seguridad del modelo).
+# =============================================================================
+
+# ---- MONITORES DE ACCESO A PUERTO (w_mon_*) — mapeo por familia -------------
+# Todos miden latencia/acceso TCP; el servicio concreto (SQL/Tomcat/in-house) y
+# su criticidad NO van aquí: van en el ROL al que se ata la instancia.
+family|w_mon_tcp|svc.tcpip.latency|inherited|1.0|custom
+family|w_mon_ssh|svc.tcpip.latency|inherited|1.0|custom
+family|w_mon_smtp|svc.tcpip.latency|inherited|1.0|custom
+family|w_mon_http|svc.http.latency|inherited|1.0|custom
+family|w_mon_httprc|svc.http.response_code|inherited|1.0|custom
+
+# ---- SCRIPTS DE USUARIO (custom_<hash>) — PROPUESTAS A CONFIRMAR ------------
+# Cada custom_ es un script único; su concepto depende de QUÉ mide, que solo
+# sabe quien lo definió. NO se activan hasta que el cliente confirme.
+# Telemetría interna del loader TimescaleDB (Fase 1) — propuesta tentativa:
+# exact|custom_34c56823|svc.resource.pct|human_confirmed|1.0|custom   # Spool Free Space (¿pct o bytes? confirmar)
+# exact|custom_9f92f84f|svc.queue.oldest_age_minutes|human_confirmed|1.0|custom  # Spool File Delay (¿minutos? confirmar value_scale)
+# exact|custom_c79058da|flow.file.count|human_confirmed|1.0|custom    # Spool File Progression (¿qué mide? confirmar)
+#
+# KPIs SAP BTP / procesos VTOM (W##-SP####-KPI####): ~55 scripts. Cada uno
+# necesita decisión del cliente: ¿mide estado (flow.job.status), tiempo
+# (flow.job.exec_time), o throughput de negocio (biz.item.throughput_count)?
+# Ejemplo (a rellenar tras validación del cliente):
+# exact|custom_16788807|flow.job.status|human_confirmed|1.0|custom    # D_S4_ES_XMLINVINT VTOM process

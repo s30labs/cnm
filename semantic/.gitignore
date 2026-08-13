@@ -1,0 +1,42 @@
+# =============================================================================
+# .gitignore — capa semantica de CNM.
+#
+# REGLA: al repo del PRODUCTO va la maquinaria (codigo, esquema, plantillas,
+# documentacion). NUNCA los datos del cliente.
+#
+# Los datos de cliente no son solo "datos": los role_id revelan emplazamientos,
+# marcas, procesos y arquitectura interna. No pueden acabar en un repo de producto.
+# Su sitio es /opt/data/semantic (fuera de este arbol); estas reglas son la red
+# de seguridad por si en algun entorno codigo y datos comparten raiz.
+# =============================================================================
+
+# --- datos del cliente ---
+cnm_roles_maestro.*
+cnm_org_unit*.xlsx
+historico/
+backup/
+log/
+*.csv
+*.xlsx
+*.xls
+
+# --- configuracion de la instalacion (especifica del cliente) ---
+semantic.conf
+
+# --- volcados extraidos de la instalacion del cliente ---
+# (el SCRIPT que los extrae si es producto; su RESULTADO no)
+cnm_state_dict.sql
+*_crosswalk_*.csv
+*_propuesta.csv
+metricas_estado.csv
+
+# --- excepciones: plantillas y ejemplos SI van al repo ---
+!templates/
+!templates/*.xlsx
+!semantic.conf.example
+!schema/*.sql
+
+# --- varios ---
+*.bak
+*.tmp
+*~
