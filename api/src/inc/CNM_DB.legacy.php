@@ -344,6 +344,17 @@ class CNM_DB_Result
      */
     public function fetchInto(&$var, $mode = 0)
     {
+        // MySQL 5.5 (Debian 8): hacer fetch() sobre un statement que NO produce
+        // result set (DROP / CREATE TEMPORARY TABLE / INSERT / UPDATE / DELETE)
+        // lanza PDOException 'SQLSTATE[HY000]: General error: 2053'. En MySQL mas
+        // moderno ese fetch() devuelve false sin error. columnCount()==0 identifica
+        // esos statements de forma portable y evita el fetch. Devolver false aqui
+        // es lo correcto: no hay filas que iterar en el patron while(fetchInto()).
+        if ($this->stmt->columnCount() == 0) {
+            $var = null;
+            return false;
+        }
+
         $fetchMode = ($mode !== 0) ? $mode : $this->fetchMode;
         $row = $this->stmt->fetch($fetchMode);
 
@@ -365,6 +376,11 @@ class CNM_DB_Result
      */
     public function fetchAll($mode = 0)
     {
+        // MySQL 5.5: fetchAll() sobre statement sin result set puede lanzar el
+        // mismo error 2053 que fetch(). columnCount()==0 -> devolver array vacio.
+        if ($this->stmt->columnCount() == 0) {
+            return array();
+        }
         $fetchMode = ($mode !== 0) ? $mode : $this->fetchMode;
         return $this->stmt->fetchAll($fetchMode);
     }
