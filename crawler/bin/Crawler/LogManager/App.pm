@@ -823,7 +823,9 @@ my ($self,$lapse,$task)=@_;
 					my $lapse_extra = $lapse-$lapse_child;
 					my $lapse_msg = "[$lapse_child|$lapse] >> EXTRA=$lapse_extra";
 					if ($lapse_extra<0) { $lapse_msg .= ' **LOW SAMPLING**'; }
-					$self->log('info',"do_task_all:: CHILD_END $range.$type.$lapse LAPSE_TASKS=$lapse_child");
+					my $lapse_level = ($lapse_extra < 0) ? 'warning' : 'info';
+					$self->log($lapse_level,"do_task_all:: CHILD_END $range.$type.$lapse LAPSE_TASKS=$lapse_child $lapse_msg");
+
 					sleep 1;
                exit;
             }
@@ -930,6 +932,7 @@ $self->log('debug',"get_app_data:: app=$xx");
 
 	my $ok;
 	my $data=[];
+	my $cmd_secs = 0;                    # <<< duracion del cmd externo
    my $store=$self->store();
    my $dbh=$self->dbh();
 	my $t1 = time();
@@ -958,7 +961,9 @@ $self->log('debug',"get_app_data:: app=$xx");
 
 	# External cmd captura 
 	else {
+		my $t0_cmd = time();
 	   capture sub { $rc=system($cmd); } => \$stdout, \$stderr;
+		$cmd_secs = time() - $t0_cmd;
 
    	if ($stderr ne '') {
 
@@ -1038,7 +1043,7 @@ $self->log('info',"get_app_data:: CAPTURE BY $app_id >> $task_cfg_file app_name=
 	# Si no hay datos, termina
 	my $n=scalar(@$data);
 	my $all_ids = join(';',@all_app_id);
-	$self->log('info',"get_app_data:: CAPTURED $all_ids >> $n LINES");
+	$self->log('info',"get_app_data:: CAPTURED $all_ids >> $n LINES secs=$cmd_secs rc=$rc");
 	if ($n==0) { 
 
 	   foreach my $aid (keys %app_flush) {
@@ -1303,7 +1308,9 @@ $self->log('debug',"app_parser:: **DEBUG** LINE-PARSER 3");
    }
 
 	if (($cmd ne 'core-imap') && ($cmd ne 'core-sap')) {
+		my $t0_db = time();
 		my ($table,$cnt_lines) = $store->set_log_rx_lines_bulk($dbh,$app->{'host_ip'},$app->{'id_dev'},$logfile,$app_id,\@lines_to_db);
+		$self->log('info',"get_app_data:: STORED $app_id >> $cnt_lines LINES db_secs=".(time()-$t0_db));
    	if ($cnt_lines == 0) {
    		$self->log('debug',"check_event:: STORE LOG SKIPPED NO DATA $app_id logfile=$logfile");
    	}
