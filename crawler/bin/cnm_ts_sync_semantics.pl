@@ -102,7 +102,8 @@ SELECT  b.instance_id, b.role_id, b.relation_type, b.is_primary, b.weight,
         r.display_name, r.role_type, r.domain, r.criticality, r.environment,
         r.health_threshold, r.health_threshold_note,
         COALESCE(b.signal_class_override, c.signal_class) AS signal_class,
-        c.canonical_id, c.category, c.direction, c.unit, c.is_business, c.scope,
+        c.canonical_id, c.display_name AS concepto_nombre,
+        c.category, c.direction, c.unit, c.is_business, c.scope,
         COALESCE(mc.value_scale, 1.0) AS value_scale,
         i.capacity,
         COALESCE(c.needs_instance_capacity, 0) AS needs_capacity,
@@ -123,7 +124,8 @@ my @DST_COLS = qw(sem_instance_id role_id relation_type is_primary weight
                   binding_confidence binding_source
                   role_display_name role_type role_domain criticality environment
                   health_threshold health_threshold_note
-                  signal_class canonical_id category direction unit is_business scope
+                  signal_class canonical_id concepto_nombre
+                  category direction unit is_business scope
                   value_scale capacity needs_capacity expected_value
                   plausible_min plausible_max
                   subtype stable_key iddev);
@@ -147,7 +149,9 @@ my @DST_COLS = qw(sem_instance_id role_id relation_type is_primary weight
 # devices_custom_types (id N -> columnaN). Ver build_map_sql().
 my $MAP_SQL;                      # se rellena en build_map_sql()
 my @MAP_COLS = qw(idmetric instance_id iddev subtype stable_key
-                  dev_name dev_ip dev_custom);
+                  dev_name dev_ip dev_status dev_custom
+                  metric_name metric_label metric_type
+                  monitor monitor_causa monitor_expr monitor_severidad);
 
 # Construye el SELECT del mapa incluyendo las columnas personalizadas que
 # realmente existan, empaquetadas como JSON con su nombre funcional.
@@ -178,14 +182,54 @@ sub build_map_sql {
       ? "CONCAT('{', CONCAT_WS(',', ".join(',', @pares)."), '}')"
       : "'{}'";
 
+   # Vinculo con lo que se ve en la consola de CNM. Significado EXACTO de cada
+   # campo, verificado contra el esquema (no inferido del nombre):
+   #
+   #   metrics.name   -> subtype + iid cuando hay instancia; solo subtype si no.
+   #                     NO es el monitor. Forma parte de la PK junto a id_dev.
+   #   metrics.label  -> etiqueta descriptiva. La que se ve en graficas y alertas.
+   #                     Ej: 'USO DE DISCO C:\ Label: (dwdata06.areas2.com)'
+   #   metrics.type   -> familia: snmp, latency, xagent
+   #   metrics.watch  -> EL MONITOR. Cruza con alert_type.monitor
+   #   metrics.mtype  -> tipo de RRD y presentacion visual de la grafica.
+   #                     NO se replica: no aporta nada al analisis.
+   #
+   # De alert_type se traen los umbrales, que es lo que permite contrastar el
+   # modelo semantico con lo que esta realmente configurado en CNM:
+   #   cause    -> el umbral en lenguaje natural: 'Disk Usage Higher than 80% - 90%'
+   #   expr     -> la expresion evaluada
+   #   severity -> severidad que produce
+   #
+   # watch = '0' significa metrica sin monitor: el LEFT JOIN la deja en NULL.
+   #
+   # FILTRO mb.status = 'active'. IMPRESCINDIBLE: sin el, se replicaban tambien
+   # los bindings 'stale' -616 en agosto de 2026- cuyas metricas ya no existen en
+   # CNM. Aparecian en el mapa con todos los campos de metrics a NULL y sin un
+   # solo dato, inflando los recuentos de cobertura.
+   #
+   # devices.status se replica pero NO se filtra aqui, a proposito:
+   #   0 = activo   1 = de baja (sin polling)   2 = mantenimiento (polling sin alertar)
+   # Excluirlos en el sync seria decidir por el consumidor. Se expone el dato y
+   # cada vista decide. Ver REV-SEM-05.
    $MAP_SQL = <<"SQL";
 SELECT mb.idmetric, mb.instance_id, i.iddev, i.subtype, i.stable_key,
        d.name AS dev_name, d.ip AS dev_ip,
-       $json  AS dev_custom
+       COALESCE(d.status, 0) AS dev_status,
+       $json  AS dev_custom,
+       me.name  AS metric_name,
+       me.label AS metric_label,
+       me.type  AS metric_type,
+       NULLIF(me.watch, '0') AS monitor,
+       at.cause    AS monitor_causa,
+       at.expr     AS monitor_expr,
+       at.severity AS monitor_severidad
 FROM       sem_metric_binding mb
 INNER JOIN sem_instance         i  ON i.instance_id = mb.instance_id
+LEFT  JOIN metrics              me ON me.id_metric  = mb.idmetric
+LEFT  JOIN alert_type           at ON at.monitor    = me.watch AND me.watch <> '0'
 LEFT  JOIN devices              d  ON d.id_dev = i.iddev
 LEFT  JOIN devices_custom_data  dc ON dc.id_dev = i.iddev
+WHERE mb.status = 'active'
 SQL
    vlog(sprintf("mapa: %d columnas personalizadas (%s)", scalar @$cols,
                 join(', ', map { $etiqueta{$_} // $_ } @$cols)));
@@ -204,9 +248,11 @@ my %SRC_REQUIRED = (
    sem_metric_concept    => [qw(subtype canonical_id value_scale)],
    sem_metric_binding    => [qw(idmetric instance_id)],
    devices               => [qw(id_dev name ip)],
+   metrics               => [qw(id_metric name label type watch)],
+   alert_type            => [qw(monitor cause expr severity)],
    devices_custom_data   => [qw(id_dev)],
    devices_custom_types  => [qw(id descr)],
-   sem_canonical_concept => [qw(canonical_id signal_class category direction unit
+   sem_canonical_concept => [qw(canonical_id display_name signal_class category direction unit
                                 is_business scope needs_instance_capacity
                                 plausible_min plausible_max)],
 );
@@ -249,7 +295,12 @@ sub check_source_schema {
 
    my @falta;
    for my $t (sort keys %SRC_REQUIRED) {
-      unless ($have{$t}) { push @falta, "tabla $t (no existe)"; next }
+      # information_schema solo muestra al usuario las tablas sobre las que tiene
+      # SELECT, asi que "no existe" y "sin permiso" son indistinguibles desde aqui.
+      unless ($have{$t}) {
+         push @falta, "tabla $t (no existe, o el usuario carece de SELECT sobre ella)";
+         next;
+      }
       for my $c (@{$SRC_REQUIRED{$t}}) {
          push @falta, "$t.$c" unless $have{$t}{$c};
       }
@@ -308,8 +359,8 @@ sub resumen_map {
 # tiene sentido antes de publicarla.
 sub resumen {
    my ($rows) = @_;
-   # indices segun @DST_COLS: 4=weight, 14=signal_class, 21=value_scale,
-   # 22=capacity, 23=needs_capacity, 17=direction
+   # indices segun @DST_COLS: 4=weight, 14=signal_class, 22=value_scale,
+   # 23=capacity, 24=needs_capacity, 18=direction
    my (%cls, %inst, %rol, $sin_clase, $peso0, $sin_cap, $escala);
    for my $r (@$rows) {
       $inst{$r->[0]} = 1; $rol{$r->[1]} = 1;
@@ -317,8 +368,8 @@ sub resumen {
       $cls{$c}++;
       $sin_clase++ unless defined $r->[14];
       $peso0++   if defined $r->[4] && $r->[4] == 0;
-      $sin_cap++ if $r->[23] && !defined $r->[22];
-      $escala++  if defined $r->[21] && $r->[21] != 1;
+      $sin_cap++ if $r->[24] && !defined $r->[23];
+      $escala++  if defined $r->[22] && $r->[22] != 1;
    }
    my $t = sprintf("filas=%d instancias=%d roles=%d", scalar(@$rows),
                    scalar(keys %inst), scalar(keys %rol));
