@@ -436,7 +436,6 @@ my ($self,$dbh,$params)=@_;
       $event_info = "**ERROR** NO EXISTE TABLA PARA ID APP $id_app";
       $self->err_str($event_info);
       $self->err_num(1);
-      #return (\%data_value,$event_info);
 		return (\%data_value,$event_info,$last_ts);
    }
 
@@ -459,11 +458,12 @@ my ($self,$dbh,$params)=@_;
    if ($self->err_num() != 0) {
       $self->log('warning',"ERROR dbCmd >> $SQL");
       $event_info = $self->err_str();
-      #return (\%data_value,$event_info);
 		return (\%data_value,$event_info,$last_ts);
    }
 
-   foreach my $l (@$res) {
+
+	my %found = ();
+   ROW: foreach my $l (@$res) {
 
 		my $data = $self->json2h($l->[3]);
 		my $num_ok = $self->check_patterns($data,$pat->{'patterns'},$id_app);
@@ -482,11 +482,6 @@ if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
 
 		if (! $all_patterns_ok) { next; }
 
-#if ($id_app eq '333333001055') {
-#	$self->log('info',"**DEBUG** FML333333001055 line=$l->[3]");
-#	$self->log('info',"**DEBUG** FML333333001055 num_ok=$num_ok all_patterns_ok=$all_patterns_ok");
-#}
-
 		# OPER = sum >> SUMA DE DATOS
 		if ($params->{'oper'} =~ /sum/i) {
 	      foreach my $field (@fields) {
@@ -501,13 +496,20 @@ if (exists $pat->{'patterns'}->{'SUBCLASS'}) {
       	foreach my $field (@fields) {
          	if (exists $data->{$field}) {
       	      #$self->log('info',"field=$field >> VALUE $data->{$field} >> data_value $data_value{$field}");
+
             	$data_value{$field} = $data->{$field};
+					$found{$field} = 1;
          	}
       	}
 		}
 
       $event_info = $l->[3];
-      $last_ts = $l->[2];
+      #$last_ts = $l->[2];
+		if ($last_ts eq 'U') { $last_ts = $l->[2]; }
+
+      if (($params->{'oper'} !~ /sum/i) &&
+          (scalar(keys %found) == scalar(@fields))) { last ROW; }
+
    }
 
 #	foreach my $field (@fields) {
