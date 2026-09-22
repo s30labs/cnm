@@ -1,12 +1,13 @@
 <?php
 /**
  * =============================================================================
- * CNM_DB.legacy.php - Implementacion compatible PHP 5.6 del wrapper PDO
+ * CNM_DB.legacy.php - Implementacion compatible PHP 5.6 / 7.x del wrapper PDO
  * =============================================================================
  *
  * NO INCLUIR ESTE FICHERO DIRECTAMENTE.
  * Se carga automaticamente desde CNM_DB.php (el loader) cuando la version
- * de PHP es < 7.1. Para PHP 7.1+ el loader carga CNM_DB.impl.php en su lugar.
+ * de PHP es < 8.0 (Debian 8 con PHP 5.6, Debian 11 con PHP 7.4).
+ * Para PHP 8.0+ el loader carga CNM_DB.impl.php en su lugar.
  *
  * PROPOSITO
  * ---------

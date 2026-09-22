@@ -10,8 +10,8 @@
  * incluir. Selecciona en tiempo de ejecución la implementación adecuada
  * del wrapper según la versión de PHP del entorno:
  *
- *   PHP >= 7.1   →  CNM_DB.impl.php    (implementación moderna, con tipos)
- *   PHP <  7.1   →  CNM_DB.legacy.php  (implementación compatible PHP 5.6)
+ *   PHP >= 8.0   →  CNM_DB.impl.php    (implementación moderna, con tipos)
+ *   PHP <  8.0   →  CNM_DB.legacy.php  (implementación compatible PHP 5.6 / 7.x)
  *
  * Ambas implementaciones declaran exactamente las mismas clases y función:
  *   - class CNM_DB
@@ -28,7 +28,7 @@
  * -------------
  * NINGÚN otro fichero debe incluir CNM_DB.impl.php ni CNM_DB.legacy.php
  * directamente. Solo este loader los carga. Si se incluyera CNM_DB.impl.php
- * directamente en PHP 5.6, se produciría un Parse Error al encontrar los
+ * directamente en PHP < 8.0 (5.6 o 7.x), se produciría un Parse Error al encontrar los
  * type hints modernos (union types, named arguments, etc.).
  *
  * CONTEXTO DE LA SITUACIÓN
@@ -37,22 +37,24 @@
  * equipos en distintas versiones:
  *
  *   Debian 8  -> PHP 5.6.7  -> usa CNM_DB.legacy.php
- *   Debian 11 -> PHP 7.4    -> usa CNM_DB.impl.php
+ *   Debian 11 -> PHP 7.4    -> usa CNM_DB.legacy.php
  *   Debian 13 -> PHP 8.x    -> usa CNM_DB.impl.php
  *
- * Cuando el equipo Debian 8 se migre, CNM_DB.legacy.php podra eliminarse
+ * Cuando los equipos Debian 8 y Debian 11 se migren (ambos usan PHP < 8.0),
+ * CNM_DB.legacy.php podra eliminarse
  * y este loader simplificarse o eliminarse (haciendo que CNM_DB.php pase
  * a ser de nuevo la implementacion directa).
  *
- * El umbral de version es 70100 (PHP 7.1.0) porque la implementacion moderna
- * usa constantes de clase con visibilidad (private const), introducidas en
- * PHP 7.1. Aunque PHP 7.0 soporta la mayoria del resto, no soporta esto.
+ * El umbral de version es 80000 (PHP 8.0.0) porque la implementacion moderna
+ * usa union types (CNM_DB|CNM_DB_Error), el tipo mixed y named arguments,
+ * todos introducidos en PHP 8.0. Con el umbral anterior (70100) PHP 7.4
+ * (Debian 11) cargaba CNM_DB.impl.php y producia un Parse Error.
  *
- * VERSION: 1.1.0
+ * VERSION: 1.1.1
  * =============================================================================
  */
 
-if (PHP_VERSION_ID >= 70100) {
+if (PHP_VERSION_ID >= 80000) {
     require_once __DIR__ . '/CNM_DB.impl.php';
 } else {
     require_once __DIR__ . '/CNM_DB.legacy.php';

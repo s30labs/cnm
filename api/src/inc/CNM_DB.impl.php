@@ -1,20 +1,21 @@
 <?php
 /**
  * =============================================================================
- * CNM_DB.impl.php — Implementación moderna (PHP 7.1+) del wrapper PDO
+ * CNM_DB.impl.php — Implementación moderna (PHP 8.0+) del wrapper PDO
  * =============================================================================
  *
  * NO INCLUIR ESTE FICHERO DIRECTAMENTE.
  * Se carga automáticamente desde CNM_DB.php (el loader) cuando la versión
- * de PHP es >= 7.1. Para PHP 5.6 el loader carga CNM_DB.legacy.php en su lugar.
+ * de PHP es >= 8.0. Para PHP < 8.0 (5.6 / 7.x) el loader carga
+ * CNM_DB.legacy.php en su lugar.
  *
  * Ambas implementaciones declaran las mismas clases (CNM_DB, CNM_DB_Result,
  * CNM_DB_Error) y la misma función global CNM_isError(), de modo que el resto
  * del código es agnóstico a cuál se haya cargado.
  *
- * Esta versión usa características de PHP 7.1+/8.0 (union types, named
- * arguments, mixed, void, nullable, const con visibilidad). Si se incluye
- * en PHP 5.6 producirá un Parse Error — por eso NUNCA debe incluirse
+ * Esta versión requiere PHP 8.0+ (union types, named arguments, mixed,
+ * además de void, nullable y const con visibilidad). Si se incluye
+ * en PHP < 8.0 (5.6 o 7.x) producirá un Parse Error — por eso NUNCA debe incluirse
  * directamente, solo a través del loader.
  *
  * PROPÓSITO
