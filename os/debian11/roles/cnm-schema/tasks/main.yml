@@ -27,7 +27,7 @@
   tags: cnm-schema
  
 - name: db-manage
-  shell: php /update/db/db-manage.php 2>&1 > /tmp/update_db.log
+  shell: php /update/db/db-manage.php > /tmp/update_db.log 2>&1
   tags: cnm-schema
 
 - name: db-manage
