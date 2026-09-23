@@ -11,14 +11,13 @@ else {
       $ip = chop(`/sbin/ifconfig $iface | grep 'inet ' | cut -d: -f2 | awk '{print $2}'`);
    }
 
-print "***********FML*******************INIT CNMS ip=$ip\n";
 }
 $name = chop(`/bin/hostname`);
 if (getenv("CNM_DB_SERVER") !== false) { $name = getenv("CNM_DB_SERVER"); }
 
 if (getenv("CNM_DB_PASSWORD") !== false) { $pwd = getenv("CNM_DB_PASSWORD"); }
 else {
-	$pwd = chop(`cat /cfg/onm.conf | grep DB_PWD|cut -d "=" -f2 | tr -d ' '`);
+	$pwd = chop(`cat /cfg/onm.conf | grep DB_PWD|cut -d "=" -f2- | tr -d ' '`);
 }
 
 /*

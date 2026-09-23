@@ -123,7 +123,7 @@ function update_db($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_pa
 // Output:
 // Funcion que aglutina todas las tareas de actualizacion de la base de datos al instalar un plugin
 // --------------------------------------------------------------------------------
-function update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_params,$force,$plug_dir){
+function update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_params,$force,$plug_dir=''){
 
    $last=time();
    connectDB($db_params);
@@ -274,6 +274,35 @@ function create_update_table($tableScheme,$tableData,$db_params,$tableExcepcion)
 }
 
 /*
+ * Funcion: cnm_error_count()
+ * Input:
+ *        $inc => 1 para incrementar el contador de errores, 0 para consultarlo
+ * Output: numero de errores (severidad ERR) registrados hasta el momento
+ * Descr: Contador global de errores. Permite que db-manage.php termine con un
+ *        codigo de salida != 0 cuando algo ha fallado (antes siempre salia 0).
+*/
+function cnm_error_count($inc=0){
+	static $n=0;
+	if ($inc) { $n+=$inc; }
+	return $n;
+}
+
+/*
+ * Funcion: _mask_secrets()
+ * Input:
+ *        $msg => mensaje que se va a imprimir o registrar
+ * Output: el mismo mensaje con las contrasenas sustituidas por ***
+ * Descr: Evita que las contrasenas de BBDD acaben en la salida estandar,
+ *        en /tmp/*.log o en /var/log/apache2/cnm_gui.log
+*/
+function _mask_secrets($msg){
+	if (!is_string($msg)) { return $msg; }
+	$msg = preg_replace("/(password=>)\S*/i", "$1***", $msg);
+	$msg = preg_replace("/(IDENTIFIED BY\s+')[^']*'/i", "$1***'", $msg);
+	return $msg;
+}
+
+/*
  * Funcion: _debug()
  * Input: 
  *		   $msg   => mensaje que deseamos almacenar
@@ -285,6 +314,8 @@ function create_update_table($tableScheme,$tableData,$db_params,$tableExcepcion)
 */
 function _debug($msg,$linea,$sev,$func){
 	$pid=getmypid();
+	$msg=_mask_secrets($msg);
+	if ($sev=='ERR'){ cnm_error_count(1); }
 	if ($sev=='DBG'){
 		CNMUtils::debug_log(__FILE__, $linea, "$func [$pid]::$msg");
 	}else{
@@ -311,7 +342,7 @@ global $enlace;
    $enlace = CNM_DB::Connect($db_params,TRUE);
 	if (CNM_isError($enlace)) {
 		_debug("Conexion BBDD [NOOK] phptype=>{$db_params['phptype']} username=>{$db_params['username']} password=>{$db_params['password']} hostspec=>{$db_params['hostspec']} database=>{$db_params['database']} || USERINFO = ".$enlace->getUserInfo(),__LINE__,'ERR','connectDB');
-		exit;
+		exit(1);
    }else {
    	// LOS DATOS DEVUELTOS POR LAS CONSULTAS A LA BBDD VIENEN EN FORMA DE HASH
 	   $enlace->setFetchMode(DB_FETCHMODE_ASSOC);
@@ -339,7 +370,7 @@ global $enlace;
 	$resultTablas=$enlace->query($sqlTablas);
    if (CNM_isError($resultTablas)) {
       _debug("No se ha podido obtener la informacion de las tablas de la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','DataInit');
-		exit;
+		exit(1);
    }else{
       _debug("Se ha obtenido la informacion de las tablas de la BBDD",__LINE__,'DBG','DataInit');
    }
@@ -520,7 +551,7 @@ global $enlace;
    // $query_1 = "CREATE temporary table t1(SELECT id_remote_alert,subtype FROM cfg_remote_alerts)";
    $query_1 = "CREATE temporary table t1(SELECT id_remote_alert,subtype,hiid FROM cfg_remote_alerts)";
    $result_1 = $enlace->query($query_1);
-	if($mode=0){
+	if($mode==0){
 	   // $query_2 = "UPDATE tips a,t1 b SET a.id_refn=b.id_remote_alert WHERE a.id_ref=b.subtype AND a.tip_type='remote'";
 	   $query_2 = "UPDATE tips a,t1 b SET a.id_refn=b.id_remote_alert WHERE a.id_ref=b.subtype AND a.hiid=b.hiid AND a.tip_type='remote'";
    	$result_2 = $enlace->query($query_2);
@@ -1224,7 +1255,7 @@ global $enlace;
 	$resultTablas=$enlace->query($sqlTablas);
 	if (CNM_isError($resultTablas)) {
 		_debug("No se ha podido obtener informacion de las tablas en la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','SchemeInit');
-		exit;
+		exit(1);
    }else{
 		_debug("Se ha obtenido informacion de las tablas en la BBDD",__LINE__,'DBG','SchemeInit');
    }
@@ -1759,7 +1790,7 @@ global $enlace;
 	   $result=$enlace->query($sql);
 	   if (CNM_isError($result)) {
 	      _debug("No se ha podido limpiar la tabla tips al ejecutar $sql || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_limpiar_tips');
-	      exit;
+	      exit(1);
 	   }else{
 	      _debug("Se ha limpiado la tabla tips al ejecutar $sql",__LINE__,'DBG','_limpiar_tips');
 	   }
@@ -1775,7 +1806,7 @@ global $enlace;
    $resultTablas=$enlace->query($sqlTablas);
    if (CNM_isError($resultTablas)) {
       _debug("No se ha podido obtener la informacion de las tablas de la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','table_charset_latin1');
-      exit;
+      exit(1);
    }else{
       _debug("Se ha obtenido la informacion de las tablas de la BBDD",__LINE__,'DBG','table_charset_latin1');
    }
@@ -1862,6 +1893,13 @@ global $enlace;
 		}
    }
 
+	// NOTA: no se cuenta como error aqui. En una instalacion nueva esta funcion se
+	// llama antes de que exista cfg_cnms y devolver error daria un falso positivo.
+	// Quien decide es la funcion que lo necesita (d_update_db, d_install_plugin).
+	if (count($a_client)==0) {
+		_debug("Sin BBDD de cliente en cfg_cnms para la IP local ($local_ip). Revisar cnm.cfg_cnms.host_ip o la variable CNM_LOCAL_IP",__LINE__,'INF','_cnms');
+	}
+
 	return $a_client;
 }
 
@@ -1878,7 +1916,7 @@ global $enlace;
    $result=$enlace->query('CREATE DATABASE IF NOT EXISTS cnm');
    if (CNM_isError($result)) {
       _debug("No se ha podido crear la BBDD cnm || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_create_cnm_database');
-      exit;
+      exit(1);
    }else{
       _debug("Se ha creado la BBDD cnm correctamente",__LINE__,'INF','_create_cnm_database');
    }
@@ -1886,7 +1924,7 @@ global $enlace;
    $result=$enlace->query('CREATE DATABASE IF NOT EXISTS onmgraph');
    if (CNM_isError($result)) {
       _debug("No se ha podido crear la BBDD onmgraph || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_create_onmgraph_database');
-      exit;
+      exit(1);
    }else{
       _debug("Se ha creado la BBDD onmgraph correctamente",__LINE__,'INF','_create_onmgraph_database');
    }
@@ -1915,7 +1953,7 @@ global $enlace;
 	   $rqCreate=$enlace->query($qCreate);
 	   if (CNM_isError($rqCreate)) {
 	      _debug("No se ha podido crear la BBDD $db1_name || USERINFO = ".$rqCreate->getUserInfo(),__LINE__,'ERR','_create_clients_databases');
-	      exit;
+	      exit(1);
 	   }else{
 	      _debug("Se ha creado la BBDD $db1_name",__LINE__,'INF','_create_clients_databases');
 		}
@@ -1924,7 +1962,7 @@ global $enlace;
 	   $rqPrivileges=$enlace->query($qPrivileges);
 	   if (CNM_isError($rqPrivileges)){
 	      _debug("No se ha podido dar los privilegios al usuario $db1_user en la BBDD $db1_name ($qPrivileges) || USERINFO = ".$rqPrivileges->getUserInfo(),__LINE__,'ERR','_create_clients_databases');
-	      exit;
+	      exit(1);
 	   }else{
 	      _debug("Se han dado los privilegios al usuario $db1_user en la BBDD $db1_name correctamente ($qPrivileges)",__LINE__,'INF','_create_clients_databases');
 			//$rqFlush=$enlace->query('FLUSH PRIVILEGES');
@@ -1981,7 +2019,7 @@ function get_db_credentials(){
    	while (!feof($fp)) {
       	$line = fgets($fp, 1024);
 	      if(strpos($line,'=')!==false){
-   	      list($name,$value) = explode('=',$line);
+   	      list($name,$value) = explode('=',$line,2);
       	   $name  = trim($name);
          	$value = trim($value);
 				if ($name=='DB_SERVER') { 

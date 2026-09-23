@@ -161,6 +161,17 @@ else{
 }
 
 
+//-------------------------------------------------------------------------------------------
+// Resumen y codigo de salida:
+//    0 => sin errores | 2 => se han registrado errores (ver el log) | 1/3 => error grave
+//-------------------------------------------------------------------------------------------
+$n_err = cnm_error_count();
+if ($n_err > 0) {
+	print "RESUMEN: $n_err error(es). Revisar la salida y /var/log/apache2/cnm_gui.log\n";
+	exit(2);
+}
+print "RESUMEN: 0 errores\n";
+exit(0);
 
 ///////////////
 // Funciones //
@@ -467,6 +478,10 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 	);
 
    $a_client = _cnms($db_params); 
+	if (count($a_client)==0) {
+		print "[ERROR] No hay BBDD de cliente para la IP local. No se instala el plugin.\n";
+		exit(3);
+	}
    foreach($a_client as $client){
 		print " ({$client['db1_name']})\t";
 
@@ -759,6 +774,10 @@ global $DBSchemeCNM,$DBExcepcionCNM,$DBDataCNM,$DBModDataCNM,$DBProcedureCNM,$DB
 	print "[OK]\n";
 
    $a_client = _cnms($db_params);
+	if (count($a_client)==0) {
+		print "[ERROR] No hay BBDD de cliente para la IP local. No se actualiza onm.\n";
+		exit(3);
+	}
 	print "Creando bbdd clientes ... ";
    _create_clients_databases($a_client,$db_params);
 	print "[OK]\n";
@@ -795,7 +814,7 @@ function d_drop_table($tables){
 		'username' => 'onm',
 		'hostspec' => $cred["CNM_DB_SERVER"],
 		'database' => 'cnm',
-		'password' => $cred["CNM_DB_PASWORD"],
+		'password' => $cred["CNM_DB_PASSWORD"],
 	);
 
 
