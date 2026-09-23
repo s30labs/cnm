@@ -206,7 +206,19 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure;
       print "El directorio $dir no existe\n";
       exit(1);
    }
-   require_once("$dir/update/db/DB-Scheme-Create.php");
+   // Un plugin declara tablas propias, pero tambien puede declarar una tabla
+   // estandar (hoy es la unica forma de meterle datos). En ese caso NO debe
+   // tocar el resto de su estructura: todas las tablas estandar entran en
+   // $DBExcepcion, de modo que _checkTable() pueda anadir o ajustar columnas
+   // pero nunca borrar las que el plugin no declara.
+   $DBScheme = array(); $DBExcepcion = array();
+   require('/update/db/DB-Scheme-Create.php');          // estandar (solo define arrays)
+   $a_tablas_estandar = array_keys($DBScheme);
+
+   $DBScheme = array(); $DBExcepcion = array();
+   require_once("$dir/update/db/DB-Scheme-Create.php"); // plugin
+   if (!is_array($DBExcepcion)) { $DBExcepcion = array(); }
+   $DBExcepcion = array_values(array_unique(array_merge($DBExcepcion,$a_tablas_estandar)));
 
 	/*
 	 * $a_not_update_data : Tablas que deben tratarse de una forma diferente a la estandar

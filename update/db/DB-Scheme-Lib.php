@@ -78,15 +78,17 @@ function update_db($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_pa
       $tiempo=time()-$last;
       _debug("Funcion:DataInitEsp||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
 
-	   $last=time();
-	   _cfg_devices2organizational_profile_init($db_params['cid']);
-	   $tiempo=time()-$last;
-	   _debug("Funcion:_cfg_devices2organizational_profile_init||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
-	
+	   // NOTA: primero se crea el perfil 'Global' y despues se asignan los equipos.
+	   // Al reves, en una instalacion nueva el perfil aun no existe y no se asigna nada.
 	   $last=time();
 	   _cfg_organizational_profile_init();
 	   $tiempo=time()-$last;
 	   _debug("Funcion:_cfg_organizational_profile_init||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
+
+	   $last=time();
+	   _cfg_devices2organizational_profile_init($db_params['cid']);
+	   $tiempo=time()-$last;
+	   _debug("Funcion:_cfg_devices2organizational_profile_init||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
 	
 	   $last=time();
 	   ProcedureInit($DBProcedure);
@@ -1136,7 +1138,17 @@ return;
          $sqlGetId = "SELECT {$struct['key']} AS id FROM $nombreTabla WHERE ($sqlBusqueda)";
          // print"$sqlGetId\n";
          $resultGetId=$enlace->query($sqlGetId);
+         if (CNM_isError($resultGetId)) {
+            _debug("No se ha podido obtener el id de $nombreTabla||CMD=>$sqlGetId || USERINFO = ".$resultGetId->getUserInfo(),__LINE__,'ERR','_DataInitTable');
+            continue;
+         }
+         $rGetId=null;
          $resultGetId->fetchInto($rGetId);
+         if (!is_array($rGetId) || !isset($rGetId['id']) || $rGetId['id']==='') {
+            // Sin id no se puede insertar la parte en cascada: quedaria huerfana
+            _debug("Sin id para la fila de $nombreTabla; se omite la insercion en cascada||CMD=>$sqlGetId",__LINE__,'ERR','_DataInitTable');
+            continue;
+         }
          $last_id = $rGetId['id'];
 
          foreach ($struct['data'] as $b){
@@ -1145,7 +1157,8 @@ return;
 
             foreach($b as $b_key=>$b_val){
                $sql_cascade_key[]=$b_key;
-               $sql_cascade_val[]="'$b_val'";
+               // Escapado: estos valores pueden venir de un XML subido por el usuario (-x)
+               $sql_cascade_val[]="'".$enlace->escapeSimple($b_val)."'";
             }
             $sql_cascade_insert = "(".implode(',',$sql_cascade_key).") VALUES (".implode(',',$sql_cascade_val).")";
             $sql_cascade_update = "";
@@ -1158,7 +1171,9 @@ return;
             $sqlCascade = "INSERT INTO {$struct['cascade_table']} $sql_cascade_insert ON DUPLICATE KEY UPDATE $sql_cascade_update";
             // print "$sqlCascade\n";
             $resultSqlCascade=$enlace->query($sqlCascade);
-		      if (CNM_isError($resultSqlCascade AND $nombreTabla!='cfg_remote_alerts')){
+		      // OJO: antes era CNM_isError($resultSqlCascade AND ...), que evalua un
+		      // booleano y por tanto nunca detectaba el error.
+		      if (CNM_isError($resultSqlCascade) AND $nombreTabla!='cfg_remote_alerts'){
 		         _debug("Error al ejecutar $sqlCascade (USERINFO = ".$resultSqlCascade->getUserInfo().")",__LINE__,'ERR','_DataInitTable');
 		      }
          }
@@ -1191,8 +1206,13 @@ global $enlace;
 	_debug("cid=$cid id_cfg_op=$id_cfg_op",__LINE__,'DBG','DataInit');
 
 
-	$sql1="INSERT INTO cfg_devices2organizational_profile (id_dev,id_cfg_op,cid) SELECT id_dev,$id_cfg_op,'$cid' FROM devices";
-	$enlace->query($sql1);
+	// INSERT IGNORE: sin el IGNORE, el primer duplicado aborta la sentencia entera y
+	// los equipos dados de alta despues de la primera ejecucion no se asignaban nunca.
+	$sql1="INSERT IGNORE INTO cfg_devices2organizational_profile (id_dev,id_cfg_op,cid) SELECT id_dev,$id_cfg_op,'$cid' FROM devices";
+	$result1=$enlace->query($sql1);
+	if (CNM_isError($result1)) {
+		_debug("No se han podido asignar los equipos al perfil Global||CMD=>$sql1 || USERINFO = ".$result1->getUserInfo(),__LINE__,'ERR','_cfg_devices2organizational_profile_init');
+	}
 
 //	$sql2="UPDATE cfg_devices2organizational_profile SET id_cfg_op=(SELECT id_cfg_op FROM cfg_organizational_profile WHERE descr='Global')";
 //	$enlace->query($sql2);
@@ -1317,6 +1337,13 @@ global $enlace;
 
 function _checkTable($nombreTabla,$contenidoTabla,$DBException){
 global $enlace;
+
+	// Un plugin puede no definir $DBExcepcion. Sin esta comprobacion, in_array()
+	// recibia null: aviso y borrado de columnas en PHP 7.4, error fatal en PHP 8.
+	if (!is_array($DBException)) {
+		_debug("La lista de tablas excluidas no es un array; se usa la lista vacia (tabla $nombreTabla)",__LINE__,'INF','_checkTable');
+		$DBException = array();
+	}
 
 	$sqlShowCreate="SHOW CREATE TABLE $nombreTabla";
 	$resultShowCreate=$enlace->query($sqlShowCreate);
