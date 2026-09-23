@@ -13,6 +13,20 @@ $opts = getopt("u:r:hafp:d:c:x:n:t");
 
 $force = (isset($opts['f']))?true:false;
 
+//-------------------------------------------------------------------------------------------
+// Bloqueo: dos ejecuciones simultaneas (cnm-subs, el install de un plugin, update_cnm)
+// se pisan entre ellas. El descriptor se guarda en $GLOBALS para que el bloqueo
+// dure hasta que termina el proceso.
+//-------------------------------------------------------------------------------------------
+if (!isset($opts['h'])) {
+	$GLOBALS['CNM_LOCK_FP'] = @fopen('/var/run/cnm-db-manage.lock','c');
+	if ($GLOBALS['CNM_LOCK_FP']===false) { $GLOBALS['CNM_LOCK_FP'] = @fopen('/tmp/cnm-db-manage.lock','c'); }
+	if ($GLOBALS['CNM_LOCK_FP']!==false && !flock($GLOBALS['CNM_LOCK_FP'],LOCK_EX|LOCK_NB)) {
+		print "[ERROR] Ya hay otro db-manage.php en ejecucion. Se aborta.\n";
+		exit(4);
+	}
+}
+
 
 /*
  * PARAMETRO: -h

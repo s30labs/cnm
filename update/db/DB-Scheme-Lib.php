@@ -20,6 +20,8 @@ require_once('/update/db/CNMUtils.php');
 // Funcion que aglutina todas las tareas de actualizacion de la base de datos.
 // --------------------------------------------------------------------------------
 function update_db($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_params,$rev,$force=false){
+global $enlace;
+
    $last=time();
    connectDB($db_params);
    $tiempo=time()-$last;
@@ -56,6 +58,15 @@ function update_db($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_pa
 //      $tiempo=time()-$last;
 //     _debug("Funcion:pre_cfg_monitor_agent_script||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
 
+      // pre_data() BORRA support_pack2tech_group y el informe 00000002 de
+      // cfg_report2item, y DataInit() los repone. Si la ejecucion se corta entre
+      // medias, esas tablas quedan vacias: por eso van en una transaccion.
+      // Si el gestor no soporta transacciones se continua sin ellas: el
+      // comportamiento es entonces el mismo que antes del parche.
+      $en_transaccion = false;
+      try { $enlace->beginTransaction(); $en_transaccion = true; }
+      catch (Throwable $e) { _debug("No se ha podido abrir la transaccion: ".$e->getMessage(),__LINE__,'INF','update_db'); }
+
       $last=time();
       pre_data($DBData);
       $tiempo=time()-$last;
@@ -65,6 +76,14 @@ function update_db($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_pa
 	   DataInit($DBData);
 	   $tiempo=time()-$last;
 	   _debug("Funcion:DataInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db');
+
+      if ($en_transaccion) {
+         try { $enlace->commit(); }
+         catch (Throwable $e) {
+            _debug("No se ha podido confirmar la transaccion: ".$e->getMessage(),__LINE__,'ERR','update_db');
+            try { $enlace->rollback(); } catch (Throwable $e2) { }
+         }
+      }
 	
 		// _limpiar_tips();
 	
@@ -139,8 +158,9 @@ function update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure
 
 
    $last=time();
+	$a_scripts_plugin = array();
 	if(is_dir($plug_dir."/xagent/base")) {
-		cfg_monitor_agent_script_update($plug_dir);
+		$a_scripts_plugin = cfg_monitor_agent_script_update($plug_dir);
    	$tiempo=time()-$last;
    	_debug("Funcion:cfg_monitor_agent_script_update||$plug_dir||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db_plugin');
 	}
@@ -150,6 +170,12 @@ function update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure
    DataInit($DBData,$force);
    $tiempo=time()-$last;
    _debug("Funcion:DataInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db_plugin');
+
+   // Los valores de parametros cuyo hparam ya no trae el plugin (A4)
+   $last=time();
+   _clean_orphan_params($a_scripts_plugin);
+   $tiempo=time()-$last;
+   _debug("Funcion:_clean_orphan_params||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_db_plugin');
 
    $last=time();
    DataModInit($DBModData);
@@ -443,7 +469,7 @@ global $enlace;
 	// a /opt/cnm-sp/t/xagent/base 
 	// El directorio /opt/data/xagent desaparece
 	
-	if ($plugin == '') { return; }
+	if ($plugin == '') { return array(); }
 	$dirBase="$plugin/xagent/base";
 
 	$all_scripts = array();	
@@ -509,6 +535,8 @@ global $enlace;
       }
 	}
 	exec('rm -f /opt/data/mdata/scripts/*',$rcstr,$rc);
+
+	return $all_scripts;
 }
 
 //------------------------------------------------------------------------------------
@@ -901,37 +929,55 @@ mysql>
  *  Input:
  *         $script => Nombre del script a eliminar
  *  Output:
- *  Descr: Elimina un script de todas las tablas de la BBDD
+ *  Descr: Elimina de la BBDD el script y la DEFINICION de sus parametros
+ *         (cfg_monitor_agent_script y cfg_script_param), que el plugin vuelve a
+ *         insertar a continuacion.
+ *
+ *         NO toca cfg_monitor_param ni cfg_app_param, que guardan los VALORES que
+ *         el usuario ha dado a esos parametros en sus metricas y aplicaciones:
+ *         borrarlos hacia que reinstalar un plugin destruyese configuracion del
+ *         cliente. Los valores que queden huerfanos (parametros que el plugin ya
+ *         no trae) los limpia _clean_orphan_params() al terminar la instalacion.
 */
 function clear_script($script){
 global $enlace;
 
-    $query_2_a = "DELETE FROM cfg_monitor_agent_script WHERE script='$script'";
-
-   //print "QUERY_2_A == $query_2_a\n";
+   $query_2_a = "DELETE FROM cfg_monitor_agent_script WHERE script='$script'";
    $result_2_a = $enlace->query($query_2_a);
-   $query_3_a = "SELECT hparam FROM cfg_script_param WHERE script='$script'";
-   //print "QUERY_3_A == $query_3_a\n";
-   $result_3_a = $enlace->query($query_3_a);
-   while($result_3_a->fetchInto($r_3_a)){
-      $hparam = $r_3_a['hparam'];
-
-      $query_4_a = "DELETE FROM cfg_script_param WHERE hparam='$hparam'";
-      //print "QUERY_4_A == $query_4_a\n";
-      $result_4_a = $enlace->query($query_4_a);
-
-      $query_5_a = "DELETE FROM cfg_monitor_param WHERE hparam='$hparam'";
-      //print "QUERY_5_A == $query_5_a\n";
-      $result_5_a = $enlace->query($query_5_a);
-
-      $query_6_a = "DELETE FROM cfg_app_param WHERE hparam='$hparam'";
-      //print "QUERY_6_A == $query_6_a\n";
-      $result_6_a = $enlace->query($query_6_a);
-   }
 
    $query_7_a = "DELETE FROM cfg_script_param WHERE script='$script'";
-   //print "QUERY_7_A == $query_7_a\n";
    $result_7_a = $enlace->query($query_7_a);
+}
+
+/* Function: _clean_orphan_params()
+ *  Input:
+ *         $a_scripts => scripts procesados en esta instalacion de plugin
+ *  Output:
+ *  Descr: Elimina de cfg_monitor_param y cfg_app_param los valores cuyo parametro
+ *         (hparam) ya no existe en cfg_script_param para ese script. Es decir,
+ *         solo lo que el plugin ha dejado de traer. Se llama DESPUES de DataInit(),
+ *         cuando cfg_script_param ya tiene la definicion nueva.
+*/
+function _clean_orphan_params($a_scripts){
+global $enlace;
+
+	if (!is_array($a_scripts)) { return; }
+	foreach (array_unique($a_scripts) as $script) {
+		$script_esc = $enlace->escapeSimple($script);
+		foreach (array('cfg_monitor_param','cfg_app_param') as $tabla) {
+			$sql = "DELETE p FROM $tabla p ".
+			       "LEFT JOIN cfg_script_param sp ON p.hparam=sp.hparam AND p.script=sp.script ".
+			       "WHERE p.script='$script_esc' AND sp.hparam IS NULL";
+			$result = $enlace->query($sql);
+			if (CNM_isError($result)) {
+				_debug("No se han podido limpiar los parametros huerfanos de $script en $tabla||CMD=>$sql || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','_clean_orphan_params');
+			}
+			else {
+				$n = $enlace->affectedRows();
+				if ($n > 0) { _debug("Eliminados $n parametros huerfanos de $script en $tabla",__LINE__,'INF','_clean_orphan_params'); }
+			}
+		}
+	}
 }
 
 /* Function: pre_data()
