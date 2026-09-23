@@ -14,6 +14,16 @@ $opts = getopt("u:r:hafp:d:c:x:n:t");
 $force = (isset($opts['f']))?true:false;
 
 //-------------------------------------------------------------------------------------------
+// A13: marca de inicio. El identificador de ejecucion (cnm_run_id) se repite en cada
+// linea del log y se muestra en el resumen final, para poder aislar una ejecucion
+// concreta en un log que comparten db-manage y la interfaz web.
+//-------------------------------------------------------------------------------------------
+if (!isset($opts['h'])) {
+	cnm_run_start(time());
+	_debug("INICIO db-manage.php ".implode(' ',array_slice($argv,1)),__LINE__,'INF','db-manage');
+}
+
+//-------------------------------------------------------------------------------------------
 // Bloqueo: dos ejecuciones simultaneas (cnm-subs, el install de un plugin, update_cnm)
 // se pisan entre ellas. El descriptor se guarda en $GLOBALS para que el bloqueo
 // dure hasta que termina el proceso.
@@ -212,13 +222,56 @@ else{
 // Resumen y codigo de salida:
 //    0 => sin errores | 2 => se han registrado errores (ver el log) | 1/3 => error grave
 //-------------------------------------------------------------------------------------------
-$n_err = cnm_error_count();
-if ($n_err > 0) {
-	print "RESUMEN: $n_err error(es). Revisar la salida y /var/log/apache2/cnm_gui.log\n";
-	exit(2);
+cnm_resumen_final();
+
+/*
+ * Funcion: cnm_resumen_final()
+ * Descr: A13. Cierra la ejecucion con un resumen legible: duracion, errores, avisos,
+ *        identificador para buscar en el log y, si SchemeInit ha tocado columnas,
+ *        cuantos ALTER se han lanzado y cuantos de ellos no cambiaban nada (A12a).
+*/
+function cnm_resumen_final(){
+	$n_err  = cnm_error_count();
+	$n_wrn  = cnm_warn_count();
+	$dur    = time() - cnm_run_start();
+	$st     = cnm_alter_stats();
+
+	print "-----------------------------------------------------------------------\n";
+	print "RESUMEN [".cnm_run_id()."] · duracion: {$dur}s · errores: $n_err · avisos: $n_wrn\n";
+
+	if ($st['total'] > 0) {
+		$sin_efecto = $st['cosmetico'] + $st['ignorado'];
+		print "ESQUEMA: {$st['total']} ALTER de columna · $sin_efecto sin efecto · {$st['real']} cambio(s) real(es)\n";
+		if (count($st['reglas'])>0) {
+			$partes = array();
+			foreach ($st['reglas'] as $regla=>$n) { $partes[] = "$regla: $n"; }
+			print "   · diferencias solo de forma: {$st['cosmetico']} (".implode(' · ',$partes).")\n";
+		}
+		if ($st['ignorado'] > 0) {
+			print "   · el gestor los ignora: {$st['ignorado']} (columna de clave primaria declarada sin NOT NULL)\n";
+			foreach ($st['ignorados'] as $c) { print "        $c\n"; }
+			if ($st['ignorado'] > count($st['ignorados'])) {
+				print "        ... y ".($st['ignorado']-count($st['ignorados']))." mas\n";
+			}
+		}
+
+		if ($st['real'] > 0) {
+			print "CAMBIOS REALES DE ESQUEMA: {$st['real']}\n";
+			foreach ($st['cambios'] as $c) { print "   · $c\n"; }
+			if ($st['real'] > count($st['cambios'])) {
+				print "   · ... y ".($st['real']-count($st['cambios']))." mas (ver el log)\n";
+			}
+		}
+	}
+
+	if ($n_err > 0) {
+		print "RESULTADO: $n_err error(es). Revisar la salida y el log:\n";
+		print "   grep '".cnm_run_id()."' /var/log/apache2/cnm_gui.log\n";
+		exit(2);
+	}
+	print "RESULTADO: correcto\n";
+	exit(0);
 }
-print "RESUMEN: 0 errores\n";
-exit(0);
 
 ///////////////
 // Funciones //
@@ -552,16 +605,8 @@ global $DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$force;
 			'database' => $client['db1_name'],
 			'cid'      => $client['cid'],
 		);
-/*
-      $tableScheme    = array();
-      $tableData      = array();
-      $tableExcepcion = array('devices_custom_data');
-		foreach($DBScheme as $table=>$foo){
-         $tableScheme[$table] = $DBScheme[$table];
-         $tableData[$table]   = $DBData[$table];
-         create_update_table($tableScheme,$tableData,$db_params,$tableExcepcion);
-		}
-*/
+		// NOTA: aqui habia un bloque comentado que recorria $DBScheme tabla a tabla
+		// llamando a create_update_table(). Retirado junto con esa funcion (A15).
 		update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure,$db_params,$force,$plug_dir);
 		print "[OK]\n";
    }

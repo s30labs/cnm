@@ -195,31 +195,10 @@ function update_db_plugin($DBScheme,$DBExcepcion,$DBData,$DBModData,$DBProcedure
 
 
 
-/*
- *	Funcion: update_table()
- *	Input:
- *       $tableScheme    => Definición de la estructura de las tablas
- *       $tableData      => Nombre de la tabla a inicializar
- *       $db_params      => Parámetros para la conexión a la BBDD que contiene la tabla a inicializar
- *	Output:
- *	Descr: Función que inicializa (no modifica su estructura) los valores de una tabla
-*/
-function update_table($tableScheme,$tableData,$db_params){
-   $last=time();
-   connectDB($db_params);
-   $tiempo=time()-$last;
-   _debug("Funcion:connectDB||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_table');
-
-   $last=time();
-   SchemeInit($tableScheme,$tableExcepcion);
-   $tiempo=time()-$last;
-   _debug("Funcion:SchemeInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_table');
-
-   $last=time();
-   DataInit($tableData);
-   $tiempo=time()-$last;
-   _debug("Funcion:DataInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','update_table');
-}
+// NOTA: aqui habia una funcion update_table() que no se llamaba desde ningun sitio
+// (A15). Ademas pasaba $tableExcepcion sin definir a SchemeInit(), que es el mismo
+// patron que provocaba el borrado de columnas corregido en A10. No confundir con
+// d_update_table() de db-manage.php, que si esta en uso (opcion -u).
 
 /* Function: delete_from_table()
  * Input: 
@@ -278,28 +257,15 @@ function clear_plugin_base($plugin_id,$db_params){
 
    $query = "DELETE FROM plugin_base WHERE plugin_id='$plugin_id'";
    $result=$enlace->query($query);
+   if (CNM_isError($result)) {
+      _debug("No se ha podido eliminar de plugin_base el plugin_id=$plugin_id||CMD=>$query || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','clear_plugin_base');
+   }else{
+      _debug("Eliminadas ".$enlace->affectedRows()." filas de plugin_base con plugin_id=$plugin_id",__LINE__,'INF','clear_plugin_base');
+   }
 }
 
-function create_update_table($tableScheme,$tableData,$db_params,$tableExcepcion){
-   $last=time();
-   connectDB($db_params);
-   $tiempo=time()-$last;
-   _debug("Funcion:connectDB||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','create_update_table');
-
-	if(isset($tableScheme)){
-	   $last=time();
-	   SchemeInit($tableScheme,$tableExcepcion);
-	   $tiempo=time()-$last;
-	   _debug("Funcion:SchemeInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','create_update_table');
-	}
-
-	if(isset($tableData)){
-	   $last=time();
-	   DataInit($tableData);
-	   $tiempo=time()-$last;
-	   _debug("Funcion:DataInit||{$db_params['database']}||Tiempo:$tiempo",__LINE__,'INF','create_update_table');
-	}
-}
+// NOTA: aqui habia una funcion create_update_table() cuya unica llamada estaba
+// dentro de un bloque comentado de db-manage.php. Retirada en A15.
 
 /*
  * Funcion: cnm_error_count()
@@ -313,6 +279,221 @@ function cnm_error_count($inc=0){
 	static $n=0;
 	if ($inc) { $n+=$inc; }
 	return $n;
+}
+
+/*
+ * Funcion: cnm_warn_count()
+ * Input:
+ *        $inc => 1 para incrementar el contador de avisos, 0 para consultarlo
+ * Output: numero de avisos (severidad WRN) registrados hasta el momento
+ * Descr: A13. Los avisos NO cambian el codigo de salida, pero se cuentan y se
+ *        muestran en el resumen: son situaciones que conviene mirar y que antes
+ *        se perdian entre el resto del log.
+*/
+function cnm_warn_count($inc=0){
+	static $n=0;
+	if ($inc) { $n+=$inc; }
+	return $n;
+}
+
+/*
+ * Funcion: cnm_run_id()
+ * Output: identificador corto de esta ejecucion
+ * Descr: A13. El log es compartido con la interfaz web y varias ejecuciones de
+ *        db-manage pueden alternarse en el. El PID no basta porque se reutiliza.
+ *        Este identificador permite aislar las lineas de UNA ejecucion:
+ *           grep 'a1b2c3d4' /var/log/apache2/cnm_gui.log
+*/
+function cnm_run_id(){
+	static $id='';
+	if ($id=='') { $id = substr(md5(getmypid().'-'.microtime(true).'-'.rand()),0,8); }
+	return $id;
+}
+
+/*
+ * Funcion: cnm_run_start()
+ * Input:
+ *        $set => si es >0, fija el instante de inicio
+ * Output: marca de tiempo del inicio de la ejecucion
+ * Descr: A13. Permite dar la duracion total en el resumen final.
+*/
+function cnm_run_start($set=0){
+	static $t=0;
+	if ($set>0) { $t=$set; }
+	if ($t==0)  { $t=time(); }
+	return $t;
+}
+
+/*
+ * Funcion: cnm_alter_stats()
+ * Input:
+ *        $op    => 'add' para contabilizar un ALTER de columna, 'get' para consultar
+ *        $tipo  => 'cosmetico' (la definicion solo cambia de forma) o 'real'
+ *        $regla => etiqueta de la diferencia observada
+ *        $detalle => texto del cambio, para la lista de cambios reales
+ * Output: array con las estadisticas acumuladas
+ * Descr: A12a. Contabiliza los ALTER TABLE ... CHANGE que lanza _checkTable() y
+ *        separa los que solo corrigen la FORMA en que el gestor muestra la
+ *        definicion (y por tanto no cambian nada) de los que si alteran la columna.
+ *        NO cambia ninguna decision: el ALTER se ejecuta igual que antes. Solo
+ *        sirve para que un cambio real no quede enterrado entre cientos de ALTER
+ *        sin efecto, y para medir que patrones habria que normalizar (A12b).
+*/
+function cnm_alter_stats($op='get',$tipo='',$regla='',$detalle=''){
+	static $st = array('total'=>0,'cosmetico'=>0,'ignorado'=>0,'real'=>0,
+	                   'reglas'=>array(),'cambios'=>array(),'ignorados'=>array());
+
+	if ($op=='add') {
+		$st['total']++;
+		if     ($tipo=='cosmetico') { $st['cosmetico']++; }
+		elseif ($tipo=='ignorado')  { $st['ignorado']++; }
+		else                        { $st['real']++; }
+
+		if ($regla!='' && $tipo=='cosmetico') {
+			if (!isset($st['reglas'][$regla])) { $st['reglas'][$regla]=0; }
+			$st['reglas'][$regla]++;
+		}
+		// Se guardan los primeros cambios reales, que son los que hay que mirar.
+		if ($tipo=='real' && $detalle!='' && count($st['cambios'])<20) {
+			$st['cambios'][] = $detalle;
+		}
+		if ($tipo=='ignorado' && $detalle!='' && count($st['ignorados'])<20) {
+			$st['ignorados'][] = $detalle;
+		}
+	}
+	return $st;
+}
+
+/*
+ * Funcion: _norm_coldef()
+ * Input:
+ *        $def => definicion de una columna
+ * Output: la definicion normalizada
+ * Descr: A12a. Normaliza las diferencias conocidas entre como declara el estandar
+ *        una columna y como la muestra MariaDB. SOLO se usa para clasificar e
+ *        informar (cnm_alter_stats()); la comparacion que decide si se lanza el
+ *        ALTER sigue siendo la original. Cuando estas reglas esten validadas con
+ *        datos, A12b podra usarlas tambien para decidir.
+*/
+function _norm_coldef($def){
+	if (!is_string($def)) { return ''; }
+	$d = strtoupper(trim($def));
+	$d = preg_replace('/\s+/',' ',$d);
+	// utf8mb3 es el nombre que MariaDB >= 10.6 da al utf8 de siempre
+	$d = str_replace('UTF8MB3','UTF8',$d);
+	// Declarar COLLATE sin CHARACTER SET es legal: el juego de caracteres se deduce
+	// del nombre de la collation. El gestor muestra despues los dos.
+	if (strpos($d,'CHARACTER SET')===false && preg_match('/COLLATE ([A-Z0-9]+)_/',$d,$m)) {
+		$d = preg_replace('/COLLATE /','CHARACTER SET '.$m[1].' COLLATE ',$d,1);
+	}
+	// DEFAULT '0' frente a DEFAULT 0
+	$d = preg_replace("/DEFAULT '(-?[0-9]+(\.[0-9]+)?)'/","DEFAULT $1",$d);
+	// DEFAULT NULL es lo mismo que no declarar nada en una columna que admite NULL
+	$d = preg_replace('/\s*DEFAULT NULL$/','',$d);
+	return trim($d);
+}
+
+/*
+ * Funcion: _clasificar_alter()
+ * Input:
+ *        $bbdd => definicion actual en la BBDD
+ *        $est  => definicion que declara el estandar
+ * Output: array(tipo, regla)
+ * Descr: A12a. Decide si la diferencia entre las dos definiciones es solo de forma
+ *        y, en ese caso, que regla la explica.
+*/
+function _clasificar_alter($bbdd,$est,$es_clave_primaria=false){
+	$nb = _norm_coldef($bbdd);
+	$ne = _norm_coldef($est);
+
+	if ($nb != $ne) {
+		// Una columna que forma parte de la clave primaria es NOT NULL por obligacion.
+		// Si el estandar la declara sin NOT NULL, el gestor mantiene el NOT NULL y el
+		// ALTER no cambia nada: se reintenta en cada ejecucion, para siempre.
+		if ($es_clave_primaria) {
+			$sin_nn_b = trim(preg_replace('/\s*NOT NULL\s*/',' ',$nb));
+			$sin_nn_e = trim(preg_replace('/\s*NOT NULL\s*/',' ',$ne));
+			if ($sin_nn_b == $sin_nn_e) {
+				return array('ignorado','columna de clave primaria declarada sin NOT NULL');
+			}
+		}
+		return array('real','');
+	}
+
+	$reglas = array();
+	$b = strtoupper((string)$bbdd); $e = strtoupper((string)$est);
+	if (strpos($b,'UTF8MB3')!==false || strpos($e,'UTF8MB3')!==false) { $reglas[]='utf8mb3'; }
+	if ((strpos($b,'CHARACTER SET')!==false) != (strpos($e,'CHARACTER SET')!==false)) { $reglas[]='CHARACTER SET implicito en la COLLATE'; }
+	if (preg_match("/DEFAULT '-?[0-9]/",$e) != preg_match("/DEFAULT '-?[0-9]/",$b)) { $reglas[]='comillas en DEFAULT numerico'; }
+	if ((strpos($b,'DEFAULT NULL')!==false) != (strpos($e,'DEFAULT NULL')!==false)) { $reglas[]='DEFAULT NULL implicito'; }
+	if (count($reglas)==0) { $reglas[]='espacios o mayusculas'; }
+
+	return array('cosmetico',implode(' + ',$reglas));
+}
+
+/*
+ * Funcion: _indice_existe()
+ * Input:
+ *        $nombreTabla     => tabla a comprobar
+ *        $definicionIndice => definicion tal y como la declara el estandar, por
+ *                             ejemplo "KEY `id_note_type` (`id_note_type`)",
+ *                             "UNIQUE KEY `u1` (`a`,`b`)" o "PRIMARY KEY  (`name`)"
+ * Output: true si la tabla ya tiene ese indice, con ese nombre y esas columnas
+ *         en ese orden
+ * Descr: A18. Consulta el estado ACTUAL de la tabla, no la lectura que _checkTable()
+ *        hizo al empezar.
+*/
+function _indice_existe($nombreTabla,$definicionIndice){
+global $enlace;
+
+	if (!preg_match_all('/`([^`]+)`/',$definicionIndice,$m)) { return false; }
+	$nombres = $m[1];
+
+	if (strpos($definicionIndice,'PRIMARY KEY')!==false) {
+		$nombreIndice = 'PRIMARY';
+		$columnas     = $nombres;                 // PRIMARY KEY (`a`,`b`)
+	}
+	else {
+		$nombreIndice = array_shift($nombres);    // KEY `nombre` (`a`,`b`)
+		$columnas     = $nombres;
+	}
+	if (count($columnas)==0) { return false; }
+
+	$tabla_esc  = $enlace->escapeSimple($nombreTabla);
+	$indice_esc = $enlace->escapeSimple($nombreIndice);
+	$sql = "SELECT COLUMN_NAME FROM information_schema.STATISTICS ".
+	       "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$tabla_esc' AND INDEX_NAME='$indice_esc' ".
+	       "ORDER BY SEQ_IN_INDEX";
+	$result = $enlace->query($sql);
+	if (CNM_isError($result)) {
+		// Ante la duda, se comporta como antes del parche.
+		_debug("No se ha podido comprobar si existe el indice $nombreIndice de $nombreTabla || USERINFO = ".$result->getUserInfo(),__LINE__,'WRN','_indice_existe');
+		return false;
+	}
+
+	$actuales = array();
+	while($result->fetchInto($r)){ $actuales[] = $r['COLUMN_NAME']; }
+
+	return ($actuales == $columnas);
+}
+
+/*
+ * Funcion: _columnas_clave_primaria()
+ * Input:
+ *        $contenidoTablaBBDD => columnas de la tabla tal y como las devuelve
+ *                               SHOW CREATE TABLE, ya troceadas por _checkTable()
+ * Output: array con los nombres de las columnas que forman la clave primaria
+ * Descr: A12a. Solo se usa para clasificar los ALTER.
+*/
+function _columnas_clave_primaria($contenidoTablaBBDD){
+	if (!is_array($contenidoTablaBBDD)) { return array(); }
+	foreach ($contenidoTablaBBDD as $nombre=>$descripcion) {
+		if (strpos($nombre,'PRIMARY KEY')===false) { continue; }
+		$columnas = array();
+		if (preg_match_all('/`([^`]+)`/',$nombre,$m)) { $columnas = $m[1]; }
+		return $columnas;
+	}
+	return array();
 }
 
 /*
@@ -344,12 +525,39 @@ function _debug($msg,$linea,$sev,$func){
 	$pid=getmypid();
 	$msg=_mask_secrets($msg);
 	if ($sev=='ERR'){ cnm_error_count(1); }
+	if ($sev=='WRN'){ cnm_warn_count(1); }
+
+	// A13: el identificador de ejecucion permite separar las lineas de una ejecucion
+	// concreta en un log que comparten db-manage y la interfaz web.
+	$marca = "$func [$pid:".cnm_run_id()."]";
+
+	// A13: copia opcional en un fichero propio, para no depender del log compartido.
+	_cnm_log_propio("$sev $marca::$msg");
+
 	if ($sev=='DBG'){
-		CNMUtils::debug_log(__FILE__, $linea, "$func [$pid]::$msg");
+		CNMUtils::debug_log(__FILE__, $linea, "$marca::$msg");
 	}else{
-		if($sev=='ERR') print "Fichero:".__FILE__." linea :$linea - $func [$pid]::$msg\n";
-		CNMUtils::info_log(__FILE__, $linea, "$func [$pid]::$msg"); 
+		if($sev=='ERR') print "Fichero:".__FILE__." linea :$linea - $marca::$msg\n";
+		if($sev=='WRN') print "[AVISO] $msg\n";
+		CNMUtils::info_log(__FILE__, $linea, "$marca::$msg");
 	}
+}
+
+/*
+ * Funcion: _cnm_log_propio()
+ * Input:
+ *        $linea_log => linea ya formateada
+ * Descr: A13. Si la variable de entorno CNM_DB_MANAGE_LOG apunta a un fichero, se
+ *        escribe ahi una copia de cada mensaje. Permite guardar el registro de una
+ *        instalacion sin bucear en /var/log/apache2/cnm_gui.log, que comparte con
+ *        la interfaz web. Si no se puede escribir, se sigue sin mas: el log propio
+ *        nunca debe hacer fallar una instalacion.
+*/
+function _cnm_log_propio($linea_log){
+	static $fichero=null;
+	if ($fichero===null) { $fichero = (string)getenv('CNM_DB_MANAGE_LOG'); }
+	if ($fichero=='') { return; }
+	@file_put_contents($fichero, date('Y-m-d H:i:s')." $linea_log\n", FILE_APPEND);
 }
 
 /*
@@ -543,13 +751,27 @@ global $enlace;
 function cfg_remote_alerts_update(){
 global $enlace;
 
+	// A13: las tres consultas encadenan. Si falla la primera, las siguientes fallan
+	// tambien y las alertas de tipo CLR se quedan sin enlazar, en silencio.
 	$query_1 = "CREATE temporary table t1(SELECT a.id_remote_alert,b.id_remote_alert AS id FROM cfg_remote_alerts a LEFT JOIN cfg_remote_alerts b ON a.set_type=b.type AND a.set_subtype=b.subtype AND a.set_hiid=b.hiid WHERE a.action='CLR' AND b.id_remote_alert IS NOT NULL)";
    $result_1 = $enlace->query($query_1);
+	if (CNM_isError($result_1)) {
+		_debug("No se ha podido crear la tabla temporal para enlazar las alertas CLR||CMD=>$query_1 || USERINFO = ".$result_1->getUserInfo(),__LINE__,'ERR','cfg_remote_alerts_update');
+		return;
+	}
+
 	// $query_2 = "UPDATE cfg_remote_alerts a,t1 b SET a.set_id=b.id, a.vdata=CONCAT('id=',b.id) WHERE a.id_remote_alert=b.id_remote_alert";
 	$query_2 = "UPDATE cfg_remote_alerts a,t1 b SET a.set_id=b.id WHERE a.id_remote_alert=b.id_remote_alert";
 	$result_2 = $enlace->query($query_2);
+	if (CNM_isError($result_2)) {
+		_debug("No se han podido enlazar las alertas CLR con su alerta de activacion||CMD=>$query_2 || USERINFO = ".$result_2->getUserInfo(),__LINE__,'ERR','cfg_remote_alerts_update');
+	}
+
 	$query_3 = "DROP TEMPORARY TABLE t1";
 	$result_3 = $enlace->query($query_3);
+	if (CNM_isError($result_3)) {
+		_debug("No se ha podido eliminar la tabla temporal t1||CMD=>$query_3 || USERINFO = ".$result_3->getUserInfo(),__LINE__,'WRN','cfg_remote_alerts_update');
+	}
 /*
 	// También se puede hacer así
    $query_1  = "SELECT id_remote_alert,set_type,set_subtype,set_hiid FROM cfg_remote_alerts WHERE action='CLR'";
@@ -947,6 +1169,12 @@ global $enlace;
 
    $query_7_a = "DELETE FROM cfg_script_param WHERE script='$script'";
    $result_7_a = $enlace->query($query_7_a);
+
+   // A13: antes no se comprobaba ninguno de los dos borrados.
+   if (CNM_isError($result_2_a) || CNM_isError($result_7_a)) {
+      $info = CNM_isError($result_2_a)?$result_2_a->getUserInfo():$result_7_a->getUserInfo();
+      _debug("No se ha podido eliminar la definicion del script $script || USERINFO = $info",__LINE__,'ERR','clear_script');
+   }
 }
 
 /* Function: _clean_orphan_params()
@@ -993,10 +1221,19 @@ function pre_data($DBData){
 global $enlace;
 
 	// Se limpian los elementos del report de sistemas porque el plugin pro y gpl contienen diferentes elementos
+	// A13: si uno de estos DELETE falla, DataInit() reinserta sobre datos que creiamos
+	// borrados. Antes no se comprobaba el resultado.
 	$query_1_a  = "DELETE FROM cfg_report2item WHERE subtype_cfg_report='00000002'";
 	$result_1_a = $enlace->query($query_1_a);
+	if (CNM_isError($result_1_a)) {
+		_debug("No se ha podido limpiar el informe 00000002 de cfg_report2item||CMD=>$query_1_a || USERINFO = ".$result_1_a->getUserInfo(),__LINE__,'ERR','pre_data');
+	}
+
 	$query_2_a  = "DELETE FROM support_pack2tech_group";
 	$result_2_a = $enlace->query($query_2_a);
+	if (CNM_isError($result_2_a)) {
+		_debug("No se ha podido limpiar support_pack2tech_group||CMD=>$query_2_a || USERINFO = ".$result_2_a->getUserInfo(),__LINE__,'ERR','pre_data');
+	}
 }
 
 // --------------------------------------------------------------------------------
@@ -1462,7 +1699,8 @@ global $enlace;
 			print"-------------------------\n";
 			print"-------------------------\n";
 */
-			_alterColumn($nombreColumnaEst,$descripcionColumnaEst,$nombreTabla);
+			_alterColumn($nombreColumnaEst,$descripcionColumnaEst,$nombreTabla,$contenidoTablaBBDD[$nombreColumnaEst],
+			             in_array($nombreColumnaEst,_columnas_clave_primaria($contenidoTablaBBDD)));
 			continue;
 		}
 		// CASO 2.2. LA COLUMNA ES SIMILAR => NO HACEMOS NADA
@@ -1579,15 +1817,25 @@ global $enlace;
 //
 // --------------------------------------------------------------------------------
 
-function _alterColumn($nombreColumnaEst,$descripcionColumnaEst,$nombreTabla){
+function _alterColumn($nombreColumnaEst,$descripcionColumnaEst,$nombreTabla,$descripcionColumnaBBDD='',$es_clave_primaria=false){
 global $enlace;
+
+	// A12a: se clasifica ANTES de ejecutar, pero el ALTER se lanza igual que siempre.
+	list($tipo_alter,$regla_alter) = _clasificar_alter($descripcionColumnaBBDD,$descripcionColumnaEst,$es_clave_primaria);
+	cnm_alter_stats('add',$tipo_alter,$regla_alter,"$nombreTabla.$nombreColumnaEst: [$descripcionColumnaBBDD] => [$descripcionColumnaEst]");
 
 	$sqlModify="ALTER TABLE $nombreTabla CHANGE $nombreColumnaEst $nombreColumnaEst $descripcionColumnaEst";
 	$resultModify=$enlace->query($sqlModify);
    if (CNM_isError($resultModify)) {
 		_debug("No se ha podido modificar la columna $nombreColumnaEst de la tabla $nombreTabla||CMD=>$sqlModify || USERINFO = ".$resultModify->getUserInfo(),__LINE__,'ERR','_alterColumn');
    }else{
-		_debug("Se ha modificado la columna $nombreColumnaEst de la tabla $nombreTabla",__LINE__,'DBG','_alterColumn');
+		if ($tipo_alter=='cosmetico' || $tipo_alter=='ignorado') {
+			// Sin efecto sobre la tabla: al log de depuracion, para no tapar lo que importa.
+			_debug("ALTER sin efecto ($regla_alter) sobre $nombreTabla.$nombreColumnaEst",__LINE__,'DBG','_alterColumn');
+		}
+		else {
+			_debug("CAMBIO DE ESQUEMA en $nombreTabla.$nombreColumnaEst: [$descripcionColumnaBBDD] => [$descripcionColumnaEst]",__LINE__,'INF','_alterColumn');
+		}
    }
 }
 
@@ -1605,6 +1853,17 @@ global $enlace;
 function _addColumn($nombreColumnaEst,$descripcionColumnaEst,$nombreTabla){
 global $enlace;
 
+	// A18: _checkTable() lee la tabla UNA vez, al principio. Si en esta misma pasada
+	// se ha creado una columna auto_increment junto con su indice, ese indice no
+	// aparece en la lectura y se intentaria crear otra vez ("Duplicate key name"), y
+	// el drop previo tampoco funciona porque es el indice que sostiene el
+	// auto_increment. Si el indice ya existe tal cual lo declara el estandar, no hay
+	// nada que hacer.
+	if (strpos($nombreColumnaEst,'KEY')!==false && _indice_existe($nombreTabla,$nombreColumnaEst)) {
+		_debug("El indice $nombreColumnaEst de la tabla $nombreTabla ya existe",__LINE__,'DBG','_addColumn');
+		return;
+	}
+
 	// if (ereg("PRIMARY KEY", $nombreColumnaEst)){
 	if (strpos($nombreColumnaEst,'PRIMARY KEY')!==false){
 		// 1. Tenemos que deshacer la clave primaria
@@ -1618,13 +1877,34 @@ global $enlace;
 		$sqlDelCol="ALTER TABLE $nombreTabla drop index $nombreKey";
 		$resultDelCol=$enlace->query($sqlDelCol);
 	}
-	$sqlAddCol="ALTER TABLE $nombreTabla ADD $nombreColumnaEst $descripcionColumnaEst";
+	// A18: MySQL/MariaDB exigen que una columna auto_increment sea clave en el mismo
+	// momento de crearla ("there can be only one auto column and it must be defined
+	// as a key"). Anadirla y despues crear el indice en dos ALTER falla siempre, y la
+	// columna se queda sin crear: una tabla a la que le falte la columna
+	// autoincremental no se podia reparar con db-manage. Se anaden juntas.
+	// El indice sin nombre lo nombra el gestor como la columna, que es lo que declara
+	// el estandar en todos los casos observados; si el estandar declara ademas una
+	// PRIMARY KEY o un KEY con otro nombre, se crea a continuacion con normalidad.
+	$es_autoincrement = (strpos($nombreColumnaEst,'KEY')===false &&
+	                     stripos($descripcionColumnaEst,'auto_increment')!==false);
+
+	if ($es_autoincrement) {
+		$sqlAddCol="ALTER TABLE $nombreTabla ADD $nombreColumnaEst $descripcionColumnaEst, ADD KEY ($nombreColumnaEst)";
+	}
+	else {
+		$sqlAddCol="ALTER TABLE $nombreTabla ADD $nombreColumnaEst $descripcionColumnaEst";
+	}
 
 	$resultAddCol=$enlace->query($sqlAddCol);
    if (CNM_isError($resultAddCol)) {
 		_debug("No se ha podido crear la columna $nombreColumnaEst de la tabla $nombreTabla||CMD=>$sqlAddCol || USERINFO = ".$resultAddCol->getUserInfo(),__LINE__,'ERR','_addColumn');
    }else{
-		_debug("Se ha creado la columna $nombreColumnaEst de la tabla $nombreTabla",__LINE__,'DBG','_addColumn');
+		if ($es_autoincrement) {
+			_debug("Se ha creado la columna autoincremental $nombreColumnaEst de la tabla $nombreTabla junto con su indice",__LINE__,'INF','_addColumn');
+		}
+		else {
+			_debug("Se ha creado la columna $nombreColumnaEst de la tabla $nombreTabla",__LINE__,'DBG','_addColumn');
+		}
    }
 }
 
@@ -2051,6 +2331,12 @@ global $enlace;
 	$date_store=time();
    $query = "INSERT INTO cnm_services (type,value,date_store) VALUES ('rev','$rev',$date_store) ON DUPLICATE KEY UPDATE type='rev',value='$rev',date_store=$date_store";
    $result = $enlace->query($query);
+   if (CNM_isError($result)) {
+      // A13: si esto falla, el appliance queda con una revision distinta de la real.
+      _debug("No se ha podido guardar la revision $rev en cnm_services||CMD=>$query || USERINFO = ".$result->getUserInfo(),__LINE__,'ERR','store_rev');
+   }else{
+      _debug("Revision almacenada: $rev",__LINE__,'INF','store_rev');
+   }
 }
 
 //------------------------------------------------------------------------------------
