@@ -17,13 +17,46 @@ $force = (isset($opts['f']))?true:false;
 // Bloqueo: dos ejecuciones simultaneas (cnm-subs, el install de un plugin, update_cnm)
 // se pisan entre ellas. El descriptor se guarda en $GLOBALS para que el bloqueo
 // dure hasta que termina el proceso.
+//
+// El bloqueo ESPERA en lugar de abortar: los plugins de /opt/cnm-sp se instalan en
+// serie con scripts 'install' que no comprueban el codigo de salida, asi que abortar
+// significaria no instalar el plugin sin que nadie se entere. Solo se aborta con RC=4
+// si se agota el plazo (CNM_DB_MANAGE_LOCK_TIMEOUT, 600 s por defecto), que indica
+// una ejecucion atascada.
 //-------------------------------------------------------------------------------------------
 if (!isset($opts['h'])) {
-	$GLOBALS['CNM_LOCK_FP'] = @fopen('/var/run/cnm-db-manage.lock','c');
-	if ($GLOBALS['CNM_LOCK_FP']===false) { $GLOBALS['CNM_LOCK_FP'] = @fopen('/tmp/cnm-db-manage.lock','c'); }
-	if ($GLOBALS['CNM_LOCK_FP']!==false && !flock($GLOBALS['CNM_LOCK_FP'],LOCK_EX|LOCK_NB)) {
-		print "[ERROR] Ya hay otro db-manage.php en ejecucion. Se aborta.\n";
-		exit(4);
+	$lock_file  = '/var/run/cnm-db-manage.lock';
+	$lock_fp    = @fopen($lock_file,'c');
+	if ($lock_fp===false) {
+		// El bloqueo solo protege frente a procesos que usen ESTE mismo fichero.
+		$lock_file = '/tmp/cnm-db-manage.lock';
+		$lock_fp   = @fopen($lock_file,'c');
+		print "[AVISO] No se ha podido usar /var/run/cnm-db-manage.lock; se usa $lock_file.\n";
+		print "[AVISO] El bloqueo no protege frente a ejecuciones de otros usuarios.\n";
+	}
+	else {
+		// Para que root y www-data compartan el mismo fichero de bloqueo.
+		@chmod($lock_file,0666);
+	}
+
+	if ($lock_fp!==false) {
+		$GLOBALS['CNM_LOCK_FP'] = $lock_fp;
+		$lock_timeout = (int)getenv('CNM_DB_MANAGE_LOCK_TIMEOUT');
+		if ($lock_timeout <= 0) { $lock_timeout = 600; }
+
+		$lock_esperado = 0;
+		while (!flock($lock_fp,LOCK_EX|LOCK_NB)) {
+			if ($lock_esperado == 0) {
+				print "[AVISO] Hay otro db-manage.php en ejecucion; esperando (maximo {$lock_timeout}s) ...\n";
+			}
+			if ($lock_esperado >= $lock_timeout) {
+				print "[ERROR] Sigue habiendo otro db-manage.php en ejecucion tras {$lock_timeout}s. Se aborta.\n";
+				exit(4);
+			}
+			sleep(1);
+			$lock_esperado++;
+		}
+		if ($lock_esperado > 0) { print "[AVISO] Bloqueo obtenido tras {$lock_esperado}s de espera.\n"; }
 	}
 }
 
