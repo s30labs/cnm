@@ -343,7 +343,7 @@ $DBScheme = array(
       'id_cfg_view'=>"int(11) NOT NULL default '0'",
       'id_cfg_viewsruleset'=>"int(11) NOT NULL default '0'",
       'severity'=>"int(11) NOT NULL default '0'",
-      'date'=>"int(11) default NULL",
+      'date'=>"int(11) NOT NULL default '0'",
       'date_store'=>"int(11) default NULL",
       'duration'=>"int(11) default '0'",
       'ack'=>"int(11) default '0'",
@@ -1969,8 +1969,8 @@ $DBScheme = array(
 
    //-----------------------------------------------------------
 	'attr2db'=>array( //Tabla attr2db -> Mapea atributos a campos de la BBDD.
-      'script'=>"varchar(100) character set utf8 collate utf8_spanish_ci default ''",
-      'attr'=>"varchar(50) character set utf8 collate utf8_spanish_ci default ''",
+      'script'=>"varchar(100) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+      'attr'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'tab'=>"varchar(50) character set utf8 collate utf8_spanish_ci default 'devices'",
       'col'=>"varchar(30) character set utf8 collate utf8_spanish_ci default ''",
       'PRIMARY KEY  (`script`,`attr`)'=>'',
@@ -2002,7 +2002,7 @@ $DBScheme = array(
 	// cfg_apptype2device, mapea id_dev con apptype
 	'cfg_apptype2device'=>array( //Tabla cfg_apptype2device
       'id_dev'=>"int(11) NOT NULL default '0'",
-		'apptype'=>"varchar(100) character set utf8 collate utf8_spanish_ci default 'app.generic'",
+		'apptype'=>"varchar(100) character set utf8 collate utf8_spanish_ci NOT NULL default 'app.generic'",
 		'PRIMARY KEY  (`id_dev`,`apptype`)'=>'',
 	),
 	// ASSETS
@@ -2011,7 +2011,7 @@ $DBScheme = array(
 		'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
 		'id_dev'=>"int(11) NOT NULL default '0'",
 		'name'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
-      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
+      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'hash_asset_subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
 		'status'=>"varchar(255) CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL default ''",
 		'critic'=>"int(11) default '50'",
@@ -2036,8 +2036,8 @@ $DBScheme = array(
    ),
    'assets_subtypes'=>array( // Tabla assets_subtypes: Define los difentes subtipos de recursos IT
       'id_asset_subtype'=>"int(11) NOT NULL auto_increment",
-		'hash_asset_subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
-		'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
+		'hash_asset_subtype'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+		'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'descr'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'PRIMARY KEY  (`hash_asset_type`,`hash_asset_subtype`)'=>'',
       'UNIQUE KEY `id_asset_subtype` (`id_asset_subtype`)'=>'',
@@ -2047,7 +2047,7 @@ $DBScheme = array(
       'hash_asset_custom_field'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
 		'descr'=>"varchar(255) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'tipo'=>"int(11) default NULL",
-      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
+      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'available_values'=>"text character set utf8 collate utf8_spanish_ci NOT NULL",
 		'PRIMARY KEY  (`descr`,`hash_asset_type`)'=>'',
 		'UNIQUE KEY `id` (`id_asset_custom_field`)'=>'',
@@ -2056,31 +2056,31 @@ $DBScheme = array(
 	'assets_custom_data'=>array( // Tabla assets_custom_data
 		'id_asset_custom_data'=>"int(11) NOT NULL auto_increment",
 		'hash_asset_custom_data'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
-		'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
-		'hash_asset_custom_field'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
+		'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
+		'hash_asset_custom_field'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
 		'data'=>"text CHARACTER SET utf8 COLLATE utf8_spanish_ci NOT NULL",
 		'PRIMARY KEY  (`hash_asset`,`hash_asset_custom_field`)'=>'',
 		'UNIQUE KEY `id` (`id_asset_custom_data`)'=>'',
 		'UNIQUE KEY `hash_asset_custom_data` (`hash_asset_custom_data`)'=>''
    ),
    'assets_types2app'=>array( // Tabla assets_types2app: Permite asociar tipos de assets a aplicaciones para importar datos automaticamente
-      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci default NULL",
+      'hash_asset_type'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'aname'=>"varchar(60) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'type'=>"int(11) NOT NULL default '0'", // 0: Sirve para descubrir || 1: Sirve para mantenimiento
       'PRIMARY KEY  (`hash_asset_type`,`aname`,`type`)'=>'',
    ),
    'asset2credential'=>array( //Tabla asset2credential
-      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci default ''",
+      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'id_credential'=>"int(11) NOT NULL default '0'",
       'PRIMARY KEY  (`hash_asset`,`id_credential`)'=>''
    ),
 	'asset2proxy'=>array( //Tabla asset2proxy: Relaciona assets con dispositivos
-      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci default ''",
+      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'id_dev'=>"int(11) NOT NULL default '0'",
       'PRIMARY KEY  (`hash_asset`,`id_dev`)'=>''
    ),
    'asset2metric'=>array( //Tabla asset2metric: Relaciona assets con métricas
-      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci default ''",
+      'hash_asset'=>"varchar(50) character set utf8 collate utf8_spanish_ci NOT NULL default ''",
       'id_metric'=>"int(11) NOT NULL default '0'",
       'graph'=>"bigint(20) default NULL",
       'size'=>"varchar(20) character set utf8 collate utf8_spanish_ci NOT NULL default '350x100'",

@@ -239,7 +239,13 @@ function cnm_resumen_final(){
 	print "-----------------------------------------------------------------------\n";
 	print "RESUMEN [".cnm_run_id()."] · duracion: {$dur}s · errores: $n_err · avisos: $n_wrn\n";
 
-	if ($st['total'] > 0) {
+	if ($st['total'] == 0) {
+		// A12b: con la comparacion normalizada, lo normal es que no haya ninguno.
+		// Se dice de forma explicita: el silencio no distingue "nada que hacer" de
+		// "no se ha llegado a comprobar el esquema".
+		print "ESQUEMA: 0 ALTER de columna · el esquema esta al dia\n";
+	}
+	else {
 		$sin_efecto = $st['cosmetico'] + $st['ignorado'];
 		print "ESQUEMA: {$st['total']} ALTER de columna · $sin_efecto sin efecto · {$st['real']} cambio(s) real(es)\n";
 		if (count($st['reglas'])>0) {

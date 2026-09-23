@@ -1690,7 +1690,19 @@ global $enlace;
 		// CASO 2. LA COLUMNA EXISTE EN LA TABLA DE LA BBDD
 		
 		// CASO 2.1. LA COLUMNA ES DIFERENTE
-		if (strtoupper($contenidoTablaBBDD[$nombreColumnaEst])!=strtoupper($descripcionColumnaEst)){
+		//
+		// A12b: la comparacion se hace sobre la definicion NORMALIZADA. El gestor no
+		// devuelve la definicion tal y como se la dio: la reescribe a su manera, y esa
+		// forma cambia entre versiones (utf8/utf8mb3 desde MariaDB 10.6, comillas en
+		// los DEFAULT numericos, DEFAULT NULL explicito en columnas que admiten NULL).
+		// Comparando el texto en bruto, el esquema NUNCA converge: cada ejecucion
+		// reemitia cientos de ALTER que no cambiaban nada (490 en MariaDB 10.5, 1.225
+		// en 10.11), y un cambio real quedaba enterrado entre ellos.
+		//
+		// _norm_coldef() solo neutraliza diferencias de FORMA: no toca el tipo, ni la
+		// longitud, ni la nulabilidad, que es donde estan los cambios que importan.
+		// Ver REV-CNM-02 §15 y la bateria pruebas-esquema-lab.sh.
+		if (_norm_coldef($contenidoTablaBBDD[$nombreColumnaEst])!=_norm_coldef($descripcionColumnaEst)){
 /*
 			print(strtoupper($descripcionColumnaEst)."\n");
 			print"-------------------------\n";
