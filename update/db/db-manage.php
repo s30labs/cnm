@@ -270,6 +270,11 @@ function cnm_resumen_final(){
 		}
 	}
 
+	$sp = cnm_proc_stats();
+	if ($sp['total'] > 0) {
+		print "PROCEDIMIENTOS: {$sp['total']} comprobados · {$sp['recreado']} recreado(s)\n";
+	}
+
 	if ($n_err > 0) {
 		print "RESULTADO: $n_err error(es). Revisar la salida y el log:\n";
 		print "   grep '".cnm_run_id()."' /var/log/apache2/cnm_gui.log\n";

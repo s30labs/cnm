@@ -478,6 +478,60 @@ global $enlace;
 }
 
 /*
+ * Funcion: cnm_proc_stats()
+ * Input:
+ *        $op => 'add' para contabilizar, 'get' para consultar
+ *        $tipo => 'igual' (ya estaba al dia) o 'recreado'
+ * Output: array con los recuentos
+ * Descr: A20. Para poder decir en el resumen cuantos procedimientos se han tenido
+ *        que recrear, que en una ejecucion normal deberian ser cero.
+*/
+function cnm_proc_stats($op='get',$tipo=''){
+	static $st = array('total'=>0,'igual'=>0,'recreado'=>0);
+	if ($op=='add') {
+		$st['total']++;
+		if ($tipo=='igual') { $st['igual']++; } else { $st['recreado']++; }
+	}
+	return $st;
+}
+
+/*
+ * Funcion: _proc_normalizar()
+ * Input:
+ *        $def => definicion de un procedimiento
+ * Output: la definicion normalizada, para poder compararlas
+ * Descr: A20. SHOW CREATE PROCEDURE devuelve la definicion con el DEFINER que le
+ *        puso el gestor y el nombre entre acentos graves; el estandar no los lleva.
+ *        Se normalizan esas dos diferencias y el espacio en blanco.
+*/
+function _proc_normalizar($def){
+	if (!is_string($def)) { return ''; }
+	$d = trim($def);
+	$d = preg_replace('/^CREATE\s+DEFINER\s*=\s*\S+\s+PROCEDURE/i','CREATE PROCEDURE',$d);
+	$d = preg_replace('/^(CREATE\s+PROCEDURE\s+)`([^`]+)`/i','$1$2',$d);
+	$d = preg_replace('/\s+/',' ',$d);
+	// El estandar escribe "sp_x (IN ...)" y el gestor lo guarda como "sp_x(IN ...)"
+	$d = preg_replace('/^(CREATE PROCEDURE \S+?)\s+\(/i','$1(',$d);
+	return trim($d);
+}
+
+/*
+ * Funcion: _proc_definicion_actual()
+ * Input:
+ *        $id => nombre del procedimiento
+ * Output: su definicion actual, o '' si no existe o no se ha podido leer
+ * Descr: A20.
+*/
+function _proc_definicion_actual($id){
+global $enlace;
+
+	$result = $enlace->query("SHOW CREATE PROCEDURE $id");
+	if (CNM_isError($result)) { return ''; }
+	if (!$result->fetchInto($r)) { return ''; }
+	return isset($r['Create Procedure'])?(string)$r['Create Procedure']:'';
+}
+
+/*
  * Funcion: _columnas_clave_primaria()
  * Input:
  *        $contenidoTablaBBDD => columnas de la tabla tal y como las devuelve
@@ -634,6 +688,24 @@ global $enlace;
 	
 	if(!is_array($DBProcedure))return;
 	foreach ($DBProcedure as $id => $queryCreate){
+
+		// A20: recrear un procedimiento es DROP + CREATE, y eso NO es atomico:
+		//   · entre las dos sentencias el procedimiento no existe, y el motor llama a
+		//     sp_cnms_get_credential y sp_cnms_get_snmp_credential (CNMScripts.pm) para
+		//     obtener las credenciales de un dispositivo;
+		//   · si el CREATE falla, el procedimiento se queda BORRADO.
+		// Antes se recreaban los 10 en cada ejecucion aunque no hubiesen cambiado, de
+		// modo que esa ventana se abria una y otra vez sin necesidad. Ahora solo se
+		// tocan los que de verdad han cambiado.
+		$definicion_actual = _proc_definicion_actual($id);
+		if ($definicion_actual!='' && _proc_normalizar($definicion_actual)==_proc_normalizar($queryCreate)) {
+			cnm_proc_stats('add','igual');
+			_debug("El procedimiento $id ya esta al dia",__LINE__,'DBG','ProcedureInit');
+			continue;
+		}
+		cnm_proc_stats('add','recreado');
+		_debug("Se recrea el procedimiento $id",__LINE__,'INF','ProcedureInit');
+
 		// Se borra el procedimiento
 		$queryDrop = "DROP PROCEDURE IF EXISTS $id";
 		$resultQueryDrop=$enlace->query($queryDrop);
@@ -642,10 +714,22 @@ global $enlace;
 		}
 		else{
 			_debug("Se ha borrado el procedimiento $id",__LINE__,'DBG','ProcedureInit');
-			// Se crea el procedimiento	
+			// Se crea el procedimiento
 			$resultQueryCreate=$enlace->query($queryCreate);
       	if (CNM_isError($resultQueryCreate)){
 				_debug("No se ha podido crear el procedimiento $id||CMD=>$queryCreate || USERINFO = ".$resultQueryCreate->getUserInfo(),__LINE__,'ERR','ProcedureInit');
+
+				// A20: el DROP ya se ha hecho, asi que el appliance se quedaria SIN el
+				// procedimiento. Se restaura el que habia.
+				if ($definicion_actual!='') {
+					$resultRestaura=$enlace->query($definicion_actual);
+					if (CNM_isError($resultRestaura)) {
+						_debug("Y TAMPOCO se ha podido restaurar la definicion anterior de $id: el procedimiento NO existe || USERINFO = ".$resultRestaura->getUserInfo(),__LINE__,'ERR','ProcedureInit');
+					}
+					else {
+						_debug("Restaurada la definicion anterior de $id",__LINE__,'WRN','ProcedureInit');
+					}
+				}
 			}
 			else{
 				_debug("Se ha creado el procedimiento $id",__LINE__,'DBG','ProcedureInit');
