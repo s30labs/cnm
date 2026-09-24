@@ -1,0 +1,11 @@
+#!/bin/bash
+#-------------------------------------------------------------------------------------------
+# Instalacion del plugin /opt/cnm-sp/cnm-semantic
+#-------------------------------------------------------------------------------------------
+
+[ -f /opt/cnm-sp/cnm-semantic/pre-install ] && { /opt/cnm-sp/cnm-semantic/pre-install || exit $?; }
+
+/update/db/db-manage.php -p /opt/cnm-sp/cnm-semantic || exit $?
+
+[ -f /opt/cnm-sp/cnm-semantic/post-install ] && exec /opt/cnm-sp/cnm-semantic/post-install
+exit 0

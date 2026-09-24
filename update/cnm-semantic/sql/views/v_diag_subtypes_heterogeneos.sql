@@ -1,0 +1,2 @@
+CREATE OR REPLACE SQL SECURITY INVOKER VIEW `v_diag_subtypes_heterogeneos` AS
+select `m`.`subtype` AS `subtype`,count(distinct trim(substring_index(`m`.`label`,'(',1))) AS `labels_distintos`,count(0) AS `metricas`,`c`.`canonical_id` AS `concepto_unico` from (`metrics` `m` left join `sem_metric_concept` `c` on((`c`.`subtype` = `m`.`subtype`))) where (coalesce(`m`.`status`,0) in (0,2)) group by `m`.`subtype`,`c`.`canonical_id` having (`labels_distintos` > 1);

@@ -1,0 +1,2 @@
+CREATE OR REPLACE SQL SECURITY INVOKER VIEW `v_diag_col7_huerfano` AS
+select `c`.`columna7` AS `col7_huerfano`,count(0) AS `n_dispositivos`,group_concat(`d`.`name` order by `d`.`name` ASC separator ', ') AS `dispositivos` from (`devices_custom_data` `c` join `devices` `d` on((`d`.`id_dev` = `c`.`id_dev`))) where ((`c`.`columna7` is not null) and (`c`.`columna7` not in ('','-','unassigned','multiple_roles')) and (not(`c`.`columna7` in (select `sem_business_role`.`role_id` from `sem_business_role` where (`sem_business_role`.`status` = 'active'))))) group by `c`.`columna7`;

@@ -1,0 +1,79 @@
+#!/usr/bin/php
+<?php
+/*
+ * post-install del plugin cnm-semantic
+ *
+ * db-manage.php NO sabe crear vistas: gestiona tablas ($DBScheme), datos (Init/)
+ * y procedimientos, pero no vistas. Este post-install las aplica con el mismo
+ * mecanismo que usa db-manage para localizar la BBDD de cliente (cfg_cnms.host_ip),
+ * de modo que no hay credenciales escritas aqui.
+ *
+ * Es idempotente: todas las vistas se aplican con CREATE OR REPLACE.
+ *
+ * Codigos de salida:  0 = correcto   1 = error de conexion   2 = alguna vista fallo
+ */
+require_once('/update/db/DB-Scheme-Lib.php');
+global $enlace;
+
+$dir_vistas = dirname(__FILE__).'/sql/views';
+$ficheros   = glob("$dir_vistas/*.sql");
+sort($ficheros);
+if (count($ficheros)==0) { print "[cnm-semantic] No hay vistas que aplicar.\n"; exit(0); }
+
+$cred = get_db_credentials();
+$db_params = array(
+   'phptype'  => 'mysqli',
+   'username' => 'onm',
+   'hostspec' => $cred["CNM_DB_SERVER"],
+   'database' => 'cnm',
+   'password' => $cred["CNM_DB_PASSWORD"],
+);
+$a_client = _cnms($db_params);
+if (count($a_client)==0) {
+   print "[cnm-semantic][ERROR] No hay BBDD de cliente para la IP local. No se aplican las vistas.\n";
+   exit(1);
+}
+
+$errores = 0; $aplicadas = 0; $fallidas = array();
+foreach($a_client as $client){
+   connectDB(array(
+      'phptype'  => 'mysqli',
+      'username' => $client['db1_user'],
+      'password' => $client['db1_pwd'],
+      'hostspec' => $client['db1_server'],
+      'database' => $client['db1_name'],
+      'cid'      => $client['cid'],
+   ));
+
+   // Hay vistas que se apoyan en otras (v_alerta_semantica -> v_alerta_contexto ->
+   // v_alerta_panel). En lugar de mantener a mano una lista ordenada, se repite la
+   // pasada mientras alguna vista mas consiga crearse. Es estable y no hay que
+   // tocar nada cuando se anada una vista nueva.
+   $pendientes = $ficheros;
+   $ultimo_error = array();
+   while (count($pendientes) > 0) {
+      $siguen = array();
+      foreach($pendientes as $f){
+         $sql = trim(file_get_contents($f));
+         if ($sql==='') continue;
+         $sql = preg_replace('/;\s*$/','',$sql);
+         $r = $enlace->query($sql);
+         if (CNM_isError($r)) {
+            $siguen[] = $f;
+            $ultimo_error[$f] = $r->getUserInfo();
+         } else {
+            $aplicadas++;
+         }
+      }
+      if (count($siguen) == count($pendientes)) { $pendientes = $siguen; break; }
+      $pendientes = $siguen;
+   }
+   foreach($pendientes as $f){
+      $errores++;
+      $msg = isset($ultimo_error[$f]) ? $ultimo_error[$f] : '';
+      print "[cnm-semantic][ERROR] ".basename($f).": ".$msg."\n";
+      _debug("No se ha podido crear la vista ".basename($f)." || USERINFO = ".$msg,__LINE__,'ERR','cnm-semantic');
+   }
+}
+print "[cnm-semantic] Vistas aplicadas: $aplicadas · errores: $errores\n";
+exit($errores>0 ? 2 : 0);

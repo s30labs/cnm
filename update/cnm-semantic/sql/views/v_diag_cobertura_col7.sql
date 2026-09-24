@@ -1,0 +1,2 @@
+CREATE OR REPLACE SQL SECURITY INVOKER VIEW `v_diag_cobertura_col7` AS
+select count(0) AS `total_dispositivos`,sum(((`c`.`columna7` is not null) and (`c`.`columna7` not in ('','-')))) AS `con_col7`,sum((isnull(`c`.`columna7`) or (`c`.`columna7` in ('','-')))) AS `sin_col7`,sum((`c`.`columna7` = 'multiple_roles')) AS `multiple_roles`,sum((`c`.`columna7` = 'unassigned')) AS `unassigned` from (`devices` `d` left join `devices_custom_data` `c` on((`c`.`id_dev` = `d`.`id_dev`)));
