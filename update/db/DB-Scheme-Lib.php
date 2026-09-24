@@ -390,6 +390,10 @@ function _norm_coldef($def){
 	$d = preg_replace("/DEFAULT '(-?[0-9]+(\.[0-9]+)?)'/","DEFAULT $1",$d);
 	// DEFAULT NULL es lo mismo que no declarar nada en una columna que admite NULL
 	$d = preg_replace('/\s*DEFAULT NULL$/','',$d);
+	// A22: MySQL <= 5.7 escribe CURRENT_TIMESTAMP y MariaDB >= 10.2 escribe
+	// current_timestamp(). Es la misma funcion. Solo se quitan los parentesis
+	// VACIOS: CURRENT_TIMESTAMP(3) es otra cosa (precision de fraccion de segundo).
+	$d = preg_replace('/\bCURRENT_TIMESTAMP\s*\(\s*\)/','CURRENT_TIMESTAMP',$d);
 	return trim($d);
 }
 
@@ -426,6 +430,7 @@ function _clasificar_alter($bbdd,$est,$es_clave_primaria=false){
 	if ((strpos($b,'CHARACTER SET')!==false) != (strpos($e,'CHARACTER SET')!==false)) { $reglas[]='CHARACTER SET implicito en la COLLATE'; }
 	if (preg_match("/DEFAULT '-?[0-9]/",$e) != preg_match("/DEFAULT '-?[0-9]/",$b)) { $reglas[]='comillas en DEFAULT numerico'; }
 	if ((strpos($b,'DEFAULT NULL')!==false) != (strpos($e,'DEFAULT NULL')!==false)) { $reglas[]='DEFAULT NULL implicito'; }
+	if (preg_match('/CURRENT_TIMESTAMP\s*\(\s*\)/i',$b) != preg_match('/CURRENT_TIMESTAMP\s*\(\s*\)/i',$e)) { $reglas[]='parentesis en CURRENT_TIMESTAMP'; }
 	if (count($reglas)==0) { $reglas[]='espacios o mayusculas'; }
 
 	return array('cosmetico',implode(' + ',$reglas));
