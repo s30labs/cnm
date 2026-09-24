@@ -2251,7 +2251,12 @@ global $enlace;
 
    connectDB($db_params);
 
-   $sqlTablas="SHOW TABLES";
+   // A21: SHOW TABLES devuelve tambien las VISTAS, y sobre una vista el
+   // "ALTER TABLE ... charset=latin1" de mas abajo falla con el error 1347
+   // ("is not of type 'BASE TABLE'"). En un appliance con vistas eso son tantos
+   // errores como vistas haya en cada ejecucion: en cnmprd02, 131. Se piden solo
+   // las tablas de verdad.
+   $sqlTablas="SHOW FULL TABLES WHERE Table_type='BASE TABLE'";
    $resultTablas=$enlace->query($sqlTablas);
    if (CNM_isError($resultTablas)) {
       _debug("No se ha podido obtener la informacion de las tablas de la BBDD || USERINFO = ".$resultTablas->getUserInfo(),__LINE__,'ERR','table_charset_latin1');
@@ -2262,7 +2267,11 @@ global $enlace;
 
    $tablasEst=array();
    while($resultTablas->fetchInto($rTablas)){
-      foreach($rTablas as $key=>$value) $tablasEst[]=$value;
+      // SHOW FULL TABLES devuelve dos columnas: el nombre y el tipo. Solo interesa
+      // la primera; con fetchInto asociativo el nombre de la columna depende de la
+      // base ("Tables_in_onm"), asi que se toma el primer valor.
+      $valores = array_values($rTablas);
+      if (isset($valores[0])) { $tablasEst[]=$valores[0]; }
    }
    // Ponemos todas las tablas con charset latin1
    foreach($tablasEst as $tabla){
