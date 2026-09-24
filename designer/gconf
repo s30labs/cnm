@@ -107,11 +107,14 @@ if ($opts{b}) { $WWW_INIT_DIR='/update/db/Init'; }
 else {
 	system ("mkdir -p $WWW_INIT_DIR");
 
-   $install_file .= "[ -f $SP_BASE_DIR/pre-install  ] && $SP_BASE_DIR/pre-install\n\n";
-   $install_file .= "/update/db/db-manage.php -p $SP_BASE_DIR\n\n";
-   $install_file .= "if [ -f $SP_BASE_DIR/post-install  ]; then\n";
-   $install_file .= "   $SP_BASE_DIR/post-install\n";
-   $install_file .= "else exit 0\nfi\n";
+   $install_file .= "#!/bin/bash\n";
+   $install_file .= "#-------------------------------------------------------------------------------------------\n";
+   $install_file .= "# Instalacion del plugin $SP_BASE_DIR\n";
+   $install_file .= "#-------------------------------------------------------------------------------------------\n\n";
+   $install_file .= "[ -f $SP_BASE_DIR/pre-install ] && { $SP_BASE_DIR/pre-install || exit \$?; }\n\n";
+   $install_file .= "/update/db/db-manage.php -p $SP_BASE_DIR || exit \$?\n\n";
+   $install_file .= "[ -f $SP_BASE_DIR/post-install ] && exec $SP_BASE_DIR/post-install\n";
+   $install_file .= "exit 0\n";
 
    open (F,">$SP_BASE_DIR/install");
    print F $install_file;

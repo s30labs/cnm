@@ -280,11 +280,14 @@ copy_files();
 # Create install file
 #---------------------------------------------------------------------------
 my $install_file='';
-$install_file .= "[ -f $scheme_dir_base/pre-install  ] && $scheme_dir_base/pre-install\n\n";
-$install_file .= "/update/db/db-manage.php -p $scheme_dir_base\n\n";
-$install_file .= "if [ -f $scheme_dir_base/post-install  ]; then\n";
-$install_file .= "   $scheme_dir_base/post-install\n";
-$install_file .= "else exit 0\nfi\n";
+$install_file .= "#!/bin/bash\n";
+$install_file .= "#-------------------------------------------------------------------------------------------\n";
+$install_file .= "# Instalacion del plugin $scheme_dir_base\n";
+$install_file .= "#-------------------------------------------------------------------------------------------\n\n";
+$install_file .= "[ -f $scheme_dir_base/pre-install ] && { $scheme_dir_base/pre-install || exit \$?; }\n\n";
+$install_file .= "/update/db/db-manage.php -p $scheme_dir_base || exit \$?\n\n";
+$install_file .= "[ -f $scheme_dir_base/post-install ] && exec $scheme_dir_base/post-install\n";
+$install_file .= "exit 0\n";
 
 open (F,">$scheme_dir_base/install");
 print F $install_file;

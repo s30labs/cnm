@@ -643,7 +643,7 @@ my ($subdir) = @_;
 		$subdir_path='/opt/cnm-sp/'.$subdir;
 	}
 
-	my $install_file="#!/bin/bash\n\n";
+	my $install_file="#!/bin/bash\n";
 	foreach my $h (@COPY_FILES) {
 		my ($from,$to) = ($h->{'source_file'}, $h->{'dest_dir'});
 		if (! -f $from) { next; }
@@ -669,19 +669,20 @@ my ($subdir) = @_;
 		}
 
 		# Se copian todos los scripts porque diferentes scripts pueden compartir subdir
-		$install_file .= "[ -f $subdir_path/pre-install  ] && $subdir_path/pre-install\n\n";
-		if (-f $script_src_file) {
-			$install_file .= "if [ -L /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
-			$install_file .= "   /bin/rm -f /opt/cnm/xagent/base/$SCRIPT_NAME\n";
-			$install_file .= "elif [ -e /opt/cnm/xagent/base/$SCRIPT_NAME  ]; then\n";
-			$install_file .= "   /bin/mv /opt/cnm/xagent/base/$SCRIPT_NAME /tmp\n";
-			$install_file .= "elif [ -d /opt/cnm/xagent/base  ]; then\n";
-			$install_file .= "	/bin/ln -s $script_path/$SCRIPT_NAME /opt/cnm/xagent/base/$SCRIPT_NAME\nfi\n";
-		}
-		$install_file .= "/update/db/db-manage.php -p $subdir_path\n\n";
-		$install_file .= "if [ -f $subdir_path/post-install  ]; then\n";
-		$install_file .= "   $subdir_path/post-install\n";
-		$install_file .= "else exit 0\nfi\n";
+		#
+		# NOTA: aqui se generaba un bloque que enlazaba el script en /opt/cnm/xagent/base.
+		# Retirado: ese directorio esta obsoleto (el motor ejecuta los scripts desde
+		# /opt/data/mdata/scripts, materializandolos desde cfg_monitor_agent_script) y
+		# ademas era un if/elif/elif que solo ejecutaba UNA rama, de modo que el enlace se
+		# creaba en una instalacion y se BORRABA en la siguiente. La copia del script a
+		# $script_path SI se mantiene: es de donde db-manage lo lee.
+		$install_file .= "#-------------------------------------------------------------------------------------------\n";
+		$install_file .= "# Instalacion del plugin $subdir_path\n";
+		$install_file .= "#-------------------------------------------------------------------------------------------\n\n";
+		$install_file .= "[ -f $subdir_path/pre-install ] && { $subdir_path/pre-install || exit \$?; }\n\n";
+		$install_file .= "/update/db/db-manage.php -p $subdir_path || exit \$?\n\n";
+		$install_file .= "[ -f $subdir_path/post-install ] && exec $subdir_path/post-install\n";
+		$install_file .= "exit 0\n";
 
 		open (F,">$subdir_path/install");
 		print F $install_file;
