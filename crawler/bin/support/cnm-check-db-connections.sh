@@ -1,9 +1,17 @@
 #!/bin/sh
-#--------------------------------------------------------------
+#--------------------------------------------------------------------
 # CNM database connections monitor
-# Using lsof:
+#--------------------------------------------------------------------
+# Another check using lsof:
 # lsof -U 2>/dev/null | grep -E 'mysqld\.sock' | awk '{print $1, $2}' | sort | uniq -c | sort -rn | head
-#--------------------------------------------------------------
+#--------------------------------------------------------------------
+# Another check using information_schema.PROCESSLIST from db
+# for i in $(seq 1 20); do
+#   printf "%s  " "$(date +%T)"
+#   mysql -N -B -e "SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE user='onm'"
+#   sleep 10
+# done
+#--------------------------------------------------------------------
 while true; do
   CR=$(ps -eo args= -ww | sed 's/^\[//; s/\]$//' | grep -c '^crawler')
   NO=$(ps -eo args= -ww | sed 's/^\[//; s/\]$//' | grep -c '^notificationsd')
