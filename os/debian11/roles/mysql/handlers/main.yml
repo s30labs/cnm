@@ -1,5 +1,11 @@
 ---
 
+#--- Ansible ejecuta los handlers en el ORDEN EN QUE ESTAN DEFINIDOS aqui, no
+#--- en el que se notifican: 'reload systemd' tiene que ir ANTES de 'restart
+#--- mysql' o el drop-in de limites no estaria cargado al reiniciar.
+- name: reload systemd
+  systemd: daemon_reload=yes
+
 - name: restart mysql
   service: name=mysql state=restarted
 

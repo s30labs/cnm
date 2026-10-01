@@ -20,6 +20,31 @@
     - { path: '/store/data', owner: 'root', group: 'root', mode: '0777' }
   tags: mysql
 
+- name: Directorio del drop-in de systemd para MariaDB
+  become: yes
+  file: path=/etc/systemd/system/mariadb.service.d state=directory owner=root group=root mode=0755
+  tags: mysql
+
+#--- Bajo systemd NO se lee [mysqld_safe], asi que open_files_limit del my.cnf
+#--- no basta. Si MariaDB no consigue descriptores suficientes RECORTA
+#--- max_connections y table_open_cache por su cuenta y sin avisar: se
+#--- configuran 500 conexiones y el servidor arranca con menos.
+- name: Limite de ficheros abiertos de MariaDB
+  become: yes
+  copy:
+    dest: /etc/systemd/system/mariadb.service.d/limits.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # Gestionado por el rol mysql de CNM. No editar a mano.
+      [Service]
+      LimitNOFILE=65535
+  tags: mysql
+  notify:
+    - reload systemd
+    - restart mysql
+
 - name: Check if directory /var/lib/mysql exists
   stat: path=/var/lib/mysql
   register: var_lib_mysql
@@ -79,7 +104,6 @@
   become_user: root
   become_method: sudo
   template: src=50-server.cnf.j2 dest=/etc/mysql/mariadb.conf.d/50-server.cnf owner=root group=root mode=0644
-  when: db_max_connections is defined
   tags: mysql
   notify:
   - restart mysql
@@ -122,7 +146,40 @@
 #  copy: src=mysql.init dest=/etc/init.d/mysql  owner=root group=root mode=0755
 #  tags: mysql
 
+#--- Comprobacion de que el servidor ha aplicado lo que se le ha pedido y no
+#--- lo ha recortado por falta de descriptores. Es la unica forma objetiva de
+#--- saberlo: el arranque no da ningun error cuando recorta.
 - meta: flush_handlers
+
+- name: Leer los limites efectivos de MariaDB
+  become: yes
+  shell: >
+    mysql -N -B -e "SELECT CONCAT(VARIABLE_NAME,'=',GLOBAL_VALUE)
+                      FROM information_schema.GLOBAL_VARIABLES
+                     WHERE VARIABLE_NAME IN
+                     ('MAX_CONNECTIONS','OPEN_FILES_LIMIT','TABLE_OPEN_CACHE','WAIT_TIMEOUT')
+                     ORDER BY VARIABLE_NAME"
+  register: mysql_limites
+  changed_when: false
+  failed_when: false
+  tags: mysql
+
+- name: Mostrar los limites efectivos
+  debug: var=mysql_limites.stdout_lines
+  tags: mysql
+
+- name: Avisar si MariaDB ha recortado max_connections
+  assert:
+    that:
+      - "'MAX_CONNECTIONS=' ~ (db_max_connections | default(500)) in mysql_limites.stdout"
+    fail_msg: >-
+      MariaDB NO ha aplicado max_connections={{ db_max_connections | default(500) }}.
+      Valores efectivos: {{ mysql_limites.stdout_lines }}.
+      Casi siempre es el limite de descriptores: revisar
+      /etc/systemd/system/mariadb.service.d/limits.conf y 'systemctl show mariadb -p LimitNOFILE'.
+    success_msg: "Limites aplicados correctamente."
+  when: mysql_limites.stdout is defined and mysql_limites.stdout != ''
+  tags: mysql
 
 ...
 

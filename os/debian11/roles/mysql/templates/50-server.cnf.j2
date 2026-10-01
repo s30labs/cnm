@@ -21,11 +21,11 @@ lc-messages-dir         = /usr/share/mysql
 lc-messages             = en_US
 skip-external-locking
 
-tmp_table_size          = 2G
-max_heap_table_size     = 2G
-
 # Broken reverse DNS slows down connections considerably and name resolve is
 # safe to skip if there are no "host by domain name" access grants
+#
+# NO activar skip-name-resolve: el rol concede permisos a root sobre
+# {{ '{{ ansible_hostname }}' }}, que es un nombre y dejaria de resolverse.
 #skip-name-resolve
 
 # Instead of skip-networking the default is now to listen only on
@@ -33,18 +33,72 @@ max_heap_table_size     = 2G
 bind-address            = 127.0.0.1
 
 #
+# * Conexiones  (CNM)
+#
+# Dimensionado para el peor caso, que es cuando algo falla y todo el mundo se
+# conecta a la vez. Medido en un appliance con 179 procesos crawler:
+#
+#   motor (crawler + notificationsd en abanico + actionsd) ..... ~205
+#   Apache/PHP hasta MaxRequestWorkers .......................... 150
+#   API y automatismos ........................................... 50
+#   operadores y sesiones manuales durante una incidencia ........ 30
+#                                                               -----
+#                                                                ~435
+#
+# El coste en memoria es despreciable: los buferes por sesion
+# (sort+read+read_rnd+join) suman ~4,5 MB, o sea ~2,2 GB con 500 conexiones.
+
+max_connections         = {{ db_max_connections | default(500) }}
+back_log                = {{ db_back_log | default(150) }}
+thread_cache_size       = 384
+connect_timeout         = 10
+max_connect_errors      = 10000
+
+# Puerto administrativo con plazas propias: permite entrar a diagnosticar
+# AUNQUE max_connections este agotado.   mysql -P 3307 --protocol=TCP
+extra_port              = {{ db_extra_port | default(3307) }}
+extra_max_connections   = 5
+
+# Tiempo que tarda el servidor en recuperar una plaza abandonada.
+#
+# NO bajar a 300: el ciclo de polling de SNMP es de 300 s (REF-CNM-02 3.1) y un
+# proceso crawler que espere al siguiente ciclo se quedaria justo en el limite;
+# la siguiente consulta fallaria con "MySQL server has gone away".
+wait_timeout            = {{ db_wait_timeout | default(900) }}
+interactive_timeout     = {{ db_wait_timeout | default(900) }}
+
+#
 # * Fine Tuning
 #
 
-key_buffer_size         = 256M
-max_allowed_packet     	= 64M
+# table_cache es un alias antiguo de table_open_cache. 200 se queda corto: el
+# esquema de CNM pasa de 300 tablas y cada conexion abre las suyas.
+table_open_cache        = {{ db_table_open_cache | default(4000) }}
+open_files_limit        = 32768
+
+max_allowed_packet      = 64M
 #thread_stack           = 192K
-thread_cache_size      	= 384
+
+# Buferes POR CONEXION: se multiplican por max_connections en el peor caso.
+sort_buffer_size        = 2M
+read_buffer_size        = 1M
+read_rnd_buffer_size    = 512K
+join_buffer_size        = 1M
+
+# MyISAM: el esquema de CNM es InnoDB + MEMORY, asi que un key_buffer grande es
+# memoria inmovilizada sin uso. aria_pagecache sirve a las temporales internas.
+key_buffer_size         = {{ db_key_buffer_size | default('64M') }}
+aria_pagecache_buffer_size = 256M
 # This replaces the startup script and checks MyISAM tables if needed
 # the first time they are touched
 #myisam_recover_options = BACKUP
-max_connections 			= {{ db_max_connections }}
-table_cache             = 200
+
+# tmp_table_size limita las temporales INTERNAS; max_heap_table_size limita
+# ademas las tablas MEMORY que crea CNM. El limite efectivo de una temporal
+# interna es el menor de los dos, asi que se acotan por separado:
+# NO bajar max_heap_table_size, romperia las tablas MEMORY con "table is full".
+tmp_table_size          = {{ db_tmp_table_size | default('256M') }}
+max_heap_table_size     = 2G
 
 #
 # * Logging and Replication
@@ -52,16 +106,13 @@ table_cache             = 200
 
 # Both location gets rotated by the cronjob.
 # Be aware that this log type is a performance killer.
-# Recommend only changing this at runtime for short testing periods if needed!
 #general_log_file       = /var/log/mysql/mysql.log
 #general_log            = 1
 
 # When running under systemd, error logging goes via stdout/stderr to journald
-# and when running legacy init error logging goes to syslog due to
-# /etc/mysql/conf.d/mariadb.conf.d/50-mysqld_safe.cnf
-# Enable this if you want to have error logging into a separate file
 #log_error = /var/log/mysql/error.log
 # Enable the slow query log to see queries with especially long duration
+#slow_query_log         = 1
 #slow_query_log_file    = /var/log/mysql/mariadb-slow.log
 #long_query_time        = 10
 #log_slow_verbosity     = query_plan,explain
@@ -69,19 +120,23 @@ table_cache             = 200
 #min_examined_row_limit = 1000
 
 # The following can be used as easy to replay backup logs or for replication.
-# note: if you are setting up a replication slave, see README.Debian about
-#       other settings you may need to change.
 #server-id              = 1
 #log_bin                = /var/log/mysql/mysql-bin.log
-expire_logs_days        = 10
+# Caducidad del log binario. Las dos lineas estan comentadas a proposito:
+# log_bin esta desactivado, asi que no hay nada que caducar. Si algun dia se
+# activa el binlog (replica, o recuperacion a un punto en el tiempo), hay que
+# descomentar LA QUE CORRESPONDA a la version:
+#   MariaDB <= 10.5 (Debian 11) : expire_logs_days
+#   MariaDB >= 10.6 (Debian 13) : binlog_expire_logs_seconds
+# binlog_expire_logs_seconds se introdujo en 10.6 y NO existe en 10.5.
+#expire_logs_days            = 10
+#binlog_expire_logs_seconds  = 864000
 #max_binlog_size        = 100M
 
 #
 # * SSL/TLS
 #
 
-# For documentation, please read
-# https://mariadb.com/kb/en/securing-connections-for-client-and-server/
 #ssl-ca = /etc/mysql/cacert.pem
 #ssl-cert = /etc/mysql/server-cert.pem
 #ssl-key = /etc/mysql/server-key.pem
@@ -91,8 +146,10 @@ expire_logs_days        = 10
 # * Character sets
 #
 
-# MySQL/MariaDB default is Latin1, but in Debian we rather default to the full
-# utf8 4-byte character set. See also client.cnf
+# ATENCION: los appliance anteriores a Debian 11 venian con utf8 /
+# utf8_spanish_ci. Aqui se deja el valor de Debian. Solo afecta a objetos
+# creados SIN charset explicito; db-manage fuerza latin1 a nivel de tabla y
+# las columnas llevan el suyo. Cambiarlo es una decision aparte.
 character-set-server  = utf8mb4
 collation-server      = utf8mb4_general_ci
 
@@ -100,21 +157,23 @@ collation-server      = utf8mb4_general_ci
 # * InnoDB
 #
 
-# InnoDB is enabled by default with a 10MB datafile in /var/lib/mysql/.
-# Read the manual for more InnoDB related options. There are many!
-# Most important is to give InnoDB 80 % of the system RAM for buffer use:
-# https://mariadb.com/kb/en/innodb-system-variables/#innodb_buffer_pool_size
-#innodb_buffer_pool_size = 8G
+# Dimensionado automatico: 25% de la RAM, con techo de 8 GB y suelo de 256 MB.
+# Antes esta linea estaba comentada y el servidor corria con los 128 MB por
+# defecto. Se puede fijar con db_innodb_buffer_pool_size.
+{% set _ram  = ansible_memtotal_mb | default(4096) | int %}
+{% set _pool = [ [ (_ram // 4), 4096 ] | min, 256 ] | max %}
+innodb_buffer_pool_size = {{ db_innodb_buffer_pool_size | default(_pool ~ 'M', true) }}
+innodb_log_file_size    = 256M
+innodb_flush_log_at_trx_commit = 2
+innodb_file_per_table   = ON
 
 # this is only for embedded server
 [embedded]
 
 # This group is only read by MariaDB servers, not by MySQL.
-# If you use the same .cnf file for MySQL and MariaDB,
-# you can put MariaDB-only options here
 [mariadb]
 
 # This group is only read by MariaDB-10.5 servers.
 # If you use the same .cnf file for MariaDB of different versions,
-# use this group for options that older servers don't understand
+# use this group for options that older servers do not understand
 [mariadb-10.5]
