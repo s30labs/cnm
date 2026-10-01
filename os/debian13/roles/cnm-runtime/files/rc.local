@@ -18,7 +18,7 @@
 if [[ ! $(pgrep cnm-watch) ]]; then rm -f /opt/crawler/bin/watch.lock >/dev/null 2>&1; fi
 echo -n "Starting rc.local >> " > /tmp/rclocal.log
 date >> /tmp/rclocal.log
-/opt/crawler/bin/cnm-watch >> /tmp/rclocal.log  2>&1 &
+[ ! -f /cfg/stop-cnm-engine ] && /opt/crawler/bin/cnm-watch /tmp/rclocal.log  2>&1 &
 
 CNM_IF=`cat /cfg/onm.if`
 #CNM_IP=`ifconfig $CNM_IF | perl -ne 'if (/inet addr\:(\d+\.\d+\.\d+\.\d+)/) { print "$1\n"; }'`
