@@ -352,9 +352,18 @@ sub sync_store {
 # =============================================================================
 # Sincronizacion de las ALERTAS EN CURSO (reemplazo completo)
 #
-# Son ~455 filas y representan una FOTO del momento, no un historico: acumularlas
-# no tendria sentido. TRUNCATE + COPY dentro de la MISMA transaccion, de modo que
-# ningun lector ve nunca la tabla a medias.
+# Son ~450-850 filas y representan una FOTO del momento, no un historico:
+# acumularlas no tendria sentido. DELETE + COPY dentro de la MISMA transaccion, de
+# modo que ningun lector ve nunca la tabla a medias.
+#
+# DELETE Y NO TRUNCATE (REV-SEM-11 R1, 17-sep-2026). TRUNCATE exige un bloqueo
+# ACCESS EXCLUSIVE hasta el COMMIT. Si en ese momento hay una lectura larga sobre
+# la tabla (api_salud_roles, api_alertas, un informe: hasta 120 s con cnm_api), el
+# TRUNCATE espera, y TODAS las consultas que lleguen despues esperan detras de el.
+# DELETE toma ROW EXCLUSIVE, que no bloquea lecturas: los lectores siguen viendo la
+# foto anterior hasta el COMMIT. Con este volumen, las filas muertas que deja el
+# DELETE son irrelevantes y las recoge autovacuum.
+# Requiere el privilegio DELETE sobre cnm_alerts_open para el usuario de carga.
 # =============================================================================
 sub sync_open {
    my ($mh, $ph) = @_;
@@ -377,7 +386,7 @@ sub sync_open {
    }
 
    my $ok = eval {
-      $ph->do("TRUNCATE cnm_alerts_open");
+      $ph->do("DELETE FROM cnm_alerts_open");
       $ph->do("COPY cnm_alerts_open (".join(',',@OPEN_DST).") FROM STDIN "
              ."WITH (FORMAT csv, NULL '')");
       for my $r (@$rows) {

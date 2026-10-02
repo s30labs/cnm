@@ -415,12 +415,63 @@ sub load_files {
       # hash %IMAP, constante dentro del lote para una misma metrica), asi que no
       # multiplica filas. No se usa max() para no enmascarar una hipotetica
       # inconsistencia: si algun dia partiera un grupo, se veria.
+      # --- CONTADORES SNMP (REV-SEM-09) ---
+      # Los subtypes de sem_counter_dict traen un CONTADOR ACUMULADO desde el
+      # arranque del equipo (ifInOctets y similares). El valor crudo no tiene
+      # sentido como serie: hay que convertirlo a TASA POR SEGUNDO.
+      #
+      # RRDTool ya lo hace (los RRD son DERIVE con min=0), pero el loader no lee
+      # del RRD: lee del spool, que trae el crudo. Sin esta conversion se
+      # publicaban contadores como si fueran tasas -medido: 131.334% de
+      # saturacion en un enlace que esta al 0,01%-.
+      #
+      # El valor anterior sale de dos sitios:
+      #   lag()               -> muestras del MISMO lote
+      #   sem_counter_state   -> ultima muestra del lote ANTERIOR
+      #
+      # Ante cualquier duda se emite NULL, nunca un valor inventado. Es el mismo
+      # criterio de RRDTool con min=0: mejor perder una muestra que publicar un
+      # dato falso.
       $dbh->do(q{
          INSERT INTO series (time,id_metric,ds,value,sem_instance_id)
-         -- numericas: subtype no esta en el diccionario -> passthrough
+         -- numericas: no esta en ningun diccionario -> passthrough
          SELECT s.time, s.id_metric, s.ds, s.value, s.sem_instance_id
          FROM stg s
-         WHERE NOT EXISTS (SELECT 1 FROM sem_state_dict d WHERE d.subtype = s.subtype)
+         WHERE NOT EXISTS (SELECT 1 FROM sem_state_dict   d WHERE d.subtype = s.subtype)
+           AND NOT EXISTS (SELECT 1 FROM sem_counter_dict c WHERE c.subtype = s.subtype)
+         UNION ALL
+         -- contadores: diferencia con la muestra anterior, dividida por el tiempo
+         SELECT k.time, k.id_metric, k.ds,
+                CASE
+                  -- sin dato en esta muestra: nada que calcular
+                  WHEN k.value IS NULL                              THEN NULL
+                  -- primera muestra de la metrica: no hay con que restar
+                  WHEN k.ant_v IS NULL                              THEN NULL
+                  -- contador que da la vuelta o agente reiniciado: la diferencia
+                  -- seria negativa. NO se corrige sumando 2^32/2^64 porque el
+                  -- ancho del contador no esta disponible aqui.
+                  WHEN k.value < k.ant_v                            THEN NULL
+                  -- muestras desordenadas o duplicadas
+                  WHEN EXTRACT(epoch FROM (k.time - k.ant_t)) <= 0  THEN NULL
+                  ELSE (k.value - k.ant_v)
+                       / EXTRACT(epoch FROM (k.time - k.ant_t))
+                END AS value,
+                k.sem_instance_id
+         FROM (
+            SELECT o.*,
+                   COALESCE(o.prev_v, cs.last_raw)  AS ant_v,
+                   COALESCE(o.prev_t, cs.last_time) AS ant_t
+            FROM (
+               SELECT s.time, s.id_metric, s.ds, s.value, s.sem_instance_id,
+                      lag(s.value) OVER w AS prev_v,
+                      lag(s.time)  OVER w AS prev_t
+               FROM stg s
+               WHERE EXISTS (SELECT 1 FROM sem_counter_dict c WHERE c.subtype = s.subtype)
+               WINDOW w AS (PARTITION BY s.id_metric, s.ds ORDER BY s.time)
+            ) o
+            LEFT JOIN sem_counter_state cs
+              ON cs.id_metric = o.id_metric AND cs.ds = o.ds
+         ) k
          UNION ALL
          -- one-hot: una fila por (time,id_metric) con el codigo de estado activo
          SELECT g.time, g.id_metric, 1::smallint AS ds,
@@ -438,6 +489,29 @@ sub load_files {
          ) g
          ON CONFLICT (time,id_metric,ds) DO NOTHING
       });
+
+      # --- ESTADO DE LOS CONTADORES (REV-SEM-09) ---
+      # Se guarda el ultimo valor CRUDO de cada metrica del lote, para que el
+      # lote siguiente pueda calcular su diferencia. Va en la MISMA transaccion
+      # que el INSERT: si algo falla, el estado no avanza y no se pierde ni se
+      # duplica ninguna conversion.
+      #
+      # DISTINCT ON toma la muestra mas reciente de cada (id_metric, ds).
+      # La condicion del UPDATE evita retroceder si llegara un lote atrasado.
+      $dbh->do(q{
+         INSERT INTO sem_counter_state (id_metric, ds, last_time, last_raw)
+         SELECT DISTINCT ON (s.id_metric, s.ds)
+                s.id_metric, s.ds, s.time, s.value
+         FROM stg s
+         WHERE EXISTS (SELECT 1 FROM sem_counter_dict c WHERE c.subtype = s.subtype)
+           AND s.value IS NOT NULL
+         ORDER BY s.id_metric, s.ds, s.time DESC
+         ON CONFLICT (id_metric, ds) DO UPDATE
+            SET last_time = EXCLUDED.last_time,
+                last_raw  = EXCLUDED.last_raw
+          WHERE EXCLUDED.last_time > sem_counter_state.last_time
+      });
+
       $dbh->commit;
       1;
    };

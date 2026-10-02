@@ -95,6 +95,17 @@ sub elog { print STDERR ts()." [sync] ERROR: $_[0]\n" }
 #    de la replica; aparece con signal_class NULL y las vistas de gobernanza lo
 #    dejan a la vista.
 #  - Solo roles activos: un binding a un rol dado de baja no debe agregar.
+#  - ds_valor / ds_total (REV-SEM-08): que DS lleva el valor de uso y cual la
+#    capacidad. ds_valor es una lista separada por comas cuyos DS se SUMAN
+#    -el trafico es RX+TX-; NULL significa que el subtype no se puede reducir
+#    a un DS porque su uso es una formula, y el informe de capacidad lo excluye
+#    declarandolo. ds_total evita depender del poller: en disk_mibhost la
+#    capacidad viene en el propio dato.
+#  - instance_kind (REV-SEM-08): que ES la instancia, no cuanto mide. Para
+#    interfaces sale de ifType y vale ethernet / loopback / virtual / tunnel /
+#    wan / vlan / aggregate. Permite excluir del informe lo que no representa un
+#    recurso real, sin depender de nombres como 'lo' o 'vSwitch0' que varian
+#    segun el sistema operativo.
 # =============================================================================
 my $SRC_SQL = <<'SQL';
 SELECT  b.instance_id, b.role_id, b.relation_type, b.is_primary, b.weight,
@@ -105,6 +116,8 @@ SELECT  b.instance_id, b.role_id, b.relation_type, b.is_primary, b.weight,
         c.canonical_id, c.display_name AS concepto_nombre,
         c.category, c.direction, c.unit, c.is_business, c.scope,
         COALESCE(mc.value_scale, 1.0) AS value_scale,
+        mc.ds_valor, mc.ds_total,
+        i.instance_kind,
         i.capacity,
         COALESCE(c.needs_instance_capacity, 0) AS needs_capacity,
         i.expected_value, c.plausible_min, c.plausible_max,
@@ -126,7 +139,7 @@ my @DST_COLS = qw(sem_instance_id role_id relation_type is_primary weight
                   health_threshold health_threshold_note
                   signal_class canonical_id concepto_nombre
                   category direction unit is_business scope
-                  value_scale capacity needs_capacity expected_value
+                  value_scale ds_valor ds_total instance_kind capacity needs_capacity expected_value
                   plausible_min plausible_max
                   subtype stable_key iddev);
 
@@ -237,6 +250,28 @@ SQL
 }
 
 # Columnas que DEBEN existir en el origen (verificadas contra information_schema).
+# -----------------------------------------------------------------------------
+# DICCIONARIO DE CONTADORES (REV-SEM-09)
+#
+# Los subtypes con mode='COUNTER' traen un contador acumulado, no una medida.
+# El loader necesita saber cuales son para convertirlos a tasa por segundo.
+#
+# Se sincroniza desde CNM porque un usuario puede dar de alta una metrica SNMP
+# de cualquier MIB en cualquier momento: un diccionario mantenido a mano se
+# quedaria obsoleto sin avisar, y el sintoma seria silencioso (valores crudos
+# publicados como si fueran tasas).
+# Se replican TODOS los subtypes COUNTER definidos, no solo los que hoy tienen
+# metricas instanciadas. Si manana alguien instrumenta uno de los que ahora no
+# se usan, ya estara en el diccionario y se convertira desde la primera muestra.
+# Filtrar por uso actual reintroduciria el problema que este cambio corrige.
+my $CNT_SQL = <<'SQL';
+SELECT DISTINCT subtype, 'mode=COUNTER en cfg_monitor_snmp' AS nota
+FROM cfg_monitor_snmp
+WHERE mode = 'COUNTER'
+SQL
+
+my @CNT_COLS = qw(subtype nota);
+
 my %SRC_REQUIRED = (
    sem_binding_role      => [qw(instance_id role_id relation_type is_primary
                                 weight signal_class_override confidence source)],
@@ -245,10 +280,11 @@ my %SRC_REQUIRED = (
                                 health_threshold health_threshold_note)],
    sem_instance          => [qw(instance_id iddev subtype stable_key
                                 canonical_override capacity expected_value)],
-   sem_metric_concept    => [qw(subtype canonical_id value_scale)],
+   sem_metric_concept    => [qw(subtype canonical_id value_scale ds_valor ds_total)],
    sem_metric_binding    => [qw(idmetric instance_id)],
    devices               => [qw(id_dev name ip)],
    metrics               => [qw(id_metric name label type watch)],
+   cfg_monitor_snmp      => [qw(subtype mode)],
    alert_type            => [qw(monitor cause expr severity)],
    devices_custom_data   => [qw(id_dev)],
    devices_custom_types  => [qw(id descr)],
@@ -437,6 +473,43 @@ sub publish {
    return ($prev, $n);
 }
 
+# -----------------------------------------------------------------------------
+# Publica un DICCIONARIO: solo anade, nunca borra.
+#
+# NO se usa publish() -TRUNCATE + COPY- por dos razones:
+#
+#   1. La columna 'desde' registra CUANDO entro cada subtype. Lo cargado antes
+#      de esa fecha es crudo y no fiable, y esa informacion se perderia con un
+#      TRUNCATE.
+#
+#   2. Un fallo transitorio en el origen dejaria el diccionario VACIO, y el
+#      loader volveria a publicar contadores crudos como si fueran tasas. El
+#      sintoma seria silencioso. Anadir sin borrar hace imposible ese escenario.
+#
+# Si un subtype dejara de ser COUNTER en CNM -improbable-, habria que quitarlo
+# a mano y a conciencia, no automaticamente.
+sub publish_dict {
+   my ($ph, $tabla, $rows) = @_;
+   my ($prev) = $ph->selectrow_array("SELECT count(*) FROM $tabla");
+   my $nuevos = 0;
+   my $ok = eval {
+      my $sth = $ph->prepare(
+         "INSERT INTO $tabla (subtype, nota) VALUES (?,?) ON CONFLICT DO NOTHING");
+      for my $r (@$rows) { $nuevos += $sth->execute(@$r[0,1]); }
+      $ph->commit;
+      1;
+   };
+   unless ($ok) {
+      my $e = $@ || 'desconocido';
+      eval { $ph->rollback };
+      elog("[$tabla] fallo publicando (ROLLBACK hecho): $e");
+      exit 4;
+   }
+   # execute() devuelve '0E0' cuando no inserta: cuenta como 0 pero es cierto.
+   $nuevos = 0 if $nuevos eq '0E0';
+   return ($prev, $nuevos);
+}
+
 # Escapado CSV para COPY. NULL se representa como campo vacio sin comillas,
 # acorde con NULL '' del COPY. Los booleanos de MySQL (0/1) los interpreta
 # PostgreSQL correctamente en una columna boolean.
@@ -458,6 +531,7 @@ if ($o{'check-schema'}) { print "Esquema origen OK\n"; $mh->disconnect; exit 0 }
 build_map_sql($mh);
 my $rows = read_source($mh, $SRC_SQL, 'capa semantica');
 my $maps = read_source($mh, $MAP_SQL, 'puente id_metric->instancia');
+my $cnts = read_source($mh, $CNT_SQL, 'diccionario de contadores');
 $mh->disconnect;
 
 my $res  = resumen($rows);
@@ -465,10 +539,12 @@ my $resm = resumen_map($maps);
 vlog("roles: $res");
 vlog("mapa:  $resm");
 
+
 if ($o{'dry-run'}) {
    print ts()." [sync] DRY-RUN, no se escribe nada\n";
    print ts()." [sync] roles: $res\n";
    print ts()." [sync] mapa:  $resm\n";
+   print ts()." [sync] contadores: ".scalar(@$cnts)." subtypes COUNTER\n";
    exit 0;
 }
 
@@ -480,8 +556,19 @@ my $ph = connect_pg();
 # (LEFT JOIN) mostrandolas como deuda de cobertura.
 my ($prev,  $n)  = publish($ph, 'sem_role_lookup', \@DST_COLS, $rows, $o{'min-rows'});
 my ($prevm, $nm) = publish($ph, 'sem_metric_map',  \@MAP_COLS, $maps, $o{'min-rows'});
+
+# El diccionario de contadores va aparte: solo anade, nunca borra. Ver
+# publish_dict() y REV-SEM-09.
+my ($prevc, $nc) = publish_dict($ph, 'sem_counter_dict', $cnts);
 $ph->disconnect;
 
 print ts()." [sync] roles: $prev -> $n filas | $res\n";
 print ts()." [sync] mapa:  $prevm -> $nm filas | $resm\n";
+print ts()." [sync] contadores: $prevc subtypes, $nc nuevos\n";
+if ($nc > 0) {
+   # Un subtype nuevo significa que hasta ahora se cargaba CRUDO. La columna
+   # 'desde' de sem_counter_dict marca la frontera.
+   print ts()." [sync] AVISO: $nc subtype(s) COUNTER nuevos. Lo cargado antes de "
+        ."ahora para esos subtypes son valores CRUDOS, no tasas. Ver REV-SEM-09.\n";
+}
 exit 0;

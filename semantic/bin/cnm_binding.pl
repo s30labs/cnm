@@ -115,6 +115,17 @@ my %existing;   # "instance_id|role_id" -> {confidence,is_primary,weight}
   }
 }
 
+# 2d-bis. capacidad por instancia (REV-SEM-08)
+#   Una metrica de saturacion SIN capacidad no aporta al informe: sin total no
+#   hay porcentaje. Con capacidad, si aporta aunque no alerte nunca.
+my %inst_capacity;
+{
+  my $q=$dbh->prepare("SELECT instance_id FROM sem_instance
+                        WHERE capacity IS NOT NULL AND valid_to IS NULL");
+  $q->execute;
+  while (my ($iid)=$q->fetchrow_array){ $inst_capacity{$iid}=1; }
+}
+
 # 2e. métricas activas por instancia: instance_id -> [{subtype,watch,c_label,label}]
 #     (para importancia y extracción de código)
 my %inst_metrics;
@@ -134,12 +145,29 @@ my %inst_metrics;
 # 3. resolver cada instancia viva -> rol + signal_class
 # ---------------------------------------------------------------------------
 sub es_importante {
-  my ($mets)=@_;
+  my ($mets,$iid)=@_;
   for my $m (@$mets){
     return 1 if defined $m->{watch} && $m->{watch} ne '0' && $m->{watch} ne '';
     return 1 if $m->{subtype}=~/^(disp_icmp|mon_|w_mon_)/;
     # código KPI = declaración humana explícita de relevancia de negocio
     return 1 if extraer_codigo($m->{c_label}) || extraer_codigo($m->{label});
+    # CAPACIDAD (REV-SEM-08). Una metrica de SATURACION con capacidad conocida
+    # es relevante aunque NO alerte: mide el consumo de un recurso finito, y eso
+    # es exactamente lo que necesita el informe de capacidad.
+    #
+    # Sin este criterio quedaban fuera 1.198 interfaces de red con capacidad ya
+    # resuelta por el poller: no tienen monitor, no son sondas de disponibilidad
+    # y no llevan codigo de KPI, asi que ninguna de las tres reglas anteriores
+    # las cogia.
+    #
+    # Entran con weight=0 -lo asigna el reparto por signal_class-, asi que
+    # aparecen en el informe SIN afectar al estado de salud del rol. Si un enlace
+    # concreto debe pesar, se sube a mano con confidence='human_confirmed', que
+    # este script preserva. Ver PROC-SEM-01.
+    if (defined $iid && $inst_capacity{$iid}) {
+      my $cid = $concept_of{$m->{subtype}} // '';
+      return 1 if ($sig_of{$cid} // '') eq 'saturation';
+    }
   }
   return 0;
 }
@@ -155,7 +183,7 @@ while (my ($iid,$iddev,$subtype,$override)=$iq->fetchrow_array){
   $stat{instancias_vivas}++;
   my $mets=$inst_metrics{$iid}||[];
   # importancia
-  my $imp = es_importante($mets);
+  my $imp = es_importante($mets,$iid);
   $stat{importantes}++ if $imp;
   next unless $imp;   # v1: solo importantes (política acordada)
 

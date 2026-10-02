@@ -59,6 +59,38 @@ sub trace { logmsg(L_TRACE, @_) }
 my $OID_IF_SPEED     = '.1.3.6.1.2.1.2.2.1.5';      # ifSpeed      (bps,  Gauge32)
 my $OID_IF_HIGHSPEED = '.1.3.6.1.2.1.31.1.1.1.15';  # ifHighSpeed  (Mbps, Gauge32)
 my $OID_IF_ALIAS     = '.1.3.6.1.2.1.31.1.1.1.18';  # ifAlias      (DisplayString)
+my $OID_IF_TYPE      = '.1.3.6.1.2.1.2.2.1.3';      # ifType       (IANAifType)
+
+# ifType -> kind. Solo se nombran los que hay que DISTINGUIR; el resto cae en
+# 'other'. El objetivo no es catalogar IANAifType entero, sino separar las
+# interfaces fisicas de las que no representan un enlace real.
+#
+# Sin esto, el informe de capacidad listaba loopbacks al 206 % de ocupacion:
+# 'lo' no es un enlace, y su ifSpeed de 10 Mbps es un valor por defecto del
+# agente, no una velocidad.
+my %IF_TYPE_KIND = (
+    6   => 'ethernet',      # ethernetCsmacd
+    117 => 'ethernet',      # gigabitEthernet
+    62  => 'ethernet',      # fastEther
+    69  => 'ethernet',      # fastEtherFX
+    7   => 'physical',      # iso88023Csmacd
+    9   => 'physical',      # iso88025TokenRing
+    15  => 'physical',      # fddi
+    23  => 'ppp',
+    22  => 'serial',        # propPointToPointSerial
+    32  => 'wan',           # frameRelay
+    39  => 'wan',           # sonet
+    77  => 'wan',           # lapd
+    166 => 'wan',           # mpls
+    24  => 'loopback',      # softwareLoopback   <- NO es un enlace
+    53  => 'virtual',       # propVirtual
+    131 => 'tunnel',
+    150 => 'virtual',       # mplsTunnel
+    161 => 'aggregate',     # ieee8023adLag
+    135 => 'vlan',          # l2vlan
+    136 => 'vlan',          # l3ipvlan
+    1   => 'other',
+);
 use constant IF_SPEED_MAX => 4294967295;            # ifSpeed saturated -> use ifHighSpeed
 
 # ============================================================================
@@ -84,7 +116,8 @@ my %RESOLVERS = (
             my $iid = shift;
             return ( ifhs  => "$OID_IF_HIGHSPEED.$iid",
                      ifs   => "$OID_IF_SPEED.$iid",
-                     alias => "$OID_IF_ALIAS.$iid" );
+                     alias => "$OID_IF_ALIAS.$iid",
+                     iftyp => "$OID_IF_TYPE.$iid" );
         },
         compute => sub {
             my %v = @_;
@@ -93,15 +126,22 @@ my %RESOLVERS = (
             my $info = $v{alias};
             $info = '' unless defined $info;
             $info =~ s/^\s+|\s+$//g;
+            # kind: que ES esta interfaz, no cuanto mueve. Permite excluir del
+            # informe lo que no es un enlace real sin depender de nombres como
+            # 'lo' o 'vSwitch0', que varian entre sistemas operativos.
+            my $kind;
+            if (defined $v{iftyp} && $v{iftyp} =~ /^\d+$/) {
+                $kind = $IF_TYPE_KIND{ $v{iftyp} } || 'other';
+            }
             my $hs = $v{ifhs};
             my $s  = $v{ifs};
             # ifHighSpeed (Mbps) is preferred and handles speeds > 4 Gbps.
-            return ($hs * 1_000_000, 'ifHighSpeed', $info)
+            return ($hs * 1_000_000, 'ifHighSpeed', $info, $kind)
                 if defined $hs && $hs =~ /^\d+$/ && $hs > 0;
             # Fallback to ifSpeed (bps); ignore the saturated sentinel value.
-            return ($s, 'ifSpeed', $info)
+            return ($s, 'ifSpeed', $info, $kind)
                 if defined $s && $s =~ /^\d+$/ && $s > 0 && $s != IF_SPEED_MAX;
-            return (undef, undef, $info);   # no capacity, but alias may still exist
+            return (undef, undef, $info, $kind);   # no capacity, but alias may still exist
         },
     },
     # SNMP resolvers for other capacity concepts would go here, keyed by concept.
@@ -244,8 +284,16 @@ sub fetch_device_snmp {
 #              $info_src. The caller sets $write_info false when the current
 #              source is 'user', so user-provided text is never overwritten.
 sub update_instance {
-    my ($dbh, $instance_id, $cap, $cap_src, $write_info, $info, $info_src, $dry) = @_;
+    my ($dbh, $instance_id, $cap, $cap_src, $write_info, $info, $info_src, $kind, $dry) = @_;
     my (@set, @bind);
+    # instance_kind: QUE ES la instancia, independiente de su capacidad. Se
+    # escribe siempre que el resolver lo determine, porque no cambia con el uso
+    # -una interfaz no deja de ser un loopback- y sirve para excluir del informe
+    # lo que no representa un recurso real.
+    if (defined $kind) {
+        push @set, 'instance_kind = ?';
+        push @bind, $kind;
+    }
     if (defined $cap) {
         push @set, 'capacity = ?', 'capacity_source = ?', 'capacity_polled_at = NOW()';
         push @bind, $cap, $cap_src;
@@ -364,7 +412,7 @@ sub process_device {
         $stats->{instances}++;
         my $it = $pl->{item};
         my %by_label = map { $_ => $vals->{ $pl->{labels}{$_} } } keys %{ $pl->{labels} };
-        my ($cap, $src, $info) = $pl->{resolver}{compute}->(%by_label);
+        my ($cap, $src, $info, $kind) = $pl->{resolver}{compute}->(%by_label);
 
         # Capacity (may be undeterminable; that is fine, alias can still apply).
         if (defined $cap) { $stats->{updated}++; }
@@ -388,13 +436,15 @@ sub process_device {
         }
         $stats->{info_captured}++ if $write_info && defined $info && $info ne '';
 
-        if (defined $cap || $write_info) {
+        $stats->{kind_captured}++ if defined $kind;
+
+        if (defined $cap || $write_info || defined $kind) {
             info('instance_id=%s %s -> capacity=%s (%s) info=%s',
                  $it->{instance_id}, $it->{canonical_id},
                  (defined $cap ? $cap : 'n/a'), (defined $src ? $src : '-'),
                  ($user_held ? '[user-kept]' : (defined $info && $info ne '' ? "'$info'" : '-')));
             update_instance($dbh, $it->{instance_id}, $cap, $src,
-                            $write_info, $info, $info_src, $opt->{dry_run});
+                            $write_info, $info, $info_src, $kind, $opt->{dry_run});
         }
     }
 }
@@ -485,6 +535,7 @@ sub main {
                                        $stats{updated}     || 0;
     printf "  Not determinable      : %d\n", $stats{no_capacity}    || 0;
     printf "  instance_info captured: %d\n", $stats{info_captured}  || 0;
+    printf "  instance_kind captured: %d\n", $stats{kind_captured}  || 0;
     printf "  Skipped (no resolver) : %d\n", $skipped_total;
     return ($stats{dev_unreachable} || $stats{no_capacity}) ? 1 : 0;
 }
