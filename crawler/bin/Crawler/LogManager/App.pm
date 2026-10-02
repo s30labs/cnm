@@ -20,6 +20,7 @@ use YAML;
 use Time::Local;
 use Schedule::Cron;
 use IO::CaptureOutput qw/capture/;
+#use Logger;
 use Crawler::LogManager::App::SAP;
 use Crawler::LogManager::App::Email;
 
@@ -771,6 +772,7 @@ my ($self,$lapse,$task)=@_;
             if ($child==0) {
 					
 					$0="crawler-app-runner-$range.$type.$lapse";	
+					Logger::init_log();          # etiqueta de syslog del hijo
 					my $t1=time();			
                my $child_dbh=$store->fork_db($dbh);
 					$self->dbh($child_dbh);
@@ -961,9 +963,7 @@ $self->log('debug',"get_app_data:: app=$xx");
 
 	# External cmd captura 
 	else {
-		my $t0_cmd = time();
 	   capture sub { $rc=system($cmd); } => \$stdout, \$stderr;
-		$cmd_secs = time() - $t0_cmd;
 
    	if ($stderr ne '') {
 
@@ -979,6 +979,7 @@ $self->log('debug',"get_app_data:: app=$xx");
 	}
 
 	my $t1_end = time();
+	$cmd_secs = $t1_end - $t1;
    #--------------------------------------------
 	if ($t1_end-$t1>300) {
       $store->close_db($dbh);
