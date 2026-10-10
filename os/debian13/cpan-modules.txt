@@ -250,7 +250,7 @@ Excel::Writer::XLSX	1.12
 #HTML::TableExtract	2.15	---> No detecta la instalacion (Necesario en un crawler-app)
 HTML::TableExtract	2.15
 YAML						1.31
-#Filesys::SmbClient	3.2
+Filesys::SmbClient	3.2
 HTML::Strip				2.12
 Mail::IMAPClient		3.43
 Net::LDAP				0.68
@@ -303,3 +303,4 @@ Exporter::Tiny			1.006002
 List::MoreUtils::XS	0.430
 Regexp::IPv6			0.03
 Cpanel::JSON::XS		4.37
+Net::FTPSSL				0.42
