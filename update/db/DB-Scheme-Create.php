@@ -528,13 +528,19 @@ $DBScheme = array(
 
    'metric_analysis_data'=>array( //Tabla metric_analysis_data
       'id_metric'=>"int(11) NOT NULL",
-		'ts'=>"int(11) NOT NULL default '0'",
-		'kpi'=>"int(11) NOT NULL default '0'",
-		'v'=>"float NOT NULL",
-		'vref'=>"float NOT NULL default '0'",
-      'PRIMARY KEY  (`id_metric`,`ts`,`kpi`)'=>''
+      'tsmax'=>"int(11) NOT NULL default '0'",
+      'kpi'=>"int(11) NOT NULL default '0'",
+      'vmax'=>"float NOT NULL",
+      'vref'=>"float NOT NULL default '0'",
+      'vmin'=>"float NOT NULL",
+      'vmean'=>"float NOT NULL",
+      'vmedian'=>"float NOT NULL",
+      'tsmin'=>"int(11) NOT NULL default '0'",
+      'tupper'=>"int(11) NOT NULL default '0'",
+      'tlower'=>"int(11) NOT NULL default '0'",
+      'tstore'=>"int(11) NOT NULL default '0'",
+      'PRIMARY KEY  (`id_metric`,`tsmax`,`kpi`)'=>''
    ),
-
 
 //--------------------------
    'cfg_monitor_analysis'=>array( //Tabla cfg_monitor_analysis
