@@ -1,11 +1,63 @@
 #!/bin/bash
 #-------------------------------------------------------------------------------------------
-# Instalacion del plugin /opt/cnm-sp/cnm-semantic
+# Instalacion de la capa semantica de CNM · v1.1 · 10-oct-2026
+#
+# Se instala con el mecanismo de plugins de db-manage.php, pero NO vive en
+# /opt/cnm-sp: forma parte del nucleo del producto, no de los plugins de cliente.
+#
+# Debe ejecutarse DESPUES del db-manage.php estandar.
+#
+#-------------------------------------------------------------------------------------------
+# QUE CAMBIA RESPECTO A LA v1.0, Y POR QUE
+#
+# La v1.0 llamaba a:
+#
+#     /update/db/db-manage.php -p $BASE
+#
+# una ruta absoluta DESDE LA RAIZ del sistema de ficheros. En el laboratorio
+# donde se valido el 24-sep-2026 eso resolvia porque habia un enlace /update
+# creado a mano para esa prueba, y que NO forma parte de ninguna instalacion de
+# CNM. En un appliance de verdad no existe, y el install muere con:
+#
+#     /opt/cnm/update/cnm-semantic/install: line 15: /update/db/db-manage.php:
+#     No such file or directory            -> rc=127   (medido)
+#
+# Es decir: la validacion de RUNBOOK-MIGRACION-CNMPRD02 §1.5 era correcta sobre
+# el ESQUEMA y a la vez no ejercitaba la fontaneria del install tal como va a
+# correr en el destino. Las dos cosas a la vez.
+#
+# El arreglo no es poner /opt/cnm a mano —seria el mismo error con otra ruta—:
+# es DERIVAR la ruta del propio guion. El plugin vive dentro de update/, asi que
+# db-manage es su hermano ../db/db-manage.php, y eso es cierto en cualquier
+# arbol, montado donde sea, con enlaces o sin ellos.
 #-------------------------------------------------------------------------------------------
 
-[ -f /opt/cnm-sp/cnm-semantic/pre-install ] && { /opt/cnm-sp/cnm-semantic/pre-install || exit $?; }
+set -u
 
-/update/db/db-manage.php -p /opt/cnm-sp/cnm-semantic || exit $?
+# Ruta real de este guion, resolviendo enlaces. De aqui sale todo lo demas.
+BASE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd) || {
+   echo "[ERROR] no puedo resolver mi propia ruta"; exit 2; }
 
-[ -f /opt/cnm-sp/cnm-semantic/post-install ] && exec /opt/cnm-sp/cnm-semantic/post-install
+# db-manage.php es el hermano del directorio del plugin: <raiz>/update/db/
+DBM="$BASE/../db/db-manage.php"
+
+if [ ! -f "$DBM" ]; then
+   echo "[ERROR] no encuentro db-manage.php."
+   echo "        Esperado en: $DBM"
+   echo "        Este guion esta en: $BASE"
+   echo "        El plugin tiene que vivir en <raiz-de-cnm>/update/cnm-semantic/,"
+   echo "        porque busca db-manage como ../db/db-manage.php."
+   exit 2
+fi
+
+[ -f "$BASE/pre-install" ] && { "$BASE/pre-install" || exit $?; }
+
+# Se invoca por su shebang si es ejecutable, y por php si no lo es.
+if [ -x "$DBM" ]; then
+   "$DBM" -p "$BASE" || exit $?
+else
+   php "$DBM" -p "$BASE" || exit $?
+fi
+
+[ -f "$BASE/post-install" ] && exec "$BASE/post-install"
 exit 0
