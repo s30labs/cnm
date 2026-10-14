@@ -1,0 +1,42 @@
+---
+# =============================================================================
+# Lo que va CIFRADO con ansible-vault PARA ESTE ROL. Este fichero es el
+# EJEMPLO: no se usa.
+#
+#   ansible-vault create group_vars/cnm/vault.yml
+#
+# y se rellena con estas TRES claves. El rol falla con un mensaje claro si
+# alguna no esta definida, en vez de escribir un fichero de credenciales
+# incompleto —que es peor, porque cnm-semantic-daily.sh se niega a arrancar
+# sin decir cual falta—.
+#
+# ----------------------------------------------------------------------------
+# LO QUE NO ESTA AQUI, Y NO DEBE ESTAR
+# ----------------------------------------------------------------------------
+# La contrasena de 'my_user' (hoy el root de MySQL) NO se declara en este rol.
+# La define y la posee el ROL mysql de la instalacion de CNM, en la variable
+# db_root_password (roles/mysql/templates/my.cnf.root.j2:3). Este rol la
+# consume a traves de sem_my_pass, en defaults/main.yml.
+#
+# Tener dos fuentes de la misma contrasena es un defecto, no una comodidad:
+# hay dos sitios donde cambiarla, y el dia que alguien cambie uno la cadena
+# diaria deja de arrancar sin decir por que. Si el assert de tasks/main.yml
+# se queja de db_root_password, la solucion es que la variable este en el
+# ambito del inventario, NO copiarla aqui.
+#
+# (Que 'my_user' sea root sigue siendo deuda: una cadena que escribe en 12
+#  tablas no necesita root. Es el punto 4.24 de claude/DOC-CNM-01, posterior
+#  al corte.)
+# =============================================================================
+
+# Usuario de SOLO LECTURA para la replica a Timescale. El rol crea la cuenta
+# con esta contrasena y con los 14 GRANT de SELECT.
+# Ponerle una NUEVA: la actual quedo expuesta el 17-sep-2026 (DOC-SEM-01 F15,
+# DOC-CNM-01 punto 1.9) y el corte es el momento barato de rotarla, porque hay
+# que editar igualmente semantic.credentials y /opt/cnm-local/cnm-hourly.
+sem_vault_ro_pass: "CAMBIAR"
+
+# Usuario de carga en Timescale (PostgreSQL, 192.168.57.198). Esa cuenta vive
+# en OTRO servidor: el rol no la crea, solo escribe sus credenciales aqui.
+sem_vault_pg_user: cnm_loader
+sem_vault_pg_pass: "CAMBIAR"

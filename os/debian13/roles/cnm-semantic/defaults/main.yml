@@ -1,0 +1,141 @@
+---
+# =============================================================================
+# cnm-semantic · valores por defecto
+#
+# La capa semantica es parte de la instalacion de CNM. El CODIGO va por git en
+# /opt/cnm/semantic/bin y /opt/cnm/crawler/bin; el ESQUEMA lo converge el
+# plugin /opt/cnm/update/cnm-semantic/install. Este rol se ocupa SOLO de lo que
+# queda fuera de /opt/cnm: el directorio de datos del cliente, los dos ficheros
+# de configuracion, la cuenta de lectura en MySQL y la rotacion del log.
+#
+# Fuente de cada valor: /opt/data/semantic/semantic.conf de cnmprd02 (7-oct-2026).
+# =============================================================================
+
+#--- rutas -------------------------------------------------------------------
+sem_data_dir: /opt/data/semantic
+sem_conf: "{{ sem_data_dir }}/semantic.conf"
+sem_credentials: "{{ sem_data_dir }}/semantic.credentials"
+sem_log: /var/log/cnm-semantic-daily.log
+sem_crawler_bin: /opt/cnm/crawler/bin
+
+#--- vocabulario geografico (especifico del cliente) ------------------------
+# Solo paises a los que el cliente DA SERVICIO. Ni regiones ni continentes:
+# el validador rechaza cualquier valor fuera de esta lista.
+sem_geography_vocab: "WW,ES,FR,US,DE,PT,MX,IT"
+
+# Patron SQL LIKE sobre devices.type que identifica un servidor.
+# '%' = no filtrar por tipo (la lista blanca ISO-2 filtra igualmente).
+sem_server_type_like: "%"
+
+# Id del campo de usuario de dispositivo donde se guarda la geografia.
+# NO es fijo entre instalaciones: depende del orden de creacion de los campos
+# en el GUI. Comprobar con:
+#   SELECT id, descr FROM devices_custom_types ORDER BY id;
+sem_geography_field_id: 8
+
+# Lista blanca mas restrictiva que sem_geography_vocab. Vacia = usar el
+# vocabulario general quitando WW.
+sem_iso2_whitelist: ""
+
+#--- base de datos de CNM ----------------------------------------------------
+# db_host/db_port los usan las herramientas BAJO DEMANDA (por TCP).
+# La cadena diaria NO los aplica: conecta por socket a 'localhost'.
+sem_db_name: onm
+sem_db_host: 127.0.0.1
+sem_db_port: 3306
+
+#--- maestro de roles --------------------------------------------------------
+sem_master_basename: cnm_roles_maestro
+
+#--- cadena diaria -----------------------------------------------------------
+sem_code_role_map: "{{ sem_data_dir }}/cnm_code_role_map.csv"
+sem_pg_host: 192.168.57.198
+sem_pg_db: obs
+
+#--- DE DONDE SALEN LAS VARIABLES DE ESTE ROL --------------------------------
+# Ansible carga por su cuenta SOLO dos ficheros de un rol: defaults/main.yml y
+# vars/main.yml. Cualquier otro hay que incluirlo a mano, asi que la ruta la fija
+# la tarea include_vars de tasks/main.yml. NO hay deteccion automatica de nada.
+#
+#   1. este fichero                  -> valores por defecto, en claro
+#   2. /cfg/cnm_vars.yml             -> variables de ESTE appliance (include_vars)
+#   3. {{ sem_vault_file }}          -> las TRES credenciales propias, CIFRADO
+#
+# Precedencia: include_vars (16) gana a defaults (2), y set_fact (17) gana a
+# include_vars. Por eso la via 2 de la contrasena de root, que es un set_fact,
+# puede pisar lo que venga de los includes, que es lo que se busca.
+
+# Vault con las tres credenciales propias del rol: ro_pass, pg_user y pg_pass.
+#
+# OJO CON LA RUTA, no es un detalle: va FUERA de /opt/cnm/os/debian13, que es el
+# repositorio de git del PRODUCTO, el mismo que se clona en todas las
+# instalaciones. Las credenciales de un cliente no deben vivir ahi ni cifradas:
+# el dia que alguien haga 'git add -A', viajan. /cfg es configuracion del
+# appliance y no esta versionada.
+#
+# Se crea con:   ansible-vault create /cfg/semantic-vault.yml   (y chmod 0600)
+# Se comprueba:  head -1 /cfg/semantic-vault.yml  -> $ANSIBLE_VAULT;1.1;AES256
+#
+# Si /cfg/cnm_vars.yml estuviera cifrado, las tres claves pueden ir ahi y este
+# fichero no hace falta: la tarea que lo incluye esta guardada por un 'stat'.
+sem_vault_file: /cfg/semantic-vault.yml
+
+#--- cuenta de ESCRITURA de la cadena diaria ---------------------------------
+# OJO: no hay aqui ninguna contrasena, y es a proposito.
+#
+# 'my_user' es hoy el root de MySQL. Su contrasena NO la declara este rol: la
+# pone la instalacion de CNM, y llega por una de dos vias (ver tasks/main.yml):
+#
+#   1. db_root_password, que viene por --extra-vars y solo existe DURANTE la
+#      ejecucion de la instalacion (group_vars/all:5).
+#   2. /root/.my.cnf, que es donde el rol mysql la deja escrita. Es la unica
+#      fuente PERSISTENTE en el appliance, y la que vale si este rol se
+#      ejecuta solo —que es lo que pasa el dia del corte—.
+#
+# VALIDADO el 11-oct-2026 en wwcnmprd03: la via 2 funciona (leer el fichero,
+# extraer 'password=' y pasar el assert).
+#
+# Declarar aqui una tercera copia es el defecto que este bloque corrige: tres
+# sitios donde cambiarla, y el dia que alguien cambie uno la cadena diaria deja
+# de arrancar sin decir por que.
+#
+# El 'default('')' no es un valor por defecto de verdad: deja la variable vacia
+# para que tasks/main.yml sepa que tiene que ir a /root/.my.cnf, en vez de
+# romper con un error de plantilla de Jinja.
+sem_my_user: root
+sem_my_pass: "{{ db_root_password | default('') }}"
+sem_my_cnf: /root/.my.cnf
+
+#--- cuenta de solo lectura en MySQL ----------------------------------------
+# NO viaja en el volcado de onm: los usuarios viven en mysql.user. Hay que
+# crearla en la maquina nueva o la replica a Timescale no conecta.
+sem_ro_user: cnm_ts_ro
+sem_ro_host: localhost
+
+# Las 14 tablas que la capa semantica lee de CNM. Tomadas del SHOW GRANTS de
+# cnmprd02 (7-oct-2026): 8 del nucleo + 6 sem_*. Ni una mas.
+#
+# OJO CON EL ORDEN DE EJECUCION: seis de estas tablas son sem_*, y las crea el
+# plugin. MEDIDO el 11-oct-2026 en MariaDB 11.8: un GRANT sobre una tabla que no
+# existe da ERROR 1146. Es decir, este rol tiene que ir DESPUES del plugin
+# (pasos C5 -> C6 del runbook del corte), y no es una precaucion: es un
+# requisito. En una instalacion desde cero con el playbook completo, donde nadie
+# instala el plugin, la tarea de la cuenta FALLA.
+sem_ro_tablas:
+  - devices
+  - devices_custom_data
+  - devices_custom_types
+  - metrics
+  - alerts
+  - alerts_store
+  - alert_type
+  - cfg_monitor_snmp
+  - sem_instance
+  - sem_binding_role
+  - sem_business_role
+  - sem_metric_binding
+  - sem_metric_concept
+  - sem_canonical_concept
+
+#--- rotacion del log --------------------------------------------------------
+sem_logrotate_semanas: 12

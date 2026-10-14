@@ -1,0 +1,65 @@
+{#- Plantilla construida sobre el semantic.conf de cnmprd02 (7-oct-2026). El
+    orden y los comentarios se conservan a proposito: este fichero lo lee una
+    persona cuando algo no cuadra. Ojo: en semantic.conf el comentario es '#'
+    y comenta hasta fin de linea. -#}
+# =============================================================================
+# semantic.conf - configuracion de la capa semantica de ESTA instalacion.
+#
+# GENERADO POR ANSIBLE (rol cnm-semantic). No editar a mano.
+#
+# Este fichero contiene lo ESPECIFICO DEL CLIENTE. El codigo (validador,
+# generador, col8) es comun a todas las instalaciones y NO lleva incrustados
+# paises, filtros ni nombres de BD.
+#
+# Formato: "clave = valor", '#' comentario hasta fin de linea, listas por comas.
+# =============================================================================
+
+# --- Vocabulario geografico ------------------------------------------------
+# Codigos ISO-2 admitidos para 'geography', mas 'WW' (worldwide / multi-pais).
+# El validador rechaza cualquier valor fuera de esta lista: es lo que evita que
+# se cuelen variantes ('SP' por 'ES', 'EU', 'LATAM'...) que romperian el filtrado.
+# REGLA: solo paises a los que el cliente DA SERVICIO. Ni regiones ni continentes.
+geography_vocab = {{ sem_geography_vocab }}
+
+# --- Deteccion de servidores (script col8) ---------------------------------
+# Patron SQL LIKE sobre devices.type que identifica un servidor.
+# '%' no filtra por tipo; la lista blanca ISO-2 filtra igualmente.
+server_type_like = {{ sem_server_type_like }}
+
+# Id del campo de usuario de dispositivo donde se guarda la geografia.
+# NO es fijo entre instalaciones: depende del orden en que se crearon los
+# campos en el GUI. Comprobar DESPUES de restaurar la base:
+#   SELECT id, descr FROM devices_custom_types ORDER BY id;
+geography_field_id = {{ sem_geography_field_id }}
+
+# Lista blanca de codigos ISO-2 admitidos al derivar col8 del nombre del
+# servidor. Vacia = usar geography_vocab quitando WW.
+iso2_whitelist = {{ sem_iso2_whitelist }}
+
+# --- Base de datos de CNM --------------------------------------------------
+# Las credenciales NO van aqui: se pasan por linea de comandos (--db-user /
+# --db-pass) o por el ~/.my.cnf del usuario que ejecuta.
+db_name = {{ sem_db_name }}
+db_host = {{ sem_db_host }}
+db_port = {{ sem_db_port }}
+
+# --- Rutas -----------------------------------------------------------------
+# Directorio de DATOS del cliente (maestro, historico, backup, log).
+# Separado del codigo (/opt/cnm/semantic) para que actualizar el producto
+# nunca pueda tocar el trabajo semantico del cliente.
+data_dir = {{ sem_data_dir }}
+
+# Nombre base del maestro (sin extension). Se usa para .csv y .xlsx.
+master_basename = {{ sem_master_basename }}
+
+# --- Cadena diaria (cnm-semantic-daily.sh, REV-SEM-12) ----------------------
+# Lanzada desde cnm-daily. Orden: mirror -> reconcile -> capacity_poller ->
+# binding -> cnm_ts_sync_semantics. Log propio con duracion y salida de cada paso.
+# Las credenciales NO van aqui: van en credentials_file (root, permisos 600).
+# MySQL se usa por 'localhost' (socket); db_host no se aplica a esta cadena.
+code_role_map      = {{ sem_code_role_map }}
+pg_host            = {{ sem_pg_host }}
+pg_db              = {{ sem_pg_db }}
+credentials_file   = {{ sem_credentials }}
+semantic_daily_log = {{ sem_log }}
+crawler_bin        = {{ sem_crawler_bin }}

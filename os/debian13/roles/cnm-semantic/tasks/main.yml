@@ -1,0 +1,233 @@
+---
+# =============================================================================
+# cnm-semantic · v1.3
+#
+# Lo que este rol NO hace, a proposito:
+#   - el esquema: lo converge /opt/cnm/update/cnm-semantic/install (paso C5 del
+#     corte, RUNBOOK-CORTE-CNMPRD02; RUNBOOK-MIGRACION-CNMPRD02 §4.1)
+#   - el codigo: va por git en /opt/cnm/semantic/bin y /opt/cnm/crawler/bin
+#   - la cuenta cnm_loader: vive en PostgreSQL, en otro servidor
+#   - /opt/cnm-local: es del cliente (paso A13 del runbook del corte)
+#   - los datos del cliente (maestro, crosswalk, sitemap): viajan empaquetados.
+#     El rol NO los escribe; solo comprueba que estan (tarea 6).
+#
+# Y una propiedad que conviene preservar al tocarlo: NINGUNA tarea ejecuta un
+# command, un shell, un cron ni un service. Los modulos usados son file,
+# template, slurp, set_fact, stat, assert e include_vars, mas el mysql_user de
+# la cuenta de lectura, que va por socket Unix local. Este rol escribe
+# configuracion: no arranca nada y no planifica nada.
+# =============================================================================
+
+#--- 0 · de donde salen las variables ---------------------------------------
+# Ansible carga solo defaults/main.yml y vars/main.yml. Cualquier otro fichero
+# hay que incluirlo a mano, y es ESTA tarea la que fija la ruta: no existe
+# ninguna deteccion automatica, ni del vault ni de nada.
+#
+# Son dos ficheros, y la diferencia importa:
+#
+#   /cfg/cnm_vars.yml      variables de este appliance. Si falta, es un error de
+#                          instalacion y se para aqui: la ejecucion no tendria
+#                          sentido sin ellas.
+#   {{ sem_vault_file }}   las tres credenciales propias, CIFRADO con
+#                          ansible-vault. Va GUARDADO por un 'stat': si falta,
+#                          se salta y el assert de mas abajo explica que falta y
+#                          donde ponerlo. Sin el 'stat', include_vars aborta con
+#                          un error de Ansible en lugar de con el nuestro.
+- name: Cargar las variables de este appliance
+  ansible.builtin.include_vars:
+    file: /cfg/cnm_vars.yml
+  tags: cnm-semantic
+
+- name: Comprobar si existe el vault de credenciales
+  ansible.builtin.stat:
+    path: "{{ sem_vault_file }}"
+  register: sem_vault_stat
+  tags: cnm-semantic
+
+- name: Cargar el vault de credenciales
+  ansible.builtin.include_vars:
+    file: "{{ sem_vault_file }}"
+  no_log: true
+  when: sem_vault_stat.stat.exists
+  tags: cnm-semantic
+
+#--- 1 · el directorio de datos y sus tres subdirectorios --------------------
+- name: Directorio de datos de la capa semantica
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ sem_data_dir }}"
+    - "{{ sem_data_dir }}/log"
+    - "{{ sem_data_dir }}/backup"
+    - "{{ sem_data_dir }}/historico"
+  tags: cnm-semantic
+
+#--- 2 · configuracion ------------------------------------------------------
+# 0640, que es el modo real en cnmprd02. REF-SEM-05 §3.2 dice 644: el documento
+# esta mal y queda corregido.
+- name: semantic.conf
+  ansible.builtin.template:
+    src: semantic.conf.j2
+    dest: "{{ sem_conf }}"
+    owner: root
+    group: root
+    mode: "0640"
+  tags: cnm-semantic
+
+#--- 3 · credenciales -------------------------------------------------------
+# Se comprueban ANTES de escribir: un fichero de credenciales a medias es peor
+# que ninguno, porque cnm-semantic-daily.sh se niega a arrancar sin decir cual
+# de las seis claves falta.
+#
+# LA CONTRASENA DE ROOT DE MYSQL TIENE DOS VIAS, Y NINGUNA ES DE ESTE ROL:
+#
+#   1. db_root_password, que la instalacion de CNM pasa por --extra-vars:
+#        ansible-playbook -c local -i /cfg/ansible.hosts cnm.yml \
+#          --extra-vars="db_root_password=xxx"
+#      (documentado en group_vars/all:5). Solo existe DURANTE esa ejecucion.
+#
+#   2. /root/.my.cnf, que es donde el rol mysql la DEJA ESCRITA
+#      (roles/mysql/templates/my.cnf.root.j2). Es la unica fuente persistente
+#      en el appliance, y por tanto la que vale si este rol se ejecuta solo,
+#      que es lo que pasa el dia del corte (paso C6).
+#
+# Se prefiere la 1 cuando esta —es la intencion explicita de quien instala— y
+# se cae a la 2 cuando no. Lo que NO se hace es declarar una tercera copia.
+#
+# VALIDADO el 11-oct-2026 en wwcnmprd03: la via 2 funciona de punta a punta.
+- name: Leer {{ sem_my_cnf }} si no viene db_root_password
+  ansible.builtin.slurp:
+    src: "{{ sem_my_cnf }}"
+  register: sem_my_cnf_raw
+  no_log: true
+  when: sem_my_pass | length == 0
+  tags: cnm-semantic
+
+- name: Tomar la contrasena de root de {{ sem_my_cnf }}
+  ansible.builtin.set_fact:
+    sem_my_pass: >-
+      {{ sem_my_pass_candidatos | first | regex_replace('\r+$', '') }}
+  vars:
+    sem_my_pass_candidatos: >-
+      {{ (sem_my_cnf_raw.content | b64decode)
+         | regex_findall('(?m)^[ \t]*password[ \t]*=[ \t]*(.*)$') }}
+  no_log: true
+  when:
+    - sem_my_pass | length == 0
+    - not sem_my_cnf_raw.skipped | default(false)
+    - sem_my_pass_candidatos | length > 0
+  tags: cnm-semantic
+
+- name: Comprobar que esta la contrasena de root de MySQL, que NO pone este rol
+  ansible.builtin.assert:
+    that:
+      - sem_my_user | length > 0
+      - sem_my_pass | length > 0
+    fail_msg: >-
+      No hay contrasena de root de MySQL por ninguna de las dos vias. Este rol
+      NO la define: o se pasa db_root_password por --extra-vars, como hace la
+      instalacion de CNM, o tiene que existir {{ sem_my_cnf }} con una linea
+      'password=' (lo escribe el rol mysql). NO crear una copia en el vault de
+      este rol: dos fuentes de la misma contrasena se desincronizan.
+    quiet: true
+  tags: cnm-semantic
+
+# Las dos ultimas comprobaciones NO son redundantes:
+#   - 'length > 0' detecta que falta el vault, o que falta una clave en el.
+#   - '!= CAMBIAR' detecta el caso que mas probablemente ocurra: que alguien
+#     copie vars/vault-ejemplo.yml y se olvide de editarlo. 'CAMBIAR' mide 8
+#     caracteres, asi que SIN esta comprobacion el assert pasa, el rol escribe un
+#     semantic.credentials con 'CAMBIAR' dentro, y el fallo aparece mucho mas
+#     tarde y en otro sitio: al conectar la cadena diaria. Un test que no puede
+#     ponerse en rojo en el caso probable no es un test.
+- name: Comprobar que estan las credenciales propias de la capa semantica
+  ansible.builtin.assert:
+    that:
+      - sem_vault_ro_pass is defined and sem_vault_ro_pass | length > 0
+      - sem_vault_pg_user is defined and sem_vault_pg_user | length > 0
+      - sem_vault_pg_pass is defined and sem_vault_pg_pass | length > 0
+      - sem_vault_ro_pass != 'CAMBIAR'
+      - sem_vault_pg_user != 'CAMBIAR'
+      - sem_vault_pg_pass != 'CAMBIAR'
+    fail_msg: >-
+      Faltan credenciales, o siguen con el valor de ejemplo 'CAMBIAR'. Se
+      esperan en {{ sem_vault_file }}, cifrado con ansible-vault y en modo 0600
+      (o en /cfg/cnm_vars.yml si ese fichero esta cifrado). Son solo tres:
+      sem_vault_ro_pass, sem_vault_pg_user y sem_vault_pg_pass. La contrasena de
+      root de MySQL NO va aqui: la pone el rol mysql y este rol la consume.
+      Crear el vault con:  ansible-vault create {{ sem_vault_file }}
+    quiet: true
+  tags: cnm-semantic
+
+- name: semantic.credentials
+  ansible.builtin.template:
+    src: semantic.credentials.j2
+    dest: "{{ sem_credentials }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  tags: cnm-semantic
+
+#--- 4 · rotacion del log ---------------------------------------------------
+# No existia ninguna. El log lleva la salida completa de cada paso de la cadena.
+- name: Rotacion de {{ sem_log }}
+  ansible.builtin.template:
+    src: logrotate-cnm-semantic.j2
+    dest: /etc/logrotate.d/cnm-semantic
+    owner: root
+    group: root
+    mode: "0644"
+  tags: cnm-semantic
+
+#--- 5 · la cuenta de solo lectura en MySQL ---------------------------------
+# NO viaja en el volcado de onm: los usuarios viven en mysql.user y el corte
+# solo restaura onm. Medido el 7-oct-2026: en wwcnmprd03 no existe ninguna
+# cuenta 'cnm%'.
+#
+# TIENE QUE IR DESPUES DEL PLUGIN, y es un requisito medido, no una precaucion:
+# seis de las 14 tablas son sem_*, y el 11-oct-2026 se comprobo en MariaDB 11.8
+# que un GRANT sobre una tabla inexistente da ERROR 1146. En el corte el orden
+# es C5 (plugin) -> C6 (este rol). En una instalacion desde cero con el playbook
+# completo, donde nadie instala el plugin, esta tarea FALLA: anotado en
+# DOC-CNM-02.
+- name: "Cuenta de lectura {{ sem_ro_user }}@{{ sem_ro_host }} con sus 14 SELECT"
+  community.mysql.mysql_user:
+    name: "{{ sem_ro_user }}"
+    host: "{{ sem_ro_host }}"
+    password: "{{ sem_vault_ro_pass }}"
+    priv: "{{ sem_ro_tablas | map('regex_replace', '^(.*)$', sem_db_name ~ '.\\1:SELECT') | join('/') }}"
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  no_log: true
+  tags: cnm-semantic
+
+#--- 6 · los datos del cliente tienen que estar -----------------------------
+# El rol no los escribe (son del cliente y no los ha visto nadie mas), pero sin
+# los dos primeros la cadena diaria NO arranca: cnm_mirror.pl necesita
+# stable_key_rules.conf (paso 1) y cnm_binding.pl necesita el mapa (paso 4).
+- name: Comprobar los datos del cliente que la cadena necesita
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: sem_datos
+  loop:
+    - "{{ sem_data_dir }}/stable_key_rules.conf"
+    - "{{ sem_code_role_map }}"
+  tags: cnm-semantic
+
+- name: Avisar si falta algun dato del cliente
+  ansible.builtin.assert:
+    that: item.stat.exists
+    fail_msg: >-
+      Falta {{ item.item }}. No lo instala este rol: viaja en el paquete de
+      datos del cliente de /opt/data/semantic (paso C7 del runbook del corte).
+      Sin el, la cadena diaria no arranca a las 05:25.
+    quiet: true
+  loop: "{{ sem_datos.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  tags: cnm-semantic
