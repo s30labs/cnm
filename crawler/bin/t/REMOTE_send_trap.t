@@ -3,7 +3,6 @@ use lib "/opt/crawler/bin";
 use strict;
 use Getopt::Long;
 use Net::SMTP;
-use Inline::Files;
 
 #------------------------------------------------------------------------------
 my $host='localhost';

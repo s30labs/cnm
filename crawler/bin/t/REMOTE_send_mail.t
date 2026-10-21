@@ -70,12 +70,8 @@ if ($smtp->code() > 500) {
 
 my $file_mime='/opt/crawler/bin/test/mime_sample';
 my $mime='';
-if ($mode eq 'clr') {
-	while (<CLRMSG>) { $mime .= $_; }
-}
-else {
-	while (<SETMSG>) { $mime .= $_; }
-}
+if ($mode eq 'clr') { $mime = clr_msg(); }
+else { $mime = set_msg(); }
 
 $mime=~s/xxxxxxxxxx/$from/g;
 
@@ -92,7 +88,10 @@ if ($smtp->code() > 500) {
 
 $smtp->quit;
 
-__SETMSG__
+
+#-------------------------------------------------------------------------------------------
+sub set_msg {
+   my $content = <<'SETMSG';
 Return-path: <sistemas@s30labs.com>
 Envelope-to: sistemas@s30labs.com
 Delivery-date: Tue, 23 Mar 2010 17:23:39 +0100
@@ -115,9 +114,14 @@ ESTO ES UNA PRUEBA DE ALERTA
 compra tinta, agarrao
 </BODY>
 </HTML>
+SETMSG
 
+   return $content;
+}
 
-__CLRMSG__
+#-------------------------------------------------------------------------------------------
+sub clr_msg {
+   my $content = <<'CLRMSG';
 Return-path: <sistemas@s30labs.com>
 Envelope-to: sistemas@s30labs.com
 Delivery-date: Tue, 23 Mar 2010 17:23:39 +0100
@@ -139,4 +143,7 @@ Content-Type: text/html
 ESTO ES UNA PRUEBA DE ALERTA POR MAIL
 </BODY>
 </HTML>
+CLRMSG
 
+   return $content;
+}
