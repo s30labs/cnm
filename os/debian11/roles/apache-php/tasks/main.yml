@@ -121,6 +121,37 @@
   copy: src=php.ini.cli dest=/etc/php/7.4/cli/php.ini  owner=root group=root mode=0644
   tags: apache-php
 
+# Endurecimiento de PHP para Apache, en conf.d y no en php.ini: ver la cabecera
+# de files/php-cnm-hardening.ini. Referencia: DOC-CNM-03 4.43 (M2 y M7).
+- name: PHP Apache hardening (conf.d/99-cnm-hardening.ini)
+  copy: src=php-cnm-hardening.ini dest=/etc/php/7.4/apache2/conf.d/99-cnm-hardening.ini owner=root group=root mode=0644
+  tags: apache-php
+  notify:
+   - restart apache2
+
+# El 23-oct-2026 la mitigacion de PHP2Shell se aplico a mano con este nombre.
+# Su contenido queda dentro de 99-cnm-hardening.ini: se retira para que no
+# haya dos ficheros diciendo lo mismo. En un equipo que no lo tenga, no hace nada.
+- name: Remove manual PHP2Shell mitigation (now in 99-cnm-hardening.ini)
+  file: path=/etc/php/7.4/apache2/conf.d/99-php2shell.ini state=absent
+  tags: apache-php
+  notify:
+   - restart apache2
+
+# Comprueba el valor EFECTIVO con la configuracion que carga Apache, no la del
+# CLI. Falla si php no se ejecuta (rc) y si la directiva no se reconoce
+# (var_export devuelve false): un vacio no puede pasar por correcto.
+# El -d session.save_handler=files NO es parte de lo que se mide: php.ini.apache
+# declara session.save_handler = user, y desde PHP 7.2 el CLI aborta el arranque
+# con ese valor (rc=255, "cannot be set by ini_set()"). Sin el -d, esta tarea
+# fallaria siempre por un motivo ajeno a upload_progress.
+- name: Verify session.upload_progress.enabled is off for Apache
+  shell: PHP_INI_SCAN_DIR=/etc/php/7.4/apache2/conf.d php -d session.save_handler=files -c /etc/php/7.4/apache2/php.ini -r 'var_export(ini_get("session.upload_progress.enabled"));'
+  register: upload_progress
+  changed_when: false
+  failed_when: upload_progress.rc != 0 or upload_progress.stdout not in ["'0'", "''"]
+  tags: apache-php
+
 
 - name: Check for HTTPREQUEST PHP module
   shell: php -i|grep -i 'http support'|wc -l
