@@ -3,13 +3,30 @@
 - include_vars: /cfg/cnm_vars.yml
   tags: apache-php
 
+# Variables propias del cliente, opcionales. /cfg/cnm_vars.yml es de CNM y vale
+# para todos los roles; lo que depende de cada instalacion (hoy, el certificado
+# HTTPS que entrega el departamento de sistemas del cliente) va aparte, en
+# /cfg/client_vars.yml. Si existe, se carga DESPUES y sus valores prevalecen;
+# si no existe, el rol se comporta exactamente como hasta ahora.
+# Referencia: DOC-CNM-03 4.56.
+- name: Check client variables (/cfg/client_vars.yml)
+  stat: path=/cfg/client_vars.yml
+  register: client_vars_file
+  tags: apache-php
+
+- name: Load client variables (/cfg/client_vars.yml)
+  include_vars: /cfg/client_vars.yml
+  when: client_vars_file.stat.exists
+  tags: apache-php
+
 - name: Certificate Info
   debug:
     msg: "{{ item }}"
   with_items:
    - "{{ SSLCertificateKeyFile }}"
+   - "{{ SSLCertificateFile }}"
    - "{{ SSLCertificateChainFile }}"
-   - "{{ SSLCertificateChainFile }}"
+   - "client_vars.yml: {{ 'cargado' if client_vars_file.stat.exists else 'no existe (certificado por defecto)' }}"
 
   tags: apache-php
 
@@ -199,6 +216,49 @@
   tags: apache-php
   notify:
    - restart apache2
+
+# Antes de escribir 000-default.conf, comprobar el certificado. Si la plantilla
+# escribe una ruta que no existe, una clave que no casa con el certificado o una
+# linea sin la directiva, Apache NO ARRANCA en el reinicio del final del rol y la
+# GUI se cae. Mejor parar aqui, con Apache intacto y el fichero sin tocar.
+# Corren tambien en --check (check_mode: false): solo leen.
+- name: Verify SSL variables carry the full Apache directive
+  assert:
+    that:
+      - SSLCertificateKeyFile is match('^SSLCertificateKeyFile\\s+\\S+$')
+      - SSLCertificateFile is match('^SSLCertificateFile\\s+\\S+$')
+      - SSLCertificateChainFile | trim == '' or SSLCertificateChainFile is match('^SSLCertificateChainFile\\s+\\S+$')
+    fail_msg: >-
+      Cada variable lleva la directiva completa, no solo la ruta. Ejemplo:
+      SSLCertificateFile: "SSLCertificateFile /etc/apache2/<dir>/<nombre>.crt".
+      SSLCertificateChainFile puede ir vacia ("").
+  tags: apache-php
+
+- name: Verify SSL files exist
+  stat: path={{ item.split() | last }}
+  register: ssl_files
+  failed_when: not ssl_files.stat.exists or not ssl_files.stat.isreg
+  loop: "{{ [SSLCertificateKeyFile, SSLCertificateFile, SSLCertificateChainFile] | map('trim') | select | list }}"
+  check_mode: false
+  tags: apache-php
+
+# La clave privada tiene que corresponder al certificado. Se comparan las claves
+# publicas (vale para RSA y EC). -passin pass: hace que una clave con frase de
+# paso FALLE en vez de quedarse esperando a que alguien la teclee.
+- name: Verify SSL private key matches the certificate
+  shell: |
+    set -o pipefail
+    a=$(openssl x509 -noout -pubkey -in "$CERT" | sha256sum)
+    b=$(openssl pkey -pubout -passin pass: -in "$KEY" | sha256sum)
+    test -n "$a" && test "$a" = "$b"
+  args:
+    executable: /bin/bash
+  environment:
+    CERT: "{{ SSLCertificateFile.split() | last }}"
+    KEY: "{{ SSLCertificateKeyFile.split() | last }}"
+  changed_when: false
+  check_mode: false
+  tags: apache-php
 
 - name: 000-default -> sites-available/000-default.conf
   template: src=000-default.j2 dest=/etc/apache2/sites-available/000-default.conf owner=root group=root mode=0644
