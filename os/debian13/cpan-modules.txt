@@ -304,3 +304,4 @@ List::MoreUtils::XS	0.430
 Regexp::IPv6			0.03
 Cpanel::JSON::XS		4.37
 Net::FTPSSL				0.42
+DBD::Pg					3.14.2
