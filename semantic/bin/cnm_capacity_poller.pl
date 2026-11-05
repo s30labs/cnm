@@ -11,6 +11,7 @@ use Getopt::Long qw(:config no_ignore_case bundling);
 use Pod::Usage;
 use DBI;
 use SNMP;
+use Encode;
 
 # RRDs (rrdtool Perl binding) is preferred for reading capacity from .rrd files.
 # Older RRDs builds expose only some functions, so we check for info()
@@ -300,15 +301,30 @@ sub update_instance {
     }
     if ($write_info) {
         push @set, 'instance_info = ?', 'instance_info_source = ?';
-        push @bind, (defined $info && $info ne '' ? $info : undef), $info_src;
+        #push @bind, (defined $info && $info ne '' ? $info : undef), $info_src;
+		  push @bind, (defined $info && $info ne '' ? a_utf8($info) : undef), $info_src;
     }
     return unless @set;
     if ($dry) {
         info('DRY-RUN: instance_id=%s %s (not written)', $instance_id, join(', ', @set));
-        return;
+        return 1;
     }
     my $sql = 'UPDATE sem_instance SET ' . join(', ', @set) . ' WHERE instance_id = ?';
-    $dbh->prepare_cached($sql)->execute(@bind, $instance_id);
+
+    #$dbh->prepare_cached($sql)->execute(@bind, $instance_id);
+
+	 my $ok = eval { $dbh->prepare_cached($sql)->execute(@bind, $instance_id); 1 };
+    unless ($ok) {
+        my $err = $dbh->errstr // $@ // 'error desconocido';
+        $err =~ s/\s+/ /g;
+        warnx('instance_id=%s: UPDATE rechazado, se omite esta instancia: %s',
+                 $instance_id, $err);
+        #$stats->{write_errors}++;
+        return 0;
+    }
+	return 1;
+
+
 }
 
 # ============================================================================
@@ -449,6 +465,32 @@ sub process_device {
     }
 }
 
+# -------------------------------------------------------------------------
+# a_utf8(): deja la cadena en bytes UTF-8 validos, venga como venga.
+#
+# El ifAlias llega de SNMP SIN charset declarado: los Windows en espanol
+# mandan ISO-8859-1 ("Conexion de area local" con acentos). La conexion de
+# este guion es utf8mb4 (no declara charset, hereda la del servidor), asi
+# que esos bytes son UTF-8 INVALIDO y con STRICT_TRANS_TABLES la fila se
+# rechaza y el guion muere. En MySQL 5.5 el cliente era latin1 por defecto
+# y el servidor los convertia bien: de ahi que esto solo falle en Debian 13.
+#
+#   - si YA es UTF-8 valido, la devuelve intacta  -> idempotente
+#   - si no, la interpreta como ISO-8859-1
+#   - recorta a 255 CARACTERES: con STRICT pasarse de largo ya no trunca,
+#     ABORTA, y seria el mismo fallo con otro disfraz
+# -------------------------------------------------------------------------
+my $INFO_MAX = 255;            # = instance_info varchar(255)
+
+sub a_utf8 {
+    my ($s) = @_;
+    return $s unless defined $s && $s ne '';
+    my $chars = eval { Encode::decode('UTF-8', $s, Encode::FB_CROAK) };
+    $chars = Encode::decode('ISO-8859-1', $s) unless defined $chars;
+    $chars = substr($chars, 0, $INFO_MAX) if length($chars) > $INFO_MAX;
+    return Encode::encode('UTF-8', $chars);
+}
+
 sub main {
     my %opt;
     GetOptions(
@@ -536,6 +578,7 @@ sub main {
     printf "  Not determinable      : %d\n", $stats{no_capacity}    || 0;
     printf "  instance_info captured: %d\n", $stats{info_captured}  || 0;
     printf "  instance_kind captured: %d\n", $stats{kind_captured}  || 0;
+    printf "  Write errors          : %d\n", $stats{write_errors}  || 0;
     printf "  Skipped (no resolver) : %d\n", $skipped_total;
     return ($stats{dev_unreachable} || $stats{no_capacity}) ? 1 : 0;
 }
