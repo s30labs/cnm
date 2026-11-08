@@ -1,0 +1,15 @@
+# Orden de instalacion de la capa analitica en la base obs (TimescaleDB).
+# Un fichero por linea; las lineas con # se ignoran. Lo lee prueba/comparar.py.
+ts_schema.sql
+cnm_alerts_replica.sql
+sem_role_lookup.sql
+sem_state_dict.sql
+cnm_contadores_snmp.sql
+cnm_vistas_cruzadas.sql
+cnm_vistas_intervalos.sql
+cnm_vistas_estado.sql
+cnm_contexto_alertas.sql
+cnm_informe_capacidad.sql
+cnm_vistas_cobertura.sql
+cnm_series_1d.sql
+cnm_api_publica.sql

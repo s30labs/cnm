@@ -1,0 +1,8 @@
+# Objetos desplegados en obs que se dejan FUERA del repositorio a proposito.
+# comparar.py no los cuenta como diferencia. Un nombre por linea.
+#
+# Seguimiento temporal de la correccion de microcortes: segun su propia
+# cabecera, se retira cuando la correccion este validada.
+v_microcortes_dia
+v_microcortes_metrica
+v_microcortes_concepto
