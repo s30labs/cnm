@@ -170,29 +170,32 @@ if ($o{'list-cols'}) { $o{desde} //= '2000-01-01'; $o{hasta} //= '2000-01-02'; }
 vlog("ventana: $o{desde} a $o{hasta}");
 vlog("columnas seleccionadas: ".join(', ', @sel)) if @sel;
 
-# El filtro de rol admite un patron LIKE o una LISTA separada por comas. Con
-# lista se envuelve la llamada en un WHERE role_id = ANY(...): la funcion sigue
-# recibiendo '%' y el filtrado se hace fuera, asi no hay que duplicar su firma
-# ni construir SQL concatenando valores.
-my (@ids, $filtro, @extra);
+# El filtro de rol admite un patron LIKE o una LISTA separada por comas. La
+# lista va a la funcion en p_roles, que filtra ANTES de leer las series. Hasta
+# noviembre de 2026 se filtraba FUERA (WHERE role_id = ANY(?)): la funcion
+# calculaba todos los roles para quedarse con los pedidos. Se pasa como
+# parametro, sin construir SQL concatenando valores.
+# Requiere la version de las funciones con p_roles (cnm_informe_capacidad.sql
+# de noviembre de 2026): sin ella, la llamada falla por el nombre p_roles.
+my ($rol_sql, $roles_pg);
 if ($o{rol} =~ /,/) {
-   @ids = grep { length } map { s/^\s+|\s+$//gr } split(/,/, $o{rol});
-   $filtro = ' WHERE role_id = ANY(?)';
-   @extra  = ( '{'.join(',', map { my $v=$_; $v =~ s/(["\\])/\\$1/g; qq("$v") } @ids).'}' );
+   my @ids = grep { length } map { s/^\s+|\s+$//gr } split(/,/, $o{rol});
+   $roles_pg = '{'.join(',', map { my $v=$_; $v =~ s/(["\\])/\\$1/g; qq("$v") } @ids).'}';
+   $rol_sql  = '%';
    vlog("filtro por lista de ".scalar(@ids)." roles");
 } else {
-   $filtro = '';
+   $roles_pg = undef;          # NULL: manda el patron
+   $rol_sql  = $o{rol};
    vlog("filtro LIKE '$o{rol}'");
 }
-my $rol_sql = @ids ? '%' : $o{rol};
 
 volcar("$o{out}-detalle.csv",
-       "SELECT * FROM f_informe_capacidad(?::timestamptz, ?::timestamptz, ?)$filtro",
-       [$o{desde}, $o{hasta}, $rol_sql, @extra], 1);
+       "SELECT * FROM f_informe_capacidad(?::timestamptz, ?::timestamptz, ?, p_roles => ?::text[])",
+       [$o{desde}, $o{hasta}, $rol_sql, $roles_pg], 1);
 
 volcar("$o{out}-roles.csv",
-       "SELECT * FROM f_informe_capacidad_rol(?::timestamptz, ?::timestamptz, ?)$filtro",
-       [$o{desde}, $o{hasta}, $rol_sql, @extra], 0);
+       "SELECT * FROM f_informe_capacidad_rol(?::timestamptz, ?::timestamptz, ?, p_roles => ?::text[])",
+       [$o{desde}, $o{hasta}, $rol_sql, $roles_pg], 0);
 
 $dbh->disconnect;
 exit 0;
