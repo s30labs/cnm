@@ -47,17 +47,87 @@
 --
 -- LIMITE: series arranca el 2026-07-22. El primer mes natural completo es
 --   agosto de 2026.
+--
+-- PL/pgSQL Y NO SQL (noviembre de 2026). Las dos funciones eran LANGUAGE sql.
+--   Al hacerlas SECURITY DEFINER con search_path fijo (cnm_api_publica.sql,
+--   septiembre de 2026) PostgreSQL deja de integrarlas en la consulta que las
+--   llama y, en PostgreSQL 17, las planifica con PLAN GENERICO: sin conocer
+--   p_desde ni p_hasta ni el rol. Medido en wwcnmtmdbprd01 el 8/9-nov-2026,
+--   octubre completo, mismo cuerpo:
+--     plan generico     (lo que hacia la funcion)  1.210 s
+--     plan con valores                              138 s
+--   El generico estimaba 15 instancias (habia 3.046) y metia el CTE hist dentro
+--   de un bucle anidado: se repetia una vez por fila. PL/pgSQL usa la cache de
+--   planes y, con plan_cache_mode = force_custom_plan, planifica SIEMPRE con
+--   los valores de la llamada. Sigue siendo SECURITY DEFINER: la PoC llama a
+--   estas funciones como cnm_api (REF-SEM-API-Externa §11).
+--
+--   #variable_conflict use_column: en PL/pgSQL las columnas de RETURNS TABLE
+--   son variables, y chocan con las columnas del mismo nombre del cuerpo
+--   (role_id, subtype...). Asi se resuelven a la columna, como en SQL.
+--
+--   Dos columnas llevan ahora conversion explicita a bigint: n_muestras y los
+--   dos contadores de incidencias del resumen por rol salen de sum(bigint),
+--   que es numeric. LANGUAGE sql la hacia implicita; RETURN QUERY exige el
+--   tipo exacto. El valor no cambia: son sumas de enteros.
+--
+-- p_roles (noviembre de 2026). LISTA de roles, alternativa al patron. Filtra
+--   en inst, ANTES de leer las series. Hasta ahora cnm_informe_csv.pl filtraba
+--   las listas FUERA (WHERE role_id = ANY), asi que calculaba todos los roles
+--   para quedarse con cinco. Va al final y con DEFAULT NULL: las llamadas de
+--   dos, tres o cuatro argumentos siguen valiendo.
+--
+-- hist POR ROL E INSTANCIA (noviembre de 2026). Agrupaba solo por instancia y
+--   se cruzaba solo por instancia, cuando todo lo demas va por (rol,
+--   instancia). Una instancia en dos roles, con los dos en el calculo, metia
+--   dos veces cada dato diario en su historia: el resultado dependia de que
+--   roles se pidieran. tendencia_3m no cambia (la regresion es invariante al
+--   duplicar) y p95_mes_anterior tampoco con UddSketch (dobla cada cubeta).
+--   Medido el 9-nov-2026 en produccion: 0 instancias de saturacion en mas de
+--   un rol; pct_sketch es uddsketch; en 2.514 series de septiembre, duplicar no
+--   cambia el p95 (diferencia maxima 0). Sin efecto hoy: se corrige para que
+--   no dependa del filtro ni del algoritmo del sketch.
+--
+-- USO Y TOTAL SEPARADOS (noviembre de 2026). bkt lee del agregado horario
+--   los DS del uso (ds_valor) Y el del total (ds_total), porque de este saca
+--   la capacidad. Pero agregaba TODAS las filas en n, minimo, maximo, media,
+--   ultimo y en el sketch: solo total_ds filtraba. En disk_mibhost (uso en
+--   ds 2, total en ds 1; 1.647 instancias de saturacion el 10-nov-2026) el
+--   sketch mezclaba uso y total y el p95 caia en el total. Medido el
+--   9-nov-2026, fragodbprd01 C:, octubre: el informe daba p95 59,54 GiB y 100 %;
+--   el p95 del uso (ds 2) es 36,84 GiB, un 61,9 % de 59,51. Es el sintoma de
+--   REV-SEM-Metrica-de-Capacidad, que volvio con el OR h.ds = i.ds_total.
+--   Ahora todo lo que es uso se agrega con FILTER sobre ds_list, y el total
+--   solo da total_ds. Las instancias sin ds_total no cambian: para ellas el
+--   FILTER deja pasar todas las filas.
+--
+-- DESEMPATES (noviembre de 2026). Cinco sitios elegian entre empates sin
+--   criterio, y el resultado dependia del plan. Medido en el ensayo del
+--   9-nov-2026: con el plan nuevo cambiaron peor_instancia en dos roles (45
+--   instancias al 100 % en uno) y ultimo en una interfaz. Ahora:
+--     inst          con varias metricas en la instancia, la mas reciente
+--     last_v        idem: a igual DS, la metrica mas reciente
+--     momento_max   a igual maximo, la ULTIMA hora en que se alcanzo: dice
+--                   si el recurso seguia al maximo al final del periodo. La
+--                   version anterior devolvia una cualquiera de las empatadas
+--     peor          a igual porcentaje, orden por bytes (COLLATE "C") de
+--                   dispositivo e instancia. No por la saturacion sin recortar: casi todas
+--                   superan la capacidad en menos del 1 %, dentro del error del
+--                   sketch; seria ordenar por ruido
+--     ORDER BY      la instancia como ultima clave
 -- =============================================================================
 
 DROP FUNCTION IF EXISTS f_unidad_legible(text, double precision);
 DROP VIEW IF EXISTS v_informe_capacidad_ejemplo;
 DROP FUNCTION IF EXISTS f_informe_capacidad_rol(timestamptz, timestamptz, text);
 DROP FUNCTION IF EXISTS f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric);
--- Se sueltan las DOS firmas: PostgreSQL admite sobrecarga, asi que sin esto
+DROP FUNCTION IF EXISTS f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric, text[]);
+-- Se sueltan TODAS las firmas: PostgreSQL admite sobrecarga, asi que sin esto
 -- quedarian la version antigua y la nueva conviviendo, y las llamadas de tres
 -- argumentos serian ambiguas.
 DROP FUNCTION IF EXISTS f_informe_capacidad(timestamptz, timestamptz, text);
 DROP FUNCTION IF EXISTS f_informe_capacidad(timestamptz, timestamptz, text, numeric);
+DROP FUNCTION IF EXISTS f_informe_capacidad(timestamptz, timestamptz, text, numeric, text[]);
 
 -- -----------------------------------------------------------------------------
 -- 0. UNIDAD DE PRESENTACION
@@ -136,7 +206,10 @@ CREATE FUNCTION f_informe_capacidad(
   --
   -- Solo afecta al trafico. El resto de conceptos no se filtra nunca: un disco
   -- al 3 % sigue siendo informacion util para dimensionar.
-  p_umbral_trafico numeric DEFAULT 1.0
+  p_umbral_trafico numeric DEFAULT 1.0,
+  -- LISTA de roles. NULL = sin lista: manda p_role_pattern. Con lista se
+  -- aplican los dos filtros a la vez (el patron por defecto, '%', no filtra).
+  p_roles        text[] DEFAULT NULL
 )
 RETURNS TABLE (
   role_id            text,
@@ -185,8 +258,13 @@ RETURNS TABLE (
   ventana_en_curso   boolean,
   dev_custom         jsonb
 )
-LANGUAGE sql STABLE PARALLEL SAFE
+LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY DEFINER
+SET search_path = public, pg_temp
+SET plan_cache_mode = force_custom_plan
 AS $$
+#variable_conflict use_column
+BEGIN
+RETURN QUERY
 WITH ventana AS (
   -- La ventana se RECORTA a now() si aun no ha terminado. Sin esto, un informe
   -- de agosto lanzado el dia 12 dividiria entre las 744 horas del mes completo y
@@ -217,6 +295,7 @@ inst AS (
   FROM sem_role_lookup l
   JOIN sem_metric_map  m ON m.instance_id = l.sem_instance_id
   WHERE l.role_id LIKE p_role_pattern
+    AND (p_roles IS NULL OR l.role_id = ANY (p_roles))
     -- SOLO saturacion. Las health_sli quedan fuera a proposito: sus valores son
     -- codigos de estado (1=Disponible, 3=No disponible) o latencias donde lo que
     -- importa es si responde, no cuanto tarda. Un p95 sobre un enumerado de
@@ -230,7 +309,8 @@ inst AS (
     --                   de publicar un numero equivocado. Son 17 metricas.
     -- ds_valor con varios DS -> SI entra: se suman. Ver el CTE bkt.
     AND l.ds_valor IS NOT NULL
-  ORDER BY l.role_id, m.instance_id, l.sem_instance_id
+  -- desempate: con varias metricas en la instancia, la mas reciente
+  ORDER BY l.role_id, m.instance_id, m.idmetric DESC
 ),
 -- Estadisticos desde el agregado horario, SIN escalar todavia.
 --   La media se pondera por n: un bucket con 12 muestras y otro con 288 no pesan
@@ -248,14 +328,20 @@ inst AS (
 -- exacta: avg(rx+tx) por hora, y luego la media ponderada de las horas.
 bkt AS (
   SELECT i.role_id, i.instance_id, i.iddev, i.n_ds, h.bucket,
-         sum(h.n)                                     AS n,
-         sum(h.min_value)                             AS min_v,
-         sum(h.max_value)                             AS max_v,
-         sum(h.avg_value * h.n) / NULLIF(sum(h.n),0)  AS avg_v,
-         (array_agg(h.last_value ORDER BY h.ds))[1]   AS last_v,
+         -- SOLO los DS del uso (ds_valor). El JOIN trae tambien las filas del
+         -- DS del total (ds_total), que solo sirven para total_ds: sin este
+         -- FILTER, en disk_mibhost el sketch mezclaba uso y total y el p95 caia
+         -- en el total (todos los discos al 100 %), ultimo era el total y
+         -- minimo/maximo/media y n sumaban los dos. Ver la cabecera.
+         sum(h.n)                FILTER (WHERE h.ds = ANY(i.ds_list)) AS n,
+         sum(h.min_value)        FILTER (WHERE h.ds = ANY(i.ds_list)) AS min_v,
+         sum(h.max_value)        FILTER (WHERE h.ds = ANY(i.ds_list)) AS max_v,
+         sum(h.avg_value * h.n)  FILTER (WHERE h.ds = ANY(i.ds_list))
+           / NULLIF(sum(h.n)     FILTER (WHERE h.ds = ANY(i.ds_list)), 0) AS avg_v,
+         (array_agg(h.last_value ORDER BY h.ds, h.id_metric DESC) FILTER (WHERE h.ds = ANY(i.ds_list)))[1] AS last_v,
          -- con UN solo DS, rollup de un unico sketch devuelve ese sketch.
          -- Con varios seria incorrecto, por eso est solo lo usa si n_ds = 1.
-         rollup(h.pct_sketch)                         AS sk,
+         rollup(h.pct_sketch)    FILTER (WHERE h.ds = ANY(i.ds_list)) AS sk,
          -- la capacidad, si el subtype la trae en un DS
          max(h.max_value) FILTER (WHERE h.ds = i.ds_total) AS total_ds
   FROM inst i
@@ -294,19 +380,24 @@ est AS (
   --              años y no reconstruible pasados 90 dias de retencion del crudo.
   --              Se dejan vacios DECLARANDOLO. Ver DOC-SEM-09 §6.
   SELECT b.role_id, b.instance_id, b.iddev,
-         sum(b.n)                                        AS n_muestras,
-         count(*)                                        AS horas_con_dato,
+         -- Una hora con dato del total pero no del uso llega de bkt con n NULL:
+         -- no cuenta como hora con dato ni aporta valores. Sin DS de uso en
+         -- toda la ventana, la instancia sale como SIN DATO (p95 NULL) y no
+         -- desaparece del informe.
+         COALESCE(sum(b.n), 0)                           AS n_muestras,
+         count(b.n)                                      AS horas_con_dato,
          min(b.min_v)                                    AS minimo_raw,
          max(b.max_v)                                    AS maximo_raw,
          sum(b.avg_v * b.n) / NULLIF(sum(b.n),0)         AS media_raw,
-         CASE WHEN min(b.n_ds) = 1
-              THEN approx_percentile(0.50, rollup(b.sk)) END AS p50_raw,
-         CASE WHEN min(b.n_ds) = 1
-              THEN approx_percentile(0.95, rollup(b.sk)) END AS p95_raw,
-         CASE WHEN min(b.n_ds) = 1
-              THEN approx_percentile(0.99, rollup(b.sk)) END AS p99_raw,
-         (array_agg(b.last_v ORDER BY b.bucket DESC))[1] AS ultimo_raw,
-         (array_agg(b.bucket ORDER BY b.max_v DESC NULLS LAST))[1] AS momento_max,
+         CASE WHEN min(b.n_ds) = 1 AND count(b.sk) > 0
+              THEN approx_percentile(0.50, rollup(b.sk) FILTER (WHERE b.sk IS NOT NULL)) END AS p50_raw,
+         CASE WHEN min(b.n_ds) = 1 AND count(b.sk) > 0
+              THEN approx_percentile(0.95, rollup(b.sk) FILTER (WHERE b.sk IS NOT NULL)) END AS p95_raw,
+         CASE WHEN min(b.n_ds) = 1 AND count(b.sk) > 0
+              THEN approx_percentile(0.99, rollup(b.sk) FILTER (WHERE b.sk IS NOT NULL)) END AS p99_raw,
+         (array_agg(b.last_v ORDER BY b.bucket DESC) FILTER (WHERE b.n IS NOT NULL))[1] AS ultimo_raw,
+         (array_agg(b.bucket ORDER BY b.max_v DESC NULLS LAST, b.bucket DESC)
+            FILTER (WHERE b.n IS NOT NULL))[1]           AS momento_max,
          max(b.total_ds)                                 AS total_ds
   FROM bkt b
   GROUP BY 1,2,3
@@ -327,7 +418,7 @@ est AS (
 -- fiable, asi que sale NULL. Mejor una columna vacia que un numero inventado:
 -- en septiembre de 2026 el sistema solo tiene 47 dias de datos.
 hist AS (
-  SELECT i.instance_id,
+  SELECT i.role_id, i.instance_id,
          -- p95 del mes anterior a la ventana
          -- Con varios DS el percentil no es sumable (ver est), asi que no se
          -- publica historico de percentiles para trafico.
@@ -357,7 +448,7 @@ hist AS (
                               SELECT 1 FROM sem_counter_dict cd
                                WHERE cd.subtype = i.subtype
                                  AND d.dia      < cd.desde)
-  GROUP BY 1
+  GROUP BY 1, 2
 ),
 -- Tiempo en alerta POR INSTANCIA, con los intervalos solapados fusionados.
 alerta AS (
@@ -419,7 +510,7 @@ esc AS (
 SELECT x.role_id, x.role_display_name, x.role_type, x.criticality,
        x.dev_name, x.dev_ip, x.iddev,
        x.stable_key, x.subtype, x.canonical_id, x.etiqueta, x.unit, x.signal_class,
-       x.n_muestras, x.horas_con_dato,
+       x.n_muestras::bigint, x.horas_con_dato,
        round(100.0 * x.horas_con_dato / w.horas, 1),
        round((x.minimo_c / x.factor)::numeric, 2),
        round((x.maximo_c / x.factor)::numeric, 2),
@@ -530,7 +621,7 @@ SELECT x.role_id, x.role_display_name, x.role_type, x.criticality,
        x.dev_custom
 FROM esc x
 LEFT JOIN alerta a ON a.role_id = x.role_id AND a.sem_instance_id = x.instance_id
-LEFT JOIN hist   h ON h.instance_id = x.instance_id
+LEFT JOIN hist   h ON h.role_id = x.role_id AND h.instance_id = x.instance_id
 CROSS JOIN ventana w
 -- REV-SEM-08 · DOS filtros para el trafico, y son complementarios:
 --
@@ -559,10 +650,11 @@ WHERE x.canonical_id <> 'net.iface.traffic_bps'
         AND ( p_umbral_trafico <= 0
               OR x.capacity IS NULL
               OR 100 * x.maximo_c / NULLIF(x.capacity,0) >= p_umbral_trafico ) )
-ORDER BY x.role_id, x.dev_name, x.canonical_id, x.stable_key;
+ORDER BY x.role_id, x.dev_name, x.canonical_id, x.stable_key, x.instance_id;
+END;
 $$;
 
-COMMENT ON FUNCTION f_informe_capacidad(timestamptz, timestamptz, text, numeric) IS
+COMMENT ON FUNCTION f_informe_capacidad(timestamptz, timestamptz, text, numeric, text[]) IS
   'Informe de capacidad por INSTANCIA. SOLO metricas de saturacion: un percentil '
   'sobre un codigo de estado (health_sli) no significa nada. Lee de series_1h: '
   'percentiles aproximados por t-digest, momento del maximo con precision '
@@ -581,7 +673,9 @@ CREATE FUNCTION f_informe_capacidad_rol(
   p_role_pattern text DEFAULT '%',
   -- se propaga a la funcion de detalle: el resumen por rol debe agregar
   -- exactamente las mismas filas que se publican en el detalle.
-  p_umbral_trafico numeric DEFAULT 1.0
+  p_umbral_trafico numeric DEFAULT 1.0,
+  -- idem: se propaga, para que el resumen agregue las mismas filas del detalle
+  p_roles        text[] DEFAULT NULL
 )
 RETURNS TABLE (
   role_id            text,
@@ -601,10 +695,16 @@ RETURNS TABLE (
   peor_pct_capacidad numeric,
   peor_instancia     text
 )
-LANGUAGE sql STABLE PARALLEL SAFE
+LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY DEFINER
+SET search_path = public, pg_temp
+SET plan_cache_mode = force_custom_plan
 AS $$
+#variable_conflict use_column
+BEGIN
+RETURN QUERY
 WITH det AS (
-  SELECT * FROM f_informe_capacidad(p_desde, p_hasta, p_role_pattern, p_umbral_trafico)
+  SELECT * FROM f_informe_capacidad(p_desde, p_hasta, p_role_pattern,
+                                    p_umbral_trafico, p_roles)
 ),
 alerta_rol AS (
   SELECT role_id,
@@ -622,7 +722,11 @@ peor AS (
   SELECT DISTINCT ON (role_id) role_id, pct_p95_capacidad,
          dispositivo || ' - ' || instancia AS quien
   FROM det WHERE pct_p95_capacidad IS NOT NULL
-  ORDER BY role_id, pct_p95_capacidad DESC
+  -- desempate alfabetico: con el porcentaje recortado a 100 empatan muchas
+  -- COLLATE "C" (orden por bytes): el desempate no depende de la colacion de
+  -- la base y se puede comprobar fuera (verifica_peor.py).
+  ORDER BY role_id, pct_p95_capacidad DESC,
+           dispositivo COLLATE "C", instancia COLLATE "C", canonical_id COLLATE "C"
 )
 SELECT d.role_id, min(d.role_display_name), min(d.role_type), min(d.criticality),
        count(DISTINCT d.iddev), count(*),
@@ -630,8 +734,8 @@ SELECT d.role_id, min(d.role_display_name), min(d.role_type), min(d.criticality)
        round(COALESCE(min(a.segs),0)/60, 1),
        round(100.0 * COALESCE(min(a.segs),0)
              / NULLIF(EXTRACT(epoch FROM (LEAST(p_hasta, now()) - p_desde))::numeric,0), 2),
-       COALESCE(min(a.n_rol), 0),
-       COALESCE(min(a.n_senal), 0),
+       COALESCE(min(a.n_rol), 0)::bigint,
+       COALESCE(min(a.n_senal), 0)::bigint,
        bool_or(d.ventana_en_curso),
        min(p.pct_p95_capacidad), min(p.quien)
 FROM det d
@@ -639,12 +743,13 @@ LEFT JOIN alerta_rol a ON a.role_id = d.role_id
 LEFT JOIN peor       p ON p.role_id = d.role_id
 GROUP BY d.role_id
 ORDER BY d.role_id;
+END;
 $$;
 
-COMMENT ON FUNCTION f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric) IS
+COMMENT ON FUNCTION f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric, text[]) IS
   'Resumen por ROL. minutos_en_alerta esta FUSIONADO a nivel de rol: NO es la '
   'suma del detalle (dos instancias en alerta simultanea cuentan una vez).';
 
 \set app_user cnm_loader
-GRANT EXECUTE ON FUNCTION f_informe_capacidad(timestamptz, timestamptz, text, numeric) TO :app_user;
-GRANT EXECUTE ON FUNCTION f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric) TO :app_user;
+GRANT EXECUTE ON FUNCTION f_informe_capacidad(timestamptz, timestamptz, text, numeric, text[]) TO :app_user;
+GRANT EXECUTE ON FUNCTION f_informe_capacidad_rol(timestamptz, timestamptz, text, numeric, text[]) TO :app_user;
