@@ -282,15 +282,13 @@ my ($self,$desc)=@_;
 	my $VERBOSE=$desc->{'verbose'};
 
    my $t0 = [gettimeofday];
-   my $elapsed = tv_interval ( $t0, [gettimeofday]);
-   my $elapsed3 = sprintf("%.6f", $elapsed);
-   $results{'elapsed'}=$elapsed3;
+	my ($elapsed, $elapsed3);
 
    my $easy = Net::Curl::Easy->new( { body => '', headers => '', all_headers=>[]} );
    my ($referer,$content,$status,$rc,$rcstr)=(undef,'','200 OK',0,0);
    eval {
-
-		alarm($timeout);
+		local $SIG{ALRM} = sub { die "**TIMEOUT** (alarm ${timeout}s) en GET $url_mod\n" };
+		alarm($timeout+2);
 
       $easy->setopt( CURLOPT_URL, $url_mod);
       $easy->setopt( CURLOPT_VERBOSE, $VERBOSE );
@@ -311,27 +309,27 @@ my ($self,$desc)=@_;
 
     	$easy->setopt( CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36' );
 
-#    $easy->setopt( CURLOPT_TIMEOUT, 300 );
+    	$easy->setopt( CURLOPT_TIMEOUT, $timeout );
     	$easy->setopt( CURLOPT_CONNECTTIMEOUT, $timeout );
-#    $easy->setopt( CURLOPT_MAXREDIRS, 20 );
     	$easy->setopt( CURLOPT_FOLLOWLOCATION, 1 );
-#    $easy->setopt( CURLOPT_ENCODING, 'gzip,deflate' ) if $has_zlib;
     	$easy->setopt( CURLOPT_SSL_VERIFYPEER, 0 );
-#    $easy->setopt( CURLOPT_COOKIEFILE, '' );
-#    $easy->setopt( CURLOPT_USERAGENT, 'Irssi + Net::Curl' );
 
       $easy->perform();
 
       $self->log('info',"mon_http_base (curl) >> GET URL $info_token = $url_mod");
 
-		alarm(0);
    };
+	alarm(0);
 
    if ($@) {
       print STDERR "**ERROR** EN GET url=$url ($@)\n";
       $self->log('info',"mon_http_base (curl) >> **ERROR** EN GET url=$url ($@) (timeout=$timeout)");
 	   $self->err_num(1);
    	$self->err_str($@);
+
+	   $elapsed = tv_interval ( $t0, [gettimeofday]);
+   	$elapsed3 = sprintf("%.6f", $elapsed);
+   	$results{'elapsed'}=$elapsed3;
 
       return \%results;
    }
@@ -363,11 +361,32 @@ my ($self,$desc)=@_;
 	# In case of redirection stores last one.
 	foreach my $h (@{$easy->{all_headers}}) {
 		chomp $h;
-		if ($h=~/HTTP\/\d+\.\d+ (\d+) (.+?)/g) {
-			$results{'rc'} = $1;
-	      $results{'rcstr'} = $2;
-			$results{'rctype'} = int ($results{'rc'}/100);
-		}
+		#if ($h=~/HTTP\/\d+\.\d+ (\d+) (.+?)/g) {
+		#	$results{'rc'} = $1;
+	   #   $results{'rcstr'} = $2;
+		#	$results{'rctype'} = int ($results{'rc'}/100);
+		#}
+
+	   # rcstr y, como RED DE SEGURIDAD, el codigo parseado de la ultima linea de
+   	# estado. El patron acepta HTTP/1.x, HTTP/2 y HTTP/3: el anterior exigia
+   	# \d+\.\d+ y por eso con HTTP/2 (Debian 13) rc se quedaba en 0.
+   	my $rc_parse = 0;
+	   $results{'rcstr'} = '';
+   	foreach my $h (@{$easy->{all_headers}}) {
+      	if ($h =~ m{^HTTP/\d(?:\.\d)?\s+(\d{3})(?:\s+(.*?))?\s*$}) {
+         	$rc_parse = $1;
+	         $results{'rcstr'} = defined($2) ? $2 : '';
+   	   }
+   	}
+
+	   # El codigo lo da libcurl, que lo sabe para CUALQUIER version del protocolo.
+   	# CURLINFO_RESPONSE_CODE existe desde libcurl 7.10.8, asi que vale igual en
+   	# Debian 8, 11 y 13. Devuelve 0 si no se recibio ninguna respuesta HTTP.
+	   my $rc_curl = 0;
+   	eval { $rc_curl = $easy->getinfo( CURLINFO_RESPONSE_CODE ); };
+
+   	$results{'rc'}     = $rc_curl || $rc_parse;
+   	$results{'rctype'} = int( $results{'rc'} / 100 );
 	}
    my $parser = HTML::LinkExtor->new();
    $parser->parse($content);
