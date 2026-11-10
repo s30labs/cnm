@@ -304,7 +304,7 @@ sub update_instance {
         #push @bind, (defined $info && $info ne '' ? $info : undef), $info_src;
 		  push @bind, (defined $info && $info ne '' ? a_utf8($info) : undef), $info_src;
     }
-    return unless @set;
+    return 1 unless @set;
     if ($dry) {
         info('DRY-RUN: instance_id=%s %s (not written)', $instance_id, join(', ', @set));
         return 1;
@@ -319,7 +319,6 @@ sub update_instance {
         $err =~ s/\s+/ /g;
         warnx('instance_id=%s: UPDATE rechazado, se omite esta instancia: %s',
                  $instance_id, $err);
-        #$stats->{write_errors}++;
         return 0;
     }
 	return 1;
@@ -459,8 +458,9 @@ sub process_device {
                  $it->{instance_id}, $it->{canonical_id},
                  (defined $cap ? $cap : 'n/a'), (defined $src ? $src : '-'),
                  ($user_held ? '[user-kept]' : (defined $info && $info ne '' ? "'$info'" : '-')));
-            update_instance($dbh, $it->{instance_id}, $cap, $src,
+            my $ok = update_instance($dbh, $it->{instance_id}, $cap, $src,
                             $write_info, $info, $info_src, $kind, $opt->{dry_run});
+            $stats->{write_errors}++ unless $ok;
         }
     }
 }
@@ -553,9 +553,11 @@ sub main {
         info('instance_id=%s %s -> capacity=%s (%s) [rrd]',
              $it->{instance_id}, $it->{canonical_id}, (defined $cap ? $cap : 'n/a'),
              (defined $src ? $src : '-'));
-        update_instance($dbh, $it->{instance_id}, $cap, $src,
-                        $write_info, undef, 'none', $opt{dry_run})
-            if defined $cap || $write_info;
+        if (defined $cap || $write_info) {
+            my $ok = update_instance($dbh, $it->{instance_id}, $cap, $src,
+                                     $write_info, undef, 'none', $opt{dry_run});
+            $stats{write_errors}++ unless $ok;
+        }
     }
 
     for my $iddev (sort { $a <=> $b } keys %by_dev) {
