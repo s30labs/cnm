@@ -272,13 +272,18 @@ my ($self,$sql,$params)=@_;
       $stdout=~s/\r//g;
   	   $stdout=~s/\n//g;
 
-		my $json = JSON->new();
-		my $stdout_utf8 = encode_utf8($stdout);
-		$stdout_utf8=~s/\x{0}//g;
-		eval {
-			$data = $json->decode($stdout_utf8);
-#print Dumper($data),"\n";
-		};
+		#my $json = JSON->new();
+		#my $stdout_utf8 = encode_utf8($stdout);
+		#$stdout_utf8=~s/\x{0}//g;
+		#eval {
+		#	$data = $json->decode($stdout_utf8);
+		#};
+
+   	my $json = JSON->new->utf8;                    # la entrada son bytes UTF-8
+   	(my $stdout_clean = $stdout) =~ s/\x{0}//g;
+   	eval { $data = $json->decode($stdout_clean); };
+
+
 
 		if ($@) {
 			$data=[];
