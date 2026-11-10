@@ -156,7 +156,8 @@ def binarios():
         return b
     cands = sorted(glob.glob('/usr/lib/postgresql/*/bin'), key=lambda p: int(p.split('/')[-2]))
     if not cands:
-        sys.exit('ERROR: no encuentro PostgreSQL (/usr/lib/postgresql/*/bin); indica PG_BIN')
+        print('ERROR: no encuentro PostgreSQL (/usr/lib/postgresql/*/bin); indica PG_BIN')
+        sys.exit(2)   # la prueba no se ha ejecutado: 2, no 1
     return cands[-1]
 
 
@@ -170,12 +171,16 @@ def main():
     salida = a.salida or tempfile.mkdtemp(prefix='comparar-informe-')
     os.makedirs(salida, exist_ok=True)
 
-    with open(os.path.join(SQL, 'ORDEN'), encoding='utf-8') as f:
-        orden = [l.strip() for l in f if l.strip() and not l.startswith('#')]
-    with open(os.path.join(AQUI, 'fuera.txt'), encoding='utf-8') as f:
-        fuera = [l.strip() for l in f if l.strip() and not l.startswith('#')]
-    with open(a.volcado, encoding='utf-8') as f:
-        volcado = f.read()
+    # Un fichero que no se puede leer es una prueba que no se ha ejecutado: 2, no 1.
+    try:
+        with open(os.path.join(SQL, 'ORDEN'), encoding='utf-8') as f:
+            orden = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+        with open(os.path.join(AQUI, 'fuera.txt'), encoding='utf-8') as f:
+            fuera = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+        with open(a.volcado, encoding='utf-8') as f:
+            volcado = f.read()
+    except OSError as ex:
+        print(f'ERROR: la prueba no ha podido ejecutarse: {ex}'); return 2
 
     c = Cluster(binarios())
     try:
