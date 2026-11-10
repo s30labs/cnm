@@ -39,6 +39,7 @@ marcas, procesos y arquitectura interna. No pueden acabar en un repo de producto
 │   └── cnm_col8_geografia.pl    puebla col8 (geografía desde el nombre del servidor)
 ├── schema/
 │   └── cnm_semantic_schema_v3.sql
+├── timescale/                   SQL de la base analítica obs (TimescaleDB), ver su README
 ├── templates/
 │   └── cnm_roles_maestro_PLANTILLA.xlsx   maestro vacío (estructura, sin datos)
 ├── docs/
