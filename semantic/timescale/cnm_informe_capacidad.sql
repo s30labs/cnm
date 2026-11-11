@@ -17,9 +17,13 @@
 -- RENDIMIENTO ACTUAL, medido en septiembre de 2026 sobre un MES completo:
 --   ~38 s para 1.189 filas de salida, con 6,5 GB leidos de disco.
 --
---   El coste esta en leer un mes de series_1h, que esta COMPRIMIDO: el acceso
---   por indice no evita descomprimir el bloque entero. Se intentaron dos
---   optimizaciones sin ganancia apreciable:
+--   El coste esta en leer un mes de series_1h, que esta COMPRIMIDO. Hasta
+--   noviembre de 2026 se comprimia sin segmentby, y el acceso por indice no
+--   evitaba descomprimir el bloque entero. Desde F23 (cnm-docs,
+--   REG-SEM-Pendientes) se comprime con segmentby id_metric, ds (ts_schema.sql)
+--   y cada metrica se descomprime sola: medido el 11-nov-2026 sobre septiembre,
+--   un rol 17,6 s -> 2,6 s, sin cambiar esta funcion.
+--   Antes se intentaron dos optimizaciones sin ganancia apreciable:
 --     - unificar dos escaneos en uno con FILTER: mismo numero de filas leidas,
 --       36,6 s -> 38,4 s. No reduce el trabajo, solo lo reorganiza.
 --     - un CTE aparte para el DS de capacidad: peor, añadia un segundo escaneo.

@@ -108,7 +108,18 @@ SELECT add_continuous_aggregate_policy('series_1h',
 -- Compresion y retencion de series_1h (RUNBOOK-SEM-Hito02-Agregado-Diario §6,
 -- en cnm-docs). La retencion BORRA horas de mas de dos años: lo que se
 -- conserva despues es series_1d (cnm_series_1d.sql).
-ALTER MATERIALIZED VIEW series_1h SET (timescaledb.compress = true);
+--
+-- segmentby id_metric, ds (F23, noviembre de 2026; cnm-docs REG-SEM-Pendientes).
+-- Cada lote comprimido guarda UNA serie, con sus horas seguidas, como el crudo.
+-- Sin segmentby cada lote mezclaba miles de metricas y leer una obligaba a
+-- descomprimir casi todo el chunk. Medido el 11-nov-2026 sobre septiembre, con
+-- f_informe_capacidad sin cambios: un rol 17,6 s -> 2,6 s, el informe completo
+-- igual (42 -> 45 s), resultado identico y un 27-31 % menos de espacio.
+-- Solo afecta a los chunks que se comprimen DESPUES de aplicarlo; los ya
+-- comprimidos conservan su configuracion hasta recomprimirlos.
+ALTER MATERIALIZED VIEW series_1h SET (timescaledb.compress = true,
+  timescaledb.compress_segmentby = 'id_metric, ds',
+  timescaledb.compress_orderby   = 'bucket');
 SELECT add_compression_policy('series_1h', compress_after => INTERVAL '30 days',
                               if_not_exists => TRUE);
 SELECT add_retention_policy('series_1h', drop_after => INTERVAL '2 years',
