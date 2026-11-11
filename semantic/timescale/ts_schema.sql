@@ -8,7 +8,7 @@
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
-CREATE EXTENSION IF NOT EXISTS timescaledb_toolkit;   -- percentile_agg (t-digest), §6.10
+CREATE EXTENSION IF NOT EXISTS timescaledb_toolkit;   -- percentile_agg (UddSketch), §6.10
 
 -- ---------------------------------------------------------------------------
 -- Permisos POR DEFECTO de lo que cree postgres en public. Es lo desplegado
@@ -77,7 +77,7 @@ SELECT add_retention_policy('series', INTERVAL '90 days', if_not_exists => TRUE)
 
 -- ---------------------------------------------------------------------------
 -- Continuous aggregate horario (§4.7). Mantiene, de forma incremental, un
--- sketch de percentiles (t-digest) por (id_metric, ds, hora): base del baseline
+-- sketch de percentiles (UddSketch) por (id_metric, ds, hora): base del baseline
 -- estacional de §6.10 sin recorrer crudo. Nota: agregar 'avg' sobre estados no
 -- tiene sentido; para conceptos de estado se usa 'last_value' (§4.4).
 -- ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ SELECT time_bucket('1 hour', time) AS bucket,
        min(value)            AS min_value,
        max(value)            AS max_value,
        last(value, time)     AS last_value,
-       percentile_agg(value) AS pct_sketch      -- t-digest; mediana/IQR se extraen al leer
+       percentile_agg(value) AS pct_sketch      -- UddSketch (200 cubos, error max. 0,001); mediana/IQR al leer
 FROM series
 GROUP BY bucket, id_metric, ds
 WITH NO DATA;

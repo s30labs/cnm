@@ -13,7 +13,7 @@
 --      5 lotes a 1, sin volcar a disco... y el tiempo solo baja un 5%
 --      (2.008 -> 1.909 ms). No era memoria.
 --
---   3. COSTE DEL ROLLUP DE SKETCHES -> CONFIRMADA. Combinar t-digest es coste
+--   3. COSTE DEL ROLLUP DE SKETCHES -> CONFIRMADA. Combinar sketches es coste
 --      de CPU y escala PEOR que lineal (exponente medido ~1,16):
 --
 --        ventana   desde series_1h   desde series_1d
@@ -34,8 +34,8 @@
 --   conserva : media (ponderada), min, max, ultimo, y percentiles REALES
 --   pierde   : a que HORA del dia ocurrio cada cosa
 -- No es la perdida de RRD: RRD guarda un numero y la distribucion desaparece;
--- aqui el t-digest conserva la forma, asi que el p95 del dia -y del mes, y del
--- año- sigue siendo correcto.
+-- aqui el sketch (UddSketch) conserva la forma, asi que el p95 del dia -y del
+-- mes, y del año- sigue siendo correcto, con error relativo acotado.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ SELECT time_bucket('1 day', bucket, 'Europe/Madrid') AS dia,
        min(min_value)            AS min_value,
        max(max_value)            AS max_value,
        last(last_value, bucket)  AS last_value,
-       rollup(pct_sketch)        AS pct_sketch        -- t-digest YA combinado
+       rollup(pct_sketch)        AS pct_sketch        -- UddSketch YA combinado
 FROM series_1h
 GROUP BY dia, id_metric, ds
 WITH NO DATA;
@@ -123,7 +123,7 @@ SELECT add_compression_policy('series_1d', compress_after => INTERVAL '90 days',
 -- 5. Vista de consulta
 --
 -- Resuelve la media ponderada y extrae los percentiles del sketch, para que
--- quien consulte no tenga que saber que por dentro hay una suma y un t-digest.
+-- quien consulte no tenga que saber que por dentro hay una suma y un sketch.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_series_1d AS
 SELECT dia, id_metric, ds, n,

@@ -36,7 +36,8 @@
 --   capacidad del dato medido (REV-SEM-08), asi que no es la misma carga.
 --   Extrapolado a un mes: ~2,2 min frente a ~41 s.
 --   Se pierde precision en el MOMENTO del maximo (hora en vez de segundo) y los
---   percentiles pasan a ser aproximados (t-digest, error tipico <1%). A cambio
+--   percentiles pasan a ser aproximados (UddSketch: percentile_agg usa 200
+--   cubos y error relativo maximo 0,001, que crece si no bastan). A cambio
 --   el informe no depende de la retencion de 90 dias del crudo.
 --
 -- QUE CORRIGE DEL INFORME ACTUAL (2026-07-CNM-Report.csv, 122 filas):
@@ -319,7 +320,7 @@ inst AS (
 -- Estadisticos desde el agregado horario, SIN escalar todavia.
 --   La media se pondera por n: un bucket con 12 muestras y otro con 288 no pesan
 --   igual. avg(avg_value) daria un resultado sesgado.
---   rollup() combina los t-digest horarios: el percentil del periodo es correcto,
+--   rollup() combina los sketches horarios: el percentil del periodo es correcto,
 --   no una media de percentiles.
 -- SUMA DE LOS DS DEL USO, POR BUCKET (REV-SEM-08).
 --
@@ -378,7 +379,7 @@ est AS (
   --              pueden darse en instantes distintos. Conservador: si esa cota
   --              esta holgada, el enlace lo esta con certeza.
   --   minimo  -> cota INFERIOR, por lo mismo.
-  --   p50/p95/p99 -> NULL. Los percentiles NO se pueden sumar: el t-digest de RX
+  --   p50/p95/p99 -> NULL. Los percentiles NO se pueden sumar: el sketch de RX
   --              mas el de TX no es el de RX+TX. Obtenerlos exigiria un agregado
   --              continuo que sumase antes de construir el sketch: ~16 GB a 2
   --              años y no reconstruible pasados 90 dias de retencion del crudo.
@@ -526,7 +527,7 @@ SELECT x.role_id, x.role_display_name, x.role_type, x.criticality,
        round((x.ultimo_c / x.factor)::numeric, 2),
        round((x.capacity / x.factor)::numeric, 2),
        -- El porcentaje se RECORTA a 100. Un p95 aproximado puede rebasar la
-       -- capacidad por decimas (t-digest), y un 100,05% resta credibilidad sin
+       -- capacidad por decimas (sketch), y un 100,05% resta credibilidad sin
        -- aportar nada. Los excesos GRANDES no son saturacion sino capacidad mal
        -- declarada en el inventario: van a 'aviso_capacidad', que los senala sin
        -- ensuciar el porcentaje.
@@ -661,7 +662,7 @@ $$;
 COMMENT ON FUNCTION f_informe_capacidad(timestamptz, timestamptz, text, numeric, text[]) IS
   'Informe de capacidad por INSTANCIA. SOLO metricas de saturacion: un percentil '
   'sobre un codigo de estado (health_sli) no significa nada. Lee de series_1h: '
-  'percentiles aproximados por t-digest, momento del maximo con precision '
+  'percentiles aproximados (UddSketch), momento del maximo con precision '
   'horaria. Aplica value_scale. minutos_en_alerta es de la instancia, sumable.';
 
 -- -----------------------------------------------------------------------------

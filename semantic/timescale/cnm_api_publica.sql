@@ -213,7 +213,7 @@ SELECT d.dia,
        sum(d.avg_value * d.n) / NULLIF(sum(d.n),0) * i.escala  AS media,
        sum(d.min_value) * i.escala            AS minimo,
        sum(d.max_value) * i.escala            AS maximo,
-       -- percentiles solo con UN DS: el t-digest de RX mas el de TX no es el de
+       -- percentiles solo con UN DS: el sketch de RX mas el de TX no es el de
        -- RX+TX, asi que con varios DS no hay percentil posible.
        CASE WHEN i.n_ds = 1 THEN min(d.p50) * i.escala END AS p50,
        CASE WHEN i.n_ds = 1 THEN min(d.p95) * i.escala END AS p95,
