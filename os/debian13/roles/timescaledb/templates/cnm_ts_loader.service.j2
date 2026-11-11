@@ -1,0 +1,17 @@
+[Unit]
+Description=CNM TimescaleDB spool loader
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ loader_user | default('root') }}
+ExecStart=/usr/bin/perl {{ loader_path | default('/opt/cnm/bin/cnm_ts_loader.pl') }} \
+          --pg-db {{ ts_db }} --pg-user {{ ts_user }} --pg-pass {{ ts_pwd }} \
+          --pg-host 127.0.0.1 --spool {{ spool_path }} \
+          --interval {{ loader_interval | default(15) }} --batch {{ loader_batch | default(200) }}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+---
+
+- name: restart postgresql
+  service: name=postgresql state=restarted
+
+- name: restart cnm_ts_loader
+  systemd: name=cnm_ts_loader state=restarted daemon_reload=true

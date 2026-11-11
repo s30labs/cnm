@@ -28,12 +28,14 @@ $fpth[$#fpth] -h
 -u : Update system installed with cnm-install
 -a : clave de root
 -o : Store STDOUT and STDERR to file (/tmp/cnm-install-core.log)
+-n : Solo preparar el sistema (repos, hosts, vars); NO ejecutar ningun playbook/rol
+-p : Playbook a ejecutar (por defecto cnm.yml). Ej: -p cnm.ts.yml
 -h : Ayuda
 USAGE
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("houa:",\%opts);
+getopts("honp:ua:",\%opts);
 if ($opts{h}) { die $USAGE;}
 
 #-------------------------------------------------------------------------------------------
@@ -118,6 +120,14 @@ if (! -f $ANSIBLE_HOSTS_FILE) {
 }
 
 #-------------------------------------------------------------------------------------------
+# 03b. Se asegura que /cfg/cnm_vars.yml contiene las variables de TimescaleDB.
+#      No secretas: pg_version, ts_db, ts_user, spool_path, crawler_user, install_loader_service
+#      Secreta: ts_pwd (se genera una vez; ver NOTA DE SEGURIDAD al final).
+#      Idempotente: solo añade claves que falten; nunca pisa las existentes.
+#-------------------------------------------------------------------------------------------
+ensure_cnm_vars();
+
+#-------------------------------------------------------------------------------------------
 # 04. Se crea /root/.my.cnf si  no existe. 
 #-------------------------------------------------------------------------------------------
 if ($opts{u}) {
@@ -176,9 +186,20 @@ if (scalar(keys %cfg_vars) > 0) {
     $extra_vars = "--extra-vars \@$vars_file";
 }
 
+# -n : solo preparar el sistema; NO ejecutar ningun rol/playbook
+if ($opts{n}) {
+    unlink $vars_file if -f $vars_file;   # no dejar secretos en tmpfs
+    print "\n[-n] Sistema preparado (repos, hosts, /cfg/cnm_vars.yml). No se ejecuta ningun playbook.\n";
+    print "Para instalar roles individualmente:\n";
+    print "  cd /opt/cnm/os/debian13 && ansible-playbook -c local -i /cfg/ansible.hosts <playbook>.yml\n";
+    print "O relanza cnm-setup con un playbook concreto:  cnm-setup -p cnm.ts.yml\n";
+    exit 0;
+}
+
+my $playbook = $opts{p} || 'cnm.yml';
 my $script_file = '/tmp/cnm-install-core.sh';
 create_script($script_file);
-my $cmd = "$script_file \"$extra_vars\"";
+my $cmd = "$script_file \"$extra_vars\" \"$playbook\"";
 if ($opts{o}) {
     $cmd .= ' | tee /tmp/cnm-install-core.log';
 }
@@ -304,12 +325,73 @@ my ($feature) = @_;
 
 }
 
+#-------------------------------------------------------------------------------------------
+# Asegura las variables de TimescaleDB en /cfg/cnm_vars.yml (idempotente)
+#-------------------------------------------------------------------------------------------
+sub ensure_cnm_vars {
+   my $dir='/cfg';
+   my $file="$dir/cnm_vars.yml";
+   if (! -d $dir) { system("/bin/mkdir","-p",$dir); }
+
+   # Config NO secreta de TimescaleDB
+   my @cfg = (
+      ['pg_version','17'],
+      ['ts_db','obs'],
+      ['ts_user','cnm_loader'],
+      ['spool_path','/opt/data/spool/ts'],
+      ['crawler_user','root'],
+      ['install_loader_service','false'],
+   );
+
+   my %have;
+   if (-f $file) {
+      open(my $fh,'<',$file) or die "No puedo leer $file: $!\n";
+      while (<$fh>) { $have{$1}=1 if /^(\w[\w-]*)\s*:/; }
+      close $fh;
+   }
+   else {
+      open(my $fh,'>',$file) or die "No puedo crear $file: $!\n";
+      print $fh "---\n# CNM Global Vars\n";
+      close $fh;
+   }
+
+   open(my $fh,'>>',$file) or die "No puedo escribir $file: $!\n";
+   my $added=0;
+   for my $kv (@cfg) {
+      next if $have{$kv->[0]};
+      # booleanos YAML sin comillas (true/false); el resto entrecomillado
+      if ($kv->[1] eq 'true' || $kv->[1] eq 'false') {
+         print $fh "$kv->[0]: $kv->[1]\n";
+      } else {
+         print $fh "$kv->[0]: \"$kv->[1]\"\n";
+      }
+      $added++;
+   }
+   # ts_pwd: secreto. Se genera UNA vez si no existe (no se regenera en reruns).
+   unless ($have{'ts_pwd'}) {
+      my $pw = gen_pw(20);
+      print $fh "ts_pwd: \"$pw\"\n"; $added++;
+      print "[vars] ts_pwd generado y guardado en $file (guardalo: lo necesita el loader)\n";
+   }
+   close $fh;
+   chmod 0600, $file;    # contiene ts_pwd -> solo root
+   print "[vars] $file actualizado ($added claves nuevas de TimescaleDB)\n" if $added;
+}
+
+sub gen_pw {
+   my ($n)=@_; $n||=20;
+   my @c = ('A'..'Z','a'..'z','0'..'9');
+   my $s=''; $s .= $c[int(rand(scalar @c))] for 1..$n;
+   return $s;
+}
+
 __DATA__
 #!/bin/bash
 
 dir1=$(pwd)
 cd /opt/cnm/os/debian13
-ansible-playbook -c local -i /cfg/ansible.hosts $1 cnm.yml
+PLAYBOOK="${2:-cnm.yml}"
+ansible-playbook -c local -i /cfg/ansible.hosts $1 "$PLAYBOOK"
 #cd $dir1
 
 

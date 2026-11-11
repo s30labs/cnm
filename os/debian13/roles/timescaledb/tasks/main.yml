@@ -1,0 +1,188 @@
+---
+# Rol de instalación de TimescaleDB + esquema del almacén analítico (CNM).
+# Sigue el convenio del rol mysql (include_vars /cfg/cnm_vars.yml, tags,
+# persistencia en /store con symlink, flush_handlers).
+#
+# Variables esperadas en /cfg/cnm_vars.yml:
+#   pg_version        "17" (el que trae Debian 13; no se usa el repo PGDG)
+#   ts_db             p.ej. "obs"
+#   ts_user, ts_pwd   usuario/clave del loader
+#   spool_path        p.ej. "/opt/data/spool/ts"
+#   crawler_user      dueño de los directorios del spool (usuario de los crawlers)
+#   install_loader_service (opcional, bool)  loader_interval, loader_path, loader_user
+
+- include_vars: /cfg/cnm_vars.yml
+  tags: timescaledb
+
+- name: Install prerequisites for apt repositories
+  apt:
+    name: [ 'gnupg', 'apt-transport-https', 'lsb-release', 'wget', 'ca-certificates' ]
+    state: present
+    update_cache: yes
+  become: true
+  tags: timescaledb
+
+# NOTA (Debian 13): apt usa Sequoia (sqv) y rechaza claves ligadas con SHA1;
+# apt_key está deprecado. Se usa keyring dedicado + signed-by, con el fichero
+# legible por _apt (0644). Si aun así apt rechaza la firma del repo de
+# packagecloud, ver la nota al final del rol (workarounds).
+- name: Ensure apt keyrings directory
+  file: path=/etc/apt/keyrings state=directory owner=root group=root mode='0755'
+  become: true
+  tags: timescaledb
+
+- name: Download TimescaleDB apt key
+  get_url:
+    url: https://packagecloud.io/timescale/timescaledb/gpgkey
+    dest: /etc/apt/keyrings/timescaledb.asc
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  tags: timescaledb
+
+- name: Add TimescaleDB repository (signed-by keyring)
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/timescaledb.asc] https://packagecloud.io/timescale/timescaledb/debian/ {{ ansible_distribution_release }} main"
+    filename: timescaledb
+    state: present
+    update_cache: yes
+  become: true
+  tags: timescaledb
+
+- name: Install PostgreSQL, TimescaleDB, Toolkit and drivers
+  apt:
+    name:
+      - "postgresql-{{ pg_version }}"          # PostgreSQL de Debian 13 (17)
+      - "timescaledb-2-postgresql-{{ pg_version }}"
+      - "timescaledb-toolkit-postgresql-{{ pg_version }}"
+      - "timescaledb-tools"
+      - "libdbd-pg-perl"        # DBD::Pg para el loader
+      - "python3-psycopg2"      # para los módulos postgresql_* de Ansible
+    state: present
+    update_cache: yes
+  become: true
+  tags: timescaledb
+
+# --- Persistencia en /store (patrón del rol mysql) ---
+- name: Stop PostgreSQL before relocating data
+  service: name=postgresql state=stopped
+  become: true
+  tags: timescaledb
+
+- name: Verify persistence path /store/postgres
+  file: path=/store/postgres state=directory owner=postgres group=postgres mode='0700'
+  become: true
+  tags: timescaledb
+
+- name: Check if /var/lib/postgresql exists
+  stat: path=/var/lib/postgresql
+  register: var_lib_pg
+  tags: timescaledb
+
+- name: Check if /var/lib/postgresql is empty
+  shell: "ls -A /var/lib/postgresql/ | wc -l"
+  register: pg_num_files
+  tags: timescaledb
+
+- name: Move /var/lib/postgresql -> /store/postgres if not empty
+  shell: mv /var/lib/postgresql/* /store/postgres 2>/dev/null
+  when: var_lib_pg.stat.exists and var_lib_pg.stat.isdir and pg_num_files.stdout != "0"
+  become: true
+  tags: timescaledb
+
+- name: Create symlink /var/lib/postgresql -> /store/postgres
+  file: path='/var/lib/postgresql' src='/store/postgres' state=link owner=postgres group=postgres force=true
+  become: true
+  tags: timescaledb
+
+- name: Tune PostgreSQL for TimescaleDB (sets shared_preload_libraries)
+  command: timescaledb-tune --quiet --yes --pg-config /usr/lib/postgresql/{{ pg_version }}/bin/pg_config
+  become: true
+  tags: timescaledb
+  notify:
+  - restart postgresql
+
+- name: Start and enable PostgreSQL
+  service: name=postgresql state=started enabled=true
+  become: true
+  tags: timescaledb
+
+- meta: flush_handlers
+
+# --- Base de datos, usuario y esquema ---
+- name: Create TimescaleDB database
+  become: true
+  become_user: postgres
+  postgresql_db: name={{ ts_db }} state=present
+  tags: timescaledb
+
+- name: Create loader role/user
+  become: true
+  become_user: postgres
+  postgresql_user: name={{ ts_user }} password={{ ts_pwd }} login_db={{ ts_db }} role_attr_flags=LOGIN state=present
+  tags: timescaledb
+
+- name: Copy schema file
+  copy: src=ts_schema.sql dest=/tmp/ts_schema.sql owner=postgres group=postgres mode=0644
+  become: true
+  tags: timescaledb
+
+- name: Apply TimescaleDB schema (hypertable, compression, retention, cagg)
+  become: true
+  become_user: postgres
+  command: psql -d {{ ts_db }} -v ON_ERROR_STOP=1 -f /tmp/ts_schema.sql
+  tags: timescaledb
+
+- name: Grant privileges on schema objects to loader user
+  become: true
+  become_user: postgres
+  command: >
+    psql -d {{ ts_db }} -c
+    "GRANT ALL ON ALL TABLES IN SCHEMA public TO {{ ts_user }};
+     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {{ ts_user }};"
+  tags: timescaledb
+
+# --- Directorios del spool (patrón tmp/ready/processing/done/error, §3) ---
+- name: Create spool directories
+  file:
+    path: "{{ spool_path }}/{{ item }}"
+    state: directory
+    owner: "{{ crawler_user | default('root') }}"
+    group: "{{ crawler_user | default('root') }}"
+    mode: '0775'
+  with_items: [ 'tmp', 'ready', 'processing', 'done', 'error' ]
+  become: true
+  tags: timescaledb
+
+# --- (Opcional) servicio systemd del loader ---
+- name: Install loader systemd unit
+  template: src=cnm_ts_loader.service.j2 dest=/etc/systemd/system/cnm_ts_loader.service owner=root group=root mode=0644
+  become: true
+  when: install_loader_service | default(false) | bool
+  notify:
+  - restart cnm_ts_loader
+  tags: timescaledb
+
+- name: Enable loader service
+  systemd: name=cnm_ts_loader enabled=true daemon_reload=true
+  become: true
+  when: install_loader_service | default(false) | bool
+  tags: timescaledb
+
+- meta: flush_handlers
+
+# ---------------------------------------------------------------------------
+# NOTA Debian 13 + repo packagecloud (verificar en la VM):
+#   apt de Debian 13 usa Sequoia (sqv) y es estricto con las firmas. Hay casos
+#   documentados de rechazo de la clave de packagecloud (ligada con SHA1) y de
+#   avisos por permisos del keyring. Si 'apt update' rechaza el repo:
+#     1) confirmar que /etc/apt/keyrings/timescaledb.asc es 0644 (legible por _apt);
+#     2) consultar cómo lo instala Timescale en su CI:
+#        https://github.com/timescale/timescaledb/blob/main/.github/workflows/apt-packages.yaml
+#     3) alternativa: descargar los .deb de packagecloud (debian/trixie) e
+#        instalarlos con apt/dpkg, evitando la firma del repo.
+#   Paquete objetivo verificado para trixie: timescaledb-2-postgresql-17
+#   (requiere postgresql-17 >= 17.6; comprobar la versión que trae Debian 13.5).
+# ---------------------------------------------------------------------------
+...

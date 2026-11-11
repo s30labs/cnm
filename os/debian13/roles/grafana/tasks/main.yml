@@ -1,0 +1,138 @@
+---
+# Rol de instalación de Grafana OSS + datasource a TimescaleDB (CNM).
+# Mismo convenio que los roles mysql/timescaledb (include_vars /cfg/cnm_vars.yml,
+# tags, persistencia en /store con symlink, flush_handlers).
+#
+# ASUME que Grafana se instala en el MISMO host que TimescaleDB (datasource a
+# 127.0.0.1). Si fuera otro host, ajustar grafana_pg_host y el pg_hba de Timescale.
+#
+# Variables esperadas en /cfg/cnm_vars.yml (del host de Timescale):
+#   ts_db            (reutilizada; p.ej. "obs")
+#   grafana_ro_pwd   clave del usuario de solo-lectura para Grafana  [REQUERIDA]
+#   grafana_ro_user  (opcional, por defecto "grafana_ro")
+#   grafana_pg_host  (opcional, por defecto "127.0.0.1")
+
+- include_vars: /cfg/cnm_vars.yml
+  tags: grafana
+
+- name: Comprobar variables requeridas
+  assert:
+    that:
+      - ts_db is defined
+      - grafana_ro_pwd is defined
+    fail_msg: "Faltan variables en /cfg/cnm_vars.yml (ts_db, grafana_ro_pwd)"
+  tags: grafana
+
+- name: Install prerequisites for apt repositories
+  apt:
+    name: [ 'gnupg', 'apt-transport-https', 'wget', 'ca-certificates' ]
+    state: present
+    update_cache: yes
+  become: true
+  tags: grafana
+
+- name: Ensure apt keyrings directory
+  file: path=/etc/apt/keyrings state=directory owner=root group=root mode='0755'
+  become: true
+  tags: grafana
+
+# gpg-full.key incluye la extension de caducidad (evita el incidente de firma
+# expirada de 2025-08). En Debian 13 (Sequoia/sqv) la clave RSA moderna de
+# Grafana es aceptada; si 'apt update' se quejara, revisar permisos 0644.
+- name: Download Grafana apt key (full)
+  get_url:
+    url: https://apt.grafana.com/gpg-full.key
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  tags: grafana
+
+- name: Add Grafana repository (signed-by keyring)
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+    filename: grafana
+    state: present
+    update_cache: yes
+  become: true
+  tags: grafana
+
+- name: Install Grafana OSS
+  apt:
+    name: grafana
+    state: present
+    update_cache: yes
+  become: true
+  tags: grafana
+
+# --- Persistencia en /store (patron de los otros roles) ---
+- name: Stop grafana before relocating data
+  service: name=grafana-server state=stopped
+  become: true
+  tags: grafana
+
+- name: Verify persistence path /store/grafana
+  file: path=/store/grafana state=directory owner=grafana group=grafana mode='0750'
+  become: true
+  tags: grafana
+
+- name: Check if /var/lib/grafana is empty
+  shell: "ls -A /var/lib/grafana/ 2>/dev/null | wc -l"
+  register: gf_num_files
+  tags: grafana
+
+- name: Move /var/lib/grafana -> /store/grafana if not empty
+  shell: mv /var/lib/grafana/* /store/grafana 2>/dev/null
+  when: gf_num_files.stdout != "0"
+  become: true
+  tags: grafana
+
+- name: Create symlink /var/lib/grafana -> /store/grafana
+  file: path='/var/lib/grafana' src='/store/grafana' state=link owner=grafana group=grafana force=true
+  become: true
+  tags: grafana
+
+# --- Usuario de solo-lectura en Postgres para Grafana ---
+- name: Create Grafana read-only role
+  become: true
+  become_user: postgres
+  postgresql_user:
+    name: "{{ grafana_ro_user | default('grafana_ro') }}"
+    password: "{{ grafana_ro_pwd }}"
+    login_db: "{{ ts_db }}"
+    role_attr_flags: LOGIN
+    state: present
+  tags: grafana
+
+- name: Grant read-only privileges to Grafana user
+  become: true
+  become_user: postgres
+  command: >
+    psql -d {{ ts_db }} -c
+    "GRANT CONNECT ON DATABASE {{ ts_db }} TO {{ grafana_ro_user | default('grafana_ro') }};
+     GRANT USAGE ON SCHEMA public TO {{ grafana_ro_user | default('grafana_ro') }};
+     GRANT SELECT ON ALL TABLES IN SCHEMA public TO {{ grafana_ro_user | default('grafana_ro') }};
+     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO {{ grafana_ro_user | default('grafana_ro') }};"
+  tags: grafana
+
+# --- Provisioning del datasource ---
+- name: Provision TimescaleDB datasource
+  template:
+    src: datasource_timescale.yaml.j2
+    dest: /etc/grafana/provisioning/datasources/timescale.yaml
+    owner: root
+    group: grafana
+    mode: '0640'
+  become: true
+  notify:
+  - restart grafana
+  tags: grafana
+
+- name: Enable and start Grafana
+  service: name=grafana-server state=started enabled=true
+  become: true
+  tags: grafana
+
+- meta: flush_handlers
+...

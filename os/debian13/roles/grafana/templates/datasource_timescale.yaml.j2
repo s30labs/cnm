@@ -1,0 +1,17 @@
+# Provisionado por Ansible (rol grafana). No editar a mano.
+apiVersion: 1
+datasources:
+  - name: TimescaleDB (series)
+    type: postgres
+    access: proxy
+    url: "{{ grafana_pg_host | default('127.0.0.1') }}:{{ grafana_pg_port | default(5432) }}"
+    database: "{{ ts_db }}"
+    user: "{{ grafana_ro_user | default('grafana_ro') }}"
+    secureJsonData:
+      password: "{{ grafana_ro_pwd }}"
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: true
+    isDefault: true
+    editable: true
