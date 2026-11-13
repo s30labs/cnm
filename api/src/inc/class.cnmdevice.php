@@ -19,7 +19,7 @@
 			'change_label' => 0,
 			'old_name'     => null,   // null = el nombre no ha cambiado desde la carga
 			'old_domain'   => null,   // null = el dominio no ha cambiado desde la carga
-			'old_ip'       => '',
+			'old_ip'       => null,   // null = la ip no ha cambiado desde la carga
 		);
 
 		// Campos de sistema 
@@ -181,6 +181,8 @@
 				$this->a_meta_fields['old_name']     = null;
 				$this->a_meta_fields['old_domain']   = null;
 				$this->a_meta_fields['change_label'] = 0;
+				$this->a_meta_fields['old_ip']       = null;
+				$this->a_meta_fields['change_ip']    = 0;
 
 				// En caso de haber campos de usuario, miramos los valores para dicho dispositivo
             if(count($a_aux)>0){
@@ -540,7 +542,7 @@
 
 			$this->a_meta_fields['do_workset']   = 0;
 			$this->a_meta_fields['change_ip']    = 0;
-         $this->a_meta_fields['old_ip']       = '';
+         $this->a_meta_fields['old_ip']       = null;
          $this->a_meta_fields['old_name']     = null;
          $this->a_meta_fields['old_domain']   = null;
 			$this->a_meta_fields['change_label'] = 0;
@@ -943,8 +945,11 @@
 						}
 					} 
 	            elseif(func_get_arg(0) == 'ip'){
-	               $this->a_meta_fields['old_ip'] = $this->get_system_field('ip');
-	               $this->a_meta_fields['change_ip'] = 1;
+						// Como mod_dispositivo_detalle.php: solo si la ip cambia, y con la que tenia al cargarse
+						if(($prev !== func_get_arg(1)) && ($this->a_meta_fields['old_ip'] === null)){
+							$this->a_meta_fields['old_ip'] = $prev;
+							$this->a_meta_fields['change_ip'] = 1;
+						}
 						$this->a_meta_fields['do_workset'] = 1;
 	            }
 	            elseif(func_get_arg(0) == 'status'){
@@ -1384,11 +1389,18 @@ mysql> select * from devices_custom_types;
 		private function change_device_ip(){
 			global $dbc;
 
+			$old = $this->a_meta_fields['old_ip'];
+			$new = $this->get_system_field('ip');
+			// Sin ip anterior, o sin cambio real (A -> B -> A), no hay nada que mover
+			if(($old === null) || ($old === '') || ($old === $new)) return;
+			$o = $dbc->escapeSimple($old);
+			$n = $dbc->escapeSimple($new);
+
 		   // cfg_remote_alerts2device
-		   $sql="UPDATE cfg_remote_alerts2device set target='".$this->get_system_field('ip')."' WHERE target='".$this->a_meta_fields['old_ip']."'";
+		   $sql="UPDATE cfg_remote_alerts2device set target='$n' WHERE target='$o'";
 		   $result = $dbc->query($sql);
 		   // task2device
-		   $sql="UPDATE task2device set ip='".$this->get_system_field('ip')."' WHERE ip='".$this->a_meta_fields['old_ip']."'";
+		   $sql="UPDATE task2device set ip='$n' WHERE ip='$o'";
 		   $result = $dbc->query($sql);
 		}
 
