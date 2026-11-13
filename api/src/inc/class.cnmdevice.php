@@ -17,8 +17,8 @@
 			'do_workset'   => 0,
 			'change_ip'    => 0,
 			'change_label' => 0,
-			'old_name'     => '',
-			'old_domain'   => '',
+			'old_name'     => null,   // null = el nombre no ha cambiado desde la carga
+			'old_domain'   => null,   // null = el dominio no ha cambiado desde la carga
 			'old_ip'       => '',
 		);
 
@@ -177,6 +177,10 @@
 					'dyn'             => $r['dyn'],
 				);
 				$this->set_system_field($a_aux);
+				// La carga no es un cambio de nombre: se limpian las marcas que acaba de poner
+				$this->a_meta_fields['old_name']     = null;
+				$this->a_meta_fields['old_domain']   = null;
+				$this->a_meta_fields['change_label'] = 0;
 
 				// En caso de haber campos de usuario, miramos los valores para dicho dispositivo
             if(count($a_aux)>0){
@@ -537,8 +541,8 @@
 			$this->a_meta_fields['do_workset']   = 0;
 			$this->a_meta_fields['change_ip']    = 0;
          $this->a_meta_fields['old_ip']       = '';
-         $this->a_meta_fields['old_name']     = '';
-         $this->a_meta_fields['old_domain']   = '';
+         $this->a_meta_fields['old_name']     = null;
+         $this->a_meta_fields['old_domain']   = null;
 			$this->a_meta_fields['change_label'] = 0;
 
 	      // Insertar campos personalizados
@@ -919,16 +923,24 @@
          }
          elseif(func_num_args()==2){
             if(array_key_exists(func_get_arg(0),$this->a_system_fields)){
+					// Valor anterior: hay que leerlo ANTES de asignar el nuevo
+					$prev = $this->a_system_fields[func_get_arg(0)];
                $this->a_system_fields[func_get_arg(0)] = func_get_arg(1);
 
 
+					// Se guarda el valor que tenia al cargarse (el primero), no el de un cambio intermedio.
+					// La carga desde la BD tambien pasa por aqui: el constructor limpia despues estas marcas.
 					if(func_get_arg(0) == 'name'){
-						$this->a_meta_fields['old_name'] = $this->get_system_field('name');
-						$this->a_meta_fields['change_label'] = 1;
+						if(($prev !== func_get_arg(1)) && ($this->a_meta_fields['old_name'] === null)){
+							$this->a_meta_fields['old_name'] = $prev;
+							$this->a_meta_fields['change_label'] = 1;
+						}
 					}
 					elseif(func_get_arg(0) == 'domain'){
-						$this->a_meta_fields['old_domain'] = $this->get_system_field('domain');
-						$this->a_meta_fields['change_label'] = 1;
+						if(($prev !== func_get_arg(1)) && ($this->a_meta_fields['old_domain'] === null)){
+							$this->a_meta_fields['old_domain'] = $prev;
+							$this->a_meta_fields['change_label'] = 1;
+						}
 					} 
 	            elseif(func_get_arg(0) == 'ip'){
 	               $this->a_meta_fields['old_ip'] = $this->get_system_field('ip');
@@ -1343,14 +1355,29 @@ mysql> select * from devices_custom_types;
 		private function change_metric_label(){
 			global $dbc;
 
-   		$sql="SELECT id_metric,label from metrics WHERE id_dev=".$this->get_system_field('id');
-		   $result = $dbc->query($sql);
-		   while ($result->fetchInto($r)){
-		      $id_metric=$r['id_metric'];
-		      $new_label = str_replace($this->a_meta_fields['old_name'].".".$this->a_meta_fields['old_domain'],$this->get_system_field('name').".".$this->get_system_field('domain'),$r['label']);
-		      $sql="UPDATE metrics set label='$new_label' WHERE id_metric=$id_metric";
-		      $result1 = $dbc->query($sql);
-		   }
+			// Se sustituye solo el sufijo ' (<nombre completo>)' del final de la etiqueta, en
+			// metrics y en la plantilla, y se hace en SQL: la etiqueta no vuelve a pasar por PHP,
+			// asi que sus barras invertidas y comillas no se reinterpretan.
+			// Nombre completo = name.domain, o name si no hay dominio (como el motor, Store.pm:1280).
+			$id_dev = intval($this->get_system_field('id'));
+			$name   = $this->get_system_field('name');
+			$domain = $this->get_system_field('domain');
+			$old_name   = ($this->a_meta_fields['old_name']   !== null) ? $this->a_meta_fields['old_name']   : $name;
+			$old_domain = ($this->a_meta_fields['old_domain'] !== null) ? $this->a_meta_fields['old_domain'] : $domain;
+			$old_full = ($old_domain != '') ? $old_name.'.'.$old_domain : $old_name;
+			$new_full = ($domain != '')     ? $name.'.'.$domain         : $name;
+			if (($id_dev <= 0) || ($old_name === '') || ($old_full === $new_full)) return;
+
+			$o = $dbc->escapeSimple(' ('.$old_full.')');
+			$n = $dbc->escapeSimple(' ('.$new_full.')');
+			foreach (array('metrics','prov_template_metrics2iid') as $table) {
+				$sql = "UPDATE $table SET label=CONCAT(LEFT(label,CHAR_LENGTH(label)-CHAR_LENGTH('$o')),'$n') ".
+				       "WHERE id_dev=$id_dev AND RIGHT(label,CHAR_LENGTH('$o'))='$o'";
+				$result = $dbc->query($sql);
+				if (CNM_isError($result)) {
+					CNMUtils::error_log(__FILE__, __LINE__, "change_metric_label: ".$result->getMessage()." ($sql)");
+				}
+			}
 		}
 
 		// Funcion que cambia las tareas y las alertas remotas al modificar la direccion ip de un dispositivo
