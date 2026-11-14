@@ -157,9 +157,13 @@ paso "5 sync_semantics" "0" "$PERL" "$CRAWLER_BIN/cnm_ts_sync_semantics.pl" \
      --my-db "$MY_DB" --my-user "$RO_USER" --my-pass "$RO_PASS" -v ${DRY[@]+"${DRY[@]}"} || FALLOS=1
 
 # 6 · aviso: roles retirados cuya instancia vuelve a estar viva
+#     No cuenta los roles de reglas sin confirmar: binding los retira sobre
+#     instancias vivas cuando la regla ya no los da, y los reactiva solo si
+#     vuelve a darlos. Esos no necesitan revision a mano.
 n=$(MYSQL_PWD="$MY_PASS" "$MYSQL" -u "$MY_USER" -h localhost -N -B "$MY_DB" -e \
     "SELECT count(*) FROM sem_binding_role b JOIN sem_instance i ON i.instance_id = b.instance_id
-      WHERE b.status = 'retired' AND i.valid_to IS NULL" 2>>"$LOG")
+      WHERE b.status = 'retired' AND i.valid_to IS NULL
+        AND NOT (b.source = 'rules' AND b.confidence <> 'human_confirmed')" 2>>"$LOG")
 if [ -z "$n" ]; then log "AVISO 6: no se pudo comprobar roles retirados sobre instancias vivas"
 elif [ "$n" != 0 ]; then log "AVISO 6: $n roles retirados sobre instancias que vuelven a estar vivas: revisar a mano (REV-SEM-12)"
 else log "OK     6 · ningun rol retirado sobre instancias vivas"; fi

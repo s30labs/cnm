@@ -13,21 +13,26 @@
 #   3. signal_class SIEMPRE del concepto (subtype/canonical_override); no del código.
 #   4. is_primary/weight por canal (salud/riesgo).
 #
-# Propiedades: DRY-RUN por defecto (--commit escribe). ADITIVO / NO DESTRUCTIVO
-# (upsert; nunca borra: eso es reconcile). PRESERVA bindings human_confirmed.
-# IDEMPOTENTE. Valida FK (role_id activo). Rollback ante error.
+# Propiedades: DRY-RUN por defecto (--commit escribe). NUNCA BORRA filas.
+# MANDA SOBRE SUS PROPIAS ATADURAS (source='rules', no human_confirmed) de las
+# instancias VIVAS: si la regla ya no da un rol, lo marca 'retired'; si vuelve a
+# darlo, lo reactiva. Las instancias caducadas siguen siendo cosa de reconcile.
+# Tope: si hubiera que retirar más de --retire-max, no retira nada y sale con 1.
+# PRESERVA bindings human_confirmed. IDEMPOTENTE. Valida FK (role_id activo).
+# Rollback ante error.
 #
 # NO ejecutar --commit en producción hasta que col7 esté estable (ver design/binding.md).
 #
 #   perl cnm_binding.pl --user U --pass P --db onm [--host H]
-#        --map cnm_code_role_map.csv [--field-id 7] [--commit] [-v]
+#        --map cnm_code_role_map.csv [--field-id 7] [--retire-max N] [--commit] [-v]
 # =============================================================================
 use strict; use warnings;
 use FindBin; use lib $FindBin::Bin;
 use DBI; use Getopt::Long;
 
-my %o=(host=>'127.0.0.1', db=>'onm', 'field-id'=>7, commit=>0, v=>0, map=>'');
-GetOptions(\%o,'user=s','pass=s','db=s','host=s','map=s','field-id=i','commit','v') or die;
+my %o=(host=>'127.0.0.1', db=>'onm', 'field-id'=>7, commit=>0, v=>0, map=>'', 'retire-max'=>50);
+GetOptions(\%o,'user=s','pass=s','db=s','host=s','map=s','field-id=i','retire-max=i','commit','v') or die;
+$o{'retire-max'}>=0 or die "--retire-max debe ser >= 0\n";
 defined $o{user} && defined $o{pass} or die "Faltan --user/--pass\n";
 $o{map} or die "Falta --map <cnm_code_role_map.csv> (salida de cnm_derive_code_map.pl)\n";
 my $DRY=!$o{commit};
@@ -106,12 +111,12 @@ my %concept_of;
 }
 
 # 2d. bindings de rol ya existentes (para preservar human_confirmed e idempotencia)
-my %existing;   # "instance_id|role_id" -> {confidence,is_primary,weight}
+my %existing;   # "instance_id|role_id" -> {confidence,is_primary,weight,status,source}
 {
-  my $q=$dbh->prepare("SELECT instance_id,role_id,confidence,is_primary,weight FROM sem_binding_role");
+  my $q=$dbh->prepare("SELECT instance_id,role_id,confidence,is_primary,weight,status,source FROM sem_binding_role");
   $q->execute;
-  while (my ($iid,$rid,$conf,$prim,$w)=$q->fetchrow_array){
-    $existing{"$iid|$rid"}={confidence=>$conf,is_primary=>$prim,weight=>$w};
+  while (my ($iid,$rid,$conf,$prim,$w,$st,$src)=$q->fetchrow_array){
+    $existing{"$iid|$rid"}={confidence=>$conf,is_primary=>$prim,weight=>$w,status=>$st,source=>($src//'')};
   }
 }
 
@@ -179,8 +184,10 @@ $iq->execute;
 
 my %stat; my @sin_rol; my @paraguas_sin_col7; my @rol_inexistente;
 my @plan;   # {instance_id, role_id, signal_class}
+my %viva;   # instance_id -> 1 (instancias vivas: las únicas sobre las que manda el binding)
 while (my ($iid,$iddev,$subtype,$override)=$iq->fetchrow_array){
   $stat{instancias_vivas}++;
+  $viva{$iid}=1;
   my $mets=$inst_metrics{$iid}||[];
   # importancia
   my $imp = es_importante($mets,$iid);
@@ -300,6 +307,32 @@ for my $k (keys %by_role_dev){
 }
 
 # ---------------------------------------------------------------------------
+# 4-bis. ataduras propias que la regla ya no da (retirar) o vuelve a dar (reactivar)
+#   Solo instancias vivas, solo source='rules', nunca human_confirmed.
+#   Caso que lo motiva: instancias desplazadas (se quita un disco y los iids se
+#   corren). El espejo reubica la métrica; sin esto, la instancia que la recibe
+#   conservaba los roles de la anterior y la que vuelve a vivir no recuperaba el
+#   suyo (REF-SEM-Operacion §6).
+# ---------------------------------------------------------------------------
+my %en_plan = map { ("$_->{instance_id}|$_->{role_id}" => 1) } @plan;
+my (@retirar,@reactivar);
+for my $k (sort keys %existing){
+  my $e=$existing{$k};
+  next if ($e->{confidence}//'') eq 'human_confirmed';
+  my ($iid)=split /\|/,$k;
+  if ($e->{status} eq 'active' && $e->{source} eq 'rules' && $viva{$iid} && !$en_plan{$k}){
+    push @retirar,$k;
+  }
+}
+for my $p (@plan){
+  my $k="$p->{instance_id}|$p->{role_id}";
+  next unless $existing{$k};
+  next if ($existing{$k}{confidence}//'') eq 'human_confirmed';
+  push @reactivar,$k if $existing{$k}{status} eq 'retired';
+}
+my $retiro_bloqueado = (@retirar > $o{'retire-max'}) ? 1 : 0;
+
+# ---------------------------------------------------------------------------
 # 5. informe
 # ---------------------------------------------------------------------------
 printf "\n=== RESUMEN ===\n";
@@ -308,6 +341,13 @@ printf "  importantes (watch/disp/lat)  : %d\n",$stat{importantes}//0;
 printf "  -> con rol resuelto           : %d\n",$stat{con_rol}//0;
 printf "  -> SIN rol (ni código ni col7): %d\n",$stat{sin_rol}//0;
 printf "  -> rol resuelto INEXISTENTE   : %d\n",$stat{rol_inexistente}//0;
+printf "  ataduras de reglas a RETIRAR  : %d (la regla ya no las da; tope --retire-max=%d)%s\n",
+       scalar @retirar, $o{'retire-max'}, ($retiro_bloqueado ? '  ** BLOQUEADO: SUPERA EL TOPE, NO SE RETIRA NADA **' : '');
+printf "  ataduras a REACTIVAR          : %d (la regla vuelve a darlas)\n", scalar @reactivar;
+if ($o{v} && @retirar){
+  print "    a retirar (instancia|rol):\n";
+  print "      $_\n" for @retirar[0..($#retirar<29?$#retirar:29)];
+}
 if (@paraguas_sin_col7){
   printf "  ! paraguas SIN col7 (anomalía a corregir a mano): %d\n",scalar @paraguas_sin_col7;
 }
@@ -353,7 +393,8 @@ eval {
      VALUES (?,?,?,?,?,NULL,'inherited','rules')
      ON DUPLICATE KEY UPDATE
         is_primary=VALUES(is_primary), weight=VALUES(weight),
-        relation_type=VALUES(relation_type), source='rules'");
+        relation_type=VALUES(relation_type), source='rules',
+        status='active', retired_at=NULL");
   my ($nins,$nupd,$nskip)=(0,0,0);
   for my $p (@plan){
     my $key="$p->{instance_id}|$p->{role_id}";
@@ -364,10 +405,22 @@ eval {
     $ins->execute($p->{instance_id},$p->{role_id},$p->{via},$a->{is_primary},$a->{weight});
     $was ? $nupd++ : $nins++;
   }
+  my $nret=0;
+  unless ($retiro_bloqueado){
+    my $ret=$dbh->prepare(
+      "UPDATE sem_binding_role SET status='retired', retired_at=NOW()
+        WHERE instance_id=? AND role_id=? AND status='active' AND source='rules'
+          AND confidence<>'human_confirmed'");
+    for my $k (@retirar){ my ($i,$r)=split /\|/,$k,2; $nret+=$ret->execute($i,$r); }
+  }
   $dbh->commit;
-  printf "\nCOMMIT OK. bindings de rol: nuevos=%d, actualizados=%d, preservados(human)=%d\n",
-         $nins,$nupd,$nskip;
-  print "Recuerda: no borra bindings obsoletos (eso es cnm_reconcile.pl).\n";
+  printf "\nCOMMIT OK. bindings de rol: nuevos=%d, actualizados=%d (reactivados=%d), retirados=%d, preservados(human)=%d\n",
+         $nins,$nupd,scalar @reactivar,$nret,$nskip;
+  if ($retiro_bloqueado){
+    printf "AVISO: %d ataduras a retirar superan --retire-max=%d: NO se ha retirado ninguna. Revisar con -v y relanzar con un tope mayor.\n",
+           scalar @retirar,$o{'retire-max'};
+    $dbh->disconnect; exit 1;
+  }
   1;
 } or do { my $e=$@||'err'; $dbh->rollback; die "\nERROR (rollback, nada escrito): $e\n"; };
 $dbh->disconnect;

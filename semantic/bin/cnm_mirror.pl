@@ -93,8 +93,14 @@ for my $idm (keys %live_idmetric){
   my $cur=$bind_now{$idm};
   if (!$cur){ push @bind_ins,$idm; }
   else {
-    # actualizar si cambió iid o estaba stale
-    push @bind_upd,$idm if $cur->{iid} ne $L->{iid} || $cur->{status} ne 'active';
+    # actualizar si cambió iid, si estaba stale, o si la métrica ya no es la
+    # instancia a la que está atada: su stable_key ha cambiado aunque el iid no
+    # (instancias desplazadas: se quita el disco E: y Virtual Memory pasa a su iid).
+    # Sin esto la métrica seguía alimentando la instancia antigua y sus roles.
+    my $dest = $inst_id{$L->{ikey}};
+    my $reubica = (!defined $dest || $dest != $cur->{instance_id}) ? 1 : 0;
+    $stat{bind_a_reubicar}++ if $reubica && $cur->{status} eq 'active';
+    push @bind_upd,$idm if $cur->{iid} ne $L->{iid} || $cur->{status} ne 'active' || $reubica;
   }
 }
 # 3d. bindings a marcar stale (están en la tabla pero ya no en metrics vivas)
@@ -124,6 +130,7 @@ print  "  ---- plan de escritura ----\n";
 printf "    instancias a crear          : %d\n",$stat{inst_a_crear};
 printf "    bindings a crear            : %d\n",$stat{bind_a_crear};
 printf "    bindings a actualizar       : %d\n",$stat{bind_a_actualizar};
+printf "      de ellos, a otra instancia: %d  (cambió la stable_key sin cambiar el iid)\n",$stat{bind_a_reubicar}//0;
 printf "    bindings a marcar stale     : %d\n",$stat{bind_a_stale};
 
 # ---- 5. ejecución (solo --commit) ------------------------------------------
