@@ -348,6 +348,19 @@ foreach my $k (@res) {
    }
 }
 
+#--------------------------------------------------------------------------------------
+# Un notificationsd solo cuenta como vivo si lo esta el proceso de su fichero .pid.
+# Los hijos que crea para cada comprobacion llevan el mismo nombre; si uno se queda
+# colgado despues de que el proceso principal se reinicie, buscar por nombre haria
+# creer que sigue en marcha y no se relanzaria nunca.
+#--------------------------------------------------------------------------------------
+foreach my $n ('notificationsd.010', 'notificationsd.020', 'notificationsd.040') {
+	if (($running{$n}) && (! notif_alive($n))) {
+		$store->log('warning',"cnm-watch::[WARN] $n: hay procesos con su nombre pero no el de /var/run/$n.pid");
+		$running{$n} = 0;
+	}
+}
+
 #my $txt='';
 #foreach my $k (sort keys %LOAD_VALUES) { $txt .= " $k=".sprintf("%.3f",$LOAD_VALUES{$k}); }
 #$store->log('info',"cpu-load:: LOAD_VALUES >> $txt");
@@ -1150,6 +1163,26 @@ my ($pid_file)=@_;
 	}
 
 	return $running;
+}
+
+#-------------------------------------------------------------------------------------------
+# notif_alive
+# 1 si el PID de /var/run/<nombre>.pid existe y su linea de ordenes lleva <nombre>.
+# Lo segundo evita dar por vivo un PID reutilizado por otro proceso.
+#-------------------------------------------------------------------------------------------
+sub notif_alive {
+my ($name)=@_;
+
+	open (my $fh, '<', "/var/run/$name.pid") or return 0;
+	my $pid = <$fh>;
+	close $fh;
+	return 0 if ((! defined $pid) || ($pid !~ /^\s*(\d+)\s*$/));
+	$pid = $1;
+
+	open (my $fc, '<', "/proc/$pid/cmdline") or return 0;
+	my $cmd = do { local $/; <$fc> };
+	close $fc;
+	return ((defined $cmd) && (index($cmd, $name) >= 0)) ? 1 : 0;
 }
 
 #-------------------------------------------------------------------------------------------

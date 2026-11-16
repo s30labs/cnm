@@ -788,7 +788,14 @@ sub mon_icmp_system  {
 my $desc=shift;
 
 my $N=5;
-my $CMD="/usr/bin/sudo /bin/ping -c $N -s 64 -W 1 -q ";
+# El ping va dentro de timeout: con iputils 20240905 (Debian 13) se han visto ping
+# colgados durante dias, que dejan bloqueado el proceso que los lanza.
+# Un ping normal termina en unos 5 s; si pasa de 15 s se le manda TERM, y KILL 2 s
+# despues. Sin salida, la comprobacion queda como UNK.
+# sudo solo hace falta si no se es root (la consola, como www-data); siendo root
+# sobra y, ademas, sin sudo en medio las senales de timeout llegan al propio ping.
+my $SUDO = ($> == 0) ? '' : '/usr/bin/sudo ';
+my $CMD="/usr/bin/timeout -k 2 15 ${SUDO}/bin/ping -c $N -s 64 -W 1 -q ";
 my @R=();
 my $t=time;
 my $rcstr='UNK';
