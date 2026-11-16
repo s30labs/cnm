@@ -1794,7 +1794,7 @@ my ($self,$id_dev,$v,$MDATA,$snap,$init)=@_;
 #----------------------------------------------------------------------------
 # Funcion: apply_remap_watch_status
 # Descripcion: Modo 0. Pone en %nochange y %change el watch y el status que da el
-# reordenamiento. Las instancias nuevas entran activas (status=0).
+# reordenamiento. Las instancias nuevas no se tocan: quedan inactivas (status=1), como hoy.
 #----------------------------------------------------------------------------
 sub apply_remap_watch_status {
 my ($self,$rm,$nochange,$change)=@_;
@@ -1802,6 +1802,10 @@ my ($self,$rm,$nochange,$change)=@_;
 		foreach my $iid (keys %$h) {
 			my $a = $rm->{'assign'}->{$iid};
 			next if (! defined $a);
+			# Una instancia nueva (sin from) se queda como la deja la fase B, inactiva:
+			# en equipos con interfaces efimeras (docker, Windows) crearlas activas
+			# llena el equipo de metricas que acaban en azul.
+			next if (! defined $a->{'from'});
 			$h->{$iid}->{'watch'}  = $a->{'watch'};
 			$h->{$iid}->{'status'} = $a->{'status'};
 		}

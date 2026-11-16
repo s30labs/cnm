@@ -53,17 +53,19 @@ my %IIDS = map { my ($st,$iid,$l,$w,$s)=@$_; ($iid => { label=>$l, watch=>$w, st
 my $v = { type=>'snmp', subtype=>'disk_mibhost', IIDS=>\%IIDS };
 my $MDATA = { 36=>{ label=>'USO DE DISCO / (cnm-areas)',         name=>'disk_mibhost-36' },
               43=>{ label=>'USO DE DISCO /run/lock (cnm-areas)', name=>'disk_mibhost-43' },
-              52=>{ label=>'USO DE DISCO /boot (cnm-areas)',     name=>'disk_mibhost-52' } };
+              52=>{ label=>'USO DE DISCO /boot (cnm-areas)',     name=>'disk_mibhost-52' },
+              54=>{ label=>'USO DE DISCO /store/mysql (cnm-areas)', name=>'disk_mibhost-54' } };
 
-# Lo que deja la fase B de hoy: 36 y 43 'change' con el watch de su iid; 52 nueva con status=1
+# Lo que deja la fase B de hoy: 36 y 43 'change' con el watch de su iid; 52 y 54, iid nuevos, con status=1
 my %nochange = ();
-my %change = ( 36=>{ watch=>'0', status=>0 }, 43=>{ watch=>'m43', status=>0 }, 52=>{ watch=>'0', status=>1 } );
+my %change = ( 36=>{ watch=>'0', status=>0 }, 43=>{ watch=>'m43', status=>0 }, 52=>{ watch=>'0', status=>1 }, 54=>{ watch=>'0', status=>1 } );
 
 my $rm = $p->remap_instances(1,$v,$MDATA,$snap->{disk_mibhost},0);
 $p->apply_remap_watch_status($rm,\%nochange,\%change);
 is($change{36}{watch}, 'm31', 'modo 0: el monitor de / pasa del 31 al 36');
 is($change{43}{watch}, '0',   'modo 0: el 43 deja el monitor de /home (que ha desaparecido)');
-is($change{52}{status}, 0,    'modo 0: /boot, nueva, entra activa');
+is($change{52}{status}, 0,    'modo 0: /boot cambia de iid (41 -> 52) y conserva su estado: activa');
+is($change{54}{status}, 1,    'modo 0: /store/mysql, nueva, se queda inactiva como hoy (status=1)');
 
 $p->apply_remap_c_label(1,'disk_mibhost',$MDATA,$rm,$snap->{disk_mibhost});
 my %upd = map { ($_->[2] => $_->[1]) } @{$store->{updates}};
