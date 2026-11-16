@@ -72,6 +72,7 @@ my %LOG_PRIORITY = (
 @ProvisionLite::LABEL_EXPR=();
 
 #-----------------------------------------------------------------------
+use ProvisionLite::LabelRemap qw(remap_by_label has_monitor_or_c_label);
 use ProvisionLite::disk_mibhost;
 use ProvisionLite::traffic_mibii_if;
 use ProvisionLite::pkts_type_mibii_if;
@@ -1050,6 +1051,15 @@ my $store_flag=1;
 		my $rMETRIC;
 
 		#--------------------------------------------------------------------------------
+		# Reordenamiento por etiqueta (PROY-CNM-Alertas-Azules, apartado 6).
+		# Si el interruptor PROV_REMAP_BY_LABEL de /cfg/onm.conf vale 1, se toma una foto
+		# de las instancias SNMP ANTES de que la fase A rehaga la plantilla: es la unica
+		# forma de saber que c_label y que monitor tenia cada etiqueta.
+		#--------------------------------------------------------------------------------
+		my $REMAP = $self->remap_by_label_enabled();
+		my $SNAP = ($REMAP) ? $self->snapshot_instances($ID_DEV) : {};
+
+		#--------------------------------------------------------------------------------
 		# Preparamos el template con las metricas del dispositivo
 		#--------------------------------------------------------------------------------
 		# 3 situaciones:
@@ -1484,6 +1494,16 @@ print "\tCHANGEIID iid=$tpl_iid BORRAR DE PLANTILLA\n";
 						$self->log('debug',"prov_do_set_device_metric::[INFO] MDATA CHANGEIID iid=$tpl_iid BORRAR DE PLANTILLA");
 					}
 			}
+
+			# -------------------------------------------------------------------------------
+			# Reordenamiento por etiqueta: c_label (todos los modos) y watch/status (modo 0;
+			# en los modos 1, 2 y 4 ya los asigna por etiqueta la fase A).
+			# -------------------------------------------------------------------------------
+			my $RM = undef;
+			if ($REMAP && ($v->{'type'} eq 'snmp')) {
+				$RM = $self->remap_instances($ID_DEV,$v,$MDATA,$SNAP->{$v->{'subtype'}},$in->{'init'});
+				if ($in->{'init'}==0) { $self->apply_remap_watch_status($RM,\%nochange,\%change); }
+			}
 			
 print "CHANGE:\n";
 print Dumper(\%change);
@@ -1516,7 +1536,7 @@ print "------------------------------\n";
 					$data{'label'}=$change{$iid}->{'label'};
 					my $txt="$iid: ".$data{'label'}.' ('.$change{$iid}->{'mname'}.')';
 					$self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS (ID_DEV=$ID_DEV) Se actualiza:  $txt");
-					$STORE->log_qactions($dbh,{'descr'=>'Instancias modificadas', 'rc'=>'OK', 'rcstr'=>"Se actualiza:  $txt", 'atype'=>ATYPE_IIDS_MODIFIED});
+					$STORE->log_qactions($dbh,{'descr'=>'Instancias modificadas', 'rc'=>0, 'rcstr'=>"Se actualiza:  $txt", 'atype'=>ATYPE_IIDS_MODIFIED});
 
             }
          }
@@ -1545,7 +1565,7 @@ print "------------------------------\n";
 
             $self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS **ELIMINARMETRICA** ($idmetrics) (WHERE=$where)");
 
-				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>'OK', 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED});
+				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>0, 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED});
 			}
 
 			# Genero metricas (nochange)
@@ -1602,11 +1622,22 @@ print "------------------------------\n";
 				}
          }
 
+			# c_label reordenado (las metricas ya existen). init=2 no genera metricas.
+			if ((defined $RM) && ($in->{'init'}!=2)) {
+				$self->apply_remap_c_label($ID_DEV,$v->{'subtype'},$MDATA,$RM,$SNAP->{$v->{'subtype'}});
+			}
 		}
 
 		# Se eliminan las metricas azules del dispositivo (en metrics) 
 		# select mname from alerts where id_device=100 and severity=4;
-      my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',"id_device=$ID_DEV and severity=4 and type!='xagent'");
+		# Si el equipo no ha respondido por SNMP, sus azules SNMP se conservan: no se sabe si
+		# la instancia existe (PROY-CNM-Alertas-Azules, apartado 6.2 g).
+		my $where_blue = "id_device=$ID_DEV and severity=4 and type!='xagent'";
+		if (! $SNMP_VERSION) {
+			$where_blue .= " and type!='snmp'";
+			$self->log('info',"prov_do_set_device_metric::[INFO] ID_DEV=$ID_DEV SIN RESPUESTA SNMP: no se borran sus azules SNMP");
+		}
+      my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',$where_blue);
       if (scalar(@$rx)>0) {
 			my @mnames=();
          foreach my $x (@$rx) {
@@ -1667,6 +1698,137 @@ print Dumper(\@TEMPLATE);
 			
 }
 
+
+#----------------------------------------------------------------------------
+# Funcion: remap_by_label_enabled
+# Descripcion: Interruptor del reordenamiento por etiqueta (PROY-CNM-Alertas-Azules, apartado 6.4).
+# PROV_REMAP_BY_LABEL = 1 en /cfg/onm.conf lo activa. Por defecto, desactivado.
+#----------------------------------------------------------------------------
+sub remap_by_label_enabled {
+my $self = shift;
+	my $cfg = $self->cfg();
+	return 0 if (ref($cfg) ne 'HASH');
+	my $v = (defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : 0;
+	return ((defined $v) && ($v =~ /^\s*1\s*$/)) ? 1 : 0;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: snapshot_instances
+# Descripcion: Foto de las instancias SNMP del dispositivo antes de provisionar.
+# Devuelve { subtype => { iid => { label, watch, status, c_label } } }.
+# label, watch y status vienen de la plantilla; c_label, de metrics.
+#----------------------------------------------------------------------------
+sub snapshot_instances {
+my ($self,$id_dev)=@_;
+
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	my %snap=();
+
+	my $tpl=$STORE->get_from_db($dbh,'p.subtype,t.iid,t.label,t.watch,t.status',
+		'prov_template_metrics2iid t, prov_template_metrics p',
+		"t.id_template_metric=p.id_template_metric AND t.id_dev=$id_dev AND p.type='snmp'");
+	foreach my $r (@$tpl) {
+		my ($subtype,$iid,$label,$watch,$status)=@$r;
+		$snap{$subtype}->{$iid} = { 'label'=>$label, 'watch'=>(defined $watch ? $watch : '0'), 'status'=>(defined $status ? $status : 0), 'c_label'=>undef };
+	}
+
+	my $met=$STORE->get_from_db($dbh,'subtype,iid,label,c_label','metrics',"id_dev=$id_dev AND type='snmp'");
+	foreach my $r (@$met) {
+		my ($subtype,$iid,$label,$c_label)=@$r;
+		next if ((! defined $iid) || (! defined $subtype));
+		# Una metrica sin fila en la plantilla: se toma su etiqueta
+		$snap{$subtype}->{$iid} ||= { 'label'=>$label, 'watch'=>'0', 'status'=>0, 'c_label'=>undef };
+		$snap{$subtype}->{$iid}->{'c_label'} = ((defined $c_label) && ($c_label ne '')) ? $c_label : undef;
+	}
+
+	return \%snap;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: remap_instances
+# Descripcion: Calcula el reordenamiento de una metrica del dispositivo y lo anota.
+#	Modo 0: lo de antes es la plantilla actual (con las reglas ya aplicadas) mas el
+#	        c_label de la foto.
+#	Modos 1, 2 y 4: la fase A ya ha rehecho la plantilla; lo de antes es la foto.
+#----------------------------------------------------------------------------
+sub remap_instances {
+my ($self,$id_dev,$v,$MDATA,$snap,$init)=@_;
+
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	$snap ||= {};
+
+	my %old=();
+	if ($init==0) {
+		foreach my $iid (keys %{$v->{'IIDS'}}) {
+			my $t=$v->{'IIDS'}->{$iid};
+			$old{$iid} = { 'label'=>$t->{'label'}, 'watch'=>(defined $t->{'watch'} ? $t->{'watch'} : '0'),
+			               'status'=>(defined $t->{'status'} ? $t->{'status'} : 0),
+			               'c_label'=>((exists $snap->{$iid}) ? $snap->{$iid}->{'c_label'} : undef) };
+		}
+	}
+	else { %old = %$snap; }
+
+	my %new = map { $_ => $MDATA->{$_}->{'label'} } keys %$MDATA;
+	my $rm = remap_by_label(\%old,\%new);
+
+	my $subtype=$v->{'subtype'};
+	if (scalar @{$rm->{'moved'}}) {
+		my $txt = join(' ; ', map { "$_->{from} -> $_->{to}: $_->{label}" } @{$rm->{'moved'}});
+		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype REORDENADAS: $txt");
+		$STORE->log_qactions($dbh,{'descr'=>'Instancias reordenadas por etiqueta', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_MODIFIED});
+	}
+	my @important = grep { has_monitor_or_c_label($_) } @{$rm->{'vanished'}};
+	if (scalar @important) {
+		my $txt = join(' ; ', map { "iid=$_->{iid}: $_->{label}" } @important);
+		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype DESAPARECEN CON MONITOR O C_LABEL: $txt");
+		$STORE->log_qactions($dbh,{'descr'=>'Instancias desaparecidas con monitor o c_label', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_ERASED});
+	}
+	if (scalar @{$rm->{'repeated'}}) {
+		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype ETIQUETAS REPETIDAS (no se reordenan): ".join(' | ',@{$rm->{'repeated'}}));
+	}
+	return $rm;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: apply_remap_watch_status
+# Descripcion: Modo 0. Pone en %nochange y %change el watch y el status que da el
+# reordenamiento. Las instancias nuevas entran activas (status=0).
+#----------------------------------------------------------------------------
+sub apply_remap_watch_status {
+my ($self,$rm,$nochange,$change)=@_;
+	foreach my $h ($nochange,$change) {
+		foreach my $iid (keys %$h) {
+			my $a = $rm->{'assign'}->{$iid};
+			next if (! defined $a);
+			$h->{$iid}->{'watch'}  = $a->{'watch'};
+			$h->{$iid}->{'status'} = $a->{'status'};
+		}
+	}
+}
+
+#----------------------------------------------------------------------------
+# Funcion: apply_remap_c_label
+# Descripcion: Escribe en metrics el c_label que da el reordenamiento, solo donde cambia.
+#----------------------------------------------------------------------------
+sub apply_remap_c_label {
+my ($self,$id_dev,$subtype,$MDATA,$rm,$snap)=@_;
+
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	$snap ||= {};
+
+	foreach my $iid (sort keys %{$rm->{'assign'}}) {
+		my $new_c = $rm->{'assign'}->{$iid}->{'c_label'};
+		my $cur_c = (exists $snap->{$iid}) ? $snap->{$iid}->{'c_label'} : undef;
+		next if ((defined $new_c ? $new_c : '') eq (defined $cur_c ? $cur_c : ''));
+		my $name = $MDATA->{$iid}->{'name'};
+		next if ((! defined $name) || ($name eq ''));
+		$STORE->update_db($dbh,'metrics',{'c_label'=>$new_c},"id_dev=$id_dev AND name=".$dbh->quote($name));
+		$self->log('info',"apply_remap_c_label::[INFO] ID_DEV=$id_dev $name c_label=".(defined $new_c ? $new_c : 'NULL'));
+	}
+}
 
 #----------------------------------------------------------------------------
 # Funcion: get_applicable_rules

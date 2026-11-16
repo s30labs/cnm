@@ -1,0 +1,82 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-blue-alerts-fix
+# Encola una reprovision desde la plantilla (setmetric, modo 0) para los equipos con
+# alertas azules SNMP. La reprovision reordena c_label y monitores por etiqueta, crea
+# las instancias nuevas y borra las azules (PROY-CNM-Alertas-Azules, apartado 6.3).
+#
+# Necesita PROV_REMAP_BY_LABEL = 1 en /cfg/onm.conf: sin el, la reprovision borraria
+# las azules con su c_label sin reordenar nada, y el guion no encola nada.
+#
+# Uso: cnm-blue-alerts-fix [-n] [-d id_dev] [-c cid]
+#   -n          solo lista lo que encolaria
+#   -d id_dev   solo ese equipo
+#   -c cid      cid de la accion (por defecto: default)
+#
+# Sustituye a cnm-check-blue-alerts.
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use Digest::MD5 qw(md5_hex);
+use ONMConfig;
+use Crawler::Store;
+use ATypes qw(ATYPE_SET_METRICS_FROM_TEMPLATE_BLOCK);
+
+my $FILE_CONF = '/cfg/onm.conf';
+my $BLOCK = 15;		# equipos por accion, como la consola
+
+my %opts=();
+getopts("nd:c:h",\%opts);
+if ($opts{h}) { print "Uso: $0 [-n] [-d id_dev] [-c cid]\n"; exit 0; }
+my $DRY = $opts{n} ? 1 : 0;
+my $CID = $opts{c} || 'default';
+if ((defined $opts{d}) && ($opts{d} !~ /^\d+$/)) { die "id_dev no valido: $opts{d}\n"; }
+if ($CID !~ /^[\w\-]+$/) { die "cid no valido: $CID\n"; }
+
+my $rcfg = conf_base($FILE_CONF);
+my $remap = (defined $rcfg->{'prov_remap_by_label'}) ? $rcfg->{'prov_remap_by_label'}->[0] : 0;
+if ((! defined $remap) || ($remap !~ /^\s*1\s*$/)) {
+	print "PROV_REMAP_BY_LABEL no esta a 1 en $FILE_CONF: no se encola nada.\n";
+	print "Sin el, la reprovision borraria las azules con su c_label sin reordenarlas.\n";
+	exit 1;
+}
+
+my $store = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+	db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+	db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+my $dbh = $store->open_db();
+if (! $dbh) { print "No se puede conectar con la base\n"; exit 1; }
+
+# Equipos con azules SNMP
+my $where = "severity=4 AND type='snmp'";
+$where .= " AND id_device=$opts{d}" if (defined $opts{d});
+my @devs = map { $_->[0] } @{ $store->get_from_db($dbh,'DISTINCT id_device','alerts',$where) };
+
+# Equipos que ya tienen una reprovision pendiente o en curso
+my %pending=();
+foreach my $r (@{ $store->get_from_db($dbh,'params','qactions',"action='setmetric' AND status IN (0,1)") }) {
+	next if ((! defined $r->[0]) || ($r->[0] !~ /\bid_dev=([\d,]+)/));
+	$pending{$_}=1 foreach split(/,/,$1);
+}
+my @skip = grep { $pending{$_} } @devs;
+my @todo = sort { $a <=> $b } grep { ! $pending{$_} } @devs;
+
+printf "Equipos con azules SNMP: %d · con reprovision pendiente: %d · a encolar: %d\n", scalar(@devs), scalar(@skip), scalar(@todo);
+print  "Ya pendientes: @skip\n" if (@skip);
+
+my $n=0;
+while (my @block = splice(@todo,0,$BLOCK)) {
+	my $params = "id_dev=".join(',',@block).";fast=1;cid=$CID";
+	if ($DRY) { print "ENCOLARIA setmetric $params\n"; next; }
+	my $now = time();
+	my %action = ( 'name'=>substr(md5_hex("$now$params"),0,8), 'descr'=>'Reprovision por alertas azules (cnm-blue-alerts-fix)',
+	               'action'=>'setmetric', 'task'=>'setmetric', 'params'=>$params, 'auser'=>'cnm-blue-alerts-fix',
+	               'date_store'=>$now, 'date_start'=>$now, 'status'=>0, 'atype'=>ATYPE_SET_METRICS_FROM_TEMPLATE_BLOCK );
+	$store->insert_to_db($dbh,'qactions',\%action);
+	if ($store->error()) { print "ERROR al encolar $params: ".$store->errorstr()."\n"; exit 1; }
+	print "ENCOLADO setmetric $params\n";
+	$n++;
+}
+print "Acciones encoladas: $n\n" if (! $DRY);
+exit 0;
