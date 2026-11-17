@@ -1,0 +1,344 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-metrics-file
+# Gestiona los ficheros del campo de dispositivo CNM-METRICS (/store/www-user/automation):
+# que metricas de la plantilla de un equipo se activan o desactivan en cada provision.
+# Formato: ProvisionLite/MetricsFile.pm (version 2). Ayuda: cnm-metrics-file -h
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long qw(GetOptionsFromArray);
+use JSON;
+use File::Temp qw(tempfile);
+use ONMConfig;
+use Crawler::Store;
+use ProvisionLite::MetricsFile qw(parse_text check_data plan_changes v1_to_v2 encode_data
+											 add_entry remove_entry valid_file_name);
+
+my $FILE_CONF = '/cfg/onm.conf';
+my $DIR = '/store/www-user/automation';
+my $FIELD_NAME = 'CNM-METRICS';
+
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my $NAME = $fpth[$#fpth];
+my $USAGE = <<USAGE;
+Ficheros CNM-METRICS: que metricas de la plantilla de un equipo se activan o desactivan
+(c) s30labs
+
+$NAME list    [devices]                    equipos, su fichero y quien mas comparte cada fichero
+$NAME show    FILE                         contenido, si es valido y que equipos lo usan
+$NAME preview FILE devices                 que cambiaria en la plantilla de esos equipos (no escribe)
+$NAME create  FILE --default D --order O [--descr T]
+$NAME add     FILE --rule enable|disable --type T [--subtype S] --label_like RE [--watch W]
+$NAME del     FILE --rule enable|disable --type T [--subtype S] --label_like RE
+$NAME set     FILE [--default D] [--order O] [--descr T]
+$NAME assign  FILE|- devices               pone el fichero (o "-", ninguno) en el campo CNM-METRICS
+$NAME migrate FILE                         formato antiguo (sin version) al 2; copia en FILE.v1
+$NAME -h  : Ayuda
+
+devices: --id 1,2  --ip 10.0.0.1,10.0.0.2  --name a,b  --devtype "tipo de dispositivo"
+         (se pueden combinar; se suman)
+FILE:    nombre xxx.json dentro de $DIR, sin ruta
+--order: enable,disable  o  disable,enable
+Codigo de salida: 0 bien, 1 error, 2 uso incorrecto.
+
+QUE HACE EL FICHERO
+  En cada provision de un equipo, su fichero CNM-METRICS activa o desactiva instancias de
+  su plantilla. Una instancia desactivada se borra de las metricas en curso, y con ella su
+  grafica (RRD) y sus alertas. Por eso, antes de cambiar nada: $NAME preview.
+  Si un fichero no es valido, la provision no toca la plantilla y lo avisa en qactions
+  ("CNM-METRICS no aplicado"). Un fichero lo pueden compartir muchos equipos: al
+  cambiarlo, cambia para todos. Este guion lo dice, pero no lo impide.
+
+  {
+    "version": 2,
+    "descr":   "texto libre (opcional)",
+    "default": "keep" | "disable",
+    "order":   ["enable","disable"] | ["disable","enable"],
+    "enable":  [ {"type":..., "subtype":..., "label_like":..., "watch":...} ],
+    "disable": [ {"type":..., "subtype":..., "label_like":...} ]
+  }
+
+  type        obligatorio: snmp, latency, xagent...
+  subtype     opcional: sin el, vale para cualquier subtipo de ese type.
+  label_like  obligatorio: expresion regular sobre la etiqueta completa, que acaba en
+              " (nombre del equipo)". Ej.: "^USO DE DISCO /run/user/"
+  watch       solo en enable, opcional: monitor que se asocia a la instancia.
+
+  default: que pasa con lo que no casa con ninguna entrada.
+    keep     se queda como esta (lo que active el usuario en la consola sigue activo;
+             lo nuevo entra inactivo, como siempre). Para EXCLUIR lo que sobra.
+    disable  se desactiva. Lista de INCLUSION: solo queda lo que este en enable.
+
+  order: en que orden se miran las listas. La primera entrada que casa decide.
+    Solo importa cuando una etiqueta casa a la vez con enable y con disable:
+    ["enable","disable"]  la excepcion va en enable. Sirve para "quita todo esto MENOS
+                          aquello": disable "^USO DE DISCO /run/" y enable
+                          "^USO DE DISCO /run/lock " => fuera /run/* salvo /run/lock.
+                          Es lo natural con default keep.
+    ["disable","enable"]  la excepcion va en disable. Sirve para "deja todo esto MENOS
+                          aquello": enable "^TRAFICO Gi" y disable "^TRAFICO Gi0/0/9 "
+                          => todas las Gi salvo la 0/0/9. Es lo natural con default disable.
+    Si dudas: un enable de mas crea una metrica que sobra; un disable de mas BORRA una
+    metrica con su historico. En caso de duda, que decida enable (primero enable).
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my @ARGS = @ARGV;
+my $CMD = shift @ARGS;
+if ((! defined $CMD) || ($CMD eq '-h')) { print $USAGE; exit((defined $CMD) ? 0 : 2); }
+
+my %o=();
+GetOptionsFromArray(\@ARGS, \%o, 'id=s','ip=s','name=s','devtype=s',
+	'rule=s','type=s','subtype=s','label_like=s','watch=s','default=s','order=s','descr=s')
+	or usage();
+my $FILE = shift @ARGS;
+usage("sobran argumentos: @ARGS") if (scalar @ARGS);
+
+my %CMDS = ( list=>\&cmd_list, show=>\&cmd_show, preview=>\&cmd_preview, create=>\&cmd_create,
+				 add=>\&cmd_add, del=>\&cmd_del, set=>\&cmd_set, assign=>\&cmd_assign, migrate=>\&cmd_migrate );
+usage("orden desconocida: $CMD") if (! $CMDS{$CMD});
+if (($CMD ne 'list') && (! defined $FILE)) { usage("falta FILE"); }
+if ((defined $FILE) && ($FILE ne '-') && (! valid_file_name($FILE))) {
+	usage("nombre de fichero no valido: $FILE (xxx.json, sin ruta)");
+}
+
+my ($STORE,$DBH,$COL);
+my $RC = eval { $CMDS{$CMD}->() };
+if (! defined $RC) { print STDERR "ERROR: $@"; $RC = 1; }
+exit $RC;
+
+#-------------------------------------------------------------------------------------------
+sub usage { my ($m)=@_; print STDERR "$m\n" if ($m); print STDERR "Ayuda: $NAME -h\n"; exit 2; }
+sub fail  { my ($m)=@_; print STDERR "ERROR: $m\n"; return 1; }
+
+sub db {
+	return if ($DBH);
+	my $rcfg = conf_base($FILE_CONF);
+	$STORE = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+		db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+		db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+	$DBH = $STORE->open_db();
+	die "No se puede conectar con la base\n" if (! $DBH);
+	my ($id) = $DBH->selectrow_array("SELECT id FROM devices_custom_types WHERE descr=?", undef, $FIELD_NAME);
+	die "No existe el campo de dispositivo $FIELD_NAME\n" if (! defined $id);
+	$COL = 'columna'.int($id);
+}
+
+# Equipos de la seleccion: [ {id_dev,name,ip,type,file} ], ordenados por id
+sub selected {
+	db();
+	my (@w,@b)=();
+	foreach my $k (['id','d.id_dev'],['ip','d.ip'],['name','d.name'],['devtype','d.type']) {
+		next if (! defined $o{$k->[0]});
+		my @v = grep { $_ ne '' } split(/\s*,\s*/, $o{$k->[0]});
+		next if (! scalar @v);
+		push @w, "$k->[1] IN (".join(',', ('?') x scalar @v).")";
+		push @b, @v;
+	}
+	return undef if (! scalar @w);
+	return devices('('.join(' OR ',@w).')', @b);
+}
+
+sub devices {
+	my ($where,@bind)=@_;
+	my $rows = $DBH->selectall_arrayref("SELECT d.id_dev,d.name,d.ip,d.type,c.$COL FROM devices d "
+		."LEFT JOIN devices_custom_data c ON c.id_dev=d.id_dev WHERE $where ORDER BY d.id_dev", undef, @bind);
+	return [ map { { id_dev=>$_->[0], name=>$_->[1], ip=>$_->[2], type=>(defined $_->[3] ? $_->[3] : ''),
+		file=>((defined $_->[4]) && ($_->[4] =~ /\S/) && ($_->[4] ne '-')) ? $_->[4] : '-',
+		has_row=>(defined $_->[4]) ? 1 : 0 } } @$rows ];
+}
+
+sub users_of { my ($f)=@_; db(); return devices("c.$COL = ?", $f); }
+
+sub dev_txt { my ($d)=@_; return "$d->{id_dev} $d->{name} ($d->{ip}, $d->{type})"; }
+
+sub print_users {
+	my ($f,$sel)=@_;
+	my $u = users_of($f);
+	my %in = map { $_->{id_dev}=>1 } @{ $sel || [] };
+	my @out = grep { ! $in{$_->{id_dev}} } @$u;
+	printf "  %s lo usan %d equipos", $f, scalar @$u;
+	if ($sel) { printf "; %d fuera de la seleccion", scalar @out; }
+	print ".\n";
+	my @show = $sel ? @out : @$u;
+	foreach my $d (@show[0 .. ($#show < 19 ? $#show : 19)]) { print "    ".dev_txt($d)."\n"; }
+	print "    ... y ".(scalar(@show)-20)." mas\n" if (scalar(@show) > 20);
+}
+
+sub read_file {
+	my ($f)=@_;
+	my $p = "$DIR/$f";
+	return (undef,undef,"no existe $p") if (! -f $p);
+	open(my $fh,'<',$p) or return (undef,undef,"no se puede leer $p: $!");
+	local $/; my $t = <$fh>; close $fh;
+	my ($cfg,$err) = parse_text($t);
+	return ($t,$cfg,$err);
+}
+
+# Escritura atomica, conservando dueno y permisos si el fichero ya existia
+sub write_file {
+	my ($f,$data)=@_;
+	my ($cfg,$err) = check_data($data);
+	die "No se escribe: el resultado no seria valido: $err\n" if ($err);
+	my $p = "$DIR/$f";
+	my @st = (-e $p) ? stat($p) : stat($DIR);
+	my $mode = (-e $p) ? ($st[2] & 07777) : 0664;
+	my ($fh,$tmp) = tempfile(".$f.XXXXXX", DIR=>$DIR);
+	print $fh encode_data($data);
+	close($fh) or die "No se puede escribir $tmp: $!\n";
+	chmod $mode, $tmp; chown $st[4], $st[5], $tmp;
+	rename($tmp,$p) or do { unlink $tmp; die "No se puede escribir $p: $!\n"; };
+}
+
+sub edit_file {
+	my ($f,$change)=@_;
+	my ($t,$cfg,$err) = read_file($f);
+	return fail("$f: $err") if ($err);
+	my ($d2,$msg) = $change->($cfg->{'data'});
+	write_file($f,$d2);
+	print "$f: $msg\n";
+	print_users($f);
+	print "Se aplica en la siguiente provision de cada equipo. Antes: $NAME preview $f --id ...\n";
+	return 0;
+}
+
+sub entry_from_opts {
+	my ($list)=@_;
+	usage('--rule tiene que ser enable o disable') if ((! defined $list) || ($list !~ /^(enable|disable)$/));
+	usage('falta --type') if (! defined $o{'type'});
+	usage('falta --label_like') if (! defined $o{'label_like'});
+	usage('--watch solo vale en enable') if ((defined $o{'watch'}) && ($list ne 'enable'));
+	my %e = (type=>$o{'type'}, label_like=>$o{'label_like'});
+	$e{'subtype'} = $o{'subtype'} if (defined $o{'subtype'});
+	$e{'watch'} = $o{'watch'} if (defined $o{'watch'});
+	return \%e;
+}
+
+sub order_from_opts { return [ split(/\s*,\s*/, $o{'order'}) ]; }
+
+#-------------------------------------------------------------------------------------------
+sub cmd_list {
+	my $sel = selected();
+	my $devs = $sel || devices("c.$COL IS NOT NULL AND c.$COL NOT IN ('','-')");
+	print "Equipos".($sel ? " seleccionados" : " con fichero").": ".scalar(@$devs)."\n";
+	foreach my $d (@$devs) { printf "  %-60s %s%s\n", dev_txt($d), $d->{file}, ($d->{has_row} ? '' : ' (sin fila en devices_custom_data)'); }
+
+	my %files = map { $_->{file}=>1 } grep { $_->{file} ne '-' } @$devs;
+	print "\nFicheros:\n" if (scalar keys %files);
+	foreach my $f (sort keys %files) {
+		my (undef,undef,$err) = read_file($f);
+		print "  $f: ".($err ? "NO VALIDO: $err" : 'valido')."\n";
+		print_users($f, $sel);
+	}
+	if (! $sel) {
+		my @unused = grep { ! $files{$_} } map { s{.*/}{}r } glob("$DIR/*.json");
+		print "\nFicheros en $DIR sin ningun equipo: @unused\n" if (scalar @unused);
+	}
+	return 0;
+}
+
+sub cmd_show {
+	my ($t,$cfg,$err) = read_file($FILE);
+	print $t if (defined $t);
+	print "\n$FILE: ".($err ? "NO VALIDO: $err" : 'valido')."\n";
+	print_users($FILE);
+	return $err ? 1 : 0;
+}
+
+sub cmd_preview {
+	my ($t,$cfg,$err) = read_file($FILE);
+	return fail("$FILE: $err") if ($err);
+	my $sel = selected() or usage('falta la seleccion de equipos');
+	foreach my $d (@$sel) {
+		my $rows = $DBH->selectall_arrayref("SELECT c.type,c.subtype,i.watch,i.iid,i.mname,i.label,i.status "
+			."FROM prov_template_metrics c, prov_template_metrics2iid i "
+			."WHERE c.id_template_metric=i.id_template_metric AND c.id_dev=?", { Slice=>{} }, $d->{id_dev});
+		my $ch = plan_changes($cfg,$rows);
+		my $note = ($d->{file} eq $FILE) ? '' : " [hoy tiene: $d->{file}]";
+		printf "%s: %d instancias, %d cambiarian%s\n", dev_txt($d), scalar @$rows, scalar @$ch, $note;
+		foreach my $c (sort { $a->{row}{subtype} cmp $b->{row}{subtype} || $a->{row}{label} cmp $b->{row}{label} } @$ch) {
+			my $r = $c->{row};
+			my $what = ($c->{status} != $r->{status}) ? ($c->{status} ? 'SE DESACTIVA (se borra)' : 'se activa') : 'cambia el monitor';
+			my $w = ((defined $c->{watch} ? $c->{watch} : '') ne (defined $r->{watch} ? $r->{watch} : '')) ? " watch $r->{watch} > $c->{watch}" : '';
+			print "    $what: $r->{subtype} $r->{label}$w  [$c->{by}]\n";
+		}
+	}
+	print "Se compara con la plantilla guardada; la provision puede anadir instancias nuevas, que entran inactivas.\n";
+	return 0;
+}
+
+sub cmd_create {
+	return fail("$FILE ya existe") if (-e "$DIR/$FILE");
+	usage('faltan --default y --order') if ((! defined $o{'default'}) || (! defined $o{'order'}));
+	my %d = (version=>2, default=>$o{'default'}, order=>order_from_opts(), enable=>[], disable=>[]);
+	$d{'descr'} = $o{'descr'} if (defined $o{'descr'});
+	my ($cfg,$err) = check_data(\%d);
+	return fail($err) if ($err);
+	write_file($FILE,\%d);
+	print "$FILE creado. Para usarlo: $NAME assign $FILE --id ...\n";
+	return 0;
+}
+
+sub cmd_add { my $e = entry_from_opts($o{'rule'}); return edit_file($FILE, sub { add_entry($_[0],$o{'rule'},$e) }); }
+sub cmd_del {
+	usage('--watch no hace falta para quitar') if (defined $o{'watch'});
+	my $e = entry_from_opts($o{'rule'});
+	return edit_file($FILE, sub { remove_entry($_[0],$o{'rule'},$e) });
+}
+
+sub cmd_set {
+	usage('nada que cambiar: --default, --order o --descr') if (! grep { defined $o{$_} } qw(default order descr));
+	return edit_file($FILE, sub {
+		my %d = %{$_[0]};
+		$d{'default'} = $o{'default'} if (defined $o{'default'});
+		$d{'order'} = order_from_opts() if (defined $o{'order'});
+		$d{'descr'} = $o{'descr'} if (defined $o{'descr'});
+		return (\%d, 'cambiado');
+	});
+}
+
+sub cmd_assign {
+	my $sel = selected() or usage('falta la seleccion de equipos');
+	if ($FILE ne '-') {
+		my (undef,undef,$err) = read_file($FILE);
+		return fail("$FILE: $err. No se asigna.") if ($err);
+	}
+	my $rc = 0;
+	my %before=();
+	foreach my $d (@$sel) {
+		if (! $d->{has_row}) { print "  ".dev_txt($d).": sin fila en devices_custom_data, no se asigna\n"; $rc=1; next; }
+		if ($d->{file} eq $FILE) { print "  ".dev_txt($d).": ya tenia $FILE\n"; next; }
+		$DBH->do("UPDATE devices_custom_data SET $COL=? WHERE id_dev=?", undef, $FILE, $d->{id_dev})
+			or do { print "  ".dev_txt($d).": ERROR ".$DBH->errstr."\n"; $rc=1; next; };
+		print "  ".dev_txt($d).": $d->{file} > $FILE\n";
+		$before{$d->{file}}=1 if ($d->{file} ne '-');
+	}
+	if ($FILE ne '-') { print "\n"; print_users($FILE); }
+	foreach my $f (sort keys %before) {
+		my $n = scalar @{ users_of($f) };
+		print "  $f: ".($n ? "lo siguen usando $n equipos" : "ya no lo usa ningun equipo")."\n";
+	}
+	print "Se aplica en la siguiente provision de cada equipo.\n";
+	return $rc;
+}
+
+sub cmd_migrate {
+	my $p = "$DIR/$FILE";
+	return fail("no existe $p") if (! -f $p);
+	return fail("ya existe $p.v1: no se pisa") if (-e "$p.v1");
+	open(my $fh,'<',$p) or return fail("no se puede leer $p: $!");
+	my $t = do { local $/; <$fh> }; close $fh;
+	my $data;
+	eval { $data = JSON->new->decode($t); };
+	return fail("$FILE: JSON no valido, no se migra") if ($@);
+	my ($d2,$err) = v1_to_v2($data);
+	return fail("$FILE: $err") if ($err);
+	open(my $bk,'>',"$p.v1") or return fail("no se puede escribir $p.v1: $!");
+	print $bk $t; close($bk) or return fail("no se puede escribir $p.v1: $!");
+	write_file($FILE,$d2);
+	print "$FILE migrado (copia del original en $FILE.v1): default=disable, order=enable,disable; mismo efecto que antes.\n";
+	print_users($FILE);
+	return 0;
+}

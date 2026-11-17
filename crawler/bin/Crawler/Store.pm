@@ -20,6 +20,7 @@ use Data::Dumper;
 use JSON;
 use File::Copy;
 use ATypes;
+use ProvisionLite::MetricsFile;
 use ONMConfig;
 
 #----------------------------------------------------------------------------
@@ -7629,100 +7630,89 @@ my ($self,$dbh,$id_dev,$rules)=@_;
 #----------------------------------------------------------------------------
 # Funcion: set_template_metrics_by_custom_file
 # Descripcion:
-# Si el dispositivo tiene un fichero de metricas para la plantilla, se aplica.
-# Si no tiene fichero definido, no hace nada.
-# El nombre del fichero se especifica en el campo de dispositivo CNM-METRICS
-# La ruta es /store/www-user/automation (Se sube desde configuracion)
+# Si el dispositivo tiene un fichero de metricas en el campo CNM-METRICS, se aplica
+# a su plantilla (activa o desactiva instancias). Si no tiene fichero, no hace nada.
+# La ruta es /store/www-user/automation (se sube desde configuracion o con
+# support/cnm-metrics-file). Formato: ProvisionLite::MetricsFile (version 2).
+#
+# Si el fichero no existe o no es valido, NO se cambia la plantilla y se avisa en
+# qactions: antes, un fichero ilegible desactivaba todas las metricas del equipo.
+# Si cambia algo, tambien se avisa, con las instancias activadas y desactivadas.
 #----------------------------------------------------------------------------
+our $CNM_METRICS_DIR = '/store/www-user/automation';
 sub set_template_metrics_by_custom_file {
 my ($self,$dbh,$id_dev)=@_;
 
-   my $custom_field = 'CNM-METRICS';
-   my $file_path = '/store/www-user/automation';
-   my $rres = $self->get_from_db_cmd($dbh,"SELECT id FROM devices_custom_types WHERE descr = '$custom_field'");
+	my $custom_field = 'CNM-METRICS';
+	my $file_path = $CNM_METRICS_DIR;
+	my $rres = $self->get_from_db_cmd($dbh,"SELECT id FROM devices_custom_types WHERE descr = '$custom_field'");
 
-   # Si no esta definido el custom_field termina.
-   if (!defined $rres->[0][0]) { return; }
+	# Si no esta definido el custom_field termina.
+	if (!defined $rres->[0][0]) { return; }
 
-   my $field = 'columna'.$rres->[0][0];
-   #select columna3 from devices_custom_data where id_dev=431;
-   $rres = $self->get_from_db_cmd($dbh,"SELECT $field FROM devices_custom_data WHERE id_dev=$id_dev");
+	my $field = 'columna'.$rres->[0][0];
+	$rres = $self->get_from_db_cmd($dbh,"SELECT $field FROM devices_custom_data WHERE id_dev=$id_dev");
+	my $name = $rres->[0][0];
+	if ((! defined $name) || ($name =~ /^\s*(-)?\s*$/)) { return; }
 
-	if ($rres->[0][0] eq '-') { return; }
-   my $file_metrics = join ('/', $file_path, $rres->[0][0]);
-   if (! -f $file_metrics) {
-		$self->log('warning',"set_template_metrics_by_custom_file::[WARN] NO EXISTE file_metrics=$file_metrics");
-      return;
-   }
+	my ($cfg,$err);
+	my $file_metrics = join ('/', $file_path, $name);
+	if (! ProvisionLite::MetricsFile::valid_file_name($name)) { $err = 'nombre de fichero no valido'; }
+	elsif (! -f $file_metrics) { $err = "no existe $file_metrics"; }
+	else { ($cfg,$err) = ProvisionLite::MetricsFile::parse_text($self->slurp_file($file_metrics)); }
 
-	my $rules={};
-   my $x=$self->slurp_file($file_metrics);
-   my $json = JSON->new();
-   $json = $json->canonical([1]);
-	
-	eval {
-   	$rules = $json->decode($x);
- 	};
- 	if ($@) { $self->log('error',"set_template_metrics_by_custom_file::ERROR AL DECODIFICAR $file_metrics ($@)"); }
+	if ($err) {
+		$self->log('warning',"set_template_metrics_by_custom_file::[WARN] id_dev=$id_dev $name: $err. No se cambia la plantilla");
+		$self->log_qactions($dbh,{'descr'=>'CNM-METRICS no aplicado', 'rc'=>1, 'id_dev'=>$id_dev,
+			'rcstr'=>"$name: $err. No se cambia la plantilla del equipo.", 'atype'=>ATYPE_IIDS_MODIFIED});
+		return;
+	}
 
-	print Dumper($rules);
+	my $values='c.type,c.subtype,i.watch,i.iid,i.mname,i.label,i.status,c.id_template_metric';
+	my $tables="prov_template_metrics c, prov_template_metrics2iid i";
+	my $where="c.id_template_metric=i.id_template_metric and c.id_dev=$id_dev";
+	$rres=sqlSelectAll($dbh,$values,$tables,$where);
+	$self->error($libSQL::err);
+	$self->errorstr($libSQL::errstr);
+	$self->lastcmd($libSQL::cmd);
+	if ($libSQL::err) {
+		$self->manage_db_error($dbh,"set_template_metrics_by_custom_file");
+		return;
+	}
 
-#          'enable' => [
-#                        {
-#                          'label_like' => 'ICMP',
-#                          'type' => 'latency',
-#                          'watch' => '',
-#                          'subtype' => 'disp_icmp'
-#                        },
-#                        {
-#                          'watch' => '',
-#                          'subtype' => 'status_mibii_if',
-#                          'type' => 'snmp',
-#                          'label_like' => 'Tunnel0'
-#                        },
+	my @rows = map { { 'type'=>$_->[0], 'subtype'=>$_->[1], 'watch'=>$_->[2], 'iid'=>$_->[3], 'mname'=>$_->[4],
+							 'label'=>(defined $_->[5] ? $_->[5] : ''), 'status'=>$_->[6], 'id_template_metric'=>$_->[7] } } @$rres;
 
+	my $changes = ProvisionLite::MetricsFile::plan_changes($cfg,\@rows);
+	my (@on,@off)=();
+	foreach my $c (@$changes) {
+		my $r = $c->{'row'};
+		my ($w0,$w1) = (defined $r->{'watch'} ? $r->{'watch'} : '', defined $c->{'watch'} ? $c->{'watch'} : '');
+		$self->log('info',"set_template_metrics_by_custom_file::id_dev=$id_dev $r->{'mname'} status $r->{'status'}>$c->{'status'} watch $w0>$w1 ($c->{'by'}) $r->{'label'}");
 
-	my ($enable, $disable) = ([], []);
-	if (exists $rules->{'enable'}) { $enable = $rules->{'enable'}; }
-	if (exists $rules->{'disable'}) { $disable = $rules->{'disable'}; }
-
-	#--------------------------------------------
-   my @result=();
-   my $values='c.id_template_metric,c.type,c.subtype,i.watch,i.iid,i.mname,i.label,i.status,c.lapse';
-   my $tables="prov_template_metrics c, prov_template_metrics2iid i";
-   my $where="c.id_template_metric=i.id_template_metric and c.id_dev=$id_dev";
-   $rres=sqlSelectAll($dbh,$values,$tables,$where);
-
-	my @template=();
-   foreach my $m (@$rres) {
-
-		my ($id_template_metric,$type,$subtype,$watch,$iid,$mname,$label,$status,$lapse) = ($m->[0],$m->[1],$m->[2],$m->[3],$m->[4],$m->[5],$m->[6],$m->[7],$m->[8]);
-		my $rule_status = 1;
-		foreach my $r (@$enable) {
-			my $label_like = $r->{'label_like'};
-			#$self->log('debug',"set_template_metrics_by_custom_file::**DEPURA** label_like=$label_like >> label=$label");
-			if ( ($subtype eq $r->{'subtype'}) && ($type eq $r->{'type'}) && ($label=~/$label_like/)) { 
-				$rule_status = 0;
-				#Si en el fichero hay definido monitor, se asocia el monitor definido en el fichero.
-				if ($r->{'watch'} ne '') { $watch = $r->{'watch'}; }
-				last;
-			}
+		my %table = ('watch'=>$c->{'watch'}, 'status'=>$c->{'status'});
+		my $condition = "id_template_metric=$r->{'id_template_metric'} AND mname=".$dbh->quote($r->{'mname'});
+		sqlUpdate($dbh,'prov_template_metrics2iid',\%table,$condition);
+		$self->error($libSQL::err);
+		$self->errorstr($libSQL::errstr);
+		$self->lastcmd($libSQL::cmd);
+		if ($libSQL::err) {
+			$self->manage_db_error($dbh,"set_template_metrics_by_custom_file");
+			next;
 		}
+		my $label = $r->{'label'}; $label =~ s/\s*\([^()]*\)\s*$//;	# sin el (equipo) del final
+		push @{ ($c->{'status'} == 0) ? \@on : \@off }, $label;
+	}
 
-		$self->log('debug',"set_template_metrics_by_custom_file::id=$id_template_metric status=$status ($rule_status) label=$label watch=$watch");
-
-		my %table = ('watch'=>$watch, 'status'=>$rule_status);
-		my $condition="id_template_metric=$id_template_metric AND mname='$mname'";
-	   my $rv=sqlUpdate($dbh,'prov_template_metrics2iid',\%table,$condition);
-
-   	$self->error($libSQL::err);
-   	$self->errorstr($libSQL::errstr);
-   	$self->lastcmd($libSQL::cmd);
-   	if ($libSQL::err) {
-      	$self->manage_db_error($dbh,"set_template_metrics_by_custom_file");
-   	}
-
-   }
+	if (scalar(@on) || scalar(@off)) {
+		my @txt=();
+		if (scalar @off) { push @txt, 'desactivadas: '.join(', ',@off); }
+		if (scalar @on)  { push @txt, 'activadas: '.join(', ',@on); }
+		my $rcstr = "$name: ".join('; ',@txt);
+		if (length($rcstr) > 1000) { $rcstr = substr($rcstr,0,990).' (...)'; }
+		$self->log_qactions($dbh,{'descr'=>'Plantilla ajustada por CNM-METRICS', 'rc'=>0, 'id_dev'=>$id_dev,
+			'rcstr'=>$rcstr, 'atype'=>ATYPE_IIDS_MODIFIED});
+	}
 }
 
 #----------------------------------------------------------------------------
