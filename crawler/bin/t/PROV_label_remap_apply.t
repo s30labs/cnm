@@ -79,4 +79,34 @@ my ($aviso) = grep { $_->{descr} eq 'Instancias desaparecidas con monitor o c_la
 ok($aviso && $aviso->{rcstr} =~ m{/home} && $aviso->{rcstr} !~ m{/var}, 'qactions: avisa de /home (monitor y c_label) y no de /var');
 ok(!(grep { !defined $_->{rc} || $_->{rc} !~ /^-?\d+$/ } @{$store->{qactions}}), 'qactions: rc es un entero, como la columna qactions.rc');
 
+# 3. Disco nuevo en un iid que se ha quedado libre (esicganprd01, 18-nov-2026): K:\ ocupa
+#    el 4, la memoria virtual pasa del 4 al 5 y la fisica del 5 al 6.
+my $store2 = FakeStore->new(
+	tpl => [ ['disk_mibhost','3','USO DE DISCO E:\\ (esi)','0',0],
+	         ['disk_mibhost','4','USO DE DISCO Virtual Memory (esi)','s_mem',0],
+	         ['disk_mibhost','5','USO DE DISCO Physical Memory (esi)','0',1] ],
+	met => [ ['disk_mibhost','3','USO DE DISCO E:\\ (esi)',undef],
+	         ['disk_mibhost','4','USO DE DISCO Virtual Memory (esi)','KPI0007 Memory usage'] ] );
+my $p2 = TProv->new(store=>$store2, dbh=>FakeDBH->new, cfg=>{ prov_remap_by_label=>['1'] });
+my $snap2 = $p2->snapshot_instances(649);
+my %IIDS2 = map { my ($st,$iid,$l,$w,$s)=@$_; ($iid => { label=>$l, watch=>$w, status=>$s, mname=>"disk_mibhost-$iid" }) } @{$store2->{tpl}};
+my $v2 = { type=>'snmp', subtype=>'disk_mibhost', IIDS=>\%IIDS2 };
+my $MDATA2 = { 3=>{ label=>'USO DE DISCO E:\\ (esi)',            name=>'disk_mibhost-3' },
+               4=>{ label=>'USO DE DISCO K:\\ (esi)',            name=>'disk_mibhost-4' },
+               5=>{ label=>'USO DE DISCO Virtual Memory (esi)',  name=>'disk_mibhost-5' },
+               6=>{ label=>'USO DE DISCO Physical Memory (esi)', name=>'disk_mibhost-6' } };
+# Fase B: 3 sin cambio; 4 y 5 'change' con los valores de su iid en la plantilla; 6 nuevo
+my %nochange2 = ( 3=>{ watch=>'0', status=>0 } );
+my %change2 = ( 4=>{ watch=>'s_mem', status=>0 }, 5=>{ watch=>'0', status=>1 }, 6=>{ watch=>'0', status=>1 } );
+my $rm2 = $p2->remap_instances(649,$v2,$MDATA2,$snap2->{disk_mibhost},0);
+$p2->apply_remap_watch_status($rm2,\%nochange2,\%change2);
+is_deeply([$change2{5}{watch},$change2{5}{status}], ['s_mem',0], 'iid libre: la memoria virtual pasa al 5 con su monitor, activa');
+is_deeply([$change2{4}{watch},$change2{4}{status}], ['0',1],     'iid libre: K:\\, nuevo en el 4, sin monitor e inactivo (no hereda el de la memoria virtual)');
+is_deeply([$change2{6}{watch},$change2{6}{status}], ['0',1],     'iid libre: la memoria fisica pasa al 6 y sigue inactiva');
+is_deeply([$nochange2{3}{watch},$nochange2{3}{status}], ['0',0], 'iid libre: E:\\ no cambia');
+$p2->apply_remap_c_label(649,'disk_mibhost',$MDATA2,$rm2,$snap2->{disk_mibhost});
+my %upd2 = map { ($_->[2] => $_->[1]) } @{$store2->{updates}};
+is($upd2{"id_dev=649 AND name='disk_mibhost-5'"}, 'KPI0007 Memory usage', 'iid libre: el c_label de la memoria virtual pasa al 5');
+ok(exists $upd2{"id_dev=649 AND name='disk_mibhost-4'"} && ! defined $upd2{"id_dev=649 AND name='disk_mibhost-4'"}, 'iid libre: K:\\ se queda sin c_label');
+
 done_testing();
