@@ -1,0 +1,229 @@
+#!/bin/bash
+#-------------------------------------------------------------------------------------------
+# cnm-blue-alerts-review
+# Revision manual, equipo a equipo, de las alertas azules SNMP: foto de la plantilla y de
+# las metricas, provision desde la plantilla (plite -t 0), diferencias y avisos de qactions.
+# Diseno: cnm-docs, PROY-CNM-Alertas-Azules. Para encolar en bloque: cnm-blue-alerts-fix.
+#-------------------------------------------------------------------------------------------
+set -u
+
+NAME=$(basename "$0")
+ONM_CONF=${ONM_CONF:-/cfg/onm.conf}
+PLITE_DIR=${PLITE_DIR:-/opt/crawler/bin}
+RRD_DIR=${RRD_DIR:-/opt/data/rrd/elements}
+MYSQL=${MYSQL:-mysql}
+OUT=/root/azules
+REMAP=0
+VERBOSE=0
+KEEP_DAYS=15
+DEV_NAME=
+
+USAGE="Revision de alertas azules SNMP, equipo a equipo
+(c) s30labs
+
+$NAME list                     azules SNMP por equipo y subtipo
+$NAME show ID                  azules del equipo, con etiqueta y c_label, y su fichero CNM-METRICS
+$NAME run ID [-R] [-v] [-k DIAS] [-o DIR]
+                               foto, plite -r ID -t 0, foto, diferencias y avisos de qactions
+$NAME check ID                 unos minutos despues: status 3, azules, metricas sin plantilla y RRD sin metrica
+$NAME -h  : Ayuda
+
+run
+  Deja en DIR (por defecto $OUT; se crea si no existe) cinco ficheros por ejecucion:
+  ID-FECHA-antes.txt y -despues.txt (fotos), -diff.txt, -avisos.txt y -plite.log.
+  No crea nada mas. Al empezar borra de DIR sus propios ficheros (los que siguen ese patron)
+  de mas de $KEEP_DAYS dias; nada mas.
+  -k DIAS  cambia ese plazo.
+  La foto lleva la plantilla (subtype, iid, label, watch, status) y las metricas
+  (id_metric, name, subtype, iid, label, c_label, status).
+  En pantalla salen el comando de provision, un resumen de las diferencias y los avisos
+  (recortados a 300 caracteres; completos en -avisos.txt).
+  -v  saca tambien las diferencias completas.
+  -R  pone PROV_REMAP_BY_LABEL = 1 en $ONM_CONF solo durante la provision, y despues deja
+      lo que habia (tambien si la provision falla o se interrumpe). Sin -R no se toca
+      $ONM_CONF y se usa el valor que tenga.
+  Los avisos se buscan por fecha (los de \"Instancias ...\" no llevan equipo): si a la vez
+  provisiona otro equipo, pueden salir tambien los suyos.
+
+check
+  Una metrica desactivada se queda con status 3 hasta que cnm-watch la borra, con su RRD.
+  Metricas sin fila en la plantilla: quitar una instancia de la plantilla no borra su
+  metrica salvo que este en azul (REG-CNM-Deuda 4.107). Solo se listan.
+  RRD sin metrica: ficheros de $RRD_DIR del equipo que no son de ninguna metrica. Solo se
+  listan; no se borra nada.
+
+Usa el cliente mysql con la configuracion de root (~/.my.cnf).
+Codigo de salida: 0 bien, 1 error (incluida una provision con rc distinto de 0), 2 uso incorrecto."
+
+#-------------------------------------------------------------------------------------------
+usage() { [ -n "${1:-}" ] && echo "$1" >&2; echo "Ayuda: $NAME -h" >&2; exit 2; }
+fail()  { echo "ERROR: $1" >&2; exit 1; }
+q()     { "$MYSQL" onm "$@"; }
+
+# Nombre del equipo en $DEV_NAME; sale con 2 si el ID no es un numero y con 1 si no existe.
+check_id() {
+	[[ "${1:-}" =~ ^[0-9]+$ ]] || usage "ID no valido: ${1:-(falta)}"
+	DEV_NAME=$(q -N -e "SELECT name FROM devices WHERE id_dev=$1") || fail "no se puede consultar la base"
+	[ -n "$DEV_NAME" ] || fail "no existe el equipo $1"
+}
+
+foto() {
+	local id=$1 out=$2
+	{ echo "# plantilla: subtype iid label watch status"
+	  q -N -e "SELECT p.subtype,t.iid,t.label,t.watch,t.status FROM prov_template_metrics2iid t JOIN prov_template_metrics p USING(id_template_metric) WHERE t.id_dev=$id ORDER BY 1,2,3" || return 1
+	  echo "# metricas: id_metric name subtype iid label c_label status"
+	  q -N -e "SELECT id_metric,name,subtype,iid,label,c_label,status FROM metrics WHERE id_dev=$id ORDER BY name" || return 1
+	} > "$out"
+}
+
+# Filas de cada seccion de la foto que solo estan antes (<) o solo despues (>)
+diff_summary() {
+	local a=$1 b=$2 sec
+	for sec in plantilla metricas; do
+		local x y
+		x=$(diff <(section "$a" "$sec") <(section "$b" "$sec") | grep -c '^<')
+		y=$(diff <(section "$a" "$sec") <(section "$b" "$sec") | grep -c '^>')
+		echo "  $sec: $x filas solo antes, $y filas solo despues"
+	done
+	local s3
+	s3=$(section "$b" metricas | awk -F'\t' '$NF==3' | wc -l)
+	echo "  metricas con status 3 despues: $s3 (las borra cnm-watch; se comprueba con check)"
+}
+section() { awk -v s="# $2:" 'index($0,"# ")==1 {on=(index($0,s)==1); next} on' "$1"; }
+
+# Borra de $OUT los ficheros de run de mas de $KEEP_DAYS dias (solo los de su patron)
+purge() {
+	local n
+	n=$(find "$OUT" -maxdepth 1 -type f -regextype posix-extended \
+		-regex '.*/[0-9]+-[0-9]{8}-[0-9]{6}-((antes|despues|diff|avisos)\.txt|plite\.log)' \
+		-mtime +"$KEEP_DAYS" -print -delete | wc -l)
+	[ "$n" -gt 0 ] && echo "Purga: $n ficheros de mas de $KEEP_DAYS dias en $OUT"
+	return 0
+}
+
+remap_lines() { grep -E '^[[:space:]]*PROV_REMAP_BY_LABEL' "$ONM_CONF"; }
+remap_value() { remap_lines | tail -1 | sed -E 's/.*=[[:space:]]*//'; }
+remap_write() {
+	# $1: lineas a dejar (vacio: ninguna)
+	sed -i '/^[[:space:]]*PROV_REMAP_BY_LABEL/d' "$ONM_CONF" || return 1
+	[ -n "$1" ] && printf '%s\n' "$1" >> "$ONM_CONF"
+	return 0
+}
+
+#-------------------------------------------------------------------------------------------
+cmd_list() {
+	q -e "SELECT a.id_device, d.name, d.type, a.subtype, COUNT(*) AS azules FROM alerts a JOIN devices d ON d.id_dev=a.id_device WHERE a.severity=4 AND a.type='snmp' GROUP BY 1,2,3,4 ORDER BY 1,4" \
+		|| fail "no se puede consultar la base"
+}
+
+cmd_show() {
+	local id=$1
+	check_id "$id"
+	q -e "SELECT a.mname, m.label, m.c_label, FROM_UNIXTIME(a.date) AS desde FROM alerts a LEFT JOIN metrics m ON m.id_metric=a.id_metric WHERE a.id_device=$id AND a.severity=4 ORDER BY a.mname" \
+		|| fail "no se puede consultar la base"
+	"$PLITE_DIR/support/cnm-metrics-file" list --id "$id" | head -2
+}
+
+cmd_run() {
+	local id=$1
+	check_id "$id"
+	mkdir -p "$OUT" || fail "no se puede crear $OUT"
+	purge
+
+	local base="$OUT/$id-$(date +%Y%m%d-%H%M%S)"
+	local t0
+	t0=$(date +%s)
+
+	echo "Equipo $id $DEV_NAME"
+	foto "$id" "$base-antes.txt" || fail "no se puede hacer la foto de antes"
+
+	local saved=""
+	if [ "$REMAP" = 1 ]; then
+		saved=$(remap_lines)
+		trap 'remap_write "$saved"' EXIT
+		trap 'exit 1' INT TERM
+		remap_write "PROV_REMAP_BY_LABEL = 1" || fail "no se puede cambiar $ONM_CONF"
+	fi
+	echo "PROV_REMAP_BY_LABEL en la provision: $(remap_value)"
+
+	echo "Provision: (cd $PLITE_DIR && ./plite -r $id -t 0) > $base-plite.log 2>&1"
+	(cd "$PLITE_DIR" && ./plite -r "$id" -t 0 > "$base-plite.log" 2>&1)
+	local rc=$?
+
+	if [ "$REMAP" = 1 ]; then
+		remap_write "$saved" || fail "no se puede dejar $ONM_CONF como estaba: revisalo a mano"
+		trap - EXIT INT TERM
+		echo "PROV_REMAP_BY_LABEL despues: $(remap_value)"
+	fi
+	echo "plite rc=$rc (log: $base-plite.log)"
+
+	foto "$id" "$base-despues.txt" || fail "no se puede hacer la foto de despues"
+	echo
+	diff "$base-antes.txt" "$base-despues.txt" > "$base-diff.txt"
+	echo "--- Diferencias: $base-diff.txt"
+	diff_summary "$base-antes.txt" "$base-despues.txt"
+	[ "$VERBOSE" = 1 ] && [ -s "$base-diff.txt" ] && cat "$base-diff.txt"
+	echo
+	echo "--- Avisos de la provision: $base-avisos.txt"
+	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" > "$base-avisos.txt" \
+		|| fail "no se pueden leer los avisos"
+	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, LEFT(rcstr,300) AS rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" \
+		|| fail "no se pueden leer los avisos"
+	echo
+	echo "Siguiente: unos minutos despues, $NAME check $id"
+	[ "$rc" = 0 ] || exit 1
+}
+
+cmd_check() {
+	local id=$1
+	check_id "$id"
+	echo "Equipo $id $DEV_NAME"
+	echo "--- Metricas con status 3 (pendientes de que cnm-watch las borre)"
+	q -e "SELECT id_metric, name, label FROM metrics WHERE id_dev=$id AND status=3 ORDER BY name" || fail "no se puede consultar la base"
+	echo "--- Alertas azules"
+	q -e "SELECT id_alert, mname, FROM_UNIXTIME(date) AS desde FROM alerts WHERE id_device=$id AND severity=4 ORDER BY mname" || fail "no se puede consultar la base"
+	echo "--- Metricas sin fila en la plantilla"
+	q -e "SELECT m.id_metric, m.name, m.label, m.c_label FROM metrics m LEFT JOIN prov_template_metrics2iid t ON t.id_dev=m.id_dev AND t.mname=m.name WHERE m.id_dev=$id AND t.mname IS NULL ORDER BY m.name" \
+		|| fail "no se puede consultar la base"
+	echo "--- RRD sin metrica"
+	local dir
+	dir=$(printf '%s/%010d' "$RRD_DIR" "$id")
+	if [ ! -d "$dir" ]; then echo "(no existe $dir)"; return 0; fi
+	local files
+	files=$(q -N -e "SELECT file FROM metrics WHERE id_dev=$id AND file IS NOT NULL") || fail "no se puede consultar la base"
+	local n=0 f
+	for f in "$dir"/*.rrd; do
+		[ -e "$f" ] || continue
+		if ! grep -qxF "$(printf '%010d' "$id")/$(basename "$f")" <<< "$files"; then
+			ls -l --time-style=+%Y-%m-%d "$f" | awk '{print "  "$6"  "$NF}'
+			n=$((n+1))
+		fi
+	done
+	echo "($n ficheros)"
+}
+
+#-------------------------------------------------------------------------------------------
+CMD=${1:-}
+[ -n "$CMD" ] || { echo "$USAGE"; exit 2; }
+shift
+case "$CMD" in
+	-h) echo "$USAGE"; exit 0 ;;
+	list) [ $# -eq 0 ] || usage "list no lleva argumentos"; cmd_list ;;
+	show|check)
+		[ $# -eq 1 ] || usage "$CMD necesita un ID y solo uno"
+		"cmd_$CMD" "$1" ;;
+	run)
+		ID=${1:-}; [ $# -gt 0 ] && shift
+		while [ $# -gt 0 ]; do
+			case "$1" in
+				-R) REMAP=1 ;;
+				-v) VERBOSE=1 ;;
+				-k) [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || usage "-k necesita un numero de dias"; KEEP_DAYS=$2; shift ;;
+				-o) [ $# -ge 2 ] || usage "-o necesita un directorio"; OUT=$2; shift ;;
+				*)  usage "opcion desconocida: $1" ;;
+			esac
+			shift
+		done
+		cmd_run "$ID" ;;
+	*) usage "orden desconocida: $CMD" ;;
+esac
