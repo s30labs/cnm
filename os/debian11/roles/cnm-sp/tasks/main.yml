@@ -16,6 +16,7 @@
   with_items:
     - ENT_00318_APC
     - ENT_02021_UCDAVIS
+    - ENT_06876_VMWARE
     - ENT_21796_HWGROUP
     - ENT_25506_H3C
     - ENT_34225_CNM
