@@ -6,6 +6,7 @@ package ProvisionLite::status_mibii_if;
 $VERSION='1.00';
 use strict;
 use Crawler::SNMP;
+use ProvisionLite::IfLabels;
 
 
 #----------------------------------------------------------------------------
@@ -17,8 +18,7 @@ my ($device,$snmp,$data_global)=@_;
 my %snmpcfg=();
 
 
-   # Miro si existe ifName -----------------------------------
-   my %IFNAME=();
+   # Etiqueta de cada interfaz (ProvisionLite::IfLabels), la misma que en traffic_mibii_if
    
 	#------------------------------------------------------
    $snmpcfg{'host_ip'}=$device->{'ip'};
@@ -31,33 +31,13 @@ my %snmpcfg=();
    $snmpcfg{'sec_name'}= $device->{'sec_name'};
    $snmpcfg{'sec_level'}= $device->{'sec_level'};
 
-   $snmpcfg{'oid'}='ifName';
-   $snmpcfg{'last'}='ifInMulticastPkts';
-
-   my $res=$snmp->core_snmp_table(\%snmpcfg);
-   #------------------------------------------------------
-
-   for my $l ( @$res ) {
-      my ($id,$name)=split(':@:',$l);
-      $IFNAME{$id}=$name;
-   }
-
-   #--------------------------------------------------------------------------------
-   # PARCHE: Valido que el ifName es adecuado.
-   # Hay casos en los que todos los valores del ifName son iguales (VH)
-   my @N=values %IFNAME;
-   my $ni=scalar @N;
-   my $iguales=1;
-   for my $i (1..$ni-1) {
-      if ($N[$i] eq $N[$i-1]) { $iguales+=1; }
-   }
-   if ($iguales==$ni) { %IFNAME=(); }
+   my $LABEL = ProvisionLite::IfLabels::if_labels($snmp,\%snmpcfg);
 
    #----------------------------------------------------------
 
    $snmpcfg{'oid'}='ifDescr_ifType_ifAdminStatus_ifOperStatus';
    $snmpcfg{'last'}='ifInOctets';
-   $res=$snmp->core_snmp_table(\%snmpcfg);
+   my $res=$snmp->core_snmp_table(\%snmpcfg);
 	
 	if (! defined $res) { return undef; }
 
@@ -69,7 +49,7 @@ my %snmpcfg=();
 
       my ($id,$descr1,$type,$admin,$oper)=split(':@:',$l);
 
-		if (exists $IFNAME{$id}) { $descr1 = $IFNAME{$id}; }
+		if (exists $LABEL->{$id}) { $descr1 = $LABEL->{$id}->{'label'}; }
 
 		my $descr=$snmp->hex2ascii($descr1);
 

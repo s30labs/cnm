@@ -6,6 +6,7 @@ package ProvisionLite::traffic_mibii_if;
 $VERSION='1.00';
 use strict;
 use Crawler::SNMP;
+use ProvisionLite::IfLabels;
 
 #----------------------------------------------------------------------------
 # insert into cfg_monitor_snmp (subtype,class,lapse,descr,items,oid,get_iid) values ('traffic_mibii_if', 'MIB-II', 300, 'TRAFICO EN INTERFAZ ', 'Bits RX|Bits TX','.1.3.6.1.2.1.2.2.1.10.IID|.1.3.6.1.2.1.2.2.1.16.IID','./support/iid_mibii_if');
@@ -28,8 +29,7 @@ my ($device,$snmp,$data_global)=@_;
 my %snmpcfg=();
 
 
-   # Miro si existe ifName y se pueden sacar datos de trafico del ifXTable -----------------------------
-   my %IFNAME=();
+   # Etiqueta de cada interfaz (ProvisionLite::IfLabels) y si da trafico por ifXTable (64 bits)
    my %IFHC=();
 
    #------------------------------------------------------
@@ -43,59 +43,23 @@ my %snmpcfg=();
 	$snmpcfg{'sec_name'}= $device->{'sec_name'};
 	$snmpcfg{'sec_level'}= $device->{'sec_level'};
 
-   $snmpcfg{'oid'}='ifName_ifHCInOctets_ifHCOutOctets';
-   #$snmpcfg{'oid'}='ifName_ifInMulticastPkts_ifInBroadcastPkts';
-   $snmpcfg{'last'}='ifHCOutMulticastPkts';
+   my $LABEL = ProvisionLite::IfLabels::if_labels($snmp,\%snmpcfg);
 
+   $snmpcfg{'oid'}='ifHCInOctets_ifHCOutOctets';
    my $res=$snmp->core_snmp_table(\%snmpcfg);
-
-	#Check if $res = [ '1:@:U:@:0:@:0' ] and then try with ifAlias
-	if ($res->[0] =~ /\d+\:\@\:U/) {
-		$snmpcfg{'oid'}='ifAlias_ifHCInOctets_ifHCOutOctets';
-		$res=$snmp->core_snmp_table(\%snmpcfg);
-	}
-
    #------------------------------------------------------
 
 	for my $l ( @$res ) {
-      my ($id,$name,$in,$out)=split(':@:',$l);
-		$name=~s/^\s*(.*)$/$1/g;
-		$IFNAME{$id}=$name;
-		
-		if ( (defined $in) && (defined $out) ) { 
-			# Testeo que el valor devuelto es un numero porque se pueden dar situaciones
-			# curiosas. Dispositivo que responde a parte de la MIB extendida pero no a 
-			# ifHCInOctets,ifHCOutOctets y devuelve enabled. (Cisco Aironet)
-			# Tambien testeo que el valor no es cero ==> Eso implica que responde por los Counters32.
-			if ( ($in=~/\d+/) && ($out=~/\d+/) && ($in != 0) && ($out != 0)) { 	
-				#$IFHC=1;   
-				$IFHC{$id}=1;
-			}
-			else { $IFHC{$id}=0; }
-		}
-		else { $IFHC{$id}=0; }
+      my ($id,$in,$out)=split(':@:',$l);
+		next if ((! defined $id) || ($id !~ /^\d+$/));
+		# Testeo que el valor devuelto es un numero porque se pueden dar situaciones
+		# curiosas. Dispositivo que responde a parte de la MIB extendida pero no a 
+		# ifHCInOctets,ifHCOutOctets y devuelve enabled. (Cisco Aironet)
+		# Tambien testeo que el valor no es cero ==> Eso implica que responde por los Counters32.
+		$IFHC{$id} = ((defined $in) && (defined $out) && ($in=~/^\d+$/) && ($out=~/^\d+$/) && ($in != 0) && ($out != 0)) ? 1 : 0;
 	}
 
 	my $default_oid=$data_global->{'oid'};
-
-#	# Si responde a la parte extendida utilizo los OIDs de trafico IF-MIB::ifHCInOctets IF-MIB::ifHCOutOctets
-#	if ($IFHC) { 
-#		#@Metrics::Base::OIDs=qw(.1.3.6.1.2.1.31.1.1.1.6 .1.3.6.1.2.1.31.1.1.1.10);  
-#		#$txml=~s/<oid>\S+<\/oid>/<oid>.1.3.6.1.2.1.31.1.1.1.6.--METRIC_IID--|.1.3.6.1.2.1.31.1.1.1.10.--METRIC_IID--<\/oid>/g;
-#
-#		$data_global->{'oid'}='.1.3.6.1.2.1.31.1.1.1.6.IID|.1.3.6.1.2.1.31.1.1.1.10.IID';
-#	}
-
-	#--------------------------------------------------------------------------------
-	# PARCHE: Valido que el ifName es adecuado. 
-	# Hay casos en los que todos los valores del ifName son iguales (VH)
-	my @N=values %IFNAME;
-	my $ni=scalar @N;
-   my $iguales=1;
-   for my $i (1..$ni-1) {
-      if ($N[$i] eq $N[$i-1]) { $iguales+=1; }
-   }
-	if ($iguales==$ni) { %IFNAME=(); }
 
 
 	#----------------------------------------------------------
@@ -144,7 +108,7 @@ my %snmpcfg=();
 			if (!exists $TRAFFIC_OK{$id}) { next; }
    	}
 
-		if (exists $IFNAME{$id}) { $descr1 = $IFNAME{$id}; }
+		if (exists $LABEL->{$id}) { $descr1 = $LABEL->{$id}->{'label'}; }
 
 		my $descr=$snmp->hex2ascii($descr1);
 

@@ -1,0 +1,158 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-if-labels
+# Diagnostico de solo lectura: de donde salen las etiquetas de las interfaces de un equipo.
+# Por cada iid ensena ifDescr, ifName e ifAlias (recorridos por separado), la etiqueta que
+# generan hoy traffic_mibii_if y status_mibii_if (llamando a sus modulos) y la que tienen
+# en la plantilla. No escribe nada ni en la base ni en el equipo.
+# Diseno: cnm-docs, REG-CNM-Deuda 4.108.
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long;
+use ONMConfig;
+use Crawler::Store;
+use Crawler::SNMP;
+use ProvisionLite;
+
+my @fpth = split ('/',$0,10);
+my $USAGE = <<USAGE;
+Etiquetas de interfaces: ifDescr, ifName, ifAlias y lo que genera hoy la provision
+(c) s30labs
+
+$fpth[$#fpth] --id ID[,ID...]
+$fpth[$#fpth] -h  : Ayuda
+
+Solo lee. Por cada equipo:
+  - el recorrido combinado que hace hoy traffic_mibii_if (ifName_ifHCInOctets_ifHCOutOctets),
+    sus primeras filas y si cae a ifAlias (traffic_mibii_if.pm:52-56);
+  - una fila por iid: ifDescr, ifName, ifAlias, la etiqueta que daria hoy cada modulo
+    (con su origen) y la que hay en la plantilla. "=" en la plantilla: igual a la de hoy.
+  - "*" detras de un valor: repetido en ese equipo.
+No muestra la comunidad ni las credenciales SNMP.
+Codigo de salida: 0 bien, 1 error, 2 uso incorrecto.
+USAGE
+
+my %o=();
+GetOptions(\%o, 'id=s', 'h') or do { print STDERR $USAGE; exit 2; };
+if ($o{'h'}) { print $USAGE; exit 0; }
+if ((! defined $o{'id'}) || ($o{'id'} !~ /^\d+(,\d+)*$/)) { print STDERR $USAGE; exit 2; }
+
+my $rcfg = conf_base('/cfg/onm.conf');
+my $STORE = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+	db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+	db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+my $DBH = $STORE->open_db();
+if (! $DBH) { print STDERR "ERROR: no se puede conectar con la base\n"; exit 1; }
+
+my $SNMP = Crawler::SNMP->new(store_path=>$rcfg->{'store_path'}->[0], cfg=>$rcfg, log_level=>'info',
+	mode_flag=>{rrd=>0, alert=>0});
+$SNMP->store($STORE);
+$SNMP->dbh($DBH);
+
+my @SUBTYPES = ('traffic_mibii_if','status_mibii_if');
+my $rc = 0;
+foreach my $id (split(/,/,$o{'id'})) { $rc = 1 if (! one_device($id)); }
+exit $rc;
+
+#-------------------------------------------------------------------------------------------
+sub one_device {
+my ($id)=@_;
+
+	my $r = $DBH->selectrow_hashref("SELECT id_dev,name,domain,ip,community,version,type,entity FROM devices WHERE id_dev=?", undef, $id);
+	if (! $r) { print STDERR "ERROR: no existe el equipo $id\n"; return 0; }
+	my %dev = %$r;
+	$dev{'full_name'} = ($dev{'name'} && $dev{'domain'}) ? "$dev{'name'}.$dev{'domain'}" : ($dev{'name'} || $dev{'ip'});
+	$dev{'host_ip'} = $dev{'ip'};
+	$dev{'version'} = 0 if ((! defined $dev{'version'}) || ($dev{'version'} eq ''));
+	if ($dev{'version'} == 3) {
+		my $v3 = $STORE->get_profiles_snmpv3($DBH,[$dev{'community'}]);
+		my $p = $v3->{$dev{'community'}} || {};
+		$dev{$_} = $p->{$_} foreach (qw(sec_name sec_level auth_proto auth_pass priv_proto priv_pass));
+	}
+	print "== $id $dev{'full_name'} ($dev{'ip'}, $dev{'type'}) SNMP v$dev{'version'}\n";
+
+	my %base = map { $_=>$dev{$_} } qw(host_ip community version sec_name sec_level auth_proto auth_pass priv_proto priv_pass);
+
+	# 1. El recorrido combinado de traffic_mibii_if, tal cual
+	my $comb = $SNMP->core_snmp_table({ %base, 'oid'=>'ifName_ifHCInOctets_ifHCOutOctets' });
+	my @first = @{ $comb || [] }[0 .. 2];
+	print "-- recorrido combinado ifName_ifHCInOctets_ifHCOutOctets: ".scalar(@{ $comb || [] })." filas; primeras:\n";
+	print "     ".(defined $_ ? $_ : '-')."\n" foreach (@first);
+	my $fallback = ((defined $comb->[0]) && ($comb->[0] =~ /\d+\:\@\:U/)) ? 'SI' : 'no';
+	print "   cae a ifAlias (traffic_mibii_if.pm:52-56): $fallback\n";
+
+	# 2. Cada columna por separado
+	my %col=();
+	foreach my $c (qw(ifDescr ifName ifAlias)) {
+		my $res = $SNMP->core_snmp_table({ %base, 'oid'=>$c });
+		foreach my $l (@{ $res || [] }) {
+			my ($iid,$v) = split(':@:',$l,2);
+			next if ((! defined $iid) || ($iid !~ /^\d+$/));
+			$col{$c}{$iid} = defined $v ? $v : '';
+		}
+	}
+	my %dup=();
+	foreach my $c (keys %col) {
+		my %n=(); $n{$_}++ foreach (grep { $_ ne '' } values %{$col{$c}});
+		$dup{$c} = { map { $_=>1 } grep { $n{$_} > 1 } keys %n };
+	}
+
+	# 3. Lo que genera hoy cada modulo, con su configuracion de cfg_monitor_snmp
+	my %today=();
+	foreach my $st (@SUBTYPES) {
+		my $rv = $STORE->get_from_db($DBH,'module,oid,mtype,vlabel,mode,top_value,get_iid,items,cfg,descr,esp','cfg_monitor_snmp',"subtype='$st'");
+		next if ((! $rv) || (! $rv->[0]));
+		my %minfo = ('subtype'=>$st, 'module'=>$rv->[0][0], 'oid'=>$rv->[0][1], 'mtype'=>$rv->[0][2], 'vlabel'=>$rv->[0][3],
+			'mode'=>$rv->[0][4], 'top_value'=>$rv->[0][5], 'get_iid'=>$rv->[0][6], 'items'=>$rv->[0][7], 'label'=>$rv->[0][9]);
+		my $md = &{$ProvisionLite::Class2fx{$st}}(\%dev,$SNMP,\%minfo);
+		foreach my $iid (keys %{ $md || {} }) { $today{$st}{$iid} = core_label($md->{$iid}{'label'}); }
+	}
+
+	# 4. La plantilla
+	my %tpl=();
+	my $rows = $DBH->selectall_arrayref("SELECT p.subtype,t.iid,t.label FROM prov_template_metrics2iid t JOIN prov_template_metrics p USING(id_template_metric) WHERE t.id_dev=? AND p.subtype IN ('traffic_mibii_if','status_mibii_if')", undef, $id);
+	$tpl{$_->[0]}{$_->[1]} = core_label($_->[2]) foreach (@$rows);
+
+	my %iids = map { $_=>1 } (map { keys %{$col{$_}} } keys %col), (map { keys %$_ } values %today), (map { keys %$_ } values %tpl);
+	print join("\t", 'iid','ifDescr','ifName','ifAlias','trafico hoy','plantilla trafico','estado hoy','plantilla estado')."\n";
+	foreach my $iid (sort { $a <=> $b } grep { /^\d+$/ } keys %iids) {
+		my @f = ($iid);
+		push @f, show($col{$_}{$iid}, $dup{$_}) foreach (qw(ifDescr ifName ifAlias));
+		foreach my $st (@SUBTYPES) {
+			my $t = $today{$st}{$iid};
+			push @f, defined $t ? "$t [".origin($t,\%col,$iid)."]" : '-';
+			my $p = $tpl{$st}{$iid};
+			push @f, ! defined $p ? '-' : ((defined $t) && ($p eq $t)) ? '=' : $p;
+		}
+		print join("\t",@f)."\n";
+	}
+	foreach my $c (qw(ifDescr ifName ifAlias)) {
+		my $n = scalar keys %{$col{$c} || {}};
+		my $d = scalar keys %{$dup{$c} || {}};
+		print "-- $c: $n interfaces con valor; $d valores se repiten\n";
+	}
+	print "\n";
+	return 1;
+}
+
+# La etiqueta sin el prefijo del subtipo ni el " (equipo)" del final
+sub core_label {
+my ($l)=@_;
+	return '' if (! defined $l);
+	$l =~ s/^(TRAFICO EN INTERFAZ|ESTADO DE INTERFAZ)\s+//;
+	$l =~ s/\s*\([^()]*\)\s*$//;
+	return $l;
+}
+
+sub origin {
+my ($t,$col,$iid)=@_;
+	my @o = grep { (defined $col->{$_}{$iid}) && ($col->{$_}{$iid} eq $t) } qw(ifName ifAlias ifDescr);
+	return scalar(@o) ? join('=',@o) : '?';
+}
+
+sub show {
+my ($v,$dup)=@_;
+	return '-' if (! defined $v);
+	return ($dup->{$v}) ? "$v*" : $v;
+}
