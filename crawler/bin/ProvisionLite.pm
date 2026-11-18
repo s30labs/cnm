@@ -1802,10 +1802,16 @@ my ($self,$rm,$nochange,$change)=@_;
 		foreach my $iid (keys %$h) {
 			my $a = $rm->{'assign'}->{$iid};
 			next if (! defined $a);
-			# Una instancia nueva (sin from) se queda como la deja la fase B, inactiva:
-			# en equipos con interfaces efimeras (docker, Windows) crearlas activas
-			# llena el equipo de metricas que acaban en azul.
-			next if (! defined $a->{'from'});
+			# Una instancia nueva (sin from) queda inactiva y sin monitor: en equipos con
+			# interfaces efimeras (docker, Windows) crearlas activas llena el equipo de
+			# metricas que acaban en azul. Si ocupa un iid que tenia otra etiqueta (que se ha
+			# movido a otro iid), la fase B le habria dejado el monitor y el estado de esa
+			# otra: por eso se fijan aqui y no se deja lo que traiga.
+			if (! defined $a->{'from'}) {
+				$h->{$iid}->{'watch'}  = '0';
+				$h->{$iid}->{'status'} = 1;
+				next;
+			}
 			$h->{$iid}->{'watch'}  = $a->{'watch'};
 			$h->{$iid}->{'status'} = $a->{'status'};
 		}
