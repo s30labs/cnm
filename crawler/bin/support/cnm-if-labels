@@ -24,8 +24,6 @@ $fpth[$#fpth] --id ID[,ID...]
 $fpth[$#fpth] -h  : Ayuda
 
 Solo lee. Por cada equipo:
-  - el recorrido combinado que hace hoy traffic_mibii_if (ifName_ifHCInOctets_ifHCOutOctets),
-    sus primeras filas y si cae a ifAlias (traffic_mibii_if.pm:52-56);
   - una fila por iid: ifDescr, ifName, ifAlias, la etiqueta que daria hoy cada modulo
     (con su origen) y la que hay en la plantilla. "=" en la plantilla: igual a la de hoy.
   - "*" detras de un valor: repetido en ese equipo.
@@ -74,15 +72,7 @@ my ($id)=@_;
 
 	my %base = map { $_=>$dev{$_} } qw(host_ip community version sec_name sec_level auth_proto auth_pass priv_proto priv_pass);
 
-	# 1. El recorrido combinado de traffic_mibii_if, tal cual
-	my $comb = $SNMP->core_snmp_table({ %base, 'oid'=>'ifName_ifHCInOctets_ifHCOutOctets' });
-	my @first = @{ $comb || [] }[0 .. 2];
-	print "-- recorrido combinado ifName_ifHCInOctets_ifHCOutOctets: ".scalar(@{ $comb || [] })." filas; primeras:\n";
-	print "     ".(defined $_ ? $_ : '-')."\n" foreach (@first);
-	my $fallback = ((defined $comb->[0]) && ($comb->[0] =~ /\d+\:\@\:U/)) ? 'SI' : 'no';
-	print "   cae a ifAlias (traffic_mibii_if.pm:52-56): $fallback\n";
-
-	# 2. Cada columna por separado
+	# 1. Cada columna por separado
 	my %col=();
 	foreach my $c (qw(ifDescr ifName ifAlias)) {
 		my $res = $SNMP->core_snmp_table({ %base, 'oid'=>$c });
@@ -98,7 +88,7 @@ my ($id)=@_;
 		$dup{$c} = { map { $_=>1 } grep { $n{$_} > 1 } keys %n };
 	}
 
-	# 3. Lo que genera hoy cada modulo, con su configuracion de cfg_monitor_snmp
+	# 2. Lo que genera hoy cada modulo, con su configuracion de cfg_monitor_snmp
 	my %today=();
 	foreach my $st (@SUBTYPES) {
 		my $rv = $STORE->get_from_db($DBH,'module,oid,mtype,vlabel,mode,top_value,get_iid,items,cfg,descr,esp','cfg_monitor_snmp',"subtype='$st'");
@@ -109,7 +99,7 @@ my ($id)=@_;
 		foreach my $iid (keys %{ $md || {} }) { $today{$st}{$iid} = core_label($md->{$iid}{'label'}); }
 	}
 
-	# 4. La plantilla
+	# 3. La plantilla
 	my %tpl=();
 	my $rows = $DBH->selectall_arrayref("SELECT p.subtype,t.iid,t.label FROM prov_template_metrics2iid t JOIN prov_template_metrics p USING(id_template_metric) WHERE t.id_dev=? AND p.subtype IN ('traffic_mibii_if','status_mibii_if')", undef, $id);
 	$tpl{$_->[0]}{$_->[1]} = core_label($_->[2]) foreach (@$rows);
