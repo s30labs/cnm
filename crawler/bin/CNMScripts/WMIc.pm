@@ -207,6 +207,25 @@ my ($self,$host,$status) = @_;
 }
 
 #----------------------------------------------------------------------------
+# hide_credentials
+# Devuelve el texto con la contrasena de credentials() tapada (usuario:***),
+# para escribirlo en el log (REG-CNM-Seguridad 4.114).
+#----------------------------------------------------------------------------
+sub hide_credentials {
+my ($self,$txt) = @_;
+
+	my $c = $self->credentials();
+	return $txt if ((! defined $c) || ($c eq ''));
+	(my $c_log = $c) =~ s/:.*$/:***/s;
+	my $i = index($txt,$c);
+	while ($i >= 0) {
+		substr($txt,$i,length($c)) = $c_log;
+		$i = index($txt,$c,$i+length($c_log));
+	}
+	return $txt;
+}
+
+#----------------------------------------------------------------------------
 # set_credentials
 #----------------------------------------------------------------------------
 sub set_credentials {
@@ -219,7 +238,8 @@ my ($self) = @_;
 	#if ($d ne '') { $c = "$d\\$u%$p"; }
 
 	my $p = quotemeta($p0);
-	$self->log('info',"set_credentials_wmic >> p0=$p0 | p=$p");
+	# La contrasena no se escribe en el log (REG-CNM-Seguridad 4.114)
+	$self->log('info',"set_credentials_wmic >> user=$u domain=$d");
 	my $c = $u.':'.$p;
 	if ($d ne '') { $c = "$d\/$u:$p"; }
 
@@ -372,7 +392,7 @@ my ($self,$wsql_file)=@_;
    #$self->wait_for_docker();
    #$self->log('info',"DOCKERRUN >> impacket/wmiquery");
 
-	$self->log('info',"get_raw_data >> wmic=$wmic");
+	$self->log('info',"get_raw_data >> wmic=".$self->hide_credentials($wmic));
 
    capture sub { $rc=system($wmic); } => \$stdout, \$stderr;
 
