@@ -16,7 +16,7 @@ use CNMScripts::WMI;
 my $PWD = 'Pr0ba-NoDebeSalir_9';
 my @LOG = ();
 {
-	no warnings 'redefine';
+	no warnings qw(redefine prototype);   # capture() de IO::CaptureOutput lleva prototipo (&@)
 	*CNMScripts::log = sub { my ($self,$level,@arg)=@_; push @LOG, join(' ',@arg); };
 	my $fake = sub { my ($code,$out,$err)=@_; $$out="Impacket\n\n| A |\n"; $$err=''; return; };
 	*CNMScripts::WMIc::capture = $fake;
