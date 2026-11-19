@@ -508,6 +508,49 @@ my ($self,$wsql_file,$iid)=@_;
    return \%data;
 }
 
+=item B<$wmi-E<gt>capture_error($data)>
+
+ my $err = $wmi->capture_error($counters);   # o sin argumento
+ if ($err ne '') { print STDERR "[ERROR] $err\n"; exit 1; }
+
+ Devuelve el motivo si la consulta WMI ha fallado, o '' si no.
+ Lo que se escribe en STDERR lo muestra el motor en el evento de la alerta
+ (RC=100); el codigo de salida no lo lee (REG-CNM-Deuda 4.113).
+ Sin argumento solo mira los errores ciertos: host_status 10 (puerto 135
+ cerrado, lo pone el script tras check_tcp_port), err_num de get_raw_data
+ (1 timeout, 2 acceso denegado, 3 sesion WMI, 4 otro) u otro host_status.
+ Con $data (lo devuelto por get_wmi_counters: referencia a array o a hash)
+ tambien da error si no trae ningun dato. Solo debe pasarse donde una
+ respuesta vacia no pueda ser un resultado valido (p. ej. contadores fijos
+ como los de perfOS; no un filtro de procesos o de servicios).
+
+=cut
+
+#----------------------------------------------------------------------------
+# capture_error
+#----------------------------------------------------------------------------
+sub capture_error {
+my ($self,$data) = @_;
+
+	my $host = $self->host();
+	my $status = $self->host_status($host) || 0;
+	my $err_num = $self->err_num() || 0;
+	my $err_str = $self->err_str();
+	$err_str = '' if (! defined $err_str);
+
+	if ($status == 10) { return "sin conectividad WMI con $host (puerto 135)"; }
+	if ($err_num != 0) { return "error WMI $err_num en $host: $err_str"; }
+	if ($status != 0) { return "WMI no disponible en $host (estado $status)"; }
+
+	if (defined $data) {
+		my $n = 0;
+		if (ref($data) eq 'ARRAY') { $n = scalar(grep { (ref($_) eq 'HASH') ? scalar(keys %$_) : defined($_) } @$data); }
+		elsif (ref($data) eq 'HASH') { $n = scalar(keys %$data); }
+		if ($n == 0) { return "WMI no ha devuelto ningun dato de $host"; }
+	}
+	return '';
+}
+
 =item B<$wmi-E<gt>print_counter_value($values, $id, $tag, $map_table)>
  
  $wmi->print_counter_value($counters, '200', 'AlignmentFixupsPersec');
