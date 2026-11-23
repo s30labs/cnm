@@ -1,0 +1,81 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-testbed-agent
+# Agente pass_persist de net-snmp para la tabla de CNM-TESTBED-MIB. Responde segun el
+# escenario de agent.conf, que se relee en cada peticion, y lleva la cuenta de lecturas en
+# agent.reads; los dos en /store/data/support/cnm-testbed/state/ (SupportDir.pm).
+# Lo configura cnm-testbed setup.
+# Diseno: cnm-docs, PROY-CNM-Alertas-Azules §6. Solo para equipos de pruebas.
+#
+# En snmpd.conf:  pass_persist .1.3.6.1.4.1.8072.9999.9999.7 /usr/bin/perl <ruta>/cnm-testbed-agent
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use SupportDir qw(support_dir);
+use Testbed::Agent qw(parse_scenario check_scenario read_step parse_reads reads_text answer_get answer_getnext);
+
+my $DIR = support_dir('cnm-testbed','state');
+my $FILE_SCENARIO = "$DIR/agent.conf";
+my $FILE_READS = "$DIR/agent.reads";
+
+$| = 1;
+
+sub read_file {
+my $f=shift;
+	my $fh;
+	open($fh,'<',$f) or return undef;
+	local $/;
+	my $t=<$fh>;
+	close($fh);
+	return $t;
+}
+
+sub scenario {
+	my $s = parse_scenario(read_file($FILE_SCENARIO));
+	# Un escenario no valido se trata como vacio: la tabla no devuelve nada
+	if (check_scenario($s) ne '') { $s->{'mode'}='empty'; $s->{'delay'}=0; }
+	return $s;
+}
+
+sub reads { return parse_reads(read_file($FILE_READS)); }
+
+sub set_reads {
+my $st=shift;
+	my $tmp="$FILE_READS.tmp.$$";
+	my $fh;
+	if (open($fh,'>',$tmp)) { print $fh reads_text($st); close($fh); rename($tmp,$FILE_READS); }
+}
+
+sub reply {
+my $vb=shift;
+	if (! defined $vb) { print "NONE\n"; return; }
+	print "$vb->[0]\n$vb->[1]\n$vb->[2]\n";
+}
+
+while (my $cmd = <STDIN>) {
+	chomp $cmd;
+	if ($cmd eq 'PING') { print "PONG\n"; next; }
+	if ($cmd eq 'set') {
+		my $o=<STDIN>; my $v=<STDIN>;
+		print "not-writable\n";
+		next;
+	}
+	if (($cmd eq 'get') || ($cmd eq 'getnext')) {
+		my $oid=<STDIN>;
+		last if (! defined $oid);
+		chomp $oid;
+		my $s = scenario();
+		sleep($s->{'delay'}) if ($s->{'delay'} > 0);
+		if ($cmd eq 'get') { reply(answer_get($s,$oid)); next; }
+		my $st = reads();
+		my $nx = read_step($st,$oid);
+		set_reads($nx) if (($nx->{'reads'} != $st->{'reads'}) || ($nx->{'labels'} != $st->{'labels'}));
+		reply(answer_getnext($s,$oid,$nx->{'reads'}));
+		next;
+	}
+	last if ($cmd eq '');
+	print "NONE\n";
+}
+exit 0;

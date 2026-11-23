@@ -1,0 +1,989 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-testbed
+# Monta en un CNM de pruebas un entorno controlado para probar la provision: el propio
+# equipo monitorizado por SNMP, una tabla de prueba servida por cnm-testbed-agent, monitores
+# y c_label en sus instancias, y fotos del estado para comparar y volver atras.
+# Solo para equipos de pruebas. Diseno: cnm-docs, PROY-CNM-Alertas-Azules §6.
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use Getopt::Long qw(GetOptionsFromArray);
+use JSON;
+use Digest::MD5 qw(md5_hex);
+use File::Copy qw(copy);
+use POSIX qw(strftime);
+use SupportDir qw(support_dir new_run_dir);
+use Testbed::Agent qw(parse_scenario check_scenario scenario_text);
+use Testbed::SnmpdConf qw(has_block set_block remove_block block_names);
+use Testbed::Snapshot qw(diff_snapshots diff_is_empty diff_lines restore_plan);
+use Testbed::Ucd qw(ucd_subtypes_in_use);
+use Testbed::Engine qw(parse_ps crawlers stale_crawlers);
+use Testbed::Battery qw(select_cases parse_modes expected set_guard_line evaluate split_blues NOTICE_SKIP NOTICE_REREAD);
+
+my $FILE_CONF   = '/cfg/onm.conf';
+# Donde escribe (REF-CNM-Estilo-Scripts §2.9, SupportDir.pm):
+#   state/   state.json, agent.conf y agent.reads (el agente lee de aqui)
+#   backup/  snmpd.conf antes de cambiarlo
+#   runs/AAAAMMDD-HHMMSS-session/  una sesion de setup a teardown: snapshots/ y log/.
+#            Lleva KEEP mientras la sesion esta abierta, para que no la purgue cnm-daily.
+my $TOOL        = 'cnm-testbed';
+my $DIR         = support_dir($TOOL,'state');
+my $FILE_STATE  = "$DIR/state.json";
+my $RUN;	# la sesion en curso: runs/AAAAMMDD-HHMMSS-session
+my $SNMPD_CONF  = '/etc/snmp/snmpd.conf';
+my $MIB_SRC     = "$FindBin::Bin/CNM-TESTBED-MIB.txt";
+my $MIB_DST     = '/opt/data/app-data/mibs_private/CNM-TESTBED-MIB.txt';
+my $AGENT       = "$FindBin::Bin/cnm-testbed-agent";
+my $PLITE       = '/opt/crawler/bin/plite';
+my $SNMPWALK    = '/usr/local/bin/snmpwalk';	# el mismo que usa snmp_get_iid (Crawler/SNMP.pm)
+my $SNMPGET     = '/usr/local/bin/snmpget';
+# Tras reiniciar snmpd, los valores de UCD-SNMP-MIB calculados sobre el ultimo minuto no
+# responden hasta que el agente tiene un minuto de historia (net-snmp:
+# agent/mibgroup/ucd-snmp/vmstat.c, "only be reported once the agent has a full minute's
+# history"; muestras cada 5 s en hardware/cpu/cpu.c). Todos dependen de la misma historia,
+# asi que basta con preguntar uno. Solo se espera si el equipo usa subtipos UCD (Testbed::Ucd).
+my $CPU_OID     = 'UCD-SNMP-MIB::ssCpuIdle.0';
+my $CPU_WAIT    = 120;	# segundos como maximo
+my $CPU_STEP    = 5;
+my $SUBTYPE     = 'cnm_testbed_rows';
+my $TMPFS       = '/mnt/cnm-testbed';
+my $TABLE_OID   = '.1.3.6.1.4.1.8072.9999.9999.7';
+my $CNMD_INIT   = '/etc/init.d/cnmd';	# arranque y parada del motor (REF-CNM-Funcionamiento §1.3)
+my $STOP_ENGINE = '/cfg/stop-cnm-engine';
+# cnmd start no arranca nada (cnmd.init:90-93): el motor lo levanta cnm-watch, cada 2 minutos
+# desde /etc/cron.fast. Se para con stop (SIGTERM) y, si a los $STOP_WAIT s sigue algun
+# crawler viejo, con kill (kill -9), como se hace a mano cuando hay muchos procesos.
+my $STOP_WAIT   = 60;
+my $KILL_WAIT   = 30;
+my $ENGINE_WAIT = 300;	# segundos como maximo hasta que cnm-watch levante los crawlers
+my $BLUE_WAIT   = 400;	# battery: segundos como maximo para que el crawler quite las azules de la tabla de prueba
+my $SNMPD_INIT  = '/etc/init.d/snmpd';	# CNM arranca snmpd con su script (roles/net-snmp/tasks/main.yml:170)
+#-------------------------------------------------------------------------------------------
+my @fpth = split ('/',$0,10);
+my $NAME = $fpth[$#fpth];
+my $USAGE = <<USAGE;
+Entorno de pruebas de la provision en un CNM de pruebas (el propio equipo, por SNMP)
+(c) s30labs
+
+$NAME setup    [--id ID] [--rows N] [--dry-run]   prepara el entorno y hace las fotos "pre" y "base"
+$NAME status                                       que esta montado y que falta
+$NAME agent    [--mode M] [--rows N] [--cut-at K] [--drop 2,4] [--delay S]
+                                                   cambia el escenario de la tabla de prueba
+$NAME snapshot NAME                                foto del estado del equipo
+$NAME diff     NAME [NAME2]                        diferencias entre una foto y otra, o el estado actual
+$NAME restore  NAME [--dry-run]                    vuelve al estado de una foto
+$NAME teardown [--dry-run]                         lo deshace todo y vuelve a la foto "pre"
+$NAME battery  [--guard 0,2,1] [--case N[,M]] [--dry-run]
+                                                   bateria de la salvaguarda (PROV_GUARD)
+$NAME -h  : Ayuda
+
+Codigo de salida: 0 bien, 1 error, 2 uso incorrecto.
+
+DONDE ESCRIBE
+  /store/data/support/$TOOL/: state/ (estado y escenario), backup/ (copias de snmpd.conf) y
+  runs/FECHA-session/ (fotos y logs de una sesion, de setup a teardown). cnm-daily purga las
+  sesiones cerradas de mas de 30 dias; la abierta lleva KEEP.
+
+QUE CAMBIA EN EL EQUIPO
+  setup   - $SNMPD_CONF: anade un bloque pass_persist (copia previa en backup/) y reinicia snmpd.
+          - $MIB_DST: la MIB de prueba (solo si no esta o es distinta). Se queda
+            despues de teardown. Si algun crawler arranco antes que la MIB, reinicia el
+            motor ($CNMD_INIT stop, o kill si no basta, y espera a que cnm-watch lo levante):
+            el crawler pide los valores por nombre de la MIB y un proceso anterior no lo
+            resuelve (sus metricas acaban en azul).
+          - Monta un tmpfs pequeno en $TMPFS (un disco que se puede quitar).
+          - Base de datos: el subtipo $SUBTYPE (cfg_monitor_snmp), dos monitores
+            "CNM-TESTBED" (alert_type), el asistente del equipo, y provisiona disk_mibhost
+            y $SUBTYPE con monitores y c_label en algunas instancias.
+  restore - Repone la plantilla y los c_label del equipo de la foto, y provisiona (-t 0).
+            Borra las metricas que sobren respecto a la foto, con sus graficas.
+  teardown- Deshace lo anterior y vuelve a la foto "pre".
+  Antes de setup, restore o teardown: la misma orden con --dry-run dice que hara.
+
+ESCENARIOS DE LA TABLA (agent)
+  complete    las N filas
+  empty       ninguna fila, con el agente respondiendo
+  cut-once    la primera lectura devuelve K filas, sin error; las siguientes, todas
+  cut-always  todas las lecturas devuelven K filas
+  cut-labels  la primera lectura devuelve K etiquetas y todos los valores
+  drop        faltan las filas indicadas
+  reorder     las mismas etiquetas, en otros indices
+  --delay S   espera S segundos antes de cada respuesta (para provocar timeouts)
+  --drop vale en cualquier modo salvo empty (con cut-once o cut-always, junto con el corte).
+  Cambiar el escenario pone a cero la cuenta de lecturas.
+
+BATERIA (battery)
+  Para cada valor de PROV_GUARD (--guard, por defecto 0,2,1) y cada caso (--case, por
+  numero o nombre; por defecto todos): vuelve a la foto "base", pone el escenario,
+  escribe PROV_GUARD en $FILE_CONF, provisiona (plite -r ID -t 0), deja $FILE_CONF como
+  estaba (tambien si falla o se interrumpe), hace la foto y la compara con lo esperado.
+  Al terminar vuelve a "base". Resultado en runs/FECHA-session/battery-FECHA/.
+  Antes de cada caso mira las alertas azules del equipo (cualquier contador): la provision
+  borraria esas metricas. Si solo son de la tabla de prueba (el crawler la leyo durante un
+  corte), espera hasta 400 s a que el crawler las quite; si hay otras, se detiene.
+  PROV_GUARD: 0 lo de siempre; 1 la salvaguarda actua; 2 observacion (avisa en qactions
+  y hace lo de siempre). Con 0 y 2 se espera lo mismo en la plantilla.
+  PROV_REMAP_BY_LABEL no se toca: el caso reorder espera segun el valor que tenga.
+     1 complete       tabla completa: no cambia nada
+     2 empty          tabla vacia (G1): con 1 no se toca; con 0 y 2 se pierden las filas
+     3 empty-forced   tabla vacia con plite -F: se pierden con cualquier valor
+     4 cut-once       primera lectura cortada en 2 (G2): con 1 se recuperan las filas 3 a 5
+     5 drop           faltan 2 y 4 en todas las lecturas: se van con cualquier valor
+     6 cut-always     todas las lecturas cortadas en 2: se pierden 3 a 5 (limite aceptado)
+     7 reorder        mismas etiquetas en otros indices: el c_label de fila-1 sigue a su
+                      etiqueta si PROV_REMAP_BY_LABEL vale 1
+     8 cut-once-drop  como 4, y la fila 5 falta siempre: con 1 vuelven 3 y 4, la 5 se va
+     9 new-row        aparece la fila 6: entra inactiva y sin monitor
+    10 snmpd-restart  reinicia snmpd y provisiona sin esperar: con 1 no se pierde
+                      ucd_cpu_usage (ssCpuIdle sin respuesta el primer minuto)
+    11 label-cut      exploratorio, solo con --case 11: en la primera lectura se cortan las
+                      etiquetas y no los valores; se espera que nada cambie (G2 no lo cubre)
+  Codigo de salida: 0 si todos los casos dan lo esperado, 1 si alguno no.
+USAGE
+
+#-------------------------------------------------------------------------------------------
+my @ARGS = @ARGV;
+my $CMD = shift @ARGS;
+if ((! defined $CMD) || ($CMD eq '-h')) { print $USAGE; exit((defined $CMD) ? 0 : 2); }
+
+my %o=();
+GetOptionsFromArray(\@ARGS, \%o, 'id=i','rows=i','dry-run','mode=s','cut-at=i','drop=s','delay=i','guard=s','case=s')
+	or usage();
+
+my %CMDS = ( setup=>\&cmd_setup, status=>\&cmd_status, agent=>\&cmd_agent, snapshot=>\&cmd_snapshot,
+				 diff=>\&cmd_diff, restore=>\&cmd_restore, teardown=>\&cmd_teardown, battery=>\&cmd_battery );
+usage("orden desconocida: $CMD") if (! $CMDS{$CMD});
+my @NAMES = @ARGS;
+usage("falta NAME") if ((($CMD eq 'snapshot') || ($CMD eq 'diff') || ($CMD eq 'restore')) && (! @NAMES));
+usage("sobran argumentos: @NAMES") if ((($CMD eq 'snapshot') || ($CMD eq 'restore')) && (@NAMES > 1));
+usage("sobran argumentos: @NAMES") if (($CMD eq 'diff') && (@NAMES > 2));
+usage("sobran argumentos: @NAMES") if ((grep { $CMD eq $_ } qw(setup status agent teardown battery)) && (@NAMES));
+usage("--guard y --case solo valen con battery") if (($CMD ne 'battery') && ((defined $o{'guard'}) || (defined $o{'case'})));
+foreach my $n (@NAMES) { usage("nombre de foto no valido: $n (letras, numeros, - y _)") if ($n !~ /^[\w-]+$/); }
+
+my ($STORE,$DBH);
+my $DRY = $o{'dry-run'} ? 1 : 0;
+if ($CMD ne 'setup') { my $st0 = state(); $RUN = $st0->{'run_dir'} if ($st0); }
+my $RC = eval { $CMDS{$CMD}->() };
+if (! defined $RC) { print STDERR "ERROR: $@"; $RC = 1; }
+exit $RC;
+
+#-------------------------------------------------------------------------------------------
+sub usage { my ($m)=@_; print STDERR "$m\n" if ($m); print STDERR "Ayuda: $NAME -h\n"; exit 2; }
+sub fail  { my ($m)=@_; print STDERR "ERROR: $m\n"; return 1; }
+sub step  { my ($m)=@_; print(($DRY ? '[dry-run] ' : '')."$m\n"); }
+
+sub db {
+	return if ($DBH);
+	require ONMConfig; ONMConfig->import();
+	require Crawler::Store;
+	my $rcfg = ONMConfig::conf_base($FILE_CONF);
+	$STORE = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+		db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+		db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+	$DBH = $STORE->open_db();
+	die "No se puede conectar con la base\n" if (! $DBH);
+	$DBH->{'RaiseError'}=1;
+}
+
+sub read_file {
+my $f=shift;
+	my $fh;
+	open($fh,'<',$f) or return undef;
+	local $/;
+	my $t=<$fh>;
+	close($fh);
+	return $t;
+}
+
+# Escribe en un temporal del mismo directorio y hace rename, conservando dueno y permisos
+sub write_file {
+my ($f,$text)=@_;
+	my $tmp="$f.cnm-testbed.$$";
+	my $fh;
+	open($fh,'>',$tmp) or die "No se puede escribir $tmp: $!\n";
+	print $fh $text;
+	close($fh) or die "No se puede escribir $tmp: $!\n";
+	my @st = stat($f);
+	if (@st) { chmod($st[2] & 07777, $tmp); chown($st[4], $st[5], $tmp); }
+	rename($tmp,$f) or die "No se puede renombrar $tmp: $!\n";
+}
+
+sub json_read  { my $t=read_file(shift); return (defined $t) ? JSON->new->decode($t) : undef; }
+sub json_write { my ($f,$d)=@_; write_file($f, JSON->new->canonical->pretty->encode($d)); }
+
+sub state      { return json_read($FILE_STATE); }
+sub save_state { my $s=shift; json_write($FILE_STATE,$s) if (! $DRY); }
+
+# Ejecuta una orden; la salida va a un fichero de log. Devuelve el rc (leido sin tuberia).
+sub run_cmd {
+my ($show,$log,@cmd)=@_;
+	step("  \$ $show".((defined $log) ? "   (salida en $log)" : ''));
+	return 0 if ($DRY);
+	my $pid = fork();
+	die "fork: $!\n" if (! defined $pid);
+	if ($pid == 0) {
+		if (defined $log) { open(STDOUT,'>>',$log); open(STDERR,'>&',\*STDOUT); }
+		exec(@cmd) or exit 127;
+	}
+	waitpid($pid,0);
+	return $? >> 8;
+}
+
+sub plite {
+my ($id,@args)=@_;
+	my $log = "$RUN/log/plite-".strftime('%Y%m%d-%H%M%S',localtime()).".log";
+	my $rc = run_cmd("$PLITE -r $id @args", $log, $PLITE, '-r', $id, @args);
+	die "plite ha devuelto $rc; ver $log\n" if ($rc != 0);
+}
+
+sub monitor_key { my $subtype=shift; return "s_$subtype-".substr(md5_hex("cnm-testbed $subtype"),0,8); }
+
+sub device {
+my $id=shift;
+	db();
+	my $r = $DBH->selectrow_hashref("SELECT id_dev,name,ip,version,community FROM devices WHERE id_dev=?", undef, $id);
+	die "No existe el equipo $id\n" if (! $r);
+	return $r;
+}
+
+#-------------------------------------------------------------------------------------------
+# Fotos
+#-------------------------------------------------------------------------------------------
+sub collect {
+my $id=shift;
+	db();
+	my %s=( id_dev=>$id, taken=>time(), parents=>{}, template=>{}, metrics=>{}, blue=>[] );
+	my $r = $DBH->selectall_arrayref("SELECT id_template_metric,id_dev,id_dest,lapse,type,subtype FROM prov_template_metrics WHERE id_dev=?", { Slice=>{} }, $id);
+	$s{'parents'}{$_->{'subtype'}} = $_ foreach (@$r);
+	$r = $DBH->selectall_arrayref("SELECT t.id_template_metric,t.id_dev,t.id_dest,t.iid,t.hiid,t.mname,t.watch,t.label,t.status,p.subtype "
+		."FROM prov_template_metrics2iid t JOIN prov_template_metrics p ON t.id_template_metric=p.id_template_metric WHERE p.id_dev=?", { Slice=>{} }, $id);
+	$s{'template'}{"$_->{'subtype'}|$_->{'iid'}"} = $_ foreach (@$r);
+	$r = $DBH->selectall_arrayref("SELECT name,subtype,iid,c_label,watch,status FROM metrics WHERE id_dev=?", { Slice=>{} }, $id);
+	$s{'metrics'}{$_->{'name'}} = $_ foreach (@$r);
+	$r = $DBH->selectcol_arrayref("SELECT DISTINCT mname FROM alerts WHERE id_device=? AND severity=4", undef, $id);
+	$s{'blue'} = [ sort @$r ];
+	($s{'qactions_max'}) = $DBH->selectrow_array("SELECT COALESCE(MAX(id_qactions),0) FROM qactions");
+	return \%s;
+}
+
+sub snap_file { my $n=shift; return "$RUN/snapshots/$n.json"; }
+
+sub take_snapshot {
+my ($id,$name)=@_;
+	my $s = collect($id);
+	step("Foto \"$name\": ".scalar(keys %{$s->{'template'}})." filas de plantilla, "
+		.scalar(keys %{$s->{'metrics'}})." metricas, ".scalar(@{$s->{'blue'}})." azules");
+	json_write(snap_file($name),$s) if (! $DRY);
+	return $s;
+}
+
+sub load_snapshot {
+my $name=shift;
+	my $s = json_read(snap_file($name));
+	die "No existe la foto $name (".snap_file($name).")\n" if (! $s);
+	return $s;
+}
+
+#-------------------------------------------------------------------------------------------
+# snmpd
+#-------------------------------------------------------------------------------------------
+sub snmpd_set {
+my ($name,$lines)=@_;
+	my $text = read_file($SNMPD_CONF);
+	die "No se puede leer $SNMPD_CONF\n" if (! defined $text);
+	if ((! $DRY) && (! -e "$RUN/snmpd.conf.copied")) {
+		my $b = support_dir($TOOL,'backup',1).'/snmpd.conf.'.strftime('%Y%m%d-%H%M%S',localtime());
+		copy($SNMPD_CONF,$b) or die "copia de $SNMPD_CONF en $b: $!\n";
+		write_file("$RUN/snmpd.conf.copied", "$b\n");
+		step("  copia previa: $b");
+	}
+	my $new = (defined $lines) ? set_block($text,$name,$lines) : remove_block($text,$name);
+	return 0 if ($new eq $text);
+	step("$SNMPD_CONF: ".((defined $lines) ? "bloque cnm-testbed:$name" : "sin el bloque cnm-testbed:$name"));
+	write_file($SNMPD_CONF,$new) if (! $DRY);
+	return 1;
+}
+
+# Como lo hace CNM (cnm-watch, cnm-daily, el rol net-snmp): con el script de init, no con
+# systemctl. Despues comprueba que snmpd sigue vivo (si la configuracion es mala, el
+# recorrido de la tabla lo dira) y espera a que responda $CPU_OID ($dev: el equipo).
+sub snmpd_restart {
+my ($dev,$nowait)=@_;
+	my $rc = run_cmd("$SNMPD_INIT restart", undef, $SNMPD_INIT, 'restart');
+	die "$SNMPD_INIT restart ha devuelto $rc\n" if ($rc != 0);
+	return if ($DRY);
+	sleep(2);
+	die "snmpd no esta en marcha despues de reiniciarlo\n" if (! snmpd_running());
+	snmpd_wait_cpu($dev) if (! $nowait);
+}
+
+sub snmpd_running { return (system("pgrep -x snmpd >/dev/null 2>&1") == 0) ? 1 : 0; }
+
+# 1 si $CPU_OID responde con un valor (no "No Such Instance/Object", ni error)
+sub cpu_ready {
+my $dev=shift;
+	my $v = ($dev->{'version'} eq '1') ? '1' : '2c';
+	local $ENV{'MIBS'}='ALL';
+	my $fh;
+	open($fh,'-|',$SNMPGET,"-v$v",'-c',$dev->{'community'},$dev->{'ip'},$CPU_OID) or die "$SNMPGET: $!\n";
+	my @l = <$fh>;
+	close($fh);
+	return (($? == 0) && (grep { /^\Q$CPU_OID\E = INTEGER: \d+/ } @l)) ? 1 : 0;
+}
+
+sub snmpd_wait_cpu {
+my $dev=shift;
+	db();
+	my $rows = $DBH->selectall_arrayref("SELECT p.subtype, t.status, c.enterprise, c.oid FROM prov_template_metrics2iid t JOIN prov_template_metrics p USING(id_template_metric) JOIN cfg_monitor_snmp c ON c.subtype=p.subtype WHERE t.id_dev=?", { Slice=>{} }, $dev->{'id_dev'});
+	die "no se puede leer la plantilla del equipo $dev->{'id_dev'}: ".$DBH->errstr."\n" if (! $rows);
+	my @ucd = ucd_subtypes_in_use($rows);
+	if (! @ucd) { step("  sin subtipos UCD (empresa 2021) activos en la plantilla: no se espera"); return 1; }
+	step("  subtipos UCD en la plantilla: ".join(' ',@ucd));
+	step("  esperando a que snmpd responda $CPU_OID (un minuto de historia de CPU; maximo $CPU_WAIT s)");
+	my $t0 = time();
+	while (time() - $t0 < $CPU_WAIT) {
+		if (cpu_ready($dev)) { step("  responde a los ".(time()-$t0)." s"); return 1; }
+		sleep($CPU_STEP);
+	}
+	step("  AVISO: $CPU_OID no responde tras $CPU_WAIT s; una provision ahora puede quitar ucd_cpu_usage");
+	return 0;
+}
+
+# Recorre la columna de etiquetas como lo hace la provision. Devuelve (rc, n filas).
+sub walk_labels {
+my $dev=shift;
+	my $v = ($dev->{'version'} eq '1') ? '1' : '2c';
+	step("  \$ $SNMPWALK -v$v -c *** $dev->{'ip'} CNM-TESTBED-MIB::cnmTestbedLabel");
+	return (0,-1) if ($DRY);
+	local $ENV{'MIBS'}='ALL';
+	my $fh;
+	open($fh,'-|',$SNMPWALK,"-v$v",'-c',$dev->{'community'},$dev->{'ip'},'CNM-TESTBED-MIB::cnmTestbedLabel') or die "$SNMPWALK: $!\n";
+	my @l = <$fh>;
+	close($fh);
+	my $rc = $? >> 8;
+	my $n = scalar(grep { /^CNM-TESTBED-MIB::cnmTestbedLabel\.\d+ = / } @l);
+	return ($rc,$n);
+}
+
+#-------------------------------------------------------------------------------------------
+# agent
+#-------------------------------------------------------------------------------------------
+sub write_scenario {
+my $s=shift;
+	my $e = check_scenario($s);
+	die "escenario no valido: $e\n" if ($e ne '');
+	step("Escenario: ".join(' ', map { "$_=".((ref $s->{$_}) ? join(',',@{$s->{$_}}) : $s->{$_}) } qw(mode rows cut_at drop delay)));
+	return if ($DRY);
+	write_file("$DIR/agent.conf", scenario_text($s));
+	write_file("$DIR/agent.reads", "0\n");
+}
+
+sub cmd_agent {
+	my $s = parse_scenario(read_file("$DIR/agent.conf"));
+	$s->{'mode'}   = $o{'mode'}   if (defined $o{'mode'});
+	$s->{'rows'}   = $o{'rows'}   if (defined $o{'rows'});
+	$s->{'cut_at'} = $o{'cut-at'} if (defined $o{'cut-at'});
+	$s->{'delay'}  = $o{'delay'}  if (defined $o{'delay'});
+	$s->{'drop'}   = [ grep { /^\d+$/ } split(/,/,$o{'drop'}) ] if (defined $o{'drop'});
+	return fail("no esta preparado: falta $DIR (cnm-testbed setup)") if (! -d $DIR);
+	write_scenario($s);
+	return 0;
+}
+
+#-------------------------------------------------------------------------------------------
+# setup
+#-------------------------------------------------------------------------------------------
+sub cmd_setup {
+	return fail("hay que ejecutarlo como root") if ($> != 0);
+	return fail("ya esta preparado ($FILE_STATE): cnm-testbed status, o teardown") if (-e $FILE_STATE);
+	foreach my $f ($MIB_SRC,$AGENT,$PLITE,$SNMPWALK,$SNMPGET,$SNMPD_INIT) { return fail("no existe $f") if (! -e $f); }
+	my $rows = $o{'rows'} || 5;
+	return fail("--rows debe estar entre 4 y 1000") if (($rows < 4) || ($rows > 1000));
+
+	db();
+	my $id = $o{'id'};
+	if (! defined $id) {
+		my $r = $DBH->selectcol_arrayref("SELECT id_dev FROM devices WHERE type='Appliance'");
+		return fail("no se sabe que equipo es el propio CNM (".scalar(@$r)." de tipo Appliance): usa --id") if (scalar(@$r) != 1);
+		$id = $r->[0];
+	}
+	my $dev = device($id);
+	return fail("el equipo $id usa SNMP v$dev->{'version'}; cnm-testbed solo admite v1 y v2c") if ($dev->{'version'} !~ /^[12]$/);
+	step("Equipo: $id $dev->{'name'} $dev->{'ip'} SNMP v$dev->{'version'}");
+
+	if ($DRY) { $RUN = support_dir($TOOL,'runs').'/FECHA-session'; }
+	else {
+		support_dir($TOOL,'state',1);
+		$RUN = new_run_dir($TOOL,'session');
+		foreach my $d ("$RUN/snapshots","$RUN/log") { mkdir($d,0700); die "No se puede crear $d\n" if (! -d $d); }
+		write_file("$RUN/KEEP", "sesion abierta de cnm-testbed: no se purga hasta el teardown\n");
+	}
+	step("Sesion: $RUN");
+	my %st = ( id_dev=>$id, rows=>$rows, subtype=>$SUBTYPE, created=>time(), steps=>[], run_dir=>$RUN );
+	save_state(\%st);
+	my $done = sub { push @{$st{'steps'}}, shift; save_state(\%st); };
+
+	# 1. Foto antes de tocar nada
+	take_snapshot($id,'pre'); $done->('snapshot-pre');
+
+	# 2. MIB, escenario y agente
+	my $mib = read_file($MIB_SRC);
+	my $cur = read_file($MIB_DST);
+	if ((defined $cur) && ($cur eq $mib)) { step("MIB: $MIB_DST (ya estaba)"); }
+	else {
+		step("MIB: $MIB_DST");
+		if (! $DRY) {
+			my $d = $MIB_DST; $d =~ s#/[^/]+$##;
+			system('mkdir','-p',$d);
+			write_file($MIB_DST, $mib);
+		}
+	}
+	$done->('mib');
+	engine_restart_if_stale(); $done->('engine');
+	write_scenario({ mode=>'complete', rows=>$rows, cut_at=>2, drop=>[], delay=>0 });
+	snmpd_set('agent', [ "pass_persist $TABLE_OID /usr/bin/perl $AGENT" ]); $done->('snmpd');
+	snmpd_restart($dev);
+
+	# 3. Comprobacion: la provision tiene que ver la tabla con nombres de la MIB
+	my ($rc,$n) = walk_labels($dev);
+	if ((! $DRY) && (($rc != 0) || ($n != $rows))) {
+		return fail("la tabla de prueba no se ve bien: snmpwalk rc=$rc, $n filas de $rows. "
+			."Revisar que snmpd ha cargado el pass_persist y que la MIB esta en los mibdirs de /etc/snmp/snmp.conf. "
+			."Lo montado se deshace con: $NAME teardown");
+	}
+	step("  tabla de prueba: $n filas (rc=$rc)") if (! $DRY);
+	write_scenario({ mode=>'complete', rows=>$rows, cut_at=>2, drop=>[], delay=>0 });	# la comprobacion cuenta como lectura
+
+	# 4. Subtipo y monitores
+	# La etiqueta de cada instancia sale de descr, no de label: apply_metric_snmp_class2 lee
+	# "...,cfg,descr,esp" y pone label=descr (ProvisionLite.pm); snmp_class2_default le
+	# anade la etiqueta de la fila y el nombre del equipo: "CNM-TESTBED fila-2 (equipo)".
+	step("cfg_monitor_snmp: $SUBTYPE");
+	$DBH->do("INSERT INTO cfg_monitor_snmp (subtype,class,lapse,descr,items,oid,get_iid,label,vlabel,mode,mtype,top_value,module,oidn,cfg,custom,include,myrange,enterprise,apptype) "
+		."VALUES (?,'CNM-TESTBED-MIB',300,'CNM-TESTBED','Valor',?,'cnmTestbedLabel','CNM-TESTBED','valor','GAUGE','STD_BASE',1,'mod_snmp_get','cnmTestbedValue.IID',2,1,1,'CNM-TESTBED-MIB::cnmTestbedTable',8072,'net.generic') "
+		."ON DUPLICATE KEY UPDATE class=VALUES(class),descr=VALUES(descr),items=VALUES(items),oid=VALUES(oid),get_iid=VALUES(get_iid),label=VALUES(label),"
+		."vlabel=VALUES(vlabel),mode=VALUES(mode),mtype=VALUES(mtype),top_value=VALUES(top_value),module=VALUES(module),oidn=VALUES(oidn),cfg=2", undef, $SUBTYPE, "$TABLE_OID.1.1.3.IID") if (! $DRY);
+	$done->('cfg_monitor_snmp');
+	my %mon = ( disk_mibhost => monitor_key('disk_mibhost'), $SUBTYPE => monitor_key($SUBTYPE) );
+	my %expr = ( disk_mibhost => '(v2/v1)*100>1000', $SUBTYPE => 'v1>1000000' );	# no saltan nunca
+	foreach my $s (sort keys %mon) {
+		step("alert_type: $mon{$s} ($s, $expr{$s})");
+		$DBH->do("INSERT INTO alert_type (cause,monitor,expr,severity,mname,type,subtype) VALUES ('CNM-TESTBED MONITOR DE PRUEBA',?,?,3,?,'snmp',?) "
+			."ON DUPLICATE KEY UPDATE expr=VALUES(expr)", undef, $mon{$s}, $expr{$s}, $s, $s) if (! $DRY);
+	}
+	$st{'monitors'} = \%mon; $done->('monitors');
+
+	# 5. Disco que se puede quitar
+	if (! is_mounted($TMPFS)) {
+		mkdir($TMPFS) if ((! $DRY) && (! -d $TMPFS));
+		my $rc2 = run_cmd("mount -t tmpfs -o size=1m cnm-testbed $TMPFS", undef, 'mount', '-t', 'tmpfs', '-o', 'size=1m', 'cnm-testbed', $TMPFS);
+		die "mount ha devuelto $rc2\n" if ($rc2 != 0);
+	}
+	$done->('tmpfs');
+
+	# 6. Asistente y provision de los dos subtipos
+	my ($prev) = $DBH->selectrow_array("SELECT include FROM prov_default_metrics2device WHERE id_dev=? AND type='snmp' AND subtype='disk_mibhost'", undef, $id);
+	$st{'disk_prev_include'} = $prev;	# undef: no estaba en el asistente
+	foreach my $s ('disk_mibhost',$SUBTYPE) {
+		step("asistente: $s");
+		$DBH->do("INSERT INTO prov_default_metrics2device (id_dev,include,lapse,type,subtype,descr) VALUES (?,1,300,'snmp',?,?) "
+			."ON DUPLICATE KEY UPDATE include=1", undef, $id, $s, ($s eq $SUBTYPE) ? 'CNM-TESTBED' : '') if (! $DRY);
+	}
+	$done->('asistente');
+	plite($id, '-t', 1, '-m', "1.300.snmp.disk_mibhost,1.300.snmp.$SUBTYPE"); $done->('plite-t1');
+
+	# 7. Monitores y c_label en instancias concretas
+	my %pick = ( watch => [ [ 'disk_mibhost', "USO DE DISCO $TMPFS %" ], [ 'disk_mibhost', 'USO DE DISCO /run/lock %' ],
+								  [ $SUBTYPE, 'CNM-TESTBED fila-2 %' ], [ $SUBTYPE, 'CNM-TESTBED fila-4 %' ] ],
+					 c_label => [ [ 'disk_mibhost', 'USO DE DISCO /run %' ], [ $SUBTYPE, 'CNM-TESTBED fila-1 %' ], [ $SUBTYPE, 'CNM-TESTBED fila-3 %' ] ] );
+	my %chosen = ( watch=>[], c_label=>[] );
+	foreach my $kind ('watch','c_label') {
+		foreach my $p (@{$pick{$kind}}) {
+			my $r = $DRY ? [] : $DBH->selectall_arrayref("SELECT t.id_template_metric,t.hiid,t.mname,t.label FROM prov_template_metrics2iid t "
+				."JOIN prov_template_metrics p ON t.id_template_metric=p.id_template_metric WHERE p.id_dev=? AND p.subtype=? AND t.label LIKE ?", { Slice=>{} }, $id, $p->[0], $p->[1]);
+			if ((! $DRY) && (scalar(@$r) != 1)) { die "Se esperaba una instancia $p->[0] con etiqueta '$p->[1]' y hay ".scalar(@$r)."\n"; }
+			my $row = $r->[0] || { mname=>'?', label=>$p->[1] };
+			push @{$chosen{$kind}}, { subtype=>$p->[0], mname=>$row->{'mname'}, label=>$row->{'label'} };
+			if ($kind eq 'watch') {
+				step("monitor $mon{$p->[0]} en $row->{'label'}");
+				$DBH->do("UPDATE prov_template_metrics2iid SET watch=?,status=0 WHERE id_template_metric=? AND hiid=?", undef, $mon{$p->[0]}, $row->{'id_template_metric'}, $row->{'hiid'}) if (! $DRY);
+			}
+		}
+	}
+	$st{'chosen'} = \%chosen; $done->('watch');
+	plite($id, '-t', 0); $done->('plite-t0');
+	foreach my $c (@{$chosen{'c_label'}}) {
+		my $cl = "CNM-TESTBED c_label $c->{'mname'}";
+		step("c_label '$cl' en $c->{'label'}");
+		$DBH->do("UPDATE metrics SET c_label=? WHERE id_dev=? AND name=?", undef, $cl, $id, $c->{'mname'}) if (! $DRY);
+	}
+	$done->('c_label');
+
+	# 8. Foto de partida de las pruebas
+	write_scenario({ mode=>'complete', rows=>$rows, cut_at=>2, drop=>[], delay=>0 });
+	take_snapshot($id,'base'); $done->('snapshot-base');
+	$st{'ready'}=1; save_state(\%st);
+	step("Preparado. Fotos: pre (antes de setup) y base (punto de partida de las pruebas).");
+	return 0;
+}
+
+sub is_mounted {
+my $p=shift;
+	my $t = read_file('/proc/mounts') || '';
+	return ($t =~ /^\S+ \Q$p\E /m) ? 1 : 0;
+}
+
+#-------------------------------------------------------------------------------------------
+# status
+#-------------------------------------------------------------------------------------------
+sub cmd_status {
+	my $st = state();
+	if (! $st) { print "Sin preparar: no existe $FILE_STATE\n"; return 1; }
+	my $ok = 1;
+	my $chk = sub { my ($good,$txt)=@_; print(($good ? 'OK    ' : 'FALTA ')."$txt\n"); $ok=0 if (! $good); };
+	print "Equipo $st->{'id_dev'}, ".scalar(@{$st->{'steps'} || []})." pasos hechos: ".join(' ',@{$st->{'steps'} || []})."\n";
+	$chk->($st->{'ready'}, 'setup terminado');
+	$chk->(-e $MIB_DST, "MIB $MIB_DST");
+	my $conf = read_file($SNMPD_CONF) || '';
+	$chk->(has_block($conf,'agent'), "$SNMPD_CONF: bloque cnm-testbed:agent");
+	my @other = grep { $_ ne 'agent' } block_names($conf);
+	print "AVISO otros bloques cnm-testbed en $SNMPD_CONF: @other\n" if (@other);
+	$chk->(snmpd_running(), 'snmpd en marcha');
+	if (-e $MIB_DST) {
+		my $s = stale_crawlers(engine_procs(), (stat($MIB_DST))[9]);
+		$chk->(! @$s, @$s ? "crawlers anteriores a la MIB (sus metricas de prueba saldran en azul): ".join(' ', map { $_->{'pid'} } @$s)
+								 : "crawlers posteriores a la MIB");
+	}
+	$chk->(is_mounted($TMPFS), "tmpfs en $TMPFS");
+	my $s = parse_scenario(read_file("$DIR/agent.conf"));
+	my $rt = read_file("$DIR/agent.reads"); my $reads = ((defined $rt) && ($rt =~ /^\s*(\d+)/)) ? $1 : 0;
+	print "INFO  escenario: mode=$s->{'mode'} rows=$s->{'rows'} cut_at=$s->{'cut_at'} drop=".join(',',@{$s->{'drop'}})." delay=$s->{'delay'}; lecturas: $reads\n";
+	db();
+	my ($c) = $DBH->selectrow_array("SELECT COUNT(*) FROM cfg_monitor_snmp WHERE subtype=?", undef, $SUBTYPE);
+	$chk->($c, "cfg_monitor_snmp: $SUBTYPE");
+	foreach my $m (sort values %{$st->{'monitors'} || {}}) {
+		($c) = $DBH->selectrow_array("SELECT COUNT(*) FROM alert_type WHERE monitor=?", undef, $m);
+		$chk->($c, "alert_type: $m");
+	}
+	foreach my $sub ('disk_mibhost',$SUBTYPE) {
+		($c) = $DBH->selectrow_array("SELECT COUNT(*) FROM prov_template_metrics2iid t JOIN prov_template_metrics p ON t.id_template_metric=p.id_template_metric "
+			."WHERE p.id_dev=? AND p.subtype=?", undef, $st->{'id_dev'}, $sub);
+		$chk->($c > 0, "plantilla $sub: $c instancias");
+	}
+	my @snaps = map { s#^.*/##; s#\.json$##; $_ } glob("$RUN/snapshots/*.json");
+	print "INFO  sesion: $RUN\n";
+	print "INFO  fotos: @snaps\n";
+	my ($guard) = ((read_file($FILE_CONF) || '') =~ /^\s*PROV_GUARD\s*=\s*(\S*)/m);
+	print "INFO  PROV_GUARD en $FILE_CONF: ".((defined $guard) ? $guard : 'sin la linea (0)')."\n";
+	return $ok ? 0 : 1;
+}
+
+#-------------------------------------------------------------------------------------------
+# snapshot, diff
+#-------------------------------------------------------------------------------------------
+sub need_state {
+	my $st = state();
+	die "No esta preparado: no existe $FILE_STATE (cnm-testbed setup)\n" if (! $st);
+	return $st;
+}
+
+sub cmd_snapshot {
+	my $st = need_state();
+	take_snapshot($st->{'id_dev'}, $NAMES[0]);
+	return 0;
+}
+
+sub cmd_diff {
+	my $st = need_state();
+	my $a = load_snapshot($NAMES[0]);
+	my $b = (defined $NAMES[1]) ? load_snapshot($NAMES[1]) : collect($st->{'id_dev'});
+	my $d = diff_snapshots($a,$b);
+	print "Diferencias de \"$NAMES[0]\" a ".((defined $NAMES[1]) ? "\"$NAMES[1]\"" : 'el estado actual').":\n";
+	if (diff_is_empty($d)) { print "  ninguna\n"; return 0; }
+	print "$_\n" foreach (diff_lines($d));
+	return 0;
+}
+
+#-------------------------------------------------------------------------------------------
+# restore
+#-------------------------------------------------------------------------------------------
+sub restore_to {
+my ($id,$snap,$name)=@_;
+	my $now = collect($id);
+	my $p = restore_plan($snap,$now);
+	step("Volver a la foto \"$name\": "
+		.scalar(@{$p->{'parents_insert'}})." plantillas de subtipo que faltan, ".scalar(@{$p->{'parents_delete'}})." que sobran; "
+		.scalar(@{$p->{'template_insert'}})." instancias que faltan, ".scalar(@{$p->{'template_update'}})." que cambian, "
+		.scalar(@{$p->{'template_delete'}})." que sobran");
+	foreach my $r (@{$p->{'parents_insert'}}) {
+		step("  plantilla de $r->{'subtype'} (id $r->{'id_template_metric'})");
+		$DBH->do("INSERT INTO prov_template_metrics (id_template_metric,id_dev,id_dest,lapse,type,subtype) VALUES (?,?,?,?,?,?)", undef,
+			@{$r}{qw(id_template_metric id_dev id_dest lapse type subtype)}) if (! $DRY);
+	}
+	foreach my $r (@{$p->{'template_insert'}}) {
+		step("  repone $r->{'subtype'} iid=$r->{'iid'} $r->{'label'}");
+		$DBH->do("INSERT INTO prov_template_metrics2iid (id_template_metric,id_dev,id_dest,iid,hiid,mname,watch,label,status) VALUES (?,?,?,?,?,?,?,?,?)", undef,
+			@{$r}{qw(id_template_metric id_dev id_dest iid hiid mname watch label status)}) if (! $DRY);
+	}
+	foreach my $u (@{$p->{'template_update'}}) {
+		my ($r,$f)=@$u;
+		step("  cambia $r->{'subtype'} iid=$r->{'iid'}: @$f");
+		$DBH->do("UPDATE prov_template_metrics2iid SET watch=?,label=?,status=? WHERE id_template_metric=? AND hiid=?", undef,
+			@{$r}{qw(watch label status id_template_metric hiid)}) if (! $DRY);
+	}
+	foreach my $r (@{$p->{'template_delete'}}) {
+		step("  quita $r->{'subtype'} iid=$r->{'iid'} $r->{'label'}");
+		$DBH->do("DELETE FROM prov_template_metrics2iid WHERE id_template_metric=? AND hiid=?", undef, $r->{'id_template_metric'}, $r->{'hiid'}) if (! $DRY);
+	}
+	foreach my $r (@{$p->{'parents_delete'}}) {
+		step("  quita la plantilla de $r->{'subtype'}");
+		if (! $DRY) {
+			$DBH->do("DELETE FROM prov_template_metrics2iid WHERE id_template_metric=?", undef, $r->{'id_template_metric'});
+			$DBH->do("DELETE FROM prov_template_metrics WHERE id_template_metric=?", undef, $r->{'id_template_metric'});
+		}
+	}
+	my $changes = 0;
+	$changes += scalar(@{$p->{$_}}) foreach (qw(parents_insert parents_delete template_insert template_update template_delete));
+	# Tambien se provisiona si faltan metricas activas de la foto: las crea la provision
+	my $missing = scalar(@{diff_snapshots($snap,$now)->{'metrics'}{'removed'}});
+	step("  faltan $missing metricas activas de la foto") if ($missing);
+	if ($changes || $missing) { plite($id, '-t', 0); }
+	else { step("  la plantilla y las metricas ya coinciden con la foto: no se provisiona"); }
+
+	# Metricas que sobran respecto a la foto (con sus graficas), y c_label
+	my $post = $DRY ? $now : collect($id);
+	foreach my $m (sort keys %{$post->{'metrics'}}) {
+		next if (exists $snap->{'metrics'}{$m});
+		step("  borra la metrica $m (no estaba en la foto)");
+		$STORE->delete_metrics($DBH, { 'id_dev'=>$id, 'mname'=>$m }) if (! $DRY);
+	}
+	foreach my $c (@{$p->{'c_label'}}) {
+		my ($m,$cl)=@$c;
+		next if (! exists $post->{'metrics'}{$m});
+		my $cur = $post->{'metrics'}{$m}{'c_label'}; $cur = '' if (! defined $cur);
+		next if ($cur eq $cl);
+		step("  c_label de $m: '$cl'");
+		$DBH->do("UPDATE metrics SET c_label=? WHERE id_dev=? AND name=?", undef, $cl, $id, $m) if (! $DRY);
+	}
+	return 0 if ($DRY);
+
+	# Comprobacion: la plantilla y las metricas tienen que coincidir con la foto
+	my $d = diff_snapshots($snap, collect($id));
+	my @l = diff_lines($d);
+	my @bad = grep { ! /azul/ } @l;
+	if (@bad) { print "NO coincide con la foto \"$name\":\n"; print "$_\n" foreach (@l); return 1; }
+	print "Coincide con la foto \"$name\" (plantilla y metricas).\n";
+	my @blue = grep { /azul/ } @l;
+	if (@blue) { print "Las azules las pone el crawler y no se restauran:\n"; print "$_\n" foreach (@blue); }
+	return 0;
+}
+
+sub reset_test_conditions {
+my $st=shift;
+	write_scenario({ mode=>'complete', rows=>$st->{'rows'}, cut_at=>2, drop=>[], delay=>0 });
+	my $conf = read_file($SNMPD_CONF) || '';
+	my $changed = 0;
+	foreach my $b (grep { $_ ne 'agent' } block_names($conf)) { $changed += snmpd_set($b, undef); }
+	snmpd_restart(device($st->{'id_dev'})) if ($changed);
+}
+
+sub cmd_restore {
+	return fail("hay que ejecutarlo como root") if ($> != 0);
+	my $st = need_state();
+	my $snap = load_snapshot($NAMES[0]);
+	db();
+	reset_test_conditions($st);
+	return restore_to($st->{'id_dev'}, $snap, $NAMES[0]);
+}
+
+#-------------------------------------------------------------------------------------------
+# teardown
+#-------------------------------------------------------------------------------------------
+sub cmd_teardown {
+	return fail("hay que ejecutarlo como root") if ($> != 0);
+	my $st = need_state();
+	my $id = $st->{'id_dev'};
+	db();
+	my $pre = load_snapshot('pre');
+
+	# 1. snmpd sin bloques cnm-testbed
+	my $conf = read_file($SNMPD_CONF) || '';
+	my $changed = 0;
+	$changed += snmpd_set($_, undef) foreach (block_names($conf));
+	snmpd_restart(device($id)) if ($changed);
+
+	# 2. Disco de prueba fuera
+	if (is_mounted($TMPFS)) {
+		my $rc = run_cmd("umount $TMPFS", undef, 'umount', $TMPFS);
+		die "umount ha devuelto $rc\n" if ($rc != 0);
+	}
+
+	# 3. Asistente como estaba
+	step("asistente: sin $SUBTYPE");
+	$DBH->do("DELETE FROM prov_default_metrics2device WHERE id_dev=? AND type='snmp' AND subtype=?", undef, $id, $SUBTYPE) if (! $DRY);
+	if (defined $st->{'disk_prev_include'}) {
+		step("asistente: disk_mibhost include=$st->{'disk_prev_include'}, como estaba");
+		$DBH->do("UPDATE prov_default_metrics2device SET include=? WHERE id_dev=? AND type='snmp' AND subtype='disk_mibhost'", undef, $st->{'disk_prev_include'}, $id) if (! $DRY);
+	}
+	elsif (grep { $_ eq 'asistente' } @{$st->{'steps'} || []}) {
+		step("asistente: sin disk_mibhost, como estaba");
+		$DBH->do("DELETE FROM prov_default_metrics2device WHERE id_dev=? AND type='snmp' AND subtype='disk_mibhost'", undef, $id) if (! $DRY);
+	}
+
+	# 4. Plantilla y metricas como en la foto "pre"
+	my $rc = restore_to($id, $pre, 'pre');
+
+	# 5. Monitores, subtipo y MIB
+	foreach my $m (sort values %{$st->{'monitors'} || {}}) {
+		my ($n) = $DBH->selectrow_array("SELECT COUNT(*) FROM prov_template_metrics2iid WHERE watch=?", undef, $m);
+		if ($n && (! $DRY)) { print "AVISO el monitor $m sigue en $n instancias: no se borra\n"; $rc=1; next; }
+		step("alert_type: borra $m");
+		$DBH->do("DELETE FROM alert_type WHERE monitor=?", undef, $m) if (! $DRY);
+	}
+	step("cfg_monitor_snmp: borra $SUBTYPE");
+	$DBH->do("DELETE FROM cfg_monitor_snmp WHERE subtype=?", undef, $SUBTYPE) if (! $DRY);
+	step("MIB: se queda en $MIB_DST (asi no hay que reiniciar el motor en el siguiente setup)");
+
+	return $rc if ($DRY);
+	rename($FILE_STATE,"$RUN/state.json");
+	unlink("$RUN/KEEP");
+	print "Deshecho. La sesion queda en $RUN (estado, fotos y logs); cnm-daily la purgara pasados los dias de retencion.\n";
+	return $rc;
+}
+
+#-------------------------------------------------------------------------------------------
+# Motor de CNM
+#-------------------------------------------------------------------------------------------
+sub engine_procs {
+	my $fh;
+	open($fh,'-|','ps','-eo','pid=,etimes=,args=') or die "ps: $!\n";
+	local $/; my $t=<$fh>; close($fh);
+	return parse_ps($t,time());
+}
+
+# Si algun crawler arranco antes que la MIB de prueba, reinicia el motor: stop (y kill si no
+# basta) y espera a que cnm-watch levante crawlers nuevos. No lo hace si el motor esta parado
+# a proposito ($STOP_ENGINE): cnm-watch no lo levantaria.
+sub engine_restart_if_stale {
+	return if ($DRY && (! -e $MIB_DST));
+	my $mtime = (-e $MIB_DST) ? (stat($MIB_DST))[9] : time();
+	my $stale = stale_crawlers(engine_procs(), $mtime);
+	if (! @$stale) { step("motor: los crawlers ya ven la MIB (arrancaron despues)"); return; }
+	die "el motor esta parado a proposito ($STOP_ENGINE): no se reinicia; los crawlers no veran la MIB\n" if (-e $STOP_ENGINE);
+	step("motor: ".scalar(@$stale)." crawlers arrancaron antes que la MIB; se reinicia el motor");
+	# El rc de stop es el del ultimo start-stop-daemon (cnmd.init:94-147): un .pid de un proceso
+	# que ya no existe da 1 sin que nada vaya mal. Lo que cuenta es si quedan crawlers viejos.
+	my $rc = run_cmd("$CNMD_INIT stop", undef, $CNMD_INIT, 'stop');
+	step("  $CNMD_INIT stop ha devuelto $rc; se comprueba por los procesos") if ($rc != 0);
+	return if ($DRY);
+	my $gone = sub { my $w=shift; my $t0=time(); while (time()-$t0 < $w) { return 1 if (! @{stale_crawlers(engine_procs(),$mtime)}); sleep(5); } return 0; };
+	if (! $gone->($STOP_WAIT)) {
+		step("  a los $STOP_WAIT s siguen crawlers anteriores a la MIB: $CNMD_INIT kill");
+		$rc = run_cmd("$CNMD_INIT kill", undef, $CNMD_INIT, 'kill');
+		die "$CNMD_INIT kill ha devuelto $rc\n" if ($rc != 0);
+		die "tras $CNMD_INIT kill siguen crawlers anteriores a la MIB\n" if (! $gone->($KILL_WAIT));
+	}
+	my $want = scalar(@$stale);	# los que habia: cnm-watch los levanta de uno en uno
+	step("  esperando a que cnm-watch levante los $want crawlers (maximo $ENGINE_WAIT s)");
+	my $t0 = time();
+	while (time() - $t0 < $ENGINE_WAIT) {
+		my $p = engine_procs();
+		my $c = crawlers($p);
+		if ((scalar(@$c) >= $want) && (! @{stale_crawlers($p,$mtime)})) { step("  ".scalar(@$c)." crawlers en marcha, todos posteriores a la MIB (".(time()-$t0)." s)"); return; }
+		sleep(5);
+	}
+	my $n = scalar(@{crawlers(engine_procs())});
+	die "cnm-watch ha levantado $n de $want crawlers en $ENGINE_WAIT s (mirar /etc/cron.fast/cnm-watch y $STOP_ENGINE)\n";
+}
+
+#-------------------------------------------------------------------------------------------
+# battery
+#-------------------------------------------------------------------------------------------
+my $CONF_ORIG;	# texto de onm.conf antes de tocar PROV_GUARD; undef si no se ha tocado
+
+sub guard_set {
+my $mode=shift;
+	my $text = read_file($FILE_CONF);
+	die "No se puede leer $FILE_CONF\n" if (! defined $text);
+	$CONF_ORIG = $text if (! defined $CONF_ORIG);
+	write_file($FILE_CONF, set_guard_line($CONF_ORIG,$mode));
+}
+
+sub guard_restore {
+	return if (! defined $CONF_ORIG);
+	write_file($FILE_CONF, $CONF_ORIG);
+	$CONF_ORIG = undef;
+}
+
+# Si el proceso termina con onm.conf cambiado (die fuera de un eval, senal), se deja como estaba
+END { if (defined $CONF_ORIG) { eval { guard_restore(); }; print STDERR "$FILE_CONF restaurado\n" if (! $@); } }
+
+sub guard_notices {
+my ($since,$subtype)=@_;
+	my $r = $DBH->selectall_arrayref("SELECT descr,rcstr FROM qactions WHERE id_qactions>? AND descr IN (?,?) AND rcstr LIKE ? ORDER BY id_qactions",
+		{ Slice=>{} }, $since, NOTICE_SKIP, NOTICE_REREAD, "% $subtype:%");
+	return $r;
+}
+
+sub remap_value {
+	my $cfg = ONMConfig::conf_base($FILE_CONF);
+	my $v = (defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : 0;
+	return ((defined $v) && ($v =~ /^\s*1\s*$/)) ? 1 : 0;	# como remap_by_label_enabled (ProvisionLite.pm)
+}
+
+sub scenario_line { my $s=shift; return join(' ', map { "$_=".((ref $s->{$_}) ? join(',',@{$s->{$_}}) : $s->{$_}) } qw(mode rows cut_at drop delay)); }
+
+# Alertas azules del equipo (salvo xagent), con cualquier contador: la provision borra esas
+# metricas (ProvisionLite.pm, "Se eliminan las metricas azules")
+sub blue_alerts {
+my $id=shift;
+	return $DBH->selectall_arrayref("SELECT mname,counter FROM alerts WHERE id_device=? AND severity=4 AND type!='xagent' ORDER BY mname", undef, $id);
+}
+sub blue_text { return join(', ', map { "$_->[0] (counter $_->[1])" } @{$_[0]}); }
+
+# Si solo hay azules de la tabla de prueba, espera a que el crawler las quite en su
+# siguiente ciclo; si hay otras, o no se van en $BLUE_WAIT s, se detiene.
+sub wait_testbed_blues {
+my $id=shift;
+	my $blue = blue_alerts($id);
+	return if (! @$blue);
+	my ($mine,$other) = split_blues([ map { $_->[0] } @$blue ]);
+	die "hay alertas azules en el equipo: ".blue_text($blue)."\n" if (@$other);
+	step("  azules de la tabla de prueba (".blue_text($blue)."): se espera a que el crawler las quite (maximo $BLUE_WAIT s)");
+	my $t0=time();
+	while (time()-$t0 < $BLUE_WAIT) {
+		sleep(15);
+		$blue = blue_alerts($id);
+		if (! @$blue) { step("  sin azules a los ".(time()-$t0)." s"); return; }
+		($mine,$other) = split_blues([ map { $_->[0] } @$blue ]);
+		die "hay alertas azules en el equipo: ".blue_text($blue)."\n" if (@$other);
+	}
+	die "hay alertas azules en el equipo: siguen tras $BLUE_WAIT s: ".blue_text($blue)."\n";
+}
+
+# Vuelve a "base". Si no coincide y las unicas azules del equipo son de la tabla de prueba
+# (el crawler la leyo durante un corte; notificationsd las escribe en alerts despues, y la
+# provision de la vuelta borra esas metricas), espera a que se vayan y lo intenta otra vez.
+sub restore_base {
+my ($id,$base)=@_;
+	return 0 if (restore_to($id, $base, 'base') == 0);
+	my $blue = blue_alerts($id);
+	return 1 if (! @$blue);
+	my ($mine,$other) = split_blues([ map { $_->[0] } @$blue ]);
+	return 1 if (@$other);
+	step("  no coincide por azules de la tabla de prueba: se espera y se vuelve a intentar");
+	wait_testbed_blues($id);
+	return restore_to($id, $base, 'base');
+}
+
+sub run_case {
+my ($st,$dev,$base,$c,$mode,$remap)=@_;
+	my $id = $st->{'id_dev'};
+	# 1. Punto de partida: escenario completo, sin azules y foto "base"
+	write_scenario({ mode=>'complete', rows=>$st->{'rows'}, cut_at=>2, drop=>[], delay=>0 });
+	wait_testbed_blues($id);
+	my $rrc = restore_base($id, $base);
+	die "no se puede volver a la foto base\n" if ($rrc != 0);
+	my $blue = blue_alerts($id);
+	die "hay alertas azules en el equipo: ".blue_text($blue)."\n" if (@$blue);
+	# 2. Escenario del caso
+	write_scenario($c->{'scenario'});
+	my $t_restart;
+	if ($c->{'restart'}) { snmpd_restart($dev,1); $t_restart = time(); }
+	# 3. PROV_GUARD y provision
+	my $before = collect($id);
+	guard_set($mode);
+	step("  $FILE_CONF: PROV_GUARD = $mode");
+	my $err = '';
+	eval { plite($id, '-t', 0, ($c->{'force'} ? ('-F') : ())); };
+	$err = $@ if ($@);
+	guard_restore();
+	step("  $FILE_CONF como estaba");
+	my $secs = (defined $t_restart) ? (time() - $t_restart) : undef;
+	step("  la provision termina a los $secs s del reinicio de snmpd") if (defined $secs);
+	die $err if ($err ne '');
+	# 4. Resultado
+	my $after = collect($id);
+	my $notices = guard_notices($before->{'qactions_max'}, $c->{'subtype'});
+	my @f = evaluate({ case=>$c, mode=>$mode, remap=>$remap, base=>$base, after=>$after, notices=>$notices });
+	snmpd_wait_cpu($dev) if ($c->{'restart'});
+	return { fails=>\@f, notices=>$notices, after=>$after, secs_after_restart=>$secs };
+}
+
+sub cmd_battery {
+	return fail("hay que ejecutarlo como root") if ($> != 0);
+	my ($cases,$e1) = select_cases($o{'case'});
+	usage($e1) if ($e1 ne '');
+	my ($modes,$e2) = parse_modes($o{'guard'});
+	usage($e2) if ($e2 ne '');
+	my $st = need_state();
+	my $id = $st->{'id_dev'};
+	return fail("la bateria espera una sesion de 5 filas y esta tiene $st->{'rows'} (cnm-testbed setup sin --rows)") if ($st->{'rows'} != 5);
+	my $base = load_snapshot('base');
+	db();
+	my $dev = device($id);
+	my $remap = remap_value();
+	print "Bateria de la salvaguarda en el equipo $id $dev->{'name'}: PROV_GUARD ".join(',',@$modes)
+		.", casos ".join(',', map { $_->{'id'} } @$cases)."; PROV_REMAP_BY_LABEL = $remap\n";
+	if ($DRY) {
+		foreach my $m (@$modes) {
+			foreach my $c (@$cases) {
+				my $x = expected($c,$m);
+				my $want = (defined $x->{'rows'}) ? "filas ".(@{$x->{'rows'}} ? join(',',@{$x->{'rows'}}) : 'ninguna')
+							: "ucd_cpu_usage ".($x->{'ucd'} ? 'se queda' : 'se pierde');
+				my $n = ($m eq '0') ? 'sin avisos' : ((defined $c->{'notice'}) ? "aviso \"$c->{'notice'}\"" : 'sin avisos');
+				printf("  PROV_GUARD %s  %2d %-14s %s%s; se espera: %s, %s\n", $m, $c->{'id'}, $c->{'name'}, scenario_line($c->{'scenario'}),
+					($c->{'force'} ? ' -F' : '').($c->{'restart'} ? ' (reinicio de snmpd)' : ''), $want, $n);
+			}
+		}
+		return 0;
+	}
+	my $conf_start = read_file($FILE_CONF);
+	return fail("no se puede leer $FILE_CONF") if (! defined $conf_start);
+	my $out = "$RUN/battery-".strftime('%Y%m%d-%H%M%S',localtime());
+	mkdir($out,0700) or die "No se puede crear $out: $!\n";
+	local $SIG{'INT'}  = sub { die "interrumpido\n"; };
+	local $SIG{'TERM'} = sub { die "interrumpido\n"; };
+	snmpd_wait_cpu($dev);
+	my @results=(); my $nfail=0; my $aborted='';
+	MODE: foreach my $m (@$modes) {
+		foreach my $c (@$cases) {
+			print "\n=== PROV_GUARD $m · caso $c->{'id'} $c->{'name'}: $c->{'what'}\n";
+			my $r = eval { run_case($st,$dev,$base,$c,$m,$remap) };
+			if (! $r) {
+				my $e = $@; chomp $e;
+				$r = { fails=>[ "error: $e" ], notices=>[] };
+				guard_restore();
+				if (($e =~ /^interrumpido/) || ($e =~ /no se puede volver a la foto base/) || ($e =~ /^hay alertas azules/)) { $aborted=$e; }
+			}
+			my $ok = @{$r->{'fails'}} ? 0 : 1;
+			$nfail++ if (! $ok);
+			print(($ok ? "OK   " : "FALLA")." PROV_GUARD $m caso $c->{'id'} $c->{'name'}\n");
+			print "      $_\n" foreach (@{$r->{'fails'}});
+			print "      aviso: $_->{'descr'}: $_->{'rcstr'}\n" foreach (@{$r->{'notices'}});
+			push @results, { guard=>$m, case=>$c->{'id'}, name=>$c->{'name'}, ok=>$ok, fails=>$r->{'fails'}, notices=>$r->{'notices'},
+								  secs_after_restart=>$r->{'secs_after_restart'} };
+			json_write("$out/guard$m-case$c->{'id'}-after.json", $r->{'after'}) if ($r->{'after'});
+			last MODE if ($aborted ne '');
+		}
+	}
+	json_write("$out/results.json", { remap=>$remap, modes=>$modes, cases=>[ map { $_->{'id'} } @$cases ], results=>\@results, aborted=>$aborted });
+	if ($aborted !~ /no se puede volver a la foto base/) {
+		print "\n=== Vuelta a la foto \"base\"\n";
+		write_scenario({ mode=>'complete', rows=>$st->{'rows'}, cut_at=>2, drop=>[], delay=>0 });
+		snmpd_wait_cpu($dev);
+		if (restore_base($id, $base) != 0) { print "AVISO: no coincide con la foto base; revisar con: $NAME diff base\n"; $nfail++; }
+	}
+	guard_restore();
+	my $conf_end = read_file($FILE_CONF);
+	if ((! defined $conf_end) || ($conf_end ne $conf_start)) { print "AVISO: $FILE_CONF no ha quedado como estaba al empezar; revisalo\n"; $nfail++; }
+	else { print "$FILE_CONF queda como estaba al empezar\n"; }
+	print "\nResumen: ".scalar(@results)." ejecuciones, ".scalar(grep { $_->{'ok'} } @results)." OK, "
+		.scalar(grep { ! $_->{'ok'} } @results)." FALLA".(($aborted ne '') ? "; se detuvo: $aborted" : '')."\n";
+	print "Detalle: $out\n";
+	return ((grep { ! $_->{'ok'} } @results) || ($aborted ne '') || ($nfail)) ? 1 : 0;
+}
