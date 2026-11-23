@@ -15,7 +15,7 @@ BEGIN { $ENV{'MIBS'}='ALL'; }
 
 #-------------------------------------------------------------------------------------------
 my %opts=();
-getopts("hfr:t:m:d:c:x:o:",\%opts);
+getopts("hfFr:t:m:d:c:x:o:",\%opts);
 if ($opts{h}) { my $USAGE = usage(); die $USAGE; }
 my $log_level= (defined $opts{d}) ? $opts{d} : 'debug';
 my $log_mode=3;
@@ -26,6 +26,7 @@ if (! $opts{r}) { my $USAGE = usage(); die $USAGE;}
 
 
 my $FAST = ($opts{f}) ? 1 : 0;
+my $FORCE = ($opts{F}) ? 1 : 0;
 my $MODE=0;
 if ($opts{t}) { $MODE=$opts{t}; }
 if (exists $opts{o}) {  $MODE=5; }
@@ -118,7 +119,7 @@ foreach my $cid (keys %$params) {
 		# atype >> 0
 		# cmd >> 
 		if ($MODE==0) {
-			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>0, 'cid'=>$cid, 'fast'=>$FAST});
+			$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>0, 'cid'=>$cid, 'fast'=>$FAST, 'force'=>$FORCE});
 		}
 				# ----------------------------------------------------------------------------------
 		# descr >> GENERAR METRICAS DESDE ASISTENTE
@@ -153,7 +154,7 @@ foreach my $cid (keys %$params) {
 
 				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
 
-      		$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>1, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST});
+      		$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>1, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST, 'force'=>$FORCE});
 
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>1, 'default'=>'1.300.snmp.disk_mibhost' });
@@ -197,7 +198,7 @@ foreach my $cid (keys %$params) {
 
 				$provision->log('info',"$0 [$$]::MODE=$MODE METRICS=$opts{m}");
 	
-				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST});
+				$provision->prov_do_set_device_metric({'id_dev'=>$id_dev, 'init'=>2, 'cid'=>$cid, 'default'=>$opts{m}, 'fast'=>$FAST, 'force'=>$FORCE});
 
 
 				#$provision->prov_do_set_device_metric({'id_dev'=>$ID_DEVS, 'init'=>2, 'default'=>'1.60.latency.disp_icmp,1.300.latency.mon_icmp,1.300.snmp.traffic_mibii_if,1.300.snmp.status_mibii_if' });
@@ -287,6 +288,8 @@ OPCIONES:
   11: Solo se da de alta el dispositivo. No se genera asistente y aplicaciones
 
 -f : Fast. No calcula las apps del dispositivo ni la plantilla.
+-F : Forzar. Con la salvaguarda activa (PROV_GUARD), deja que desaparezcan todas las
+     instancias de una metrica cuando el equipo no devuelve ninguna (REG-CNM-Deuda 4.104).
  
 -o id_dev origen (solo para el caso 5)
 

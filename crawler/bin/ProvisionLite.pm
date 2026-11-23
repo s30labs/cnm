@@ -73,6 +73,7 @@ my %LOG_PRIORITY = (
 
 #-----------------------------------------------------------------------
 use ProvisionLite::LabelRemap qw(remap_by_label has_monitor_or_c_label);
+use ProvisionLite::ProvGuard qw(guard_mode guard_decide valid_iids GUARD_OFF GUARD_ON GUARD_WATCH);
 use ProvisionLite::disk_mibhost;
 use ProvisionLite::traffic_mibii_if;
 use ProvisionLite::pkts_type_mibii_if;
@@ -1058,6 +1059,12 @@ my $store_flag=1;
 		#--------------------------------------------------------------------------------
 		my $REMAP = $self->remap_by_label_enabled();
 		my $SNAP = ($REMAP) ? $self->snapshot_instances($ID_DEV) : {};
+		#--------------------------------------------------------------------------------
+		# Salvaguarda (PROV_GUARD de /cfg/onm.conf, se lee en cada provision; REG-CNM-Deuda 4.104).
+		# %GUARD_KEEP: mname de las metricas que la salvaguarda no ha tocado; sus azules se conservan.
+		#--------------------------------------------------------------------------------
+		my $GUARD = $self->prov_guard_mode();
+		my %GUARD_KEEP = ();
 
 		#--------------------------------------------------------------------------------
 		# Preparamos el template con las metricas del dispositivo
@@ -1356,6 +1363,7 @@ print "================================================\n";
 			#-------------------------------------------------------------------------------
 			$self->rcstr("$ctot METRICA $cgen $v->{subtype} : $v->{type} ",0);		
 			$v->{'version'}=$SNMP_VERSION;
+			my $snmp_cfg=0;	# clase de la metrica SNMP, para la segunda lectura de la salvaguarda
 
 			#-------------------------------------------------------------------------------
 			if ($v->{'type'} eq 'snmp') {
@@ -1369,6 +1377,7 @@ print "================================================\n";
             }
 
 				my $cfg=$rv->[0][0];
+				$snmp_cfg=$cfg;
 				$self->log('info',"prov_do_set_device_metric::$ctot PROV_METRICA $cgen $v->{subtype} : $v->{type} cfg=$cfg");
             if ( $cfg == 1 ) { $MDATA=$self->apply_metric_snmp_class1($v,$device);  }
 				elsif ( $cfg == 2 )	{ $MDATA=$self->apply_metric_snmp_class2($v,$device); }
@@ -1400,6 +1409,18 @@ print "================================================\n";
 				$self->log('warning',"prov_do_set_device_metric::$ctot PROV_METRICA **WARN** $cgen $v->{subtype} : $v->{type} NO CUALIFICADA");
             next;
          }
+
+			#-------------------------------------------------------------------------------
+			# Salvaguarda (REG-CNM-Deuda 4.104, PROY-CNM-Alertas-Azules §6). Solo SNMP.
+			# Con PROV_GUARD a 1: si la respuesta no trae ninguna instancia valida, la metrica
+			# no se toca; si faltan instancias, se lee otra vez y solo desaparecen las que
+			# faltan en las dos lecturas. Con PROV_GUARD a 2 solo se avisa de lo que se haria.
+			#-------------------------------------------------------------------------------
+			if (($GUARD != GUARD_OFF) && ($v->{'type'} eq 'snmp')) {
+				my $G = guard_decide({ 'tpl' => [ keys %{$v->{'IIDS'}} ], 'read' => $MDATA, 'force' => $in->{'force'},
+					'reread' => sub { return $self->read_snmp_mdata($v,$device,$snmp_cfg); } });
+				if ($self->prov_guard_apply($G,$GUARD,$ID_DEV,$device,$v,\$MDATA,\%GUARD_KEEP)) { next; }
+			}
 
 			#-------------------------------------------------------------------------------
 			# Itero sobre las instancias de una metrica determinada reportadas por el dispositivo (dev_iid en %MDATA)
@@ -1637,6 +1658,11 @@ print "------------------------------\n";
 			$where_blue .= " and type!='snmp'";
 			$self->log('info',"prov_do_set_device_metric::[INFO] ID_DEV=$ID_DEV SIN RESPUESTA SNMP: no se borran sus azules SNMP");
 		}
+		# Las azules de las metricas que la salvaguarda no ha tocado se conservan (REG-CNM-Deuda 4.104)
+		if (scalar(keys %GUARD_KEEP) > 0) {
+			$where_blue .= " and mname not in (".join(',', map { "'$_'" } sort keys %GUARD_KEEP).")";
+			$self->log('info',"prov_do_set_device_metric::[INFO] ID_DEV=$ID_DEV SALVAGUARDA: se conservan las azules de ".join(' ',sort keys %GUARD_KEEP));
+		}
       my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',$where_blue);
       if (scalar(@$rx)>0) {
 			my @mnames=();
@@ -1710,6 +1736,78 @@ my $self = shift;
 	return 0 if (ref($cfg) ne 'HASH');
 	my $v = (defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : 0;
 	return ((defined $v) && ($v =~ /^\s*1\s*$/)) ? 1 : 0;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: prov_guard_mode
+# Descripcion: Valor de PROV_GUARD en /cfg/onm.conf: 0 (lo de siempre), 1 (activa) o
+# 2 (observacion). Se lee en cada provision para no tener que reiniciar actionsd.
+# Si no se puede leer el fichero, 0.
+#----------------------------------------------------------------------------
+sub prov_guard_mode {
+my $self=shift;
+
+	my $fh;
+	open($fh,'<','/cfg/onm.conf') or return GUARD_OFF;
+	local $/;
+	my $text=<$fh>;
+	close($fh);
+	return guard_mode($text);
+}
+
+#----------------------------------------------------------------------------
+# Funcion: read_snmp_mdata
+# Descripcion: Vuelve a leer las instancias de una metrica SNMP del dispositivo, con el
+# mismo manejador que la primera lectura. La usa la segunda lectura de la salvaguarda.
+#----------------------------------------------------------------------------
+sub read_snmp_mdata {
+my ($self,$v,$device,$cfg)=@_;
+
+	if ($cfg == 1) { return $self->apply_metric_snmp_class1($v,$device); }
+	if ($cfg == 2) { return $self->apply_metric_snmp_class2($v,$device); }
+	if ($cfg == 3) { return $self->apply_metric_snmp_class3($v,$device); }
+	return undef;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: prov_guard_apply
+# Descripcion: Aplica la decision de la salvaguarda (ProvisionLite::ProvGuard) a una metrica:
+# deja el aviso en qactions y, en el modo 1, completa MDATA con las instancias que han
+# reaparecido en la segunda lectura. Devuelve 1 si la metrica no se debe tocar.
+# En el modo 2 (observacion) solo avisa y devuelve siempre 0.
+#----------------------------------------------------------------------------
+sub prov_guard_apply {
+my ($self,$G,$mode,$id_dev,$device,$v,$rMDATA,$keep)=@_;
+
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	my $watch = ($mode == GUARD_WATCH) ? 1 : 0;
+	my $pre = ($watch) ? 'Observacion, no se aplica: ' : '';
+	my $who = "$device->{'name'} ($device->{'ip'}) $v->{'subtype'}";
+
+	if ($G->{'skip'}) {
+		my $ntpl = scalar(keys %{$v->{'IIDS'}});
+		my $nread = scalar(valid_iids($$rMDATA));
+		my $txt = "$who: $G->{'reason'} ($ntpl en la plantilla, $nread en la respuesta). No se modifica la metrica";
+		$self->log('warning',"prov_guard_apply::[WARN] SALVAGUARDA $pre$txt");
+		$STORE->log_qactions($dbh,{'descr'=>'Provision: metrica sin cambios', 'rc'=>1, 'rcstr'=>$pre.$txt, 'atype'=>ATYPE_PROV_GUARD, 'id_dev'=>$id_dev});
+		return 0 if ($watch);
+		foreach my $iid (keys %{$v->{'IIDS'}}) {
+			my $mname = $v->{'IIDS'}->{$iid}->{'mname'};
+			if ((defined $mname) && ($mname ne '')) { $keep->{$mname}=1; }
+		}
+		return 1;
+	}
+
+	if (scalar(@{$G->{'reappeared'}}) > 0) {
+		my @l = map { "iid=$_: ".((defined $v->{'IIDS'}->{$_}->{'label'}) ? $v->{'IIDS'}->{$_}->{'label'} : '') } @{$G->{'reappeared'}};
+		my $txt = "$who: faltaban en la primera lectura y estan en la segunda, se conservan: ".join(' ; ',@l);
+		$self->log('warning',"prov_guard_apply::[WARN] SALVAGUARDA $pre$txt");
+		$STORE->log_qactions($dbh,{'descr'=>'Provision: instancias recuperadas en la segunda lectura', 'rc'=>0, 'rcstr'=>$pre.$txt, 'atype'=>ATYPE_PROV_GUARD, 'id_dev'=>$id_dev});
+		return 0 if ($watch);
+		foreach my $iid (@{$G->{'reappeared'}}) { $$rMDATA->{$iid} = $G->{'second'}->{$iid}; }
+	}
+	return 0;
 }
 
 #----------------------------------------------------------------------------
