@@ -93,6 +93,10 @@ unlike(out(), qr/^[<>] /m, 'run sin -v: no saca el diff completo');
 unlink $CHANGED; run("run 49 -v -o $T/out");
 like(out(), qr/^< disk_mibhost/m, 'run -v: saca el diff completo');
 like(read_file((glob("$T/out/*-dev49/antes.txt"))[0]), qr/^# plantilla:.*\n.*188.*\n# metricas:/s, 'run: la foto lleva plantilla y metricas');
+unlink $CHANGED; unlink "$T/qlog"; run("run 49 -o $T/out", QLOG=>"$T/qlog");
+my @qa = grep { /FROM qactions/ } split(/\n/, read_file("$T/qlog") // '');
+is(scalar(@qa), 2, 'run: consulta los avisos de qactions dos veces (fichero y pantalla)');
+is(scalar(grep { /descr LIKE 'Instancias%'/ && /descr LIKE 'Provision:%'/ && /descr LIKE '%CNM-METRICS%'/ } @qa), 2, 'run: los avisos incluyen los de la salvaguarda (Provision:), los de instancias y los de CNM-METRICS');
 
 #------------------------------------------------------------------------------
 # 3. run -R: 1 durante la provision, y despues lo que habia
