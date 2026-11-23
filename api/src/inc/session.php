@@ -57,7 +57,7 @@ require_once('inc/CNMAPI.php');
 // Variables globales
 //--------------------------------------------------------------------------
 $dbc        = '';
-$DEPURA     = 1;
+$DEPURA     = 0;	// 1 solo para depurar: escribe en /var/log/debug_session.log las consultas de sesion con el SID y los datos de sesion (incluyen DB_PWD)
 $LIFETIME   = ini_get('session.gc_maxlifetime');
 $timeout    = 180;
 
@@ -65,12 +65,13 @@ $timeout    = 180;
 function depura($idx,$msg){
 global $DEPURA;
 
-	if ($DEPURA){
-	   $fp = fopen ('/var/log/debug_session.log','a');
-		$msgf=sprintf("%s >>>> %s\n",$idx,$msg);
-		fwrite($fp,$msgf);
-		fclose($fp);
-	}
+	if (! $DEPURA){ return; }
+	// En PHP 8 fwrite(false) es un error fatal: si no se puede abrir el fichero, no se escribe
+	$fp = @fopen ('/var/log/debug_session.log','a');
+	if ($fp === false){ return; }
+	$msgf=sprintf("%s >>>> %s\n",$idx,$msg);
+	fwrite($fp,$msgf);
+	fclose($fp);
 }
 
 //--------------------------------------------------------------------------
