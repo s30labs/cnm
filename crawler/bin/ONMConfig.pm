@@ -129,6 +129,7 @@ my $file=shift;
       # Provision: reordenar c_label y monitores por etiqueta cuando las instancias cambian de iid
       # (PROY-CNM-Alertas-Azules). 1 = activado. Si no esta, desactivado.
       if (/\bPROV_REMAP_BY_LABEL\s*\=\s*(.*)$/) {$CFG{'prov_remap_by_label'}->[0]=$1;}
+      if (/\bSUPPORT_RETENTION_DAYS\s*\=\s*(.*)$/) {$CFG{'support_retention_days'}->[0]=$1;}
 
 		# Thread mode 
       if (/\bMTH_SNMP\s*\=\s*(.*)$/) {$CFG{'mth_snmp'}->[0]=$1;}

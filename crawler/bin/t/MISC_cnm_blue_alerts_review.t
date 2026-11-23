@@ -11,6 +11,8 @@ use strict;
 use Test::More;
 use FindBin;
 use File::Temp qw(tempdir);
+use lib "$FindBin::Bin/..";
+use SupportDir qw(run_stamp);
 
 my $SCRIPT = "$FindBin::Bin/../support/cnm-blue-alerts-review";
 my $T = tempdir(CLEANUP=>1);
@@ -68,6 +70,7 @@ is(run('run 49 -X'), 2, 'opcion desconocida: rc=2');
 is(run('show'), 2, 'show sin ID: rc=2');
 is(run('run 50 -o '.$T.'/out'), 1, 'equipo que no existe: rc=1');
 ok(! -e $SEEN, 'equipo que no existe: no se lanza plite');
+ok(! glob("$T/out/*"), 'equipo que no existe: no crea directorio de ejecucion');
 
 #------------------------------------------------------------------------------
 # 2. run sin -R: no toca onm.conf
@@ -76,15 +79,20 @@ unlink $CHANGED;
 is(run("run 49 -o $T/out"), 0, 'run sin -R: rc=0');
 is(read_file($CONF), $BASE_CONF, 'run sin -R: onm.conf no cambia');
 is(read_file($SEEN), "PROV_REMAP_BY_LABEL = 0\n", 'run sin -R: plite ve el valor que habia');
-my @f = map { s{.*/}{}r } glob("$T/out/49-*");
-is(scalar(grep { /-(antes|despues|diff|avisos)\.txt$|-plite\.log$/ } @f), 5, 'run: deja antes, despues, diff, avisos y log');
-is(scalar(@f), 5, 'run: no deja ningun otro fichero');
-like(out(), qr{^Provision: \(cd \S+/bin && \./plite -r 49 -t 0\) > \S+/49-\d{8}-\d{6}-plite\.log 2>&1$}m, 'run: muestra el comando exacto de plite');
+my @runs = glob("$T/out/*");
+is(scalar(@runs), 1, 'run: un directorio por ejecucion');
+my $RUN = $runs[0]; my $rn = $RUN =~ s{.*/}{}r;
+like($rn, qr/^\d{8}-\d{6}-dev49$/, 'run: el directorio se llama AAAAMMDD-HHMMSS-devID');
+ok(defined run_stamp($rn) && abs(run_stamp($rn)-time()) < 120, 'run: SupportDir lee su fecha (la purga de cnm-daily lo reconoce)');
+is((stat($RUN))[2] & 07777, 0700, 'run: directorio de ejecucion con permisos 0700');
+my @f = sort map { s{.*/}{}r } glob("$RUN/*");
+is_deeply(\@f, [qw(antes.txt avisos.txt despues.txt diff.txt plite.log)], 'run: deja antes, despues, diff, avisos y log, y nada mas');
+like(out(), qr{^Provision: \(cd \S+/bin && \./plite -r 49 -t 0\) > \Q$RUN\E/plite\.log 2>&1$}m, 'run: muestra el comando exacto de plite');
 like(out(), qr/plantilla: 1 filas solo antes, 1 filas solo despues/, 'run: resumen de diferencias de la plantilla');
 unlike(out(), qr/^[<>] /m, 'run sin -v: no saca el diff completo');
 unlink $CHANGED; run("run 49 -v -o $T/out");
 like(out(), qr/^< disk_mibhost/m, 'run -v: saca el diff completo');
-like(read_file((glob("$T/out/49-*-antes.txt"))[0]), qr/^# plantilla:.*\n.*188.*\n# metricas:/s, 'run: la foto lleva plantilla y metricas');
+like(read_file((glob("$T/out/*-dev49/antes.txt"))[0]), qr/^# plantilla:.*\n.*188.*\n# metricas:/s, 'run: la foto lleva plantilla y metricas');
 
 #------------------------------------------------------------------------------
 # 3. run -R: 1 durante la provision, y despues lo que habia
@@ -130,25 +138,27 @@ ok(! -e $SEEN, 'falla la foto de antes: no se lanza plite');
 is(read_file($CONF), $BASE_CONF, 'falla la foto de antes: onm.conf no cambia');
 
 #------------------------------------------------------------------------------
-# 5. Purga de DIR: solo sus ficheros y solo los viejos
+# 5. Donde escribe: directorio de soporte por defecto, sin purga propia
 #------------------------------------------------------------------------------
 write_file($CONF,$BASE_CONF);
-my $P = "$T/purga"; mkdir $P;
-my @old  = map { "$P/12-20251001-101010-$_" } qw(antes.txt despues.txt diff.txt avisos.txt plite.log);
-my @keep = ("$P/12-20251001-101010-otro.txt", "$P/notas.txt", "$P/ajeno-20251001-101010-antes.txt");
-my $new  = "$P/13-20261101-101010-antes.txt";
-write_file($_,"x") foreach (@old,@keep,$new);
-system('touch','-d','30 days ago',@old,@keep);
-system('touch','-d','2 days ago',$new);
-is(run("run 49 -o $P"), 0, 'purga: rc=0');
-is(scalar(grep { -e } @old), 0, 'purga: borra los cinco ficheros de run de mas de 15 dias');
-is(scalar(grep { -e } @keep), 3, 'purga: no toca ficheros que no son suyos, aunque sean viejos');
-ok(-e $new, 'purga: no toca los de menos de 15 dias');
-like(out(), qr/Purga: 5 ficheros de mas de 15 dias/, 'purga: dice cuantos ha borrado');
-system('touch','-d','30 days ago',$new);
-is(run("run 49 -k 60 -o $P"), 0, '-k 60: rc=0');
-ok(-e $new, '-k 60: no borra uno de 30 dias');
-is(run("run 49 -k x -o $P"), 2, '-k sin numero: rc=2');
+my $S = "$T/support";
+is(run("run 49", CNM_SUPPORT_DIR=>$S), 0, 'sin -o: rc=0');
+my @sr = glob("$S/cnm-blue-alerts-review/runs/*-dev49");
+is(scalar(@sr), 1, 'sin -o: la ejecucion va a CNM_SUPPORT_DIR/cnm-blue-alerts-review/runs');
+is((stat("$S/cnm-blue-alerts-review/runs"))[2] & 07777, 0700, 'sin -o: runs/ con permisos 0700');
+my $P = "$T/purga"; mkdir $P; mkdir "$P/20251001-101010-dev12";
+write_file("$P/20251001-101010-dev12/antes.txt","x"); write_file("$P/12-20251001-101010-antes.txt","x");
+system('touch','-d','60 days ago',"$P/20251001-101010-dev12","$P/12-20251001-101010-antes.txt");
+is(run("run 49 -o $P"), 0, 'con ejecuciones viejas en DIR: rc=0');
+ok(-e "$P/20251001-101010-dev12/antes.txt" && -e "$P/12-20251001-101010-antes.txt", 'no borra nada de DIR (la purga es de cnm-daily)');
+is(run("run 49 -k 60 -o $P"), 2, '-k ya no existe: rc=2');
+
+# Dos ejecuciones en el mismo segundo: la segunda lleva .1
+my $D = "$T/dup"; mkdir $D;
+my $stamp = `date +%Y%m%d-%H%M%S`; chomp $stamp;
+mkdir "$D/$stamp-dev49"; mkdir "$D/".(`date -d '+1 sec' +%Y%m%d-%H%M%S` =~ s/\n//r)."-dev49";
+is(run("run 49 -o $D"), 0, 'directorio ya existente: rc=0');
+ok(scalar(grep { /-dev49\.1$/ } glob("$D/*")) == 1, 'directorio ya existente: crea el mismo nombre con .1');
 
 #------------------------------------------------------------------------------
 # 6. check

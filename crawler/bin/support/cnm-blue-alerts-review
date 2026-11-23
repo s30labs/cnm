@@ -12,10 +12,11 @@ ONM_CONF=${ONM_CONF:-/cfg/onm.conf}
 PLITE_DIR=${PLITE_DIR:-/opt/crawler/bin}
 RRD_DIR=${RRD_DIR:-/opt/data/rrd/elements}
 MYSQL=${MYSQL:-mysql}
-OUT=/root/azules
+# Ejecuciones en runs/ de su directorio de soporte (REF-CNM-Estilo-Scripts apartado 2.9);
+# las de mas de SUPPORT_RETENTION_DAYS dias las purga cnm-daily.
+OUT=${CNM_SUPPORT_DIR:-/store/data/support}/$(basename "$0")/runs
 REMAP=0
 VERBOSE=0
-KEEP_DAYS=15
 DEV_NAME=
 
 USAGE="Revision de alertas azules SNMP, equipo a equipo
@@ -23,17 +24,16 @@ USAGE="Revision de alertas azules SNMP, equipo a equipo
 
 $NAME list                     azules SNMP por equipo y subtipo
 $NAME show ID                  azules del equipo, con etiqueta y c_label, y su fichero CNM-METRICS
-$NAME run ID [-R] [-v] [-k DIAS] [-o DIR]
+$NAME run ID [-R] [-v] [-o DIR]
                                foto, plite -r ID -t 0, foto, diferencias y avisos de qactions
 $NAME check ID                 unos minutos despues: status 3, azules, metricas sin plantilla y RRD sin metrica
 $NAME -h  : Ayuda
 
 run
-  Deja en DIR (por defecto $OUT; se crea si no existe) cinco ficheros por ejecucion:
-  ID-FECHA-antes.txt y -despues.txt (fotos), -diff.txt, -avisos.txt y -plite.log.
-  No crea nada mas. Al empezar borra de DIR sus propios ficheros (los que siguen ese patron)
-  de mas de $KEEP_DAYS dias; nada mas.
-  -k DIAS  cambia ese plazo.
+  Cada ejecucion crea DIR/AAAAMMDD-HHMMSS-devID/ (permisos 0700; DIR por defecto
+  $OUT) con cinco ficheros: antes.txt y despues.txt (fotos), diff.txt, avisos.txt y
+  plite.log. No crea nada mas. No borra nada: las ejecuciones viejas del directorio por
+  defecto las purga cnm-daily (SUPPORT_RETENTION_DAYS en $ONM_CONF, 30 dias si no esta).
   La foto lleva la plantilla (subtype, iid, label, watch, status) y las metricas
   (id_metric, name, subtype, iid, label, c_label, status).
   En pantalla salen el comando de provision, un resumen de las diferencias y los avisos
@@ -91,14 +91,18 @@ diff_summary() {
 }
 section() { awk -v s="# $2:" 'index($0,"# ")==1 {on=(index($0,s)==1); next} on' "$1"; }
 
-# Borra de $OUT los ficheros de run de mas de $KEEP_DAYS dias (solo los de su patron)
-purge() {
-	local n
-	n=$(find "$OUT" -maxdepth 1 -type f -regextype posix-extended \
-		-regex '.*/[0-9]+-[0-9]{8}-[0-9]{6}-((antes|despues|diff|avisos)\.txt|plite\.log)' \
-		-mtime +"$KEEP_DAYS" -print -delete | wc -l)
-	[ "$n" -gt 0 ] && echo "Purga: $n ficheros de mas de $KEEP_DAYS dias en $OUT"
-	return 0
+# Crea $OUT/AAAAMMDD-HHMMSS-devID[.n]/ con permisos 0700 y deja la ruta en $RUN_DIR.
+# El nombre empieza por la fecha, que es lo que mira la purga de cnm-daily (SupportDir.pm).
+new_run_dir() {
+	local base d i=1
+	( umask 077; mkdir -p "$OUT" ) || return 1
+	base="$OUT/$(date +%Y%m%d-%H%M%S)-dev$1"
+	d=$base
+	while ! ( umask 077; mkdir "$d" 2>/dev/null ); do
+		[ -e "$d" ] && [ "$i" -le 99 ] || return 1
+		d="$base.$i"; i=$((i+1))
+	done
+	RUN_DIR=$d
 }
 
 remap_lines() { grep -E '^[[:space:]]*PROV_REMAP_BY_LABEL' "$ONM_CONF"; }
@@ -127,15 +131,14 @@ cmd_show() {
 cmd_run() {
 	local id=$1
 	check_id "$id"
-	mkdir -p "$OUT" || fail "no se puede crear $OUT"
-	purge
-
-	local base="$OUT/$id-$(date +%Y%m%d-%H%M%S)"
+	new_run_dir "$id" || fail "no se puede crear el directorio de la ejecucion en $OUT"
+	local base="$RUN_DIR/"
+	echo "Ficheros de la ejecucion: $RUN_DIR"
 	local t0
 	t0=$(date +%s)
 
 	echo "Equipo $id $DEV_NAME"
-	foto "$id" "$base-antes.txt" || fail "no se puede hacer la foto de antes"
+	foto "$id" "${base}antes.txt" || fail "no se puede hacer la foto de antes"
 
 	local saved=""
 	if [ "$REMAP" = 1 ]; then
@@ -146,8 +149,8 @@ cmd_run() {
 	fi
 	echo "PROV_REMAP_BY_LABEL en la provision: $(remap_value)"
 
-	echo "Provision: (cd $PLITE_DIR && ./plite -r $id -t 0) > $base-plite.log 2>&1"
-	(cd "$PLITE_DIR" && ./plite -r "$id" -t 0 > "$base-plite.log" 2>&1)
+	echo "Provision: (cd $PLITE_DIR && ./plite -r $id -t 0) > ${base}plite.log 2>&1"
+	(cd "$PLITE_DIR" && ./plite -r "$id" -t 0 > "${base}plite.log" 2>&1)
 	local rc=$?
 
 	if [ "$REMAP" = 1 ]; then
@@ -155,17 +158,17 @@ cmd_run() {
 		trap - EXIT INT TERM
 		echo "PROV_REMAP_BY_LABEL despues: $(remap_value)"
 	fi
-	echo "plite rc=$rc (log: $base-plite.log)"
+	echo "plite rc=$rc (log: ${base}plite.log)"
 
-	foto "$id" "$base-despues.txt" || fail "no se puede hacer la foto de despues"
+	foto "$id" "${base}despues.txt" || fail "no se puede hacer la foto de despues"
 	echo
-	diff "$base-antes.txt" "$base-despues.txt" > "$base-diff.txt"
-	echo "--- Diferencias: $base-diff.txt"
-	diff_summary "$base-antes.txt" "$base-despues.txt"
-	[ "$VERBOSE" = 1 ] && [ -s "$base-diff.txt" ] && cat "$base-diff.txt"
+	diff "${base}antes.txt" "${base}despues.txt" > "${base}diff.txt"
+	echo "--- Diferencias: ${base}diff.txt"
+	diff_summary "${base}antes.txt" "${base}despues.txt"
+	[ "$VERBOSE" = 1 ] && [ -s "${base}diff.txt" ] && cat "${base}diff.txt"
 	echo
-	echo "--- Avisos de la provision: $base-avisos.txt"
-	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" > "$base-avisos.txt" \
+	echo "--- Avisos de la provision: ${base}avisos.txt"
+	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" > "${base}avisos.txt" \
 		|| fail "no se pueden leer los avisos"
 	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, LEFT(rcstr,300) AS rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" \
 		|| fail "no se pueden leer los avisos"
@@ -218,7 +221,6 @@ case "$CMD" in
 			case "$1" in
 				-R) REMAP=1 ;;
 				-v) VERBOSE=1 ;;
-				-k) [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || usage "-k necesita un numero de dias"; KEEP_DAYS=$2; shift ;;
 				-o) [ $# -ge 2 ] || usage "-o necesita un directorio"; OUT=$2; shift ;;
 				*)  usage "opcion desconocida: $1" ;;
 			esac

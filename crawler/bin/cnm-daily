@@ -11,6 +11,7 @@ use Crawler::Store;
 use Crawler::SNMP;
 use Crawler::Actions;
 use CNMOS;
+use SupportDir qw(support_root purge_runs RETENTION_DAYS);
 #use Data::Dumper;
 
 #-------------------------------------------------------------------------------------------
@@ -200,6 +201,20 @@ if (-d '/home/cnm/correos') {
 # Se eliminan los ficheros en /store/www-user/files con mas de 60 dias
 #-------------------------------------------------------------------------------------------
 `find /store/www-user/files -type f  -mtime +60 -exec rm {} \\; 2>&1`;
+
+#-------------------------------------------------------------------------------------------
+# Se eliminan las ejecuciones de las herramientas de soporte (/store/data/support/*/runs/*)
+# con mas de SUPPORT_RETENTION_DAYS dias (30 por defecto), salvo las que tienen un fichero
+# KEEP. No se tocan state/ ni backup/. Regla: cnm-docs, REF-CNM-Estilo-Scripts, apartado 2.9.
+#-------------------------------------------------------------------------------------------
+{
+	my $days = $rCFG->{'support_retention_days'}->[0];
+	$days = RETENTION_DAYS if ((! defined $days) || ($days !~ /^\s*\d+\s*$/) || ($days < 1));
+	$days += 0;
+	my @deleted = eval { purge_runs($days,0) };
+	if ($@) { $store->log('warning',"SUPPORT: ERROR AL PURGAR ".support_root()." ($@)"); }
+	else { $store->log('info',"SUPPORT: ELIMINADAS ".scalar(@deleted)." EJECUCIONES DE MAS DE $days DIAS EN ".support_root()); }
+}
 
 # Si hay tareas e tipo cron cada x minutos, el periodo de retencion es mucho menor.
 my $tasks = $store->get_from_db_cmd($dbh, 'SELECT subtype FROM cfg_task_configured WHERE cron LIKE "*/%"');
