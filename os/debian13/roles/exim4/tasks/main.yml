@@ -19,9 +19,17 @@
 - name: Config Files
   copy: src="{{ item }}" dest="/etc/exim4/{{ item }}"  owner=root group=root mode=0640
   with_items:
-    - cnm-mta-filter
     - cnm-mta-local
     - exim4.conf
+  tags: exim4
+  notify:
+   - restart exim4
+
+# exim4.conf ejecuta el filtro de sistema como www-data (system_filter_user y
+# system_filter_group): con root:root 0640 no puede leerlo y cada entrega falla
+# con «Error in system filter ... Permission denied (euid=33 egid=33)»
+- name: System filter
+  copy: src=cnm-mta-filter dest=/etc/exim4/cnm-mta-filter  owner=root group=www-data mode=0640
   tags: exim4
   notify:
    - restart exim4
