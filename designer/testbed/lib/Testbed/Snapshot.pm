@@ -21,7 +21,7 @@ $VERSION='1.00';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(TEMPLATE_FIELDS METRIC_FIELDS inactive_mnames diff_snapshots diff_is_empty diff_lines restore_plan);
+our @EXPORT_OK = qw(TEMPLATE_FIELDS METRIC_FIELDS inactive_mnames label_keyed diff_snapshots diff_is_empty diff_lines restore_plan);
 
 use constant TEMPLATE_FIELDS => [ qw(watch label status mname) ];
 use constant METRIC_FIELDS   => [ qw(c_label watch status) ];
@@ -66,17 +66,66 @@ my ($m,$inactive)=@_;
 }
 
 #----------------------------------------------------------------------------
-# diff_snapshots($a,$b): diferencias de $a (antes) a $b (despues).
+# label_keyed($snap,\@iid_subtypes) -> la foto con las filas de la plantilla de los demas
+# subtipos indexadas por etiqueta ("subtipo|label=ETIQUETA") y no por iid, y sus metricas
+# por la etiqueta de su fila ("metric:subtipo|label=ETIQUETA"). Los subtipos de
+# @iid_subtypes y las filas sin etiqueta siguen por iid. Sirve para comparar fotos de un
+# equipo que ha renumerado sus instancias (hrStorage tras reiniciar snmpd, medido en
+# cnm13test el 23-nov-2026): lo que importa es que el monitor y el c_label sigan a su
+# etiqueta, no el numero. mname no se compara en estas filas (lleva el iid).
+# Etiquetas repetidas en un subtipo: se numeran (#2, #3...) en orden de iid.
+#----------------------------------------------------------------------------
+sub label_keyed {
+my ($s,$iid_st)=@_;
+	my %keep = map { $_ => 1 } @{$iid_st || []};
+	my (%t,%m,%mkey,%seen);
+	my $tpl = $s->{'template'} || {};
+	foreach my $k (sort { _iid_cmp($a,$b) } keys %$tpl) {
+		my $r = $tpl->{$k};
+		my ($st) = split(/\|/,$k,2);
+		if ($keep{$st} || (_d($r->{'label'}) eq '')) { $t{$k}=$r; next; }
+		my $nk = "$st|label=$r->{'label'}";
+		my $n = ++$seen{$nk};
+		$nk .= "#$n" if ($n > 1);
+		my %c = %$r; delete $c{'mname'};
+		$t{$nk} = \%c;
+		$mkey{$r->{'mname'}} = "metric:$nk" if (defined $r->{'mname'});
+	}
+	foreach my $name (keys %{$s->{'metrics'} || {}}) {
+		$m{ (exists $mkey{$name}) ? $mkey{$name} : $name } = $s->{'metrics'}{$name};
+	}
+	return { %$s, template=>\%t, metrics=>\%m };
+}
+
+# orden de "subtipo|iid": por subtipo y luego por iid, numerico si lo es
+sub _iid_cmp {
+my ($x,$y)=@_;
+	my ($sx,$ix) = split(/\|/,$x,2); my ($sy,$iy) = split(/\|/,$y,2);
+	return ($sx cmp $sy) if ($sx ne $sy);
+	return ($ix <=> $iy) if ((_d($ix) =~ /^\d+$/) && (_d($iy) =~ /^\d+$/));
+	return (_d($ix) cmp _d($iy));
+}
+
+#----------------------------------------------------------------------------
+# diff_snapshots($a,$b[,$opt]): diferencias de $a (antes) a $b (despues).
 # Las metricas de instancias inactivas no se comparan (inactive_mnames).
+# $opt->{by_label}: compara por etiqueta los subtipos que no esten en
+# $opt->{iid_subtypes} (label_keyed).
 #----------------------------------------------------------------------------
 sub diff_snapshots {
-my ($a,$b)=@_;
+my ($a,$b,$opt)=@_;
 	my %ba = map { $_ => 1 } @{$a->{'blue'} || []};
 	my %bb = map { $_ => 1 } @{$b->{'blue'} || []};
 	my $inactive = inactive_mnames($a,$b);
+	$a = { %$a, metrics=>_active_metrics($a->{'metrics'},$inactive) };
+	$b = { %$b, metrics=>_active_metrics($b->{'metrics'},$inactive) };
+	if (($opt) && $opt->{'by_label'}) {
+		$a = label_keyed($a, $opt->{'iid_subtypes'});
+		$b = label_keyed($b, $opt->{'iid_subtypes'});
+	}
 	return {
 		'template' => _diff_hash($a->{'template'}, $b->{'template'}, TEMPLATE_FIELDS),
-		'metrics'  => _diff_hash(_active_metrics($a->{'metrics'},$inactive), _active_metrics($b->{'metrics'},$inactive), METRIC_FIELDS),
+		'metrics'  => _diff_hash($a->{'metrics'}, $b->{'metrics'}, METRIC_FIELDS),
 		'blue'     => { removed => [ sort grep { ! $bb{$_} } keys %ba ],
 							 added   => [ sort grep { ! $ba{$_} } keys %bb ] },
 	};

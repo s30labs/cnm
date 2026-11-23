@@ -15,7 +15,7 @@ use Testbed::SnmpdConf qw(has_block set_block remove_block block_names);
 use Testbed::Battery qw(cases select_cases parse_modes expected set_guard_line evaluate split_blues NOTICE_SKIP NOTICE_REREAD);
 use Testbed::Engine qw(parse_ps crawlers stale_crawlers);
 use Testbed::Ucd qw(UCD_ENTERPRISE is_ucd_monitor ucd_subtypes_in_use);
-use Testbed::Snapshot qw(inactive_mnames diff_snapshots diff_is_empty diff_lines restore_plan);
+use Testbed::Snapshot qw(inactive_mnames label_keyed diff_snapshots diff_is_empty diff_lines restore_plan);
 
 my $E = BASE_OID.'.1.1';	# cnmTestbedEntry
 
@@ -270,7 +270,7 @@ ok(grep({ /status 0 en vez de 1/ } @{ev($c9,'0',tb_snap(rows=>[1..6]))}), 'evalu
 ok(grep({ /monitor s_m en vez de ninguno/ } @{ev($c9,'0',tb_snap(rows=>[1..6], status=>{6=>1}, watch=>{6=>'s_m'}))}), 'evaluate new-row con monitor en la 6: FALLA');
 ok(grep({ /fila 2: watch 0 en vez de s_m/ } @{ev($c1,'0',tb_snap(rows=>[1..5], watch=>{2=>'0'}))}), 'evaluate: monitor perdido: FALLA');
 ok(grep({ /fila 1: status 1 en vez de 0/ } @{ev($c1,'0',tb_snap(rows=>[1..5], status=>{1=>1}))}), 'evaluate: status cambiado: FALLA');
-ok(grep({ /disk_mibhost\|35 ha desaparecido/ } @{ev($c1,'0',tb_snap(rows=>[1..5], no_disk=>1))}), 'evaluate: otra fila de la plantilla desaparece: FALLA');
+ok(grep({ /disk_mibhost\|label=USO DE DISCO \/run ha desaparecido/ } @{ev($c1,'0',tb_snap(rows=>[1..5], no_disk=>1))}), 'evaluate: otra fila de la plantilla desaparece: FALLA');
 ok(grep({ /ucd_cpu_usage\|ALL ha desaparecido/ } @{ev($c1,'0',tb_snap(rows=>[1..5], no_ucd=>1))}), 'evaluate: ucd_cpu_usage desaparece en otro caso: FALLA');
 is_deeply(ev($c10,'0',tb_snap(rows=>[1..5], no_ucd=>1)), [], 'evaluate snmpd-restart 0: se pierde ucd_cpu_usage: OK');
 is_deeply(ev($c10,'1',$BS, n=>[{ descr=>NOTICE_SKIP, rcstr=>'x ucd_cpu_usage: sin datos' }]), [], 'evaluate snmpd-restart 1: se queda, con aviso: OK');
@@ -316,5 +316,40 @@ is_deeply(ev($c11,'1',$BS), [], 'evaluate label-cut: nada cambia: OK');
 my $LC = tb_snap(rows=>[1..5]); $LC->{template}{'cnm_testbed_rows|3'}{label}='CNM-TESTBED  (x)'; $LC->{metrics}{'cnm_testbed_rows-3'}{c_label}='';
 my $lf = ev($c11,'1',$LC);
 ok((grep { /fila 3: etiqueta/ } @$lf) && (grep { /fila 3: c_label/ } @$lf), 'evaluate label-cut: etiqueta vacia y c_label perdido: FALLA');
+
+#--- Renumeracion de instancias en otro subtipo (hrStorage tras reiniciar snmpd) ----------
+sub ren_snap {
+	my (%o)=@_;	# lab: iid => etiqueta; watch: iid => monitor; clab: iid => c_label
+	my (%t,%m);
+	foreach my $i (57,58) {
+		$t{"disk_mibhost|$i"} = { subtype=>'disk_mibhost', iid=>$i, label=>$o{lab}{$i}, watch=>($o{watch}{$i}||'0'), status=>0, mname=>"disk_mibhost-$i" };
+		$m{"disk_mibhost-$i"} = { name=>"disk_mibhost-$i", c_label=>($o{clab}{$i}||''), watch=>($o{watch}{$i}||'0'), status=>0 };
+	}
+	$t{'cnm_testbed_rows|1'} = { subtype=>'cnm_testbed_rows', iid=>1, label=>'CNM-TESTBED fila-1 (x)', watch=>'0', status=>0, mname=>'cnm_testbed_rows-1' };
+	$m{'cnm_testbed_rows-1'} = { name=>'cnm_testbed_rows-1', c_label=>'', watch=>'0', status=>0 };
+	return { template=>\%t, metrics=>\%m, blue=>[] };
+}
+my $RB = ren_snap(lab=>{57=>'journald', 58=>'/mnt/cnm-testbed'}, watch=>{58=>'s_m'}, clab=>{58=>'CL'});
+my $RF = ren_snap(lab=>{57=>'/mnt/cnm-testbed', 58=>'journald'}, watch=>{57=>'s_m'}, clab=>{57=>'CL'});	# renumera y el monitor sigue a su disco
+my $RS = ren_snap(lab=>{57=>'/mnt/cnm-testbed', 58=>'journald'}, watch=>{58=>'s_m'}, clab=>{58=>'CL'});	# renumera y el monitor se queda en el iid
+my $CMPO = { by_label=>1, iid_subtypes=>['cnm_testbed_rows','ucd_cpu_usage'] };
+ok(! diff_is_empty(diff_snapshots($RB,$RF)), 'renumeracion: por iid, hay diferencias');
+ok(diff_is_empty(diff_snapshots($RB,$RF,$CMPO)), 'renumeracion: por etiqueta, el monitor y el c_label siguen a su disco: sin diferencias');
+my $dS = diff_snapshots($RB,$RS,$CMPO);
+ok((grep { $_->[0] eq 'disk_mibhost|label=/mnt/cnm-testbed' && $_->[1] eq 'watch' } @{$dS->{template}{changed}}), 'renumeracion: por etiqueta, el monitor que se queda en el iid sale como cambio');
+ok((grep { $_->[0] eq 'metric:disk_mibhost|label=/mnt/cnm-testbed' && $_->[1] eq 'c_label' } @{$dS->{metrics}{changed}}), 'renumeracion: por etiqueta, el c_label que se queda en el iid sale como cambio');
+my $RT = ren_snap(lab=>{57=>'journald', 58=>'/mnt/cnm-testbed'}, watch=>{58=>'s_m'}, clab=>{58=>'CL'}); $RT->{template}{'cnm_testbed_rows|1'}{label}='CNM-TESTBED fila-9 (x)';
+ok(grep({ $_->[0] eq 'cnm_testbed_rows|1' } @{diff_snapshots($RB,$RT,$CMPO)->{template}{changed}}), 'renumeracion: la tabla de prueba sigue comparandose por iid');
+my $LK = label_keyed({ template=>{ 'd|1'=>{label=>'A',mname=>'d-1'}, 'd|2'=>{label=>'A',mname=>'d-2'}, 'd|3'=>{label=>'',mname=>'d-3'} }, metrics=>{} }, []);
+is_deeply([sort keys %{$LK->{template}}], ['d|3','d|label=A','d|label=A#2'], 'label_keyed: etiquetas repetidas numeradas; sin etiqueta, por iid');
+# Battery: el resto de la plantilla por etiqueta
+my $BB = tb_snap(rows=>[1..5]); my $BA = tb_snap(rows=>[1..5]);
+$BB->{template}{'disk_mibhost|57'} = { subtype=>'disk_mibhost', iid=>57, label=>'journald', watch=>'0', status=>0, mname=>'disk_mibhost-57' };
+$BB->{template}{'disk_mibhost|58'} = { subtype=>'disk_mibhost', iid=>58, label=>'/mnt/t', watch=>'s_d', status=>0, mname=>'disk_mibhost-58' };
+$BA->{template}{'disk_mibhost|57'} = { subtype=>'disk_mibhost', iid=>57, label=>'/mnt/t', watch=>'s_d', status=>0, mname=>'disk_mibhost-57' };
+$BA->{template}{'disk_mibhost|58'} = { subtype=>'disk_mibhost', iid=>58, label=>'journald', watch=>'0', status=>0, mname=>'disk_mibhost-58' };
+is_deeply([ evaluate({ case=>$c1, mode=>'1', base=>$BB, after=>$BA, notices=>[] }) ], [], 'evaluate: renumeracion de otro subtipo con el monitor detras de su etiqueta: OK');
+$BA->{template}{'disk_mibhost|57'}{watch}='0'; $BA->{template}{'disk_mibhost|58'}{watch}='s_d';
+ok(grep({ /otras filas/ } evaluate({ case=>$c1, mode=>'1', base=>$BB, after=>$BA, notices=>[] })), 'evaluate: renumeracion con el monitor en el disco equivocado: FALLA');
 
 done_testing();

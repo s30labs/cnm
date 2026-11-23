@@ -29,6 +29,7 @@ $VERSION='1.00';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
+use Testbed::Snapshot qw(label_keyed);
 our @EXPORT_OK = qw(SUBTYPE UCD_SUBTYPE NOTICE_SKIP NOTICE_REREAD cases select_cases parse_modes
 						 expected set_guard_line evaluate split_blues);
 
@@ -209,15 +210,18 @@ my $a=shift;
 		}
 	}
 
-	# 3. El resto de la plantilla no cambia
+	# 3. El resto de la plantilla no cambia. Se compara por etiqueta (label_keyed): si el
+	# equipo renumera sus instancias, lo que importa es que el monitor siga a su etiqueta.
 	my %mine = ( SUBTYPE() => 1 );
 	$mine{UCD_SUBTYPE()}=1 if (defined $exp->{'ucd'});
-	my %keys = map { $_ => 1 } (keys %{$base->{'template'}}, keys %{$after->{'template'}});
+	my $lb = label_keyed($base,  [ SUBTYPE, UCD_SUBTYPE ]);
+	my $la = label_keyed($after, [ SUBTYPE, UCD_SUBTYPE ]);
+	my %keys = map { $_ => 1 } (keys %{$lb->{'template'}}, keys %{$la->{'template'}});
 	my @other=();
 	foreach my $k (sort keys %keys) {
 		my ($st) = split(/\|/,$k,2);
 		next if ($mine{$st});
-		my ($b,$r) = ($base->{'template'}{$k}, $after->{'template'}{$k});
+		my ($b,$r) = ($lb->{'template'}{$k}, $la->{'template'}{$k});
 		if (! $r)    { push @other, "$k ha desaparecido"; next; }
 		if (! $b)    { push @other, "$k es nueva"; next; }
 		foreach my $f ('status','watch') {
