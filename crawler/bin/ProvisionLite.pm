@@ -1557,7 +1557,7 @@ print "------------------------------\n";
 					$data{'label'}=$change{$iid}->{'label'};
 					my $txt="$iid: ".$data{'label'}.' ('.$change{$iid}->{'mname'}.')';
 					$self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS (ID_DEV=$ID_DEV) Se actualiza:  $txt");
-					$STORE->log_qactions($dbh,{'descr'=>'Instancias modificadas', 'rc'=>0, 'rcstr'=>"Se actualiza:  $txt", 'atype'=>ATYPE_IIDS_MODIFIED});
+					$STORE->log_qactions($dbh,{'descr'=>'Instancias modificadas', 'rc'=>0, 'rcstr'=>"Se actualiza:  $txt", 'atype'=>ATYPE_IIDS_MODIFIED, 'id_dev'=>$ID_DEV});
 
             }
          }
@@ -1586,7 +1586,7 @@ print "------------------------------\n";
 
             $self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS **ELIMINARMETRICA** ($idmetrics) (WHERE=$where)");
 
-				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>0, 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED});
+				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>0, 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED, 'id_dev'=>$ID_DEV});
 			}
 
 			# Genero metricas (nochange)
@@ -1875,13 +1875,13 @@ my ($self,$id_dev,$v,$MDATA,$snap,$init)=@_;
 	if (scalar @{$rm->{'moved'}}) {
 		my $txt = join(' ; ', map { "$_->{from} -> $_->{to}: $_->{label}" } @{$rm->{'moved'}});
 		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype REORDENADAS: $txt");
-		$STORE->log_qactions($dbh,{'descr'=>'Instancias reordenadas por etiqueta', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_MODIFIED});
+		$STORE->log_qactions($dbh,{'descr'=>'Instancias reordenadas por etiqueta', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_MODIFIED, 'id_dev'=>$id_dev});
 	}
 	my @important = grep { has_monitor_or_c_label($_) } @{$rm->{'vanished'}};
 	if (scalar @important) {
 		my $txt = join(' ; ', map { "iid=$_->{iid}: $_->{label}" } @important);
 		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype DESAPARECEN CON MONITOR O C_LABEL: $txt");
-		$STORE->log_qactions($dbh,{'descr'=>'Instancias desaparecidas con monitor o c_label', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_ERASED});
+		$STORE->log_qactions($dbh,{'descr'=>'Instancias desaparecidas con monitor o c_label', 'rc'=>0, 'rcstr'=>"$subtype: $txt", 'atype'=>ATYPE_IIDS_ERASED, 'id_dev'=>$id_dev});
 	}
 	if (scalar @{$rm->{'repeated'}}) {
 		$self->log('info',"remap_instances::[INFO] ID_DEV=$id_dev $subtype ETIQUETAS REPETIDAS (no se reordenan): ".join(' | ',@{$rm->{'repeated'}}));

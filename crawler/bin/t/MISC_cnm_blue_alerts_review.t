@@ -174,4 +174,37 @@ like(read_file($QLOG), qr/FROM metrics m LEFT JOIN prov_template_metrics2iid t O
 like(read_file($QLOG), qr/WHERE id_dev=49 AND status=3/, 'check: busca las de status 3');
 is(run("check abc"), 2, 'check con ID no numerico: rc=2');
 
+#------------------------------------------------------------------------------
+# notices: avisos de provision en qactions, solo lectura
+#------------------------------------------------------------------------------
+sub nq { my ($args,%env)=@_; unlink "$T/qlog"; my $rc=run("notices $args", QLOG=>"$T/qlog", CNM_SUPPORT_DIR=>"$T/sup", %env);
+	return ($rc, [ grep { /FROM qactions/ } split(/\n/, read_file("$T/qlog") // '') ]); }
+my $NW = qr/\(descr LIKE 'Instancias%' OR descr LIKE 'Provision:%' OR descr LIKE '%CNM-METRICS%'\)/;
+is(run('-h'), 0, 'notices: -h rc=0'); like(out(), qr/notices \[-s SINCE\] \[-d ID\] \[-v\]/, 'notices: sale en la ayuda');
+my ($rc,$qs) = nq('');
+is($rc, 0, 'notices sin opciones: rc=0');
+is(scalar(@$qs), 2, 'notices: dos consultas, resumen y detalle');
+ok($qs->[0] =~ /GROUP BY descr, rc/ && $qs->[1] =~ /ORDER BY id_qactions/, 'notices: primero el resumen por tipo y rc, despues el detalle');
+is(scalar(grep { /date_start>=UNIX_TIMESTAMP\(\)-86400/ && /$NW/ } @$qs), 2, 'notices sin -s: ultimas 24 horas, con los tres tipos de aviso');
+like($qs->[1], qr/LEFT\(rcstr,300\)/, 'notices sin -v: rcstr recortado a 300');
+like(out(), qr/^Avisos de provision: ultimas 24 horas$/m, 'notices: dice que intervalo muestra');
+ok(! -e "$T/sup", 'notices: no crea ningun directorio');
+($rc,$qs) = nq('-s 5522498');
+is(scalar(grep { /id_qactions>5522498 AND / } @$qs), 2, 'notices -s ID: despues de ese id_qactions');
+($rc,$qs) = nq('-s 2026-11-23');
+is(scalar(grep { /date_start>=UNIX_TIMESTAMP\('2026-11-23'\) AND / } @$qs), 2, 'notices -s FECHA: desde esa fecha');
+($rc,$qs) = nq('-s 2026-02-30'); is($rc, 2, 'notices -s fecha imposible: rc=2'); is(scalar(@$qs), 0, 'notices -s fecha imposible: no consulta qactions');
+($rc,$qs) = nq("-s '1 OR 1=1'"); is($rc, 2, 'notices -s con texto: rc=2'); is(scalar(@$qs), 0, 'notices -s con texto: no consulta qactions');
+is((nq('-s'))[0], 2, 'notices -s sin valor: rc=2');
+($rc,$qs) = nq('-d 49');
+is($rc, 0, 'notices -d: rc=0');
+is(scalar(grep { / AND id_dev=49 AND / } @$qs), 2, 'notices -d: solo los avisos de ese equipo');
+like(out(), qr/equipo 49 prawwerpas02/, 'notices -d: dice que equipo');
+($rc,$qs) = nq('-d 50'); is($rc, 1, 'notices -d equipo que no existe: rc=1'); is(scalar(@$qs), 0, 'notices -d equipo que no existe: no consulta qactions');
+is((nq('-d x'))[0], 2, 'notices -d no numerico: rc=2');
+($rc,$qs) = nq('-v');
+ok($qs->[1] =~ /descr, rc, rcstr FROM/ && $qs->[1] !~ /LEFT\(rcstr/, 'notices -v: rcstr completo');
+is((nq('-X'))[0], 2, 'notices opcion desconocida: rc=2');
+is((nq('', FAKE_FAIL_ON=>'FROM qactions'))[0], 1, 'notices: si falla la consulta, rc=1');
+
 done_testing();

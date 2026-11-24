@@ -78,6 +78,7 @@ ok((grep { $_ eq 'Instancias reordenadas por etiqueta' } @q), 'qactions: anota l
 my ($aviso) = grep { $_->{descr} eq 'Instancias desaparecidas con monitor o c_label' } @{$store->{qactions}};
 ok($aviso && $aviso->{rcstr} =~ m{/home} && $aviso->{rcstr} !~ m{/var}, 'qactions: avisa de /home (monitor y c_label) y no de /var');
 ok(!(grep { !defined $_->{rc} || $_->{rc} !~ /^-?\d+$/ } @{$store->{qactions}}), 'qactions: rc es un entero, como la columna qactions.rc');
+ok(scalar(@{$store->{qactions}}) && !(grep { (!defined $_->{id_dev}) || $_->{id_dev} ne '1' } @{$store->{qactions}}), 'qactions: los avisos de instancias llevan el equipo (id_dev), para filtrarlos con notices -d');
 
 # 3. Disco nuevo en un iid que se ha quedado libre (esicganprd01, 18-nov-2026): K:\ ocupa
 #    el 4, la memoria virtual pasa del 4 al 5 y la fisica del 5 al 6.
