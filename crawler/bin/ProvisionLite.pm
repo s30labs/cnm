@@ -1586,7 +1586,13 @@ print "------------------------------\n";
 
             $self->log('info',"prov_do_set_device_metric::[INFO] CHANGEIIDS **ELIMINARMETRICA** ($idmetrics) (WHERE=$where)");
 
-				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>0, 'rcstr'=>"Se eliminan:  $txt", 'atype'=>ATYPE_IIDS_ERASED, 'id_dev'=>$ID_DEV});
+				# Sus metricas se retiran (REG-CNM-Deuda 4.107; solo con PROV_GUARD a 1)
+				my ($retired,$not_retired) = $self->retire_removed_metrics($ID_DEV,\%remove,$v,$MDATA,$GUARD,$in->{'init'});
+				my $rtxt = (@$retired) ? ' ; metricas retiradas: '.join(', ',@$retired) : '';
+				$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas', 'rc'=>0, 'rcstr'=>"Se eliminan:  $txt$rtxt", 'atype'=>ATYPE_IIDS_ERASED, 'id_dev'=>$ID_DEV});
+				if (@$not_retired) {
+					$STORE->log_qactions($dbh,{'descr'=>'Instancias eliminadas: metricas sin retirar', 'rc'=>1, 'rcstr'=>"$v->{'subtype'}: no se pudo archivar el RRD o marcar la metrica: ".join(', ',@$not_retired), 'atype'=>ATYPE_IIDS_ERASED, 'id_dev'=>$ID_DEV});
+				}
 			}
 
 			# Genero metricas (nochange)
@@ -1936,6 +1942,96 @@ my ($self,$id_dev,$subtype,$MDATA,$rm,$snap)=@_;
 		$STORE->update_db($dbh,'metrics',{'c_label'=>$new_c},"id_dev=$id_dev AND name=".$dbh->quote($name));
 		$self->log('info',"apply_remap_c_label::[INFO] ID_DEV=$id_dev $name c_label=".(defined $new_c ? $new_c : 'NULL'));
 	}
+}
+
+# Directorio de los RRD de las metricas (el mismo que Crawler::Store::delete_metric_by_id)
+$ProvisionLite::RRD_ELEMENTS_DIR = '/opt/data/rrd/elements/';
+
+#----------------------------------------------------------------------------
+# Funcion: retire_removed_metrics
+# Descripcion: Retira las metricas de las filas que la provision acaba de quitar de la
+#	plantilla (REG-CNM-Deuda 4.107). Sin esto se quedan sin plantilla y siguen leyendo
+#	su iid viejo.
+#	Para cada una: archiva su RRD (<fichero>.removed-AAAAMMDD-HHMMSS, en el mismo
+#	directorio) y la marca con status=3 y refresh=1. La borra despues cnm-watch con sus
+#	alertas y relaciones (borrado diferido, para no bloquear la consola; 4.106); como el
+#	RRD ya no esta con su nombre, se conserva (PROY-CNM-Alertas-Azules, apartado 5.3).
+#	Solo con PROV_GUARD a 1 (la lectura esta validada), en metricas SNMP y fuera de init=2.
+#	No retira una metrica cuyo nombre se genera en esta provision ($MDATA) ni una que ya
+#	tiene status=3. Si el RRD existe y no se puede archivar, la metrica no se marca; si no
+#	se puede marcar, el RRD vuelve a su nombre.
+#	Devuelve (\@retiradas, \@fallidas): nombres de metrica.
+#----------------------------------------------------------------------------
+sub retire_removed_metrics {
+my ($self,$id_dev,$remove,$v,$MDATA,$guard,$init)=@_;
+my (@ok,@ko)=((),());
+
+	return (\@ok,\@ko) if ((! defined $guard) || ($guard != GUARD_ON));
+	return (\@ok,\@ko) if ((! defined $v->{'type'}) || ($v->{'type'} ne 'snmp'));
+	return (\@ok,\@ko) if ((defined $init) && ($init == 2));
+
+	my %generated = map { $_ => 1 } grep { defined $_ } map { $_->{'name'} } values %{$MDATA || {}};
+	my @names = grep { (defined $_) && ($_ ne '') && (! $generated{$_}) } map { $remove->{$_}->{'mname'} } sort keys %{$remove || {}};
+	return (\@ok,\@ko) if (! @names);
+
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	my $in = join(',', map { $dbh->quote($_) } @names);
+	my $rres = $STORE->get_from_db($dbh,'id_metric,name,file','metrics',"id_dev=$id_dev AND type='snmp' AND status!=3 AND name in ($in)");
+	# get_from_db devuelve [] tambien si falla la consulta: se mira el error
+	return (\@ok,\@ko) if ((ref($rres) ne 'ARRAY') || $STORE->error());
+
+	my $stamp = $self->retire_stamp();
+	foreach my $r (@$rres) {
+		my ($id_metric,$name,$file)=@$r;
+		my ($path,$dst)=(undef,undef);
+		if ((defined $file) && ($file ne '') && (-e $ProvisionLite::RRD_ELEMENTS_DIR.$file)) {
+			$path = $ProvisionLite::RRD_ELEMENTS_DIR.$file;
+			$dst = "$path.removed-$stamp";
+			if (! rename($path,$dst)) {
+				$self->log('warning',"retire_removed_metrics::[WARN] ID_DEV=$id_dev $name: no se puede archivar $path ($!); no se retira");
+				push @ko,$name;
+				next;
+			}
+		}
+		my $rv = $STORE->update_db($dbh,'metrics',{'status'=>3,'refresh'=>1},"id_metric=$id_metric");
+		if (! defined $rv) {
+			rename($dst,$path) if (defined $dst);
+			$self->log('warning',"retire_removed_metrics::[WARN] ID_DEV=$id_dev $name: no se puede marcar con status=3; no se retira");
+			push @ko,$name;
+			next;
+		}
+		$self->log('info',"retire_removed_metrics::[INFO] ID_DEV=$id_dev $name (id_metric=$id_metric) status=3".((defined $dst) ? ", RRD archivado en $dst" : ', sin RRD'));
+		push @ok,$name;
+	}
+	return (\@ok,\@ko);
+}
+
+# Marca de tiempo de los RRD archivados (AAAAMMDD-HHMMSS, hora local)
+sub retire_stamp {
+	my @t=localtime();
+	return sprintf('%04d%02d%02d-%02d%02d%02d',$t[5]+1900,$t[4]+1,$t[3],$t[2],$t[1],$t[0]);
+}
+
+#----------------------------------------------------------------------------
+# Funcion: skip_inactive_metric
+# Descripcion: Una fila inactiva de la plantilla sin metrica no se da de alta (REG-CNM-Deuda
+#	4.106): darla de alta con status=3 solo servia para que cnm-watch la borrara, y con
+#	ella un RRD que quedara en disco con ese nombre. Si la metrica existe, no se salta: se
+#	marca con status=3 como siempre (es una desactivacion).
+#	Devuelve 1 si metric2db no tiene que hacer nada.
+#----------------------------------------------------------------------------
+sub skip_inactive_metric {
+my ($self,$id_dev,$v)=@_;
+
+	return 0 if ((! defined $v->{'status'}) || ($v->{'status'} == 0));
+	return 0 if ((! defined $v->{'name'}) || ($v->{'name'} eq ''));
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	my $r = $STORE->get_from_db($dbh,'id_metric','metrics',"id_dev=$id_dev AND name=".$dbh->quote($v->{'name'}));
+	# Si no se puede consultar, lo de siempre (get_from_db devuelve [] tambien si falla)
+	return 0 if ((ref($r) ne 'ARRAY') || $STORE->error());
+	return (scalar(@$r) > 0) ? 0 : 1;
 }
 
 #----------------------------------------------------------------------------
@@ -2678,6 +2774,12 @@ $self->log('warning',"apply_metric_xagent::[**FML**] IIDS $desc{'host_ip'} - $de
 #-------------------------------------------------------------------------------
 sub metric2db  {
 my ($self,$ID_DEV,$device,$v)=@_;
+
+	# Fila inactiva sin metrica: no se da de alta (REG-CNM-Deuda 4.106)
+	if ($self->skip_inactive_metric($ID_DEV,$v)) {
+		$self->log('debug',"metric2db::[DEBUG] ID_DEV=$ID_DEV $v->{'name'} inactiva y sin metrica: no se da de alta");
+		return;
+	}
 
    my $STORE=$self->istore();
    my $WSCLIENT=$self->wsclient();

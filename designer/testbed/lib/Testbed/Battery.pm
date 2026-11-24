@@ -21,11 +21,13 @@
 #	  - en el caso de snmpd, la fila ucd_cpu_usage|ALL;
 #	  - que el resto de la plantilla del equipo no ha cambiado;
 #	  - los avisos de la salvaguarda en qactions;
-#	  - en el caso de reorder, a donde va el c_label de fila-1 (depende de PROV_REMAP_BY_LABEL).
+#	  - en el caso de reorder, a donde va el c_label de fila-1 (depende de PROV_REMAP_BY_LABEL);
+#	  - la metrica de cada fila activa que se ha quitado: con PROV_GUARD a 1 se retira
+#	    (status 3, o ya borrada por cnm-watch; REG-CNM-Deuda 4.107); con 0 y 2, no.
 # Set Tab=3
 #####################################################################################################
 package Testbed::Battery;
-$VERSION='1.00';
+$VERSION='1.01';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
@@ -245,6 +247,20 @@ my $a=shift;
 			my $obs = (_v($x->{'rcstr'}) =~ /^Observacion/) ? 1 : 0;
 			push @f, "con PROV_GUARD 2 el aviso tiene que empezar por \"Observacion\"" if (($mode eq '2') && (! $obs));
 			push @f, "con PROV_GUARD 1 el aviso no puede empezar por \"Observacion\"" if (($mode eq '1') && $obs);
+		}
+	}
+
+	# 6. Las metricas de las filas activas que se han quitado (REG-CNM-Deuda 4.107)
+	foreach my $i (1..MAX_ROW) {
+		my ($b,$r) = (_row($base,$i), _row($after,$i));
+		next if ((! $b) || $r || (_v($b->{'status'}) ne '0'));
+		my $m = $after->{'metrics'}{SUBTYPE."-$i"};
+		next if (! $m);
+		if ($mode eq '1') {
+			push @f, "fila $i quitada: su metrica sigue con status "._v($m->{'status'})." (con PROV_GUARD 1 tenia que retirarse)" if (_v($m->{'status'}) ne '3');
+		}
+		elsif (_v($m->{'status'}) eq '3') {
+			push @f, "fila $i quitada: con PROV_GUARD $mode su metrica no se tenia que retirar";
 		}
 	}
 
