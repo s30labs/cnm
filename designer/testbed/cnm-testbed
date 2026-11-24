@@ -63,6 +63,8 @@ my $STOP_WAIT   = 60;
 my $KILL_WAIT   = 30;
 my $ENGINE_WAIT = 300;	# segundos como maximo hasta que cnm-watch levante los crawlers
 my $BLUE_WAIT   = 400;	# battery: segundos como maximo para que el crawler quite las azules de la tabla de prueba
+my $RRD_WAIT    = 400;	# battery: segundos como maximo para que el crawler escriba los RRD de la tabla de prueba
+my $RRD_DIR     = $ENV{'RRD_DIR'} || '/opt/data/rrd/elements';
 my $SNMPD_INIT  = '/etc/init.d/snmpd';	# CNM arranca snmpd con su script (roles/net-snmp/tasks/main.yml:170)
 #-------------------------------------------------------------------------------------------
 my @fpth = split ('/',$0,10);
@@ -267,6 +269,9 @@ my $id=shift;
 	$s{'template'}{"$_->{'subtype'}|$_->{'iid'}"} = $_ foreach (@$r);
 	$r = $DBH->selectall_arrayref("SELECT name,subtype,iid,c_label,watch,status FROM metrics WHERE id_dev=?", { Slice=>{} }, $id);
 	$s{'metrics'}{$_->{'name'}} = $_ foreach (@$r);
+	# Inodo del RRD de cada metrica de la tabla de prueba: sigue a cada fichero aunque cambie de nombre (R2)
+	$r = $DBH->selectall_arrayref("SELECT name,file FROM metrics WHERE id_dev=? AND subtype=?", undef, $id, 'cnm_testbed_rows');
+	$s{'rrd'} = { map { my @st = stat("$RRD_DIR/$_->[1]"); ($_->[0] => (@st ? $st[1] : undef)) } grep { defined $_->[1] } @$r };
 	$r = $DBH->selectcol_arrayref("SELECT DISTINCT mname FROM alerts WHERE id_device=? AND severity=4", undef, $id);
 	$s{'blue'} = [ sort @$r ];
 	($s{'qactions_max'}) = $DBH->selectrow_array("SELECT COALESCE(MAX(id_qactions),0) FROM qactions");
@@ -868,6 +873,22 @@ my $id=shift;
 	die "hay alertas azules en el equipo: siguen tras $BLUE_WAIT s: ".blue_text($blue)."\n";
 }
 
+# El caso que comprueba que los RRD siguen a su etiqueta necesita que existan los de las
+# filas 1 a 5: tras una retirada (o una vuelta a la foto) no hay RRD hasta que el crawler
+# escribe. Espera como mucho $RRD_WAIT s; si no aparecen, el caso falla (no se puede evaluar).
+sub wait_testbed_rrds {
+my $id=shift;
+	my $t0=time();
+	while (1) {
+		my $rrd = collect($id)->{'rrd'};
+		my @miss = grep { ! defined $rrd->{"cnm_testbed_rows-$_"} } 1..5;
+		if (! @miss) { step("  RRD de las filas 1 a 5: estan".((time()-$t0) ? " (a los ".(time()-$t0)." s)" : '')); return; }
+		die "faltan los RRD de las filas @miss tras $RRD_WAIT s: el caso no se puede evaluar\n" if (time()-$t0 >= $RRD_WAIT);
+		step("  faltan los RRD de las filas @miss: se espera a que los escriba el crawler (maximo $RRD_WAIT s)") if (time()==$t0);
+		sleep(15);
+	}
+}
+
 # Vuelve a "base". Si no coincide y las unicas azules del equipo son de la tabla de prueba
 # (el crawler la leyo durante un corte; notificationsd las escribe en alerts despues, y la
 # provision de la vuelta borra esas metricas), espera a que se vayan y lo intenta otra vez.
@@ -893,6 +914,7 @@ my ($st,$dev,$base,$c,$mode,$remap)=@_;
 	die "no se puede volver a la foto base\n" if ($rrc != 0);
 	my $blue = blue_alerts($id);
 	die "hay alertas azules en el equipo: ".blue_text($blue)."\n" if (@$blue);
+	wait_testbed_rrds($id) if ($c->{'rrd_follow'});
 	# 2. Escenario del caso
 	write_scenario($c->{'scenario'});
 	my $t_restart;
@@ -912,7 +934,7 @@ my ($st,$dev,$base,$c,$mode,$remap)=@_;
 	# 4. Resultado
 	my $after = collect($id);
 	my $notices = guard_notices($before->{'qactions_max'}, $c->{'subtype'});
-	my @f = evaluate({ case=>$c, mode=>$mode, remap=>$remap, base=>$base, after=>$after, notices=>$notices });
+	my @f = evaluate({ case=>$c, mode=>$mode, remap=>$remap, base=>$base, before=>$before, after=>$after, notices=>$notices });
 	snmpd_wait_cpu($dev) if ($c->{'restart'});
 	return { fails=>\@f, notices=>$notices, after=>$after, secs_after_restart=>$secs };
 }

@@ -23,11 +23,14 @@
 #	  - los avisos de la salvaguarda en qactions;
 #	  - en el caso de reorder, a donde va el c_label de fila-1 (depende de PROV_REMAP_BY_LABEL);
 #	  - la metrica de cada fila activa que se ha quitado: con PROV_GUARD a 1 se retira
-#	    (status 3, o ya borrada por cnm-watch; REG-CNM-Deuda 4.107); con 0 y 2, no.
+#	    (status 3, o ya borrada por cnm-watch; REG-CNM-Deuda 4.107); con 0 y 2, no;
+#	  - en el caso de reorder, que cada RRD siga a su etiqueta (el R2: con PROV_GUARD a 1 y
+#	    PROV_REMAP_BY_LABEL a 1) o se quede en su iid (en los demas casos). Se mira el
+#	    inodo de cada fichero en la foto de justo antes de provisionar (before) y despues.
 # Set Tab=3
 #####################################################################################################
 package Testbed::Battery;
-$VERSION='1.01';
+$VERSION='1.02';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
@@ -64,7 +67,7 @@ my @CASES = (
 	  scenario=>{ mode=>'cut-always', cut_at=>2 },
 	  today=>{ rows=>[1,2] },  guard=>{ rows=>[1,2] },  notice=>undef },
 	{ id=>7,  name=>'reorder',       what=>'las mismas etiquetas en otros indices',
-	  scenario=>{ mode=>'reorder' }, remap_check=>1,
+	  scenario=>{ mode=>'reorder' }, remap_check=>1, rrd_follow=>1,
 	  today=>{ rows=>[1..5] }, guard=>{ rows=>[1..5] }, notice=>undef },
 	{ id=>8,  name=>'cut-once-drop', what=>'la primera lectura se corta en 2 y la fila 5 falta siempre',
 	  scenario=>{ mode=>'cut-once', cut_at=>2, drop=>[5] },
@@ -250,7 +253,7 @@ my $a=shift;
 		}
 	}
 
-	# 6. Las metricas de las filas activas que se han quitado (REG-CNM-Deuda 4.107)
+	# 7. Las metricas de las filas activas que se han quitado (REG-CNM-Deuda 4.107)
 	foreach my $i (1..MAX_ROW) {
 		my ($b,$r) = (_row($base,$i), _row($after,$i));
 		next if ((! $b) || $r || (_v($b->{'status'}) ne '0'));
@@ -272,6 +275,22 @@ my $a=shift;
 			push @f, "fila $i: etiqueta '"._v($r->{'label'})."' en vez de '"._v($b->{'label'})."'" if (_v($r->{'label'}) ne _v($b->{'label'}));
 			my ($cb,$ca) = (_clab($base,SUBTYPE."-$i"), _clab($after,SUBTYPE."-$i"));
 			push @f, "fila $i: c_label '$ca' en vez de '$cb'" if ($ca ne $cb);
+		}
+	}
+
+	# 8. reorder: cada RRD sigue a su etiqueta (R2) solo con PROV_GUARD 1 y PROV_REMAP_BY_LABEL 1.
+	# Con reorder la etiqueta de la fila k pasa al iid 6-k: el fichero del iid k tiene que
+	# acabar en el del 6-k. En los demas casos cada fichero se queda en su iid.
+	if ($c->{'rrd_follow'}) {
+		my ($rb,$ra) = (($a->{'before'} || {})->{'rrd'} || {}, ($after || {})->{'rrd'} || {});
+		my $follow = (($mode eq '1') && $a->{'remap'}) ? 1 : 0;
+		foreach my $i (1..5) {
+			my $src = $follow ? (6-$i) : $i;
+			my ($ib,$ia) = ($rb->{SUBTYPE."-$src"}, $ra->{SUBTYPE."-$i"});
+			if (! defined $ib) { push @f, "no hay RRD de ".SUBTYPE."-$src antes de provisionar: el caso no se puede evaluar"; next; }
+			push @f, "RRD de ".SUBTYPE."-$i: ".((defined $ia) ? "es otro fichero" : "no existe")
+				." (tenia que ser el de ".SUBTYPE."-$src".($follow ? ", su etiqueta" : ", sin moverse").")"
+				if ((! defined $ia) || ($ia != $ib));
 		}
 	}
 

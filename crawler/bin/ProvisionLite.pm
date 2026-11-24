@@ -74,6 +74,8 @@ my %LOG_PRIORITY = (
 #-----------------------------------------------------------------------
 use ProvisionLite::LabelRemap qw(remap_by_label has_monitor_or_c_label);
 use ProvisionLite::ProvGuard qw(guard_mode guard_decide valid_iids GUARD_OFF GUARD_ON GUARD_WATCH);
+use ProvisionLite::RrdRemap qw(swap_plan rrd_swap rename2_supported);
+use SupportDir qw(support_dir);
 use ProvisionLite::disk_mibhost;
 use ProvisionLite::traffic_mibii_if;
 use ProvisionLite::pkts_type_mibii_if;
@@ -1524,6 +1526,8 @@ print "\tCHANGEIID iid=$tpl_iid BORRAR DE PLANTILLA\n";
 			if ($REMAP && ($v->{'type'} eq 'snmp')) {
 				$RM = $self->remap_instances($ID_DEV,$v,$MDATA,$SNAP->{$v->{'subtype'}},$in->{'init'});
 				if ($in->{'init'}==0) { $self->apply_remap_watch_status($RM,\%nochange,\%change); }
+				# Los RRD siguen a su etiqueta (solo con PROV_GUARD a 1 y subtipos GAUGE)
+				$self->remap_rrd_files($ID_DEV,$v,$MDATA,$RM,$GUARD,$in->{'init'});
 			}
 			
 print "CHANGE:\n";
@@ -2032,6 +2036,117 @@ my ($self,$id_dev,$v)=@_;
 	# Si no se puede consultar, lo de siempre (get_from_db devuelve [] tambien si falla)
 	return 0 if ((ref($r) ne 'ARRAY') || $STORE->error());
 	return (scalar(@$r) > 0) ? 0 : 1;
+}
+
+#----------------------------------------------------------------------------
+# Funcion: remap_rrd_files
+# Descripcion: Los RRD siguen a su etiqueta (el "R2" de PROY-CNM-Alertas-Azules, apartado
+#	5.3; REG-CNM-Deuda 4.107). Con los movimientos del reordenamiento ($RM->{moved},
+#	iid viejo -> iid nuevo de cada etiqueta) intercambia los ficheros para que cada
+#	historico quede en el nombre del iid nuevo (ProvisionLite::RrdRemap).
+#	Solo con PROV_GUARD a 1 (la lectura esta validada), en metricas SNMP, fuera de init=2
+#	y en subtipos GAUGE: en un contador (DERIVE) el RRD guarda el ultimo valor bruto y la
+#	primera actualizacion tras el intercambio restaria contadores de instancias distintas.
+#	Se llama antes de quitar filas y de generar las metricas: lo que quede en el fichero
+#	de un iid que desaparece lo archiva despues retire_removed_metrics.
+#	Los ficheros se calculan como en metric2db (<dir>/<nombre>-<create>.rrd); si el de
+#	una metrica de la base no coincide, no se mueve nada del subtipo.
+#	Si un intercambio falla, se deshacen los hechos.
+#	Deja aviso en qactions y una linea por intercambio en el registro del dia
+#	(SupportDir, herramienta "provision", runs/AAAAMMDD-000000-rrd-remap/moves.log).
+#	Devuelve (\@hechos,$error): [ [ruta_a,ruta_b,como], ... ] y '' si todo ha ido bien.
+#----------------------------------------------------------------------------
+sub remap_rrd_files {
+my ($self,$id_dev,$v,$MDATA,$RM,$guard,$init)=@_;
+my @done=();
+
+	return (\@done,'') if ((! defined $guard) || ($guard != GUARD_ON));
+	return (\@done,'') if ((! defined $v->{'type'}) || ($v->{'type'} ne 'snmp'));
+	return (\@done,'') if ((defined $init) && ($init == 2));
+	return (\@done,'') if ((ref($RM) ne 'HASH') || (! @{$RM->{'moved'} || []}));
+
+	my $subtype=$v->{'subtype'};
+	my $STORE=$self->istore();
+	my $dbh=$self->dbh();
+	my @moves=@{$RM->{'moved'}};
+
+	# Tipo y forma del fichero, de lo que ha leido la provision (mismo subtipo)
+	my ($any) = grep { defined $_->{'mtype'} } map { $MDATA->{$_->{'to'}} || {} } @moves;
+	my $mode = (defined $any) ? $any->{'mode'} : undef;
+	if ((! defined $mode) || ($mode !~ /^gauge$/i)) {
+		$self->log('info',"remap_rrd_files::[INFO] ID_DEV=$id_dev $subtype: RRD sin mover (tipo ".((defined $mode) ? $mode : '?').", solo GAUGE)");
+		return (\@done,'');
+	}
+	my ($create) = split('_',$any->{'mtype'});
+
+	my $fail = sub {
+		my $why=shift;
+		$self->log('warning',"remap_rrd_files::[WARN] ID_DEV=$id_dev $subtype: RRD sin mover: $why");
+		$STORE->log_qactions($dbh,{'descr'=>'Instancias reordenadas por etiqueta: RRD', 'rc'=>1, 'rcstr'=>"$subtype: RRD sin mover: $why", 'atype'=>ATYPE_IIDS_MODIFIED, 'id_dev'=>$id_dev});
+		return (\@done,$why);
+	};
+	return $fail->('renameat2 solo con x86_64') if (! rename2_supported());
+
+	# Nombre de la metrica de cada iid: el de la lectura; si no esta (iid que desaparece), el
+	# de la metrica de la base o el de la fila de la plantilla
+	my $rres = $STORE->get_from_db($dbh,'iid,name,file','metrics',"id_dev=$id_dev AND type='snmp' AND subtype=".$dbh->quote($subtype));
+	return $fail->('no se puede consultar metrics') if ((ref($rres) ne 'ARRAY') || $STORE->error());
+	my %db = map { $_->[0] => { 'name'=>$_->[1], 'file'=>$_->[2] } } grep { defined $_->[0] } @$rres;
+	my $dir = sprintf("%010d",$id_dev);
+	my %path=();
+	foreach my $iid (map { ($_->{'from'},$_->{'to'}) } @moves) {
+		next if (exists $path{$iid});
+		my $name = (exists $MDATA->{$iid}) ? $MDATA->{$iid}->{'name'}
+		         : (exists $db{$iid}) ? $db{$iid}->{'name'}
+		         : (exists $v->{'IIDS'}->{$iid}) ? $v->{'IIDS'}->{$iid}->{'mname'} : undef;
+		return $fail->("no se sabe el nombre de la metrica del iid $iid") if ((! defined $name) || ($name eq ''));
+		my $file = "$dir/$name-$create.rrd";
+		return $fail->("el iid $iid tiene el fichero $db{$iid}->{'file'} y no $file")
+			if ((exists $db{$iid}) && (defined $db{$iid}->{'file'}) && ($db{$iid}->{'file'} ne $file));
+		$path{$iid} = $ProvisionLite::RRD_ELEMENTS_DIR.$file;
+	}
+
+	my $plan = swap_plan(\@moves);
+	foreach my $p (@$plan) {
+		my ($pa,$pb) = ($path{$p->[0]},$path{$p->[1]});
+		my ($ok,$how) = rrd_swap($pa,$pb);
+		if (! $ok) {
+			my @undo = reverse @done;
+			foreach my $d (@undo) { rrd_swap($d->[0],$d->[1]); }
+			$self->rrd_journal($id_dev,$subtype,[ (map { [ @$_[0,1], 'deshecho' ] } @undo), [ $pa,$pb,"fallo: $how" ] ]);
+			@done=();
+			return $fail->("fallo al intercambiar $pa y $pb ($how); se deshace lo hecho");
+		}
+		push @done, [ $pa,$pb,$how ];
+	}
+
+	my $txt = join(' ; ', map { "$_->{from} -> $_->{to}" } @moves);
+	$self->log('info',"remap_rrd_files::[INFO] ID_DEV=$id_dev $subtype: RRD reordenados ($txt): ".join(' | ', map { "$_->[2] $_->[0] $_->[1]" } @done));
+	$self->rrd_journal($id_dev,$subtype,\@done);
+	$STORE->log_qactions($dbh,{'descr'=>'Instancias reordenadas por etiqueta: RRD', 'rc'=>0, 'rcstr'=>"$subtype: los historicos siguen a su etiqueta ($txt; ".scalar(@done)." intercambios)", 'atype'=>ATYPE_IIDS_MODIFIED, 'id_dev'=>$id_dev});
+	return (\@done,'');
+}
+
+#----------------------------------------------------------------------------
+# rrd_journal($id_dev,$subtype,\@lineas): una linea por intercambio en el registro del dia
+# (para poder deshacerlo: repetir el intercambio). Si no se puede escribir, se anota en el
+# log y se sigue.
+#----------------------------------------------------------------------------
+sub rrd_journal {
+my ($self,$id_dev,$subtype,$lines)=@_;
+	return if (! @{$lines || []});
+	my @t=localtime();
+	my $day=sprintf('%04d%02d%02d',$t[5]+1900,$t[4]+1,$t[3]);
+	my $now=sprintf('%04d-%02d-%02d %02d:%02d:%02d',$t[5]+1900,$t[4]+1,$t[3],$t[2],$t[1],$t[0]);
+	my $ok = eval {
+		my $d = support_dir('provision','runs',1)."/$day-000000-rrd-remap";
+		mkdir($d,0700) if (! -d $d);
+		open(my $fh,'>>',"$d/moves.log") or die "$d/moves.log: $!\n";
+		print $fh "$now id_dev=$id_dev subtype=$subtype $_->[2] $_->[0] $_->[1]\n" foreach (@$lines);
+		close($fh);
+		1;
+	};
+	$self->log('warning',"rrd_journal::[WARN] no se puede escribir el registro de intercambios: $@") if (! $ok);
 }
 
 #----------------------------------------------------------------------------

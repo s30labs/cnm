@@ -101,22 +101,22 @@ is(answer_getnext($always,"$E.3.5",1), undef, 'fin de la tabla: NONE');
 
 #--- SnmpdConf ------------------------------------------------------------------
 my $conf = "rocommunity x\nview all included .1\n";
-my $c1 = set_block($conf,'agent',['pass_persist .1.3 /usr/bin/perl /x']);
-ok(has_block($c1,'agent'), 'set_block: el bloque esta');
-like($c1, qr/^rocommunity x\nview all included \.1\n/, 'set_block: el resto no cambia');
-is(remove_block($c1,'agent'), $conf, 'remove_block: vuelve al texto original');
-my $c2 = set_block($c1,'agent',['otra linea']);
-is(scalar(() = $c2 =~ /cnm-testbed:agent begin/g), 1, 'set_block sustituye, no duplica');
-like($c2, qr/otra linea/, 'set_block: contenido nuevo');
-unlike($c2, qr/pass_persist/, 'set_block: el contenido viejo ya no esta');
-my $c3 = set_block($c2,'view',['view all excluded .1.3.6.1.2.1.25.2']);
-is_deeply([block_names($c3)], ['agent','view'], 'block_names: los dos bloques');
-is(remove_block(remove_block($c3,'view'),'agent'), $conf, 'quitar los dos bloques: vuelve al original');
+my $sc1 = set_block($conf,'agent',['pass_persist .1.3 /usr/bin/perl /x']);
+ok(has_block($sc1,'agent'), 'set_block: el bloque esta');
+like($sc1, qr/^rocommunity x\nview all included \.1\n/, 'set_block: el resto no cambia');
+is(remove_block($sc1,'agent'), $conf, 'remove_block: vuelve al texto original');
+my $sc2 = set_block($sc1,'agent',['otra linea']);
+is(scalar(() = $sc2 =~ /cnm-testbed:agent begin/g), 1, 'set_block sustituye, no duplica');
+like($sc2, qr/otra linea/, 'set_block: contenido nuevo');
+unlike($sc2, qr/pass_persist/, 'set_block: el contenido viejo ya no esta');
+my $sc3 = set_block($sc2,'view',['view all excluded .1.3.6.1.2.1.25.2']);
+is_deeply([block_names($sc3)], ['agent','view'], 'block_names: los dos bloques');
+is(remove_block(remove_block($sc3,'view'),'agent'), $conf, 'quitar los dos bloques: vuelve al original');
 ok(! has_block($conf,'agent'), 'has_block: sin bloque');
 is(remove_block(set_block('','agent',['x']),'agent'), '', 'bloque en un fichero vacio: al quitarlo queda vacio');
 is(remove_block($conf,'agent'), $conf, 'remove_block sin bloque: no cambia nada');
-unlike(remove_block($c3,'agent'), qr/otra linea/, 'remove_block quita solo su bloque');
-like(remove_block($c3,'agent'), qr/excluded/, 'remove_block deja los demas bloques');
+unlike(remove_block($sc3,'agent'), qr/otra linea/, 'remove_block quita solo su bloque');
+like(remove_block($sc3,'agent'), qr/excluded/, 'remove_block deja los demas bloques');
 
 #--- Snapshot -------------------------------------------------------------------
 my $A = { parents => { d=>{subtype=>'d',id_template_metric=>7} },
@@ -237,12 +237,14 @@ sub tb_snap {
 	delete $m{"cnm_testbed_rows-$_"} foreach (@{$o{gone} || []});
 	$m{'cnm_testbed_rows-1'}{c_label}='CL1'; $m{'cnm_testbed_rows-3'}{c_label}='CL3';
 	$m{$_}{c_label}=$o{clab}{$_} foreach (keys %{$o{clab} || {}});
-	return { template=>\%t, metrics=>\%m };
+	# Inodo del RRD de cada fila (para el caso reorder, R2): por defecto, cada uno en su iid
+	my %r = map { ("cnm_testbed_rows-$_" => 100+$_) } 1..6;
+	return { template=>\%t, metrics=>\%m, rrd=>\%r };
 }
 my $BS = tb_snap(rows=>[1..5]);
 my ($c1,$c3,$c4,$c5,$c6,$c7,$c8,$c9,$c10) = map { my $n=$_; (grep { $_->{name} eq $n } @CS)[0] }
 	qw(complete empty-forced cut-once drop cut-always reorder cut-once-drop new-row snmpd-restart);
-sub ev { my ($c,$m,$after,%x)=@_; return [ evaluate({ case=>$c, mode=>$m, remap=>$x{remap}||0, base=>$BS, after=>$after, notices=>$x{n}||[] }) ]; }
+sub ev { my ($c,$m,$after,%x)=@_; return [ evaluate({ case=>$c, mode=>$m, remap=>$x{remap}||0, base=>$BS, before=>$x{before}||$BS, after=>$after, notices=>$x{n}||[] }) ]; }
 my $SKIP = { descr=>NOTICE_SKIP, rcstr=>'x cnm_testbed_rows: sin datos' };
 my $SKIPO = { descr=>NOTICE_SKIP, rcstr=>'Observacion, no se aplica: x cnm_testbed_rows: sin datos' };
 my $RER = { descr=>NOTICE_REREAD, rcstr=>'x cnm_testbed_rows: faltaban' };
@@ -290,6 +292,26 @@ is_deeply(ev($c7,'0',tb_snap(rows=>[1..5], labels=>{1=>5,2=>4,3=>3,4=>2,5=>1}, c
 ok(grep({ /tenia que pasar/ } @{ev($c7,'0',$RO, remap=>1)}), 'evaluate reorder con remap y el c_label quieto: FALLA');
 is_deeply(ev($c7,'0',$RO, remap=>0), [], 'evaluate reorder sin remap: el c_label se queda en el iid 1: OK');
 ok(grep({ /tenia que tener la etiqueta fila-1/ } @{ev($c7,'0',tb_snap(rows=>[1..5], clab=>{'cnm_testbed_rows-1'=>'', 'cnm_testbed_rows-5'=>'CL1'}), remap=>1)}), 'evaluate reorder con remap sin cambio de etiquetas: FALLA');
+
+# reorder: los RRD siguen a su etiqueta (R2) solo con PROV_GUARD 1 y remap 1
+sub rrds { my %m=@_; return { map { ("cnm_testbed_rows-$_" => $m{$_}) } keys %m }; }
+my $RRDB = { %$BS, rrd=>rrds(map { ($_ => 100+$_) } 1..5) };
+sub ro_after { my %ino=@_; my $s = tb_snap(rows=>[1..5], labels=>{1=>5,2=>4,3=>3,4=>2,5=>1}, clab=>{'cnm_testbed_rows-1'=>'', 'cnm_testbed_rows-5'=>'CL1'}); $s->{rrd}=rrds(%ino); return $s; }
+sub ro_keep  { my %ino=@_; my $s = tb_snap(rows=>[1..5], labels=>{1=>5,2=>4,3=>3,4=>2,5=>1}); $s->{rrd}=rrds(%ino); return $s; }
+sub evr { my ($m,$after,$remap,$before)=@_; return [ grep { /RRD|no se puede evaluar/ } evaluate({ case=>$c7, mode=>$m, remap=>$remap, base=>$BS, before=>$before || $RRDB, after=>$after, notices=>[] }) ]; }
+my %FOLLOW = map { ($_ => 100+(6-$_)) } 1..5;
+my %STAY   = map { ($_ => 100+$_) } 1..5;
+is_deeply(evr('1', ro_after(%FOLLOW), 1), [], 'evaluate reorder 1 con remap: cada RRD sigue a su etiqueta: OK');
+ok(grep({ /RRD de cnm_testbed_rows-1: es otro fichero \(tenia que ser el de cnm_testbed_rows-5, su etiqueta\)/ } @{evr('1', ro_after(%STAY), 1)}), 'evaluate reorder 1 con remap y los RRD quietos: FALLA');
+is(scalar(@{evr('1', ro_after(%STAY), 1)}), 4, 'evaluate reorder 1 con remap y los RRD quietos: falla en 1, 2, 4 y 5 (la 3 no se mueve)');
+is_deeply(evr('0', ro_after(%STAY), 1), [], 'evaluate reorder 0 con remap: los RRD se quedan en su iid: OK');
+ok(grep({ /sin moverse/ } @{evr('0', ro_after(%FOLLOW), 1)}), 'evaluate reorder 0 con los RRD movidos: FALLA');
+ok(grep({ /sin moverse/ } @{evr('2', ro_after(%FOLLOW), 1)}), 'evaluate reorder 2 con los RRD movidos: FALLA');
+is_deeply(evr('1', ro_keep(%STAY), 0), [], 'evaluate reorder 1 sin remap: los RRD se quedan en su iid: OK');
+ok(grep({ /no se puede evaluar/ } @{evr('1', ro_after(%FOLLOW), 1, { %$BS, rrd=>rrds(1=>101,2=>102,3=>103,4=>104) })}), 'evaluate reorder sin un RRD antes: no se puede evaluar (FALLA)');
+my %F4 = %FOLLOW; delete $F4{4};
+ok(grep({ /cnm_testbed_rows-4: no existe/ } @{evr('1', ro_after(%F4), 1)}), 'evaluate reorder con un RRD que falta despues: FALLA');
+ok(grep({ /no se puede evaluar/ } @{evr('1', ro_after(%FOLLOW), 1, { %$BS, rrd=>undef })}), 'evaluate reorder sin foto de antes: no se puede evaluar (FALLA)');
 
 # La metrica de una fila activa
 my $NOM = tb_snap(rows=>[1..5]); delete $NOM->{metrics}{'cnm_testbed_rows-1'};
