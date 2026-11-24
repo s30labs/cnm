@@ -27,6 +27,8 @@ $NAME show ID                  azules del equipo, con etiqueta y c_label, y su f
 $NAME run ID [-R] [-v] [-o DIR]
                                foto, plite -r ID -t 0, foto, diferencias y avisos de qactions
 $NAME check ID                 unos minutos despues: status 3, azules, metricas sin plantilla y RRD sin metrica
+$NAME notices [-s SINCE] [-d ID] [-v]
+                               avisos de provision en qactions: resumen por tipo y detalle
 $NAME -h  : Ayuda
 
 run
@@ -52,6 +54,15 @@ check
   RRD sin metrica: ficheros de $RRD_DIR del equipo que no son de ninguna metrica. Solo se
   listan; no se borra nada.
 
+notices
+  Avisos de cualquier provision (plite, consola, cnm-blue-alerts-fix): salvaguarda
+  (Provision: ...), instancias (Instancias ...) y CNM-METRICS. Solo lee.
+  -s SINCE  desde un id_qactions (numero, sin incluirlo) o desde una fecha AAAA-MM-DD
+            (incluida). Sin -s, las ultimas 24 horas.
+  -d ID     solo los avisos de ese equipo. Los avisos de instancias guardados antes de
+            que el motor anotara el equipo no llevan id_dev y no salen con -d.
+  -v        rcstr completo (sin -v, recortado a 300 caracteres).
+
 Usa el cliente mysql con la configuracion de root (~/.my.cnf).
 Codigo de salida: 0 bien, 1 error (incluida una provision con rc distinto de 0), 2 uso incorrecto."
 
@@ -59,6 +70,9 @@ Codigo de salida: 0 bien, 1 error (incluida una provision con rc distinto de 0),
 usage() { [ -n "${1:-}" ] && echo "$1" >&2; echo "Ayuda: $NAME -h" >&2; exit 2; }
 fail()  { echo "ERROR: $1" >&2; exit 1; }
 q()     { "$MYSQL" onm "$@"; }
+
+# Avisos de provision en qactions: los de run y los de notices
+NOTICES_WHERE="(descr LIKE 'Instancias%' OR descr LIKE 'Provision:%' OR descr LIKE '%CNM-METRICS%')"
 
 # Nombre del equipo en $DEV_NAME; sale con 2 si el ID no es un numero y con 1 si no existe.
 check_id() {
@@ -168,9 +182,9 @@ cmd_run() {
 	[ "$VERBOSE" = 1 ] && [ -s "${base}diff.txt" ] && cat "${base}diff.txt"
 	echo
 	echo "--- Avisos de la provision: ${base}avisos.txt"
-	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE 'Provision:%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" > "${base}avisos.txt" \
+	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, rcstr FROM qactions WHERE date_start>=$t0 AND $NOTICES_WHERE ORDER BY date_start, id_qactions" > "${base}avisos.txt" \
 		|| fail "no se pueden leer los avisos"
-	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, LEFT(rcstr,300) AS rcstr FROM qactions WHERE date_start>=$t0 AND (descr LIKE 'Instancias%' OR descr LIKE 'Provision:%' OR descr LIKE '%CNM-METRICS%') ORDER BY date_start, id_qactions" \
+	q -e "SELECT FROM_UNIXTIME(date_start) AS fecha, descr, rc, LEFT(rcstr,300) AS rcstr FROM qactions WHERE date_start>=$t0 AND $NOTICES_WHERE ORDER BY date_start, id_qactions" \
 		|| fail "no se pueden leer los avisos"
 	echo
 	echo "Siguiente: unos minutos despues, $NAME check $id"
@@ -205,6 +219,33 @@ cmd_check() {
 	echo "($n ficheros)"
 }
 
+# $1: SINCE (vacio: ultimas 24 horas); $2: ID (vacio: todos)
+cmd_notices() {
+	local since=$1 id=$2 cond what
+	if [ -z "$since" ]; then
+		cond="date_start>=UNIX_TIMESTAMP()-86400"; what="ultimas 24 horas"
+	elif [[ "$since" =~ ^[0-9]+$ ]]; then
+		cond="id_qactions>$since"; what="despues de id_qactions $since"
+	elif [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && [ "$(date -d "$since" +%F 2>/dev/null)" = "$since" ]; then
+		cond="date_start>=UNIX_TIMESTAMP('$since')"; what="desde $since"
+	else
+		usage "SINCE no valido: $since (id_qactions o AAAA-MM-DD)"
+	fi
+	if [ -n "$id" ]; then
+		check_id "$id"
+		cond="$cond AND id_dev=$id"; what="$what, equipo $id $DEV_NAME"
+	fi
+	local rcstr="LEFT(rcstr,300) AS rcstr"
+	[ "$VERBOSE" = 1 ] && rcstr="rcstr"
+	echo "Avisos de provision: $what"
+	echo "--- Resumen"
+	q -e "SELECT descr, rc, COUNT(*) AS avisos FROM qactions WHERE $cond AND $NOTICES_WHERE GROUP BY descr, rc ORDER BY descr, rc" \
+		|| fail "no se pueden leer los avisos"
+	echo "--- Detalle"
+	q -e "SELECT id_qactions, FROM_UNIXTIME(date_start) AS fecha, id_dev, descr, rc, $rcstr FROM qactions WHERE $cond AND $NOTICES_WHERE ORDER BY id_qactions" \
+		|| fail "no se pueden leer los avisos"
+}
+
 #-------------------------------------------------------------------------------------------
 CMD=${1:-}
 [ -n "$CMD" ] || { echo "$USAGE"; exit 2; }
@@ -227,5 +268,17 @@ case "$CMD" in
 			shift
 		done
 		cmd_run "$ID" ;;
+	notices)
+		SINCE=; ID=
+		while [ $# -gt 0 ]; do
+			case "$1" in
+				-s) [ $# -ge 2 ] || usage "-s necesita un id_qactions o una fecha"; SINCE=$2; shift ;;
+				-d) [ $# -ge 2 ] || usage "-d necesita un ID"; [[ "$2" =~ ^[0-9]+$ ]] || usage "ID no valido: $2"; ID=$2; shift ;;
+				-v) VERBOSE=1 ;;
+				*)  usage "opcion desconocida: $1" ;;
+			esac
+			shift
+		done
+		cmd_notices "$SINCE" "$ID" ;;
 	*) usage "orden desconocida: $CMD" ;;
 esac
