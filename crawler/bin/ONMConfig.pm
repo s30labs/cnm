@@ -127,7 +127,8 @@ my $file=shift;
       if (/\bMODE_ALERT\s*\=\s*(.*)$/) {$CFG{'mode_alert'}->[0]=$1;}
 
       # Provision: reordenar c_label y monitores por etiqueta cuando las instancias cambian de iid
-      # (PROY-CNM-Alertas-Azules). 1 = activado. Si no esta, desactivado.
+      # (PROY-CNM-Alertas-Azules). Si no esta, activado; 0 lo desactiva (estado de desarrollo).
+      # Lo interpreta ProvisionLite::ProvGuard::remap_enabled.
       if (/\bPROV_REMAP_BY_LABEL\s*\=\s*(.*)$/) {$CFG{'prov_remap_by_label'}->[0]=$1;}
       if (/\bSUPPORT_RETENTION_DAYS\s*\=\s*(.*)$/) {$CFG{'support_retention_days'}->[0]=$1;}
 

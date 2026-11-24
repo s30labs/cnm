@@ -21,6 +21,7 @@ use Testbed::SnmpdConf qw(has_block set_block remove_block block_names);
 use Testbed::Snapshot qw(diff_snapshots diff_is_empty diff_lines restore_plan);
 use Testbed::Ucd qw(ucd_subtypes_in_use);
 use Testbed::Engine qw(parse_ps crawlers stale_crawlers);
+use ProvisionLite::ProvGuard qw(guard_mode remap_enabled);
 use Testbed::Battery qw(select_cases parse_modes expected set_guard_line evaluate split_blues NOTICE_SKIP NOTICE_REREAD);
 
 my $FILE_CONF   = '/cfg/onm.conf';
@@ -586,7 +587,7 @@ sub cmd_status {
 	print "INFO  sesion: $RUN\n";
 	print "INFO  fotos: @snaps\n";
 	my ($guard) = ((read_file($FILE_CONF) || '') =~ /^\s*PROV_GUARD\s*=\s*(\S*)/m);
-	print "INFO  PROV_GUARD en $FILE_CONF: ".((defined $guard) ? $guard : 'sin la linea (0)')."\n";
+	print "INFO  PROV_GUARD en $FILE_CONF: ".((defined $guard) ? $guard : 'sin la linea')." (vale ".guard_mode(read_file($FILE_CONF)).")\n";
 	return $ok ? 0 : 1;
 }
 
@@ -839,8 +840,7 @@ my ($since,$subtype)=@_;
 
 sub remap_value {
 	my $cfg = ONMConfig::conf_base($FILE_CONF);
-	my $v = (defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : 0;
-	return ((defined $v) && ($v =~ /^\s*1\s*$/)) ? 1 : 0;	# como remap_by_label_enabled (ProvisionLite.pm)
+	return remap_enabled((defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : undef);	# la misma regla que la provision
 }
 
 sub scenario_line { my $s=shift; return join(' ', map { "$_=".((ref $s->{$_}) ? join(',',@{$s->{$_}}) : $s->{$_}) } qw(mode rows cut_at drop delay)); }

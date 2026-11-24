@@ -28,8 +28,19 @@ package main;
 # 1. Interruptor
 is(TProv->new(cfg=>{ prov_remap_by_label=>['1'] })->remap_by_label_enabled(), 1, 'interruptor: PROV_REMAP_BY_LABEL = 1 activa');
 is(TProv->new(cfg=>{ prov_remap_by_label=>['0'] })->remap_by_label_enabled(), 0, 'interruptor: 0 desactiva');
-is(TProv->new(cfg=>{ })->remap_by_label_enabled(), 0, 'interruptor: si no esta, desactivado');
-is(TProv->new(cfg=>''  )->remap_by_label_enabled(), 0, 'interruptor: sin configuracion, desactivado');
+is(TProv->new(cfg=>{ })->remap_by_label_enabled(), 1, 'interruptor: si no esta, activado (el estado soportado)');
+is(TProv->new(cfg=>''  )->remap_by_label_enabled(), 1, 'interruptor: sin configuracion, activado');
+is(TProv->new(cfg=>{ prov_remap_by_label=>[' 0 '] })->remap_by_label_enabled(), 0, 'interruptor: 0 con espacios desactiva');
+is(TProv->new(cfg=>{ prov_remap_by_label=>['no'] })->remap_by_label_enabled(), 1, 'interruptor: un valor no valido, activado');
+is(TProv->new(cfg=>{ prov_remap_by_label=>[''] })->remap_by_label_enabled(), 1, 'interruptor: linea sin valor, activado');
+{
+	use File::Temp qw(tempfile);
+	local $ProvisionLite::ONM_CONF = '/nonexistent/onm.conf';
+	is(TProv->new()->prov_guard_mode(), 1, 'PROV_GUARD: si no se puede leer onm.conf, 1 (el estado soportado)');
+	my ($fh,$f) = tempfile(UNLINK=>1); print $fh "A = 1\nPROV_GUARD = 2\n"; close $fh;
+	$ProvisionLite::ONM_CONF = $f;
+	is(TProv->new()->prov_guard_mode(), 2, 'PROV_GUARD: lee el fichero (2 escrito)');
+}
 
 # 2. cnm-areas en modo 0: plantilla y metrics antes del cambio de maquina virtual
 my $store = FakeStore->new(

@@ -7,8 +7,8 @@
 #	battery prepara cada caso, provisiona, hace la foto y llama a evaluate().
 #
 #	PROV_GUARD (ProvisionLite/ProvGuard.pm):
-#	  0  lo de siempre (tambien sin la linea en /cfg/onm.conf)
-#	  1  la salvaguarda actua: G1 (lectura sin datos) no toca la metrica; G2 (faltan
+#	  0  lo de siempre (estado de desarrollo: hay que escribirlo)
+#	  1  la salvaguarda actua (tambien sin la linea en /cfg/onm.conf): G1 (lectura sin datos) no toca la metrica; G2 (faltan
 #	     instancias) relee y solo quita las que faltan en las dos lecturas
 #	  2  observacion: deja los mismos avisos en qactions, pero hace lo de siempre
 #	Por eso con 0 y con 2 se espera lo mismo en la plantilla ('today'), y con 1 lo de

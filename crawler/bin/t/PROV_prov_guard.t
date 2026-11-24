@@ -22,12 +22,15 @@ my ($tpl,$read)=@_;
 }
 
 #--- guard_mode -------------------------------------------------------------
-is(guard_mode(undef), GUARD_OFF, 'modo: sin fichero, 0');
-is(guard_mode("A = 1\n"), GUARD_OFF, 'modo: sin la linea, 0');
+is(guard_mode(undef), GUARD_ON, 'modo: sin fichero, 1 (el estado soportado)');
+is(guard_mode("A = 1\n"), GUARD_ON, 'modo: sin la linea, 1 (el estado soportado)');
+is(guard_mode("PROV_GUARD = 0\n"), GUARD_OFF, 'modo: 0 solo si se escribe');
+is(guard_mode("# PROV_GUARD = 0\n"), GUARD_ON, 'modo: un 0 comentado no cuenta, 1');
 is(guard_mode("PROV_GUARD = 1\n"), GUARD_ON, 'modo: 1');
 is(guard_mode("PROV_GUARD=2\n"), GUARD_WATCH, 'modo: 2, sin espacios');
-is(guard_mode("#PROV_GUARD = 1\n"), GUARD_OFF, 'modo: comentada, 0');
-is(guard_mode("PROV_GUARD = 7\n"), GUARD_OFF, 'modo: valor no valido, 0');
+is(guard_mode("#PROV_GUARD = 2\n"), GUARD_ON, 'modo: comentada no cuenta, 1');
+is(guard_mode("PROV_GUARD = 7\n"), GUARD_ON, 'modo: valor no valido, 1');
+is(guard_mode("PROV_GUARD =\n"), GUARD_ON, 'modo: linea sin valor, 1');
 is(guard_mode("PROV_GUARD = 1\nPROV_GUARD = 0\n"), GUARD_OFF, 'modo: manda la ultima linea');
 
 #--- valid_iids -------------------------------------------------------------

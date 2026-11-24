@@ -73,7 +73,7 @@ my %LOG_PRIORITY = (
 
 #-----------------------------------------------------------------------
 use ProvisionLite::LabelRemap qw(remap_by_label has_monitor_or_c_label);
-use ProvisionLite::ProvGuard qw(guard_mode guard_decide valid_iids GUARD_OFF GUARD_ON GUARD_WATCH);
+use ProvisionLite::ProvGuard qw(guard_mode remap_enabled guard_decide valid_iids GUARD_OFF GUARD_ON GUARD_WATCH);
 use ProvisionLite::RrdRemap qw(swap_plan rrd_swap rename2_supported);
 use SupportDir qw(support_dir);
 use ProvisionLite::disk_mibhost;
@@ -1055,7 +1055,7 @@ my $store_flag=1;
 
 		#--------------------------------------------------------------------------------
 		# Reordenamiento por etiqueta (PROY-CNM-Alertas-Azules, apartado 6).
-		# Si el interruptor PROV_REMAP_BY_LABEL de /cfg/onm.conf vale 1, se toma una foto
+		# Si el interruptor PROV_REMAP_BY_LABEL de /cfg/onm.conf no vale 0 (por defecto, 1), se toma una foto
 		# de las instancias SNMP ANTES de que la fase A rehaga la plantilla: es la unica
 		# forma de saber que c_label y que monitor tenia cada etiqueta.
 		#--------------------------------------------------------------------------------
@@ -1738,27 +1738,27 @@ print Dumper(\@TEMPLATE);
 #----------------------------------------------------------------------------
 # Funcion: remap_by_label_enabled
 # Descripcion: Interruptor del reordenamiento por etiqueta (PROY-CNM-Alertas-Azules, apartado 6.4).
-# PROV_REMAP_BY_LABEL = 1 en /cfg/onm.conf lo activa. Por defecto, desactivado.
+# Activado salvo que /cfg/onm.conf diga PROV_REMAP_BY_LABEL = 0 (estado de desarrollo):
+# el estado soportado es 1 (ProvGuard::remap_enabled).
 #----------------------------------------------------------------------------
 sub remap_by_label_enabled {
 my $self = shift;
 	my $cfg = $self->cfg();
-	return 0 if (ref($cfg) ne 'HASH');
-	my $v = (defined $cfg->{'prov_remap_by_label'}) ? $cfg->{'prov_remap_by_label'}->[0] : 0;
-	return ((defined $v) && ($v =~ /^\s*1\s*$/)) ? 1 : 0;
+	my $v = ((ref($cfg) eq 'HASH') && (defined $cfg->{'prov_remap_by_label'})) ? $cfg->{'prov_remap_by_label'}->[0] : undef;
+	return remap_enabled($v);
 }
 
 #----------------------------------------------------------------------------
 # Funcion: prov_guard_mode
 # Descripcion: Valor de PROV_GUARD en /cfg/onm.conf: 0 (lo de siempre), 1 (activa) o
 # 2 (observacion). Se lee en cada provision para no tener que reiniciar actionsd.
-# Si no se puede leer el fichero, 0.
+# Sin la linea, o si no se puede leer el fichero, 1: el estado soportado (ProvGuard::guard_mode).
 #----------------------------------------------------------------------------
 sub prov_guard_mode {
 my $self=shift;
 
 	my $fh;
-	open($fh,'<','/cfg/onm.conf') or return GUARD_OFF;
+	open($fh,'<',$ProvisionLite::ONM_CONF) or return guard_mode(undef);
 	local $/;
 	my $text=<$fh>;
 	close($fh);
@@ -1947,6 +1947,9 @@ my ($self,$id_dev,$subtype,$MDATA,$rm,$snap)=@_;
 		$self->log('info',"apply_remap_c_label::[INFO] ID_DEV=$id_dev $name c_label=".(defined $new_c ? $new_c : 'NULL'));
 	}
 }
+
+# Fichero del que se lee PROV_GUARD en cada provision (las pruebas lo cambian)
+$ProvisionLite::ONM_CONF = '/cfg/onm.conf';
 
 # Directorio de los RRD de las metricas (el mismo que Crawler::Store::delete_metric_by_id)
 $ProvisionLite::RRD_ELEMENTS_DIR = '/opt/data/rrd/elements/';
