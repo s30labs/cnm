@@ -36,6 +36,8 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	elsif ($q =~ /FROM devices WHERE LOWER\(CONCAT/)           { my %i=map{$_=>1}@b; @r = grep { $i{lc "$_->{name}.$_->{domain}"} } @{$t->{devices}}; }
 	elsif ($q =~ /FROM metrics WHERE id_dev IN \(([?,]+)\) AND name IN/) { my $n=($1=~tr/?//); my %d=map{$_=>1} _take(\@b,$n); my %m=map{$_=>1}@b;
 		@r = grep { $d{$_->{id_dev}} && $m{$_->{name}} } @{$t->{metrics}}; }
+	elsif ($q =~ /FROM prov_default_metrics2device WHERE id_dev IN/) { my %i=map{$_=>1}@b;
+		foreach my $d (grep { $i{$_} } keys %{$t->{assist}||{}}) { push @r, [ $d, $_, 1 ] foreach (keys %{$t->{assist}{$d}}); } }
 	elsif ($q =~ /FROM cfg_views2metrics WHERE id_metric IN/)  { my %m=map{$_=>1}@b;
 		@r = map { [$_->[0],$_->[1]] } grep { $m{$_->[1]} } @{$t->{v2m}}; }
 	else { die "query not simulated: $q"; }
@@ -82,7 +84,10 @@ my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 			$t->{custom}{$d[2]}{uc $hd[$_]} = ($d[$_] eq '' ? '-' : $d[$_]) for (15..$#hd); }
 	}
 	elsif ($in->{init}==1) {
-		foreach my $id (split(/,/,$in->{id_dev})) { foreach my $def (split(/,/,$in->{default})) {
+		foreach my $id (split(/,/,$in->{id_dev})) {
+			# Without fast the engine rebuilds the assistant: only what the device offers
+			if (! $in->{fast}) { my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}};
+				$t->{assist}{$id} = $t->{responds}{$d->{ip}} ? { disp_icmp=>1, mon_icmp=>1 } : {}; } foreach my $def (split(/,/,$in->{default})) {
 			my (undef,undef,undef,$sub)=split(/\./,$def);
 			push @{$t->{metrics}}, { id_metric=>++$t->{seq_met}, id_dev=>$id, name=>$sub, status=>'0', c_label=>undef }; } }
 	}
@@ -97,7 +102,7 @@ sub base {
 		views=>[ { id_cfg_view=>162, name=>'Tiendas', live_metric=>0, cid=>'default', cid_ip=>'1.1.1.1', nmetrics=>0 } ],
 		devices=>[ { id_dev=>12, name=>'tda-00', domain=>'local', ip=>'10.0.0.100', type=>'' } ],
 		metrics=>[ { id_metric=>500, id_dev=>12, name=>'disp_icmp', status=>'0', c_label=>'viejo' } ],
-		v2m=>[], seq_dev=>12, seq_met=>500 };
+		v2m=>[], seq_dev=>12, seq_met=>500, responds=>{ '10.0.0.1'=>1 } };
 }
 sub ctx { my $t=shift; my $p=FakeProv->new($t); return ({ dbh=>FakeDBH->new($t), cid=>'default', cache=>{}, pending=>{}, provision=>sub { $p } }, $p); }
 sub resources {
@@ -132,6 +137,10 @@ ok((grep { $_->{id_dev} eq '12' && $_->{default} eq '1.300.latency.mon_icmp' && 
 my @pa = grep { $_->{op} eq 'provision' } @{$pl->{actions}};
 is(scalar(grep { $_->{text} =~ /\+ asistente$/ } @pa), 4, 'el plan avisa del asistente en las 4 provisiones de dispositivos nuevos');
 is((grep { $_->{id_cfg_view}==162 } @{$t->{views}})[0]{nmetrics}, 6, 'contador de la vista actualizado');
+like(join(' ',@{$pl->{warnings}}), qr/tda-00.*no tiene asistente calculado/, 'plan: el existente sin asistente da aviso');
+my @aw = @{$c->{apply_warnings}||[]};
+is(scalar(@aw), 2, 'tras aplicar: 2 avisos, las 2 metricas del nuevo que no responde');
+ok(! grep({ /tda-01/ } @aw) && (grep({ /tda-02.local disp_icmp/ } @aw) == 1), '... de tda-02, no de tda-01 (que si responde)');
 ok(! glob("$CNMControl::Kind::Device::TMP_WEB/*"), 'no queda el CSV del alta (ni su temporal)');
 is_deeply($t->{custom}{'10.0.0.1'}, { PROVEEDOR=>'ACME' }, 'campo de usuario en el CSV del alta, con el nombre de devices_custom_types');
 is_deeply($t->{custom}{'10.0.0.2'}, { PROVEEDOR=>'-' }, 'el otro alta del lote lleva el valor por defecto del motor');

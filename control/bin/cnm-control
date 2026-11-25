@@ -156,12 +156,12 @@ my ($do_apply)=@_;
 	my $ctx2 = context();
 	my $plan2 = make_plan($ctx2,$by_kind);
 	my $ok = (! @$e) && (! @{$plan2->{actions}}) && (! blocked($plan2));
-	my $result = { applied=>($ok?JSON::true:JSON::false), apply_errors=>$e,
+	my $result = { applied=>($ok?JSON::true:JSON::false), apply_errors=>$e, apply_warnings=>($ctx->{apply_warnings}||[]),
 						pending=>public_actions($plan2), check_errors=>[ @{$plan2->{errors}}, @{$plan2->{derived}} ], run_dir=>$run };
 	write_json("$run/result.json", $result);
 	if ($o{json}) { print JSON->new->canonical(1)->pretty->encode($result); }
 	else {
-		print "APLICAR\n", (map { "  ERROR  $_\n" } @$e);
+		print "APLICAR\n", (map { "  ERROR  $_\n" } @$e), (map { "  AVISO  $_\n" } @{$ctx->{apply_warnings}||[]});
 		print "COMPROBACION (plan calculado otra vez)\n", plan_text($plan2,$o{verbose});
 		print $ok ? "RESULTADO OK ($run)\n" : "RESULTADO ERROR: no ha quedado como se pedia (detalle en $run)\n";
 	}

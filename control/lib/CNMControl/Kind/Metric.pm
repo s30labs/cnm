@@ -95,6 +95,21 @@ my ($dbh,$ref)=@_;
 }
 
 #----------------------------------------------------------------------------
+# _assistant($dbh, \@id_devs) -> { id_dev => { subtype => include } }
+# The assistant of each device: the metrics the device offered when it was last computed
+# (prov_default_metrics2device). For latency its subtype is cfg_monitor.monitor
+# (crawler/bin/ProvisionLite.pm:3119), the same identifier as here. A device with no rows
+# has no assistant computed.
+#----------------------------------------------------------------------------
+sub _assistant {
+my ($dbh,$ids)=@_;
+	return {} if (! @$ids);
+	my $q = "SELECT id_dev,subtype,include FROM prov_default_metrics2device WHERE id_dev IN (".join(',',('?') x @$ids).")";
+	my %a=(); $a{$_->[0]}{$_->[1]}=$_->[2] foreach (@{ $dbh->selectall_arrayref($q, undef, @$ids) });
+	return \%a;
+}
+
+#----------------------------------------------------------------------------
 # catalog($ctx) -> { subtype => {type, lapse} }: where each subtype comes from, and its lapse
 #----------------------------------------------------------------------------
 sub catalog {
@@ -127,12 +142,14 @@ my ($c,$ctx,$rs)=@_;
 		$in_view{$_->[1]}{$_->[0]}=1 foreach (@{ $dbh->selectall_arrayref($q, undef, @idm) });
 	}
 	my $views = CNMControl::Kind::View->find($ctx, [ map { @{$_->{views}||[]} } @$rs ]);
+	my $assist = _assistant($dbh, [ keys %ids ]);
 	my %cur=();
 	foreach my $r (@$rs) {
 		my $ids = $dev{lc $r->{device}};
 		my $m = (@$ids == 1) ? $met{"$ids->[0]|$r->{subtype}"} : undef;
 		$cur{$c->key($r)} = { dev_ids=>$ids, metric=>$m, in_views=>($m ? ($in_view{$m->{id_metric}}||{}) : {}),
-									 views=>$views, cat=>$cat->{$r->{subtype}} };
+									 views=>$views, cat=>$cat->{$r->{subtype}},
+									 assistant=>((@$ids == 1) ? ($assist->{$ids->[0]} || {}) : undef) };
 	}
 	return \%cur;
 }
@@ -163,6 +180,13 @@ my (@acc,@err,@warn);
 		push @acc, { kind=>'metric', op=>'provision', ref=>$r->{device}, subtype=>$r->{subtype},
 						 type=>$cur->{cat}{type}, lapse=>$cur->{cat}{lapse}, new_device=>$new,
 						 text=>"$ref (lapse $cur->{cat}{lapse})".($new ? ' + asistente' : '') };
+		# Is it among what the device offers? For an existing device, its assistant tells (as it
+		# was last computed; it is not recomputed here). For a new one it is only known after
+		# apply builds it: see apply().
+		if ((! $new) && $cur->{assistant}) {
+			if (! %{$cur->{assistant}}) { push @warn, "el dispositivo no tiene asistente calculado: no se puede saber si ofrece $r->{subtype}; se creara igualmente"; }
+			elsif (! exists $cur->{assistant}{$r->{subtype}}) { push @warn, "$r->{subtype} no esta en el asistente del dispositivo (no la ofrecia la ultima vez que se calculo); se creara igualmente"; }
+		}
 	}
 	elsif ($m->{status} ne '0') { push @warn, "la metrica existe desactivada (status=$m->{status}); el esqueleto no la reactiva"; }
 	if (exists $r->{c_label}) {
@@ -230,6 +254,18 @@ my @err=();
 		$x->{id_metric}=$m->{id_metric}; $x->{id_dev}=$id_dev{lc $x->{ref}};
 	}
 	return \@err if (@err);
+
+	# The assistant of the new devices has just been built: warn about the metrics created
+	# that it does not include (the device did not offer them, e.g. it does not answer ping).
+	# Not an error: the state asked for them. Shown by the command after APLICAR.
+	my @new = grep { ($_->{op} eq 'provision') && $_->{new_device} } @$acc;
+	if (@new) {
+		my $assist = _assistant($dbh, [ map { $_->{id_dev} } @new ]);
+		foreach my $x (@new) {
+			next if (exists $assist->{$x->{id_dev}}{$x->{subtype}});
+			push @{$ctx->{apply_warnings}}, "metric $x->{ref} $x->{subtype}: creada, pero no esta en el asistente que se acaba de calcular (el equipo no la ofrece; por ejemplo, no responde a ping)";
+		}
+	}
 
 	my %views=();
 	eval {

@@ -123,6 +123,18 @@ ok((ref($er->[0]) eq 'HASH') && $er->[0]{derived} && ($er->[0]{text} =~ /no exis
 ($acc,$er) = $M->diff($r, { dev_ids=>[12], metric=>undef, in_views=>{}, views=>{}, cat=>$cat }, { %$ctx, failed_view=>{ Tiendas=>1 } });
 ok((ref($er->[0]) eq 'HASH') && $er->[0]{derived}, 'vista que ya fallo: error derivado');
 
+# f) is the metric to create in the assistant of the existing device?
+my $base = { dev_ids=>[12], metric=>undef, in_views=>{162=>1}, views=>$views, cat=>$cat };
+($acc,$er,$wa) = $M->diff($r, { %$base, assistant=>{} }, { %$ctx, pending=>{} });
+like(join(' ',@$wa), qr/no tiene asistente calculado/, 'existente sin asistente: aviso');
+($acc,$er,$wa) = $M->diff($r, { %$base, assistant=>{ mon_icmp=>1 } }, { %$ctx, pending=>{} });
+like(join(' ',@$wa), qr/disp_icmp no esta en el asistente/, 'existente cuyo asistente no la ofrece: aviso');
+ok(scalar(grep { $_->{op} eq 'provision' } @$acc), '... y se provisiona igualmente');
+($acc,$er,$wa) = $M->diff($r, { %$base, assistant=>{ disp_icmp=>1 } }, { %$ctx, pending=>{} });
+is(scalar(@$wa), 0, 'existente cuyo asistente la ofrece: sin aviso');
+($acc,$er,$wa) = $M->diff($r, { %$base, dev_ids=>[], assistant=>undef }, { %$ctx, pending=>{ 'tda-01.local'=>1 } });
+is(scalar(@$wa), 0, 'dispositivo nuevo: sin aviso en el plan (su asistente se calcula al aplicar)');
+
 #--- 5. diff: view ----------------------------------------------------------------
 ($acc,$er) = $V->diff({ name=>'X' }, undef, $ctx);   like($er->[0], qr/no existe/, 'vista inexistente');
 ($acc,$er) = $V->diff({ name=>'X' }, { live_metric=>1 }, $ctx); like($er->[0], qr/viva/, 'vista viva');

@@ -74,6 +74,12 @@ A un dispositivo creado en el `apply` se le calcula el asistente (aplicaciones y
 métricas disponibles) en la misma llamada al motor que genera su plantilla y sus
 métricas. A uno que ya existía no se le recalcula.
 
+`cnm-control` crea las métricas que pide el estado aunque el equipo no las ofrezca, y
+avisa: en el `plan`, si la métrica no está en el asistente de un dispositivo que ya
+existe (o no tiene asistente), y al terminar el `apply`, si no ha entrado en el
+asistente recién calculado de un dispositivo nuevo (por ejemplo, porque no responde a
+ping).
+
 Cada `apply` deja el plan, la salida del motor y el resultado en
 `/store/data/support/cnm-control/runs/AAAAMMDD-HHMMSS-apply/`, y el bloqueo en
 `/store/data/support/cnm-control/state/`. Al terminar vuelve a calcular el plan: si no
