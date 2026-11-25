@@ -226,6 +226,21 @@ foreach my $h (@$tasks) {
 }
 
 #-------------------------------------------------------------------------------------------
+# Blue alerts: daily run of cnm-blue-alerts-fix. It does nothing unless BLUE_ALERTS_FIX = 1
+# is in /cfg/onm.conf; it writes its output in /store/data/support/cnm-blue-alerts-fix/runs/.
+# PROY-CNM-Alertas-Azules, point 8.
+#-------------------------------------------------------------------------------------------
+{
+	my $cmd_fix = '/opt/crawler/bin/support/cnm-blue-alerts-fix -a 2>&1';
+	my $out_fix = `$cmd_fix`;
+	my $rc_fix = $? >> 8;
+	$out_fix = '' if (! defined $out_fix);
+	$out_fix =~ s/\s+$//;
+	$out_fix =~ s/\n/ | /g;
+	$store->log('info',"BLUE ALERTS: $cmd_fix rc=$rc_fix --> $out_fix");
+}
+
+#-------------------------------------------------------------------------------------------
 # Se almacena la version instalada en /cfg/onm.installed
 #-------------------------------------------------------------------------------------------
 set_cnm_version();

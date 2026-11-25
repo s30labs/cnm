@@ -131,6 +131,9 @@ my $file=shift;
       # Lo interpreta ProvisionLite::ProvGuard::remap_enabled.
       if (/\bPROV_REMAP_BY_LABEL\s*\=\s*(.*)$/) {$CFG{'prov_remap_by_label'}->[0]=$1;}
       if (/\bSUPPORT_RETENTION_DAYS\s*\=\s*(.*)$/) {$CFG{'support_retention_days'}->[0]=$1;}
+      # Daily run of cnm-blue-alerts-fix from cnm-daily: only with 1; without the line, off
+      # (PROY-CNM-Alertas-Azules, point 8). Read by ProvisionLite::BlueAlertsFix::auto_enabled.
+      if (/\bBLUE_ALERTS_FIX\s*\=\s*(.*)$/) {$CFG{'blue_alerts_fix'}->[0]=$1;}
 
 		# Thread mode 
       if (/\bMTH_SNMP\s*\=\s*(.*)$/) {$CFG{'mth_snmp'}->[0]=$1;}

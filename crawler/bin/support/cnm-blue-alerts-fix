@@ -1,21 +1,26 @@
 #!/usr/bin/perl -w
 #-------------------------------------------------------------------------------------------
 # cnm-blue-alerts-fix
-# Encola una reprovision desde la plantilla (setmetric, modo 0) para los equipos con
-# alertas azules SNMP. La reprovision reordena c_label y monitores por etiqueta, crea
-# las instancias nuevas y borra las azules (PROY-CNM-Alertas-Azules, apartado 6.3).
+# Enqueues a reprovision from the template (setmetric, mode 0) for the devices with SNMP
+# blue alerts. The reprovision reorders c_label and monitors by label, creates the new
+# instances and removes the blues whose instance is gone (PROY-CNM-Alertas-Azules, 6.3).
 #
-# Solo encola en el estado soportado: PROV_REMAP_BY_LABEL y PROV_GUARD a 1 en /cfg/onm.conf,
-# que es lo que valen sin la linea (ProvisionLite::ProvGuard, fix_allowed). Con un 0 o un 2
-# escritos no encola nada: sin el reordenamiento la reprovision borraria las azules con su
-# c_label, y sin la salvaguarda tambien las de instancias que siguen existiendo (4.136).
+# It only enqueues in the supported state: PROV_REMAP_BY_LABEL and PROV_GUARD at 1 in
+# /cfg/onm.conf, which is what they are worth without the line (ProvisionLite::ProvGuard,
+# fix_allowed). With an explicit 0 or 2 nothing is enqueued.
 #
-# Uso: cnm-blue-alerts-fix [-n] [-d id_dev] [-c cid]
-#   -n          solo lista lo que encolaria
-#   -d id_dev   solo ese equipo
-#   -c cid      cid de la accion (por defecto: default)
+# It skips the devices with a reprovision already pending, and those whose blue alerts were
+# all kept by a provision that ran after they appeared (notice 'Provision: azules
+# conservadas', REG-CNM-Deuda 4.136): reprovisioning them again would change nothing.
+# -f ignores this second rule.
 #
-# Sustituye a cnm-check-blue-alerts.
+# -a is the daily run from cnm-daily: it does nothing unless BLUE_ALERTS_FIX = 1 is in
+# /cfg/onm.conf, and it writes its output in /store/data/support/cnm-blue-alerts-fix/runs/.
+# Two runs never overlap (lock in /store/data/support/cnm-blue-alerts-fix/state/lock).
+#
+# Usage: cnm-blue-alerts-fix [-n] [-a] [-f] [-d id_dev] [-c cid]
+#
+# Replaces cnm-check-blue-alerts.
 #-------------------------------------------------------------------------------------------
 use lib "/opt/crawler/bin";
 use strict;
@@ -25,26 +30,63 @@ use ONMConfig;
 use Crawler::Store;
 use ATypes qw(ATYPE_SET_METRICS_FROM_TEMPLATE_BLOCK);
 use ProvisionLite::ProvGuard qw(guard_mode fix_allowed);
+use ProvisionLite::BlueAlertsFix qw(NOTICE_BLUE_KEPT auto_enabled plan_devices take_lock);
+use SupportDir qw(support_dir new_run_dir);
 
+my $TOOL = 'cnm-blue-alerts-fix';
 my $FILE_CONF = '/cfg/onm.conf';
-my $BLOCK = 15;		# equipos por accion, como la consola
+my $BLOCK = 15;		# devices per action, as the web console does
+
+my $USAGE = <<"EOT";
+Uso: $TOOL [-n] [-a] [-f] [-d id_dev] [-c cid]
+  -n          solo lista lo que encolaria
+  -a          ejecucion diaria (cnm-daily): solo actua con BLUE_ALERTS_FIX = 1 en $FILE_CONF
+              y deja su salida en /store/data/support/$TOOL/runs/
+  -f          encola tambien los equipos cuyas azules conservo su ultima provision
+  -d id_dev   solo ese equipo
+  -c cid      cid de la accion (por defecto: default)
+EOT
 
 my %opts=();
-getopts("nd:c:h",\%opts);
-if ($opts{h}) { print "Uso: $0 [-n] [-d id_dev] [-c cid]\n"; exit 0; }
-my $DRY = $opts{n} ? 1 : 0;
-my $CID = $opts{c} || 'default';
+getopts("nafd:c:h",\%opts) or do { print $USAGE; exit 2; };
+if ($opts{h}) { print $USAGE; exit 0; }
+my $DRY   = $opts{n} ? 1 : 0;
+my $AUTO  = $opts{a} ? 1 : 0;
+my $FORCE = $opts{f} ? 1 : 0;
+my $CID   = $opts{c} || 'default';
 if ((defined $opts{d}) && ($opts{d} !~ /^\d+$/)) { die "id_dev no valido: $opts{d}\n"; }
 if ($CID !~ /^[\w\-]+$/) { die "cid no valido: $CID\n"; }
 
+# Output: to STDOUT and, in the daily run, also to runs/<stamp>-auto/output.txt
+my $OUT;
+sub say_ { my $t=shift; print $t; print $OUT $t if ($OUT); }
+
 my $rcfg = conf_base($FILE_CONF);
+
+# Daily run: off unless BLUE_ALERTS_FIX = 1
+if ($AUTO) {
+	my $v = (defined $rcfg->{'blue_alerts_fix'}) ? $rcfg->{'blue_alerts_fix'}->[0] : undef;
+	if (! auto_enabled($v)) { print "BLUE_ALERTS_FIX no esta a 1 en $FILE_CONF: no se hace nada.\n"; exit 0; }
+}
+
+# Only one run at a time
+my $LOCK = take_lock(support_dir($TOOL,'state',1).'/lock');
+if (! $LOCK) { print "Hay otra ejecucion de $TOOL en curso: no se hace nada.\n"; exit 0; }
+
+if ($AUTO) {
+	my $d = new_run_dir($TOOL,'auto');
+	open($OUT,'>',"$d/output.txt") or die "No se puede escribir $d/output.txt: $!\n";
+	print "Salida: $d/output.txt\n";
+}
+
+# Supported state only
 my $remap = (defined $rcfg->{'prov_remap_by_label'}) ? $rcfg->{'prov_remap_by_label'}->[0] : undef;
 my $text;
 if (open(my $fh,'<',$FILE_CONF)) { local $/; $text=<$fh>; close($fh); }
-my $guard = guard_mode($text);		# la misma regla que la provision
+my $guard = guard_mode($text);		# same rule as the provision
 if (! fix_allowed($remap,$guard)) {
-	print "PROV_REMAP_BY_LABEL y PROV_GUARD no estan a 1 en $FILE_CONF (PROV_GUARD vale $guard): no se encola nada.\n";
-	print "Fuera de ese estado, la reprovision borraria azules con su c_label.\n";
+	say_("PROV_REMAP_BY_LABEL y PROV_GUARD no estan a 1 en $FILE_CONF (PROV_GUARD vale $guard): no se encola nada.\n");
+	say_("Fuera de ese estado, la reprovision borraria azules con su c_label.\n");
 	exit 1;
 }
 
@@ -52,37 +94,55 @@ my $store = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
 	db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
 	db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
 my $dbh = $store->open_db();
-if (! $dbh) { print "No se puede conectar con la base\n"; exit 1; }
+if (! $dbh) { say_("No se puede conectar con la base\n"); exit 1; }
 
-# Equipos con azules SNMP
+sub read_db {
+my ($cols,$table,$where)=@_;
+	my $r = $store->get_from_db($dbh,$cols,$table,$where);
+	if ($store->error()) { say_("ERROR al leer $table: ".$store->errorstr()."\n"); exit 1; }
+	return $r;
+}
+
+# SNMP blue alerts: [id_dev, mname, date]
 my $where = "severity=4 AND type='snmp'";
 $where .= " AND id_device=$opts{d}" if (defined $opts{d});
-my @devs = map { $_->[0] } @{ $store->get_from_db($dbh,'DISTINCT id_device','alerts',$where) };
+my $blues = read_db('id_device,mname,date','alerts',$where);
 
-# Equipos que ya tienen una reprovision pendiente o en curso
+# 'Provision: azules conservadas' notices since the oldest of those alerts
+my $kept = [];
+if (@$blues) {
+	my ($t0) = sort { $a <=> $b } map { $_->[2] || 0 } @$blues;
+	$kept = read_db('id_dev,date_start,rcstr','qactions',"descr='".NOTICE_BLUE_KEPT."' AND date_start>=".($t0+0));
+}
+
+# Devices with a reprovision pending or running
 my %pending=();
-foreach my $r (@{ $store->get_from_db($dbh,'params','qactions',"action='setmetric' AND status IN (0,1)") }) {
+foreach my $r (@{ read_db('params','qactions',"action='setmetric' AND status IN (0,1)") }) {
 	next if ((! defined $r->[0]) || ($r->[0] !~ /\bid_dev=([\d,]+)/));
 	$pending{$_}=1 foreach split(/,/,$1);
 }
-my @skip = grep { $pending{$_} } @devs;
-my @todo = sort { $a <=> $b } grep { ! $pending{$_} } @devs;
 
-printf "Equipos con azules SNMP: %d · con reprovision pendiente: %d · a encolar: %d\n", scalar(@devs), scalar(@skip), scalar(@todo);
-print  "Ya pendientes: @skip\n" if (@skip);
+my $plan = plan_devices($blues,$kept,\%pending,$FORCE);
+my @todo = @{$plan->{'todo'}};
+my $ndev = scalar(@{$plan->{'todo'}}) + scalar(@{$plan->{'pending'}}) + scalar(@{$plan->{'kept'}});
+
+say_(sprintf("Equipos con azules SNMP: %d · con reprovision pendiente: %d · azules conservadas en su ultima provision: %d · a encolar: %d\n",
+	$ndev, scalar(@{$plan->{'pending'}}), scalar(@{$plan->{'kept'}}), scalar(@todo)));
+say_("Ya pendientes: @{$plan->{'pending'}}\n") if (@{$plan->{'pending'}});
+say_("Azules conservadas (no se encolan; -f para encolarlos): @{$plan->{'kept'}}\n") if (@{$plan->{'kept'}});
 
 my $n=0;
 while (my @block = splice(@todo,0,$BLOCK)) {
 	my $params = "id_dev=".join(',',@block).";fast=1;cid=$CID";
-	if ($DRY) { print "ENCOLARIA setmetric $params\n"; next; }
+	if ($DRY) { say_("ENCOLARIA setmetric $params\n"); next; }
 	my $now = time();
 	my %action = ( 'name'=>substr(md5_hex("$now$params"),0,8), 'descr'=>'Reprovision por alertas azules (cnm-blue-alerts-fix)',
-	               'action'=>'setmetric', 'task'=>'setmetric', 'params'=>$params, 'auser'=>'cnm-blue-alerts-fix',
+	               'action'=>'setmetric', 'task'=>'setmetric', 'params'=>$params, 'auser'=>$TOOL,
 	               'date_store'=>$now, 'date_start'=>$now, 'status'=>0, 'atype'=>ATYPE_SET_METRICS_FROM_TEMPLATE_BLOCK );
 	$store->insert_to_db($dbh,'qactions',\%action);
-	if ($store->error()) { print "ERROR al encolar $params: ".$store->errorstr()."\n"; exit 1; }
-	print "ENCOLADO setmetric $params\n";
+	if ($store->error()) { say_("ERROR al encolar $params: ".$store->errorstr()."\n"); exit 1; }
+	say_("ENCOLADO setmetric $params\n");
 	$n++;
 }
-print "Acciones encoladas: $n\n" if (! $DRY);
+say_("Acciones encoladas: $n\n") if (! $DRY);
 exit 0;
