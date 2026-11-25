@@ -1,0 +1,215 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-control                                                       (/opt/cnm/control/bin)
+# Declarative configuration of CNM: describe how it must end up; the tool computes the
+# difference with the onm database, shows it (plan) and applies it (apply).
+# Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
+# SKELETON v0.1: kinds vista (check), dispositivo (create) and latency metrica (provision,
+# c_label, static views). No saved plan, no queue, no audit, no deletions.
+#-------------------------------------------------------------------------------------------
+BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Long qw(GetOptionsFromArray);
+use JSON;
+use Fcntl qw(:flock);
+use SupportDir qw(support_dir new_run_dir);
+use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summary blocked);
+use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
+use CNMControl::Kind::Metric;
+
+my $VERSION     = '0.1';
+my $TOOL        = 'cnm-control';
+my $FILE_CONF   = '/cfg/onm.conf';
+my $DIR_PROFILE = '/cfg/cnm-control/profiles';
+
+my @fpth = split ('/',$0,10);
+my $USAGE = <<USAGE;
+Configuracion declarativa de CNM (esqueleto v$VERSION)
+(c) s30labs
+
+$fpth[$#fpth] plan   ENTRADA [--json] [--verbose] [--cid CID]  muestra lo que cambiaria; no escribe
+$fpth[$#fpth] apply  ENTRADA --confirm [--json] [--cid CID]    aplica el plan y lo comprueba
+$fpth[$#fpth] expand --profile P --inventory F.csv             imprime los recursos que resultan
+$fpth[$#fpth] list   views [--search TXT] | subtypes [--type latency|snmp|xagent] | fields | types
+$fpth[$#fpth] -h  : Ayuda
+
+  ENTRADA:  -f FICHERO.json                     lista de recursos
+            --profile P --inventory F.csv       perfil (nombre en $DIR_PROFILE o ruta) + CSV con ';'
+
+  apply crea dispositivos (con su asistente y aplicaciones), provisiona metricas, cambia
+  c_label y asocia metricas a vistas estaticas. No borra nada. Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar
+  la lista: apply vuelve a calcular ese mismo plan, lo aplica y, al terminar, lo calcula otra
+  vez; si no sale vacio, termina con error. Sin --confirm, apply solo muestra el plan.
+  Cada apply deja el plan, la salida del motor y el resultado en
+  /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-apply/.
+
+  Codigo de salida: 0 bien; 1 error en el plan, al aplicar o al comprobar; 2 uso incorrecto.
+USAGE
+
+my @ARGS = @ARGV;
+my $cmd = shift @ARGS;
+if ((defined $cmd) && ($cmd =~ /^--?h(elp)?$/)) { print $USAGE; exit 0; }
+usage("falta la orden") if (! defined $cmd);
+my %o=();
+GetOptionsFromArray(\@ARGS, \%o, 'f|file=s','profile=s','inventory=s','json','cid=s','confirm','search=s','type=s','verbose','h|help')
+	or usage("opciones no validas");
+if ($o{h}) { print $USAGE; exit 0; }
+my $CID = defined $o{cid} ? $o{cid} : 'default';
+usage("cid no valido") if ($CID !~ /^[\w\-]{1,20}$/);
+
+if    ($cmd eq 'expand') { exit cmd_expand(); }
+elsif ($cmd eq 'list')   { exit cmd_list(shift @ARGS); }
+elsif ($cmd eq 'plan')   { exit cmd_plan(0); }
+elsif ($cmd eq 'apply')  { exit cmd_plan(1); }
+else  { usage("orden desconocida '$cmd'"); }
+
+#===================================================================================================
+sub usage { my $m=shift; print STDERR "$m\n\n$USAGE"; exit 2; }
+sub fail  { my $m=shift; print STDERR "$m\n"; exit 1; }
+
+#----------------------------------------------------------------------------
+# Input -> state (hash with version and resources)
+#----------------------------------------------------------------------------
+sub input {
+	if (defined $o{f}) {
+		usage('-f no se combina con --profile/--inventory') if (defined $o{profile} || defined $o{inventory});
+		my ($t,$e)=read_file($o{f}); fail($e) if ($e);
+		my $d; eval { $d = JSON->new->decode($t); }; fail("$o{f}: JSON no valido: $@") if ($@);
+		return ($d, $o{f});
+	}
+	usage("falta la entrada: -f, o --profile y --inventory") if (! defined $o{profile} || ! defined $o{inventory});
+	my $rp = $o{profile};
+	if (($rp !~ m{/}) && (! -f $rp)) {		# a name: looked up in the profile directory
+		usage("nombre de perfil no valido '$rp'") if ($rp !~ /^[\w][\w.\-]*$/);
+		$rp = "$DIR_PROFILE/$rp".($rp =~ /\.json$/ ? '' : '.json');
+	}
+	my ($tp,$ep)=read_file($rp); fail($ep) if ($ep);
+	my $p; eval { $p = JSON->new->decode($tp); }; fail("$rp: JSON no valido: $@") if ($@);
+	my ($profile,$e1)=check_profile($p); fail("$rp: $e1") if ($e1);
+	my ($ti,$ei)=read_file($o{inventory}); fail($ei) if ($ei);
+	my ($rows,$e2)=parse_inventory($ti,$profile); fail(join("\n",@$e2)) if (@$e2);
+	my ($res,$e3)=expand($profile,$rows); fail(join("\n",@$e3)) if (@$e3);
+	return ({ version=>1, resources=>$res }, "perfil $rp + $o{inventory} (".scalar(@$rows)." filas)");
+}
+
+#----------------------------------------------------------------------------
+# Context: connection to the onm database and the provisioning engine (loaded only when needed)
+#----------------------------------------------------------------------------
+sub context {
+	require ONMConfig; require Crawler::Store;
+	my $rcfg = ONMConfig::conf_base($FILE_CONF);
+	fail("no se puede leer $FILE_CONF") if (ref($rcfg) ne 'HASH');
+	my $store = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+		db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+		db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+	my $dbh = $store->open_db();
+	fail("no se puede conectar con la base de datos") if (! $dbh);
+	$dbh->{RaiseError}=1; $dbh->{PrintError}=0;
+	my $prov;
+	return { dbh=>$dbh, cid=>$CID, cache=>{}, pending=>{},
+				provision => sub {
+					return $prov if ($prov);
+					require ProvisionLite;
+					$prov = ProvisionLite->new(log_level=>'info', log_mode=>3, cfg=>$rcfg);
+					$prov->init();
+					return $prov;
+				} };
+}
+
+#----------------------------------------------------------------------------
+sub cmd_expand {
+	my ($d,$origin)=input();
+	print JSON->new->canonical(1)->pretty->encode($d);
+	return 0;
+}
+
+#----------------------------------------------------------------------------
+sub cmd_plan {
+my ($do_apply)=@_;
+	my ($d,$origin)=input();
+	my ($by_kind,$err)=validate_state($d);
+	if (@$err) { output({ errors=>$err, derived=>[], actions=>[], warnings=>[], unchanged=>0 }, $origin, 'validate'); return 1; }
+	my $ctx = context();
+	my $plan = make_plan($ctx,$by_kind);
+	output($plan, $origin, 'plan');
+	return 1 if (blocked($plan));
+	return 0 if (! $do_apply || ! @{$plan->{actions}});
+	usage("apply: falta --confirm; no se ha aplicado nada") if (! $o{confirm});
+
+	my $state_dir = eval { support_dir($TOOL,'state',1) }; fail("directorio de estado: $@") if ($@);
+	open(my $lock,'>',"$state_dir/apply.lock") or fail("no se puede abrir $state_dir/apply.lock: $!");
+	flock($lock, LOCK_EX|LOCK_NB) or fail("hay otro cnm-control aplicando (bloqueo $state_dir/apply.lock)");
+	my $run = eval { new_run_dir($TOOL,'apply') }; fail("directorio de la ejecucion: $@") if ($@);
+	write_json("$run/plan.json", { origin=>$origin, cid=>$CID, actions=>public_actions($plan), warnings=>$plan->{warnings} });
+
+	# The engine writes to standard output: during apply it goes to the run directory
+	open(my $out_orig,'>&',\*STDOUT); open(my $err_orig,'>&',\*STDERR);
+	open(STDOUT,'>>',"$run/engine.log"); open(STDERR,'>>',"$run/engine.log");
+	my $e = eval { apply_plan($ctx,$plan) }; my $ex=$@;
+	open(STDOUT,'>&',$out_orig); open(STDERR,'>&',$err_orig);
+	$e = [ "excepcion: $ex" ] if ($ex);
+
+	# Check: the plan, computed again, must be empty
+	my $ctx2 = context();
+	my $plan2 = make_plan($ctx2,$by_kind);
+	my $ok = (! @$e) && (! @{$plan2->{actions}}) && (! blocked($plan2));
+	my $result = { applied=>($ok?JSON::true:JSON::false), apply_errors=>$e,
+						pending=>public_actions($plan2), check_errors=>[ @{$plan2->{errors}}, @{$plan2->{derived}} ], run_dir=>$run };
+	write_json("$run/result.json", $result);
+	if ($o{json}) { print JSON->new->canonical(1)->pretty->encode($result); }
+	else {
+		print "APLICAR\n", (map { "  ERROR  $_\n" } @$e);
+		print "COMPROBACION (plan calculado otra vez)\n", plan_text($plan2,$o{verbose});
+		print $ok ? "RESULTADO OK ($run)\n" : "RESULTADO ERROR: no ha quedado como se pedia (detalle en $run)\n";
+	}
+	return $ok ? 0 : 1;
+}
+
+sub public_actions { my $p=shift; return [ map { my %a=%$_; delete $a{resource}; \%a } @{$p->{actions}} ]; }
+
+sub write_json {
+my ($path,$data)=@_;
+	open(my $fh,'>',"$path.tmp") or return;
+	print $fh JSON->new->canonical(1)->pretty->encode($data);
+	close($fh) and rename("$path.tmp",$path);
+}
+
+sub output {
+my ($plan,$origin,$phase)=@_;
+	if ($o{json}) {
+		print JSON->new->canonical(1)->pretty->encode({ phase=>$phase, origin=>$origin, cid=>$CID,
+			actions=>public_actions($plan), errors=>$plan->{errors}, derived_errors=>$plan->{derived},
+			blocked=>(blocked($plan)?JSON::true:JSON::false), warnings=>$plan->{warnings}, summary=>summary($plan) });
+	}
+	else { print "PLAN - $origin - cid=$CID\n", plan_text($plan,$o{verbose}); }
+}
+
+#----------------------------------------------------------------------------
+sub cmd_list {
+my ($what)=@_;
+	usage("list: views | subtypes | fields | types") if (! defined $what);
+	usage("list: views | subtypes | fields | types") if ($what !~ /^(views|subtypes|fields|types)$/);
+	my $ctx = context(); my $dbh=$ctx->{dbh};
+	my @rows=(); my @head=();
+	if ($what eq 'views') {
+		my $sql="SELECT name,id_cfg_view,IF(live_metric=1,'viva','estatica'),nmetrics FROM cfg_views WHERE cid=?";
+		my @b=($CID);
+		if (defined $o{search}) { $sql.=" AND name LIKE ?"; push @b, '%'.$o{search}.'%'; }
+		@head=('vista','id','clase','metricas');
+		@rows=@{ $dbh->selectall_arrayref("$sql ORDER BY name", undef, @b) };
+	}
+	elsif ($what eq 'subtypes') {
+		my $cat = CNMControl::Kind::Metric->catalog($ctx);
+		@head=('subtipo','tipo','lapse');
+		@rows = map { [ $_, $cat->{$_}{type}, $cat->{$_}{lapse} ] }
+				  grep { (! defined $o{type}) || ($cat->{$_}{type} eq $o{type}) } sort keys %$cat;
+	}
+	elsif ($what eq 'fields') { @head=('campo de usuario'); @rows=@{ $dbh->selectall_arrayref("SELECT descr FROM devices_custom_types ORDER BY descr") }; }
+	else                      { @head=('tipo de dispositivo'); @rows=@{ $dbh->selectall_arrayref("SELECT descr FROM cfg_host_types ORDER BY descr") }; }
+	if ($o{json}) { print JSON->new->canonical(1)->pretty->encode([ map { my $f=$_; +{ map { $head[$_] => $f->[$_] } 0..$#head } } @rows ]); }
+	else { print join("\t",@head),"\n"; print join("\t", map { defined $_ ? $_ : '' } @$_),"\n" foreach (@rows); }
+	return 0;
+}

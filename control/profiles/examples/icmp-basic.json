@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "descr": "Alta con solo ping: disponibilidad y servicio ICMP, con titulo propio y en una vista estatica. Inventario: name;ip;view y, opcionales, domain, type, c_label.disp_icmp, c_label.mon_icmp y custom.<campo>",
+  "parameters": {
+    "name":   { "required": true },
+    "ip":     { "required": true },
+    "domain": { "default": "local" },
+    "type":   { "descr": "tipo de dispositivo (cnm-control list types); vacio = sin tipo" },
+    "view":   { "required": true, "descr": "vista estatica (cnm-control list views)" }
+  },
+  "resources": [
+    { "kind": "view", "name": "{view}" },
+    { "kind": "device", "name": "{name}", "domain": "{domain}", "ip": "{ip}",
+      "type": "{type}", "snmp": { "version": 0 } },
+    { "kind": "metric", "device": "{name}.{domain}", "subtype": "disp_icmp",
+      "c_label": "Disponibilidad ICMP {name}", "views": [ "{view}" ] },
+    { "kind": "metric", "device": "{name}.{domain}", "subtype": "mon_icmp",
+      "c_label": "Servicio ICMP {name}", "views": [ "{view}" ] }
+  ]
+}

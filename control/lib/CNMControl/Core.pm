@@ -1,0 +1,170 @@
+#####################################################################################################
+# File: (CNMControl::Core.pm)
+# Description:
+#	Core of cnm-control: registry of object kinds, validation of the desired state, plan
+#	(desired state versus current state) and apply.
+#
+#	Each kind of CNM object is a module CNMControl::Kind::<Name> with this interface
+#	(package methods, called as Kind->method):
+#
+#	  order()                     number: kinds are read and applied in ascending order
+#	  validate($r)                -> ($normalized_r, $error)              pure
+#	  key($r)                     -> text that identifies the object       pure
+#	  read($ctx, \@resources)     -> \%current (by key)                    reads the database
+#	  diff($r, $current, $ctx)    -> (\@actions, \@errors, \@warnings)     pure
+#	  apply($ctx, \@actions)      -> \@errors                              writes
+#
+#	An action is { kind, op, ref, text, ...kind-specific data }.
+#	Adding a kind = one module + one line in %KINDS.
+#	This module does not touch the database itself: read() and apply() of each kind do,
+#	through $ctx->{dbh}, which the tests simulate.
+#	Design: cnm-docs, PROY-CNM-cnm-control-Diseno §3 and §5.
+# Set Tab=3
+#####################################################################################################
+package CNMControl::Core;
+$VERSION='0.10';
+use strict;
+use JSON;
+use CNMControl::Kind::View;
+use CNMControl::Kind::Device;
+use CNMControl::Kind::Metric;
+require Exporter;
+our @ISA = qw(Exporter);
+our @EXPORT_OK = qw(kinds validate_state make_plan apply_plan plan_text summary blocked);
+
+# Name of the kind in the state file ("kind") => module
+my %KINDS = (
+	'view'   => 'CNMControl::Kind::View',
+	'device' => 'CNMControl::Kind::Device',
+	'metric' => 'CNMControl::Kind::Metric',
+);
+my %STATE_KEYS = map { $_=>1 } qw(version descr cid resources);
+
+sub kinds { return sort { $KINDS{$a}->order() <=> $KINDS{$b}->order() } keys %KINDS; }
+
+#----------------------------------------------------------------------------
+# validate_state($data) -> (\%by_kind, \@errors)
+# $data: { version:1, resources:[...] }. Validates every resource with its kind and merges
+# repeated ones (same kind and key): identical => one; different => error.
+#----------------------------------------------------------------------------
+sub validate_state {
+my ($data)=@_;
+my @err=();
+	return ({}, ['el estado no es un objeto JSON']) if (ref($data) ne 'HASH');
+	foreach my $k (keys %$data) { push @err, "estado: clave desconocida '$k'" if (! $STATE_KEYS{$k}); }
+	push @err, 'estado: falta "version": 1' if ((! defined $data->{version}) || ($data->{version} ne '1'));
+	push @err, 'estado: "resources" tiene que ser una lista' if (ref($data->{resources}) ne 'ARRAY');
+	return ({}, \@err) if (@err);
+
+	my %by_kind=(); my %seen=();
+	my $json = JSON->new->canonical(1);
+	my $i=0;
+	foreach my $r (@{$data->{resources}}) {
+		$i++;
+		my $where = (ref($r) eq 'HASH' && $r->{_origin}) ? $r->{_origin} : "recurso $i";
+		if ((ref($r) ne 'HASH') || (! defined $r->{kind})) { push @err, "$where: sin \"kind\""; next; }
+		my $kind = $KINDS{$r->{kind}};
+		if (! $kind) { push @err, "$where: kind desconocido '$r->{kind}' (validos: ".join(', ',kinds()).")"; next; }
+		my %copy = %$r; delete $copy{_origin};
+		my ($n,$e) = $kind->validate(\%copy);
+		if ($e) { push @err, "$where ($r->{kind}): $e"; next; }
+		my $k = $kind->key($n);
+		my $sig = $json->encode($n);
+		if (exists $seen{$r->{kind}}{$k}) {
+			push @err, "$where: $r->{kind} '$k' repetido con valores distintos (primero en $seen{$r->{kind}}{$k}{where})"
+				if ($seen{$r->{kind}}{$k}{sig} ne $sig);
+			next;
+		}
+		$seen{$r->{kind}}{$k} = { sig=>$sig, where=>$where };
+		$n->{_origin}=$where;
+		push @{$by_kind{$r->{kind}}}, $n;
+	}
+	return (\%by_kind, \@err);
+}
+
+#----------------------------------------------------------------------------
+# make_plan($ctx, \%by_kind) -> \%plan
+#  plan = { actions=>[...], errors=>[...], derived=>[...], warnings=>[...], unchanged=>N }
+#  errors: the causes; derived: errors that only repeat the failure of another resource of the
+#  state (a kind's diff returns them as { derived=>1, text=>... }). Both block apply_plan.
+#----------------------------------------------------------------------------
+sub make_plan {
+my ($ctx,$by_kind)=@_;
+my %plan=(actions=>[], errors=>[], derived=>[], warnings=>[], unchanged=>0);
+	foreach my $name (kinds()) {
+		my $rs = $by_kind->{$name} or next;
+		my $kind = $KINDS{$name};
+		my $current = $kind->read($ctx, $rs);
+		foreach my $r (@$rs) {
+			my $k = $kind->key($r);
+			my ($acc,$err,$warn) = $kind->diff($r, $current->{$k}, $ctx);
+			foreach my $e (@$err) {
+				if (ref($e) eq 'HASH') { push @{$plan{derived}}, "$r->{_origin} ($name $k): $e->{text}"; }
+				else { push @{$plan{errors}}, "$r->{_origin} ($name $k): $e"; }
+			}
+			push @{$plan{warnings}}, map { "$name $k: $_" } @$warn;
+			push @{$plan{actions}}, @$acc;
+			$plan{unchanged}++ if ((! @$acc) && (! @$err));
+		}
+	}
+	return \%plan;
+}
+
+#----------------------------------------------------------------------------
+# apply_plan($ctx, \%plan) -> \@errors
+# Kind by kind, in order. If a kind fails, the next ones are not applied: they depend on it.
+#----------------------------------------------------------------------------
+sub apply_plan {
+my ($ctx,$plan)=@_;
+	foreach my $name (kinds()) {
+		my @acc = grep { $_->{kind} eq $name } @{$plan->{actions}};
+		next if (! @acc);
+		my $err = $KINDS{$name}->apply($ctx, \@acc);
+		return [ map { "$name: $_" } @$err ] if (@$err);
+	}
+	return [];
+}
+
+sub summary {
+my ($plan)=@_;
+	my %n=(); $n{"$_->{kind}.$_->{op}"}++ foreach (@{$plan->{actions}});
+	return { actions=>scalar(@{$plan->{actions}}), errors=>scalar(@{$plan->{errors}}),
+				derived=>scalar(@{$plan->{derived}||[]}), warnings=>scalar(@{$plan->{warnings}}),
+				unchanged=>$plan->{unchanged}, by_type=>\%n };
+}
+
+sub blocked { my $p=shift; return (@{$p->{errors}} || @{$p->{derived}||[]}) ? 1 : 0; }
+
+#----------------------------------------------------------------------------
+# plan_text($plan, $verbose) -> text
+# With errors, the text starts saying that nothing can be applied, shows the causes, groups
+# the derived errors (listed with $verbose) and shows the actions as blocked.
+#----------------------------------------------------------------------------
+sub plan_text {
+my ($plan,$verbose)=@_;
+my @l=();
+	my $s=summary($plan);
+	if (blocked($plan)) {
+		push @l, sprintf("  NO SE PUEDE APLICAR: %d %s%s", $s->{errors}, ($s->{errors}==1 ? 'error' : 'errores'),
+			($s->{derived} ? " (y $s->{derived} derivados de ".($s->{errors}==1 ? 'el' : 'ellos').")" : ''));
+		push @l, map { "  ERROR  $_" } @{$plan->{errors}};
+		if ($s->{derived}) {
+			if ($verbose) { push @l, map { "  ERROR  (derivado) $_" } @{$plan->{derived}}; }
+			else { push @l, "  ($s->{derived} errores mas, derivados de los anteriores; --verbose para verlos)"; }
+		}
+		if (@{$plan->{actions}}) {
+			push @l, "  Acciones bloqueadas (no se aplica ninguna mientras haya errores):";
+			push @l, map { sprintf("  %-12s %-12s %s", $_->{kind}, $_->{op}, $_->{text}) } @{$plan->{actions}};
+		}
+	}
+	else {
+		push @l, map { sprintf("  %-12s %-12s %s", $_->{kind}, $_->{op}, $_->{text}) } @{$plan->{actions}};
+		push @l, "  (sin cambios)" if (! @{$plan->{actions}});
+	}
+	push @l, map { "  AVISO  $_" } @{$plan->{warnings}};
+	push @l, sprintf("RESUMEN %d acciones, %d sin cambios, %d avisos, %d errores%s",
+		$s->{actions}, $s->{unchanged}, $s->{warnings}, $s->{errors}, ($s->{derived} ? " (+$s->{derived} derivados)" : ''));
+	return join("\n",@l)."\n";
+}
+
+1;
