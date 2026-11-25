@@ -11,7 +11,8 @@ use lib "/opt/crawler/bin";
 use FindBin; use lib "$FindBin::Bin/..";
 use strict;
 use Test::More;
-use ProvisionLite::ProvGuard qw(guard_mode valid_iids guard_decide GUARD_OFF GUARD_ON GUARD_WATCH);
+use ProvisionLite::ProvGuard qw(guard_mode valid_iids guard_decide fix_allowed read_ok_mnames split_blues_read_ok
+                                GUARD_OFF GUARD_ON GUARD_WATCH);
 
 sub m_ { my %h=map { $_ => { label=>"L$_" } } @_; return \%h; }
 
@@ -87,5 +88,39 @@ foreach my $c (@CASES) {
 	my $differs = (join(',',@$guard_gone) ne join(',',@{today_gone($c->{tpl},$c->{read})})) ? 1 : 0;
 	is($differs, $c->{today_differs}, "$c->{name}: ".($c->{today_differs} ? 'hoy se pierde algo que la salvaguarda protege' : 'igual que hoy'));
 }
+
+#--- REG-CNM-Deuda 4.136: azules de instancias que vienen en la lectura -------------------
+my $IIDS = { 1=>{ mname=>'st-1' }, 2=>{ mname=>'st-2' }, 3=>{ mname=>'st-3' }, 4=>{ mname=>'' }, 5=>{} };
+is_deeply([read_ok_mnames($IIDS, m_(1,3))], ['st-1','st-3'], 'read_ok_mnames: las de la plantilla que vienen en la lectura');
+is_deeply([read_ok_mnames($IIDS, m_(3,1,2))], ['st-1','st-2','st-3'], 'read_ok_mnames: ordenadas');
+is_deeply([read_ok_mnames($IIDS, m_(6))], [], 'read_ok_mnames: una instancia nueva no cuenta (no tiene metrica)');
+is_deeply([read_ok_mnames($IIDS, m_(4,5))], [], 'read_ok_mnames: sin mname no cuenta');
+is_deeply([read_ok_mnames($IIDS, { U=>{}, ''=>{} })], [], 'read_ok_mnames: U y vacia no son lecturas validas');
+is_deeply([read_ok_mnames($IIDS, {})], [], 'read_ok_mnames: lectura vacia');
+is_deeply([read_ok_mnames($IIDS, undef)], [], 'read_ok_mnames: sin lectura');
+is_deeply([read_ok_mnames(undef, m_(1))], [], 'read_ok_mnames: sin plantilla');
+
+my $BL = [ ['st-1','10.0.0.1','snmp'], ['st-2','10.0.0.1','snmp'], ['ot-ALL','10.0.0.1','snmp'], ['lat-1','10.0.0.1','latency'] ];
+my ($del,$kept) = split_blues_read_ok($BL, { 'st-2'=>'st', 'st-1'=>'st', 'ot-ALL'=>'ot' });
+is_deeply([map { $_->[0] } @$del], ['lat-1'], 'split_blues_read_ok: se borran las que no estan en la lectura');
+is_deeply($del->[0], ['lat-1','10.0.0.1','latency'], 'split_blues_read_ok: las filas que se borran, enteras (ip y type para el fichero mdata)');
+is_deeply($kept, { st=>['st-1','st-2'], ot=>['ot-ALL'] }, 'split_blues_read_ok: las que se conservan, por subtipo y ordenadas');
+($del,$kept) = split_blues_read_ok($BL, {});
+is(scalar(@$del), 4, 'split_blues_read_ok: sin lecturas buenas (PROV_GUARD 0) se borran todas, como antes');
+is_deeply($kept, {}, 'split_blues_read_ok: y no se conserva ninguna');
+($del,$kept) = split_blues_read_ok([], { 'st-1'=>'st' });
+is_deeply([$del,$kept], [[],{}], 'split_blues_read_ok: sin azules');
+($del,$kept) = split_blues_read_ok(undef, undef);
+is_deeply([$del,$kept], [[],{}], 'split_blues_read_ok: sin datos');
+
+#--- cnm-blue-alerts-fix: solo en el estado soportado ------------------------------------
+is(fix_allowed(undef, guard_mode("a = 1\n")), 1, 'fix_allowed: sin las dos lineas, encola');
+is(fix_allowed('1', GUARD_ON), 1, 'fix_allowed: los dos a 1, encola');
+is(fix_allowed(' 1 ', GUARD_ON), 1, 'fix_allowed: con espacios');
+is(fix_allowed('0', GUARD_ON), 0, 'fix_allowed: PROV_REMAP_BY_LABEL 0 escrito, no encola');
+is(fix_allowed(undef, GUARD_OFF), 0, 'fix_allowed: PROV_GUARD 0, no encola');
+is(fix_allowed(undef, GUARD_WATCH), 0, 'fix_allowed: PROV_GUARD 2, no encola');
+is(fix_allowed(undef, guard_mode("PROV_GUARD = 2\n")), 0, 'fix_allowed: PROV_GUARD 2 leido del fichero, no encola');
+is(fix_allowed(undef, undef), 0, 'fix_allowed: sin modo, no encola');
 
 done_testing();

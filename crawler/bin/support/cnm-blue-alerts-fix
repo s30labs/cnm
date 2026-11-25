@@ -5,8 +5,10 @@
 # alertas azules SNMP. La reprovision reordena c_label y monitores por etiqueta, crea
 # las instancias nuevas y borra las azules (PROY-CNM-Alertas-Azules, apartado 6.3).
 #
-# Necesita PROV_REMAP_BY_LABEL = 1 en /cfg/onm.conf: sin el, la reprovision borraria
-# las azules con su c_label sin reordenar nada, y el guion no encola nada.
+# Solo encola en el estado soportado: PROV_REMAP_BY_LABEL y PROV_GUARD a 1 en /cfg/onm.conf,
+# que es lo que valen sin la linea (ProvisionLite::ProvGuard, fix_allowed). Con un 0 o un 2
+# escritos no encola nada: sin el reordenamiento la reprovision borraria las azules con su
+# c_label, y sin la salvaguarda tambien las de instancias que siguen existiendo (4.136).
 #
 # Uso: cnm-blue-alerts-fix [-n] [-d id_dev] [-c cid]
 #   -n          solo lista lo que encolaria
@@ -22,6 +24,7 @@ use Digest::MD5 qw(md5_hex);
 use ONMConfig;
 use Crawler::Store;
 use ATypes qw(ATYPE_SET_METRICS_FROM_TEMPLATE_BLOCK);
+use ProvisionLite::ProvGuard qw(guard_mode fix_allowed);
 
 my $FILE_CONF = '/cfg/onm.conf';
 my $BLOCK = 15;		# equipos por accion, como la consola
@@ -35,10 +38,13 @@ if ((defined $opts{d}) && ($opts{d} !~ /^\d+$/)) { die "id_dev no valido: $opts{
 if ($CID !~ /^[\w\-]+$/) { die "cid no valido: $CID\n"; }
 
 my $rcfg = conf_base($FILE_CONF);
-my $remap = (defined $rcfg->{'prov_remap_by_label'}) ? $rcfg->{'prov_remap_by_label'}->[0] : 0;
-if ((! defined $remap) || ($remap !~ /^\s*1\s*$/)) {
-	print "PROV_REMAP_BY_LABEL no esta a 1 en $FILE_CONF: no se encola nada.\n";
-	print "Sin el, la reprovision borraria las azules con su c_label sin reordenarlas.\n";
+my $remap = (defined $rcfg->{'prov_remap_by_label'}) ? $rcfg->{'prov_remap_by_label'}->[0] : undef;
+my $text;
+if (open(my $fh,'<',$FILE_CONF)) { local $/; $text=<$fh>; close($fh); }
+my $guard = guard_mode($text);		# la misma regla que la provision
+if (! fix_allowed($remap,$guard)) {
+	print "PROV_REMAP_BY_LABEL y PROV_GUARD no estan a 1 en $FILE_CONF (PROV_GUARD vale $guard): no se encola nada.\n";
+	print "Fuera de ese estado, la reprovision borraria azules con su c_label.\n";
 	exit 1;
 }
 

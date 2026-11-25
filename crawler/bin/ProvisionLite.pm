@@ -73,7 +73,8 @@ my %LOG_PRIORITY = (
 
 #-----------------------------------------------------------------------
 use ProvisionLite::LabelRemap qw(remap_by_label has_monitor_or_c_label);
-use ProvisionLite::ProvGuard qw(guard_mode remap_enabled guard_decide valid_iids GUARD_OFF GUARD_ON GUARD_WATCH);
+use ProvisionLite::ProvGuard qw(guard_mode remap_enabled guard_decide valid_iids read_ok_mnames split_blues_read_ok
+                                GUARD_OFF GUARD_ON GUARD_WATCH);
 use ProvisionLite::RrdRemap qw(swap_plan rrd_swap rename2_supported);
 use SupportDir qw(support_dir);
 use ProvisionLite::disk_mibhost;
@@ -1064,9 +1065,12 @@ my $store_flag=1;
 		#--------------------------------------------------------------------------------
 		# Salvaguarda (PROV_GUARD de /cfg/onm.conf, se lee en cada provision; REG-CNM-Deuda 4.104).
 		# %GUARD_KEEP: mname de las metricas que la salvaguarda no ha tocado; sus azules se conservan.
+		# %READ_OK: mname => subtipo de las instancias SNMP que la lectura trae bien; si estan en
+		# azul, la azul no se debe a la instancia y su metrica se conserva (REG-CNM-Deuda 4.136).
 		#--------------------------------------------------------------------------------
 		my $GUARD = $self->prov_guard_mode();
 		my %GUARD_KEEP = ();
+		my %READ_OK = ();
 
 		#--------------------------------------------------------------------------------
 		# Preparamos el template con las metricas del dispositivo
@@ -1422,6 +1426,7 @@ print "================================================\n";
 				my $G = guard_decide({ 'tpl' => [ keys %{$v->{'IIDS'}} ], 'read' => $MDATA, 'force' => $in->{'force'},
 					'reread' => sub { return $self->read_snmp_mdata($v,$device,$snmp_cfg); } });
 				if ($self->prov_guard_apply($G,$GUARD,$ID_DEV,$device,$v,\$MDATA,\%GUARD_KEEP)) { next; }
+				$READ_OK{$_} = $v->{'subtype'} foreach (read_ok_mnames($v->{'IIDS'},$MDATA));
 			}
 
 			#-------------------------------------------------------------------------------
@@ -1674,6 +1679,19 @@ print "------------------------------\n";
 			$self->log('info',"prov_do_set_device_metric::[INFO] ID_DEV=$ID_DEV SALVAGUARDA: se conservan las azules de ".join(' ',sort keys %GUARD_KEEP));
 		}
       my $rx=$STORE->get_from_db($dbh,'mname,ip,type','alerts',$where_blue);
+		# Azules de instancias que la lectura trae bien (REG-CNM-Deuda 4.136): la azul no se debe
+		# a que la instancia haya desaparecido. Con PROV_GUARD 1 se conservan la metrica, su
+		# c_label y la azul (la quita el crawler cuando vuelve a leer la instancia); con 2 solo
+		# se avisa y se borran como siempre.
+		my ($rx_del,$rx_kept) = split_blues_read_ok($rx,\%READ_OK);
+		foreach my $st (sort keys %$rx_kept) {
+			my $pre = ($GUARD == GUARD_WATCH) ? 'Observacion, no se aplica: ' : '';
+			my $txt = "$device->{'name'} ($device->{'ip'}) $st: la instancia esta en la lectura y se conserva la metrica en azul: "
+						.join(' ',@{$rx_kept->{$st}});
+			$self->log('warning',"prov_do_set_device_metric::[WARN] SALVAGUARDA $pre$txt");
+			$STORE->log_qactions($dbh,{'descr'=>'Provision: azules conservadas', 'rc'=>0, 'rcstr'=>$pre.$txt, 'atype'=>ATYPE_PROV_GUARD, 'id_dev'=>$ID_DEV});
+		}
+		$rx = $rx_del if ($GUARD == GUARD_ON);
       if (scalar(@$rx)>0) {
 			my @mnames=();
          foreach my $x (@$rx) {

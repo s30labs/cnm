@@ -26,16 +26,20 @@
 #	    (status 3, o ya borrada por cnm-watch; REG-CNM-Deuda 4.107); con 0 y 2, no;
 #	  - en el caso de reorder, que cada RRD siga a su etiqueta (el R2: con PROV_GUARD a 1 y
 #	    PROV_REMAP_BY_LABEL a 1) o se quede en su iid (en los demas casos). Se mira el
-#	    inodo de cada fichero en la foto de justo antes de provisionar (before) y despues.
+#	    inodo de cada fichero en la foto de justo antes de provisionar (before) y despues;
+#	  - en el caso blue-present, una azul sobre una fila que la lectura trae bien
+#	    (REG-CNM-Deuda 4.136): con PROV_GUARD a 1 se conservan su metrica y su c_label;
+#	    con 0 y 2 la metrica se borra, como siempre. La azul la pone el crawler: cnm-testbed
+#	    quita la fila del agente, espera a la azul y la vuelve a poner antes de provisionar.
 # Set Tab=3
 #####################################################################################################
 package Testbed::Battery;
-$VERSION='1.02';
+$VERSION='1.03';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
 use Testbed::Snapshot qw(label_keyed);
-our @EXPORT_OK = qw(SUBTYPE UCD_SUBTYPE NOTICE_SKIP NOTICE_REREAD cases select_cases parse_modes
+our @EXPORT_OK = qw(SUBTYPE UCD_SUBTYPE NOTICE_SKIP NOTICE_REREAD NOTICE_BLUE_KEPT cases select_cases parse_modes
 						 expected set_guard_line evaluate split_blues);
 
 use constant SUBTYPE       => 'cnm_testbed_rows';
@@ -43,6 +47,7 @@ use constant UCD_SUBTYPE   => 'ucd_cpu_usage';
 use constant UCD_KEY       => 'ucd_cpu_usage|ALL';
 use constant NOTICE_SKIP   => 'Provision: metrica sin cambios';
 use constant NOTICE_REREAD => 'Provision: instancias recuperadas en la segunda lectura';
+use constant NOTICE_BLUE_KEPT => 'Provision: azules conservadas';
 use constant MAX_ROW       => 6;
 
 # rows: filas de la tabla de prueba que deben quedar en la plantilla
@@ -84,6 +89,10 @@ my @CASES = (
 	{ id=>11, name=>'label-cut',     what=>'en la primera lectura solo se cortan las etiquetas (exploratorio)',
 	  scenario=>{ mode=>'cut-labels', cut_at=>2 }, explore=>1, labels_intact=>1,
 	  today=>{ rows=>[1..5] }, guard=>{ rows=>[1..5] }, notice=>undef },
+	# La fila 3 (con c_label en la foto base) en azul y presente en la lectura (REG-CNM-Deuda 4.136)
+	{ id=>12, name=>'blue-present',  what=>'azul en la fila 3, que la lectura trae bien',
+	  scenario=>{ mode=>'complete' }, blue_row=>3,
+	  today=>{ rows=>[1..5] }, guard=>{ rows=>[1..5] }, notice=>NOTICE_BLUE_KEPT },
 );
 
 #----------------------------------------------------------------------------
@@ -198,9 +207,10 @@ my $a=shift;
 				foreach my $k ('status','watch') {
 					push @f, "fila $i: $k "._v($r->{$k})." en vez de "._v($b->{$k}) if (_v($r->{$k}) ne _v($b->{$k}));
 				}
-				# Una fila activa tiene su metrica (la provision borra las de las filas en azul)
+				# Una fila activa tiene su metrica (la provision borra las de las filas en azul;
+				# la del caso blue-present se mira en el apartado 9)
 				push @f, "fila $i: activa en la plantilla y sin su metrica ".SUBTYPE."-$i"
-					if ((_v($r->{'status'}) eq '0') && (! $after->{'metrics'}{SUBTYPE."-$i"}));
+					if ((_v($r->{'status'}) eq '0') && (! $after->{'metrics'}{SUBTYPE."-$i"}) && (_v($c->{'blue_row'}) ne $i));
 			}
 		}
 	}
@@ -292,6 +302,25 @@ my $a=shift;
 				." (tenia que ser el de ".SUBTYPE."-$src".($follow ? ", su etiqueta" : ", sin moverse").")"
 				if ((! defined $ia) || ($ia != $ib));
 		}
+	}
+
+	# 9. blue-present: la fila en azul que la lectura trae bien (REG-CNM-Deuda 4.136). Tiene
+	# que estar en azul en la foto de justo antes de provisionar (before).
+	if (my $i = $c->{'blue_row'}) {
+		my $m  = SUBTYPE."-$i";
+		my $cb = _clab($base,$m);
+		my %blue = map { $_ => 1 } @{(($a->{'before'} || {})->{'blue'}) || []};
+		if (! $blue{$m})  { push @f, "$m no estaba en azul al provisionar: el caso no se puede evaluar"; }
+		elsif ($cb eq '') { push @f, "la foto base no tiene c_label en $m: el caso no se puede evaluar"; }
+		elsif ($mode eq '1') {
+			my $am = $after->{'metrics'}{$m};
+			if (! $am) { push @f, "$m: con PROV_GUARD 1 la metrica en azul tenia que conservarse y se ha borrado"; }
+			else {
+				push @f, "$m: c_label '"._clab($after,$m)."' en vez de '$cb'" if (_clab($after,$m) ne $cb);
+				push @f, "$m: status "._v($am->{'status'})." en vez de 0" if (_v($am->{'status'}) ne '0');
+			}
+		}
+		elsif ($after->{'metrics'}{$m}) { push @f, "$m: con PROV_GUARD $mode la metrica en azul se tenia que borrar, como siempre"; }
 	}
 
 	# 6. reorder: el c_label de fila-1 (iid 1 en la foto base; con reorder su etiqueta pasa al iid 5)

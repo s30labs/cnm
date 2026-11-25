@@ -16,16 +16,21 @@
 #	PROV_REMAP_BY_LABEL) son estados de desarrollo y hay que escribirlos (guard_mode y
 #	remap_enabled).
 #
+#	Azules de instancias que estan (REG-CNM-Deuda 4.136): si la instancia de una metrica en
+#	azul viene en la lectura, la azul no se debe a que haya desaparecido. Con PROV_GUARD 1
+#	se conservan la metrica y su c_label (read_ok_mnames, split_blues_read_ok).
+#
 #	Es una funcion pura: no lee ni escribe la base. La llama ProvisionLite.pm.
 #	Diseno: cnm-docs, REG-CNM-Deuda 4.104 y PROY-CNM-Alertas-Azules §6.
 # Set Tab=3
 #####################################################################################################
 package ProvisionLite::ProvGuard;
-$VERSION='1.01';
+$VERSION='1.02';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(guard_mode remap_enabled valid_iids guard_decide GUARD_OFF GUARD_ON GUARD_WATCH);
+our @EXPORT_OK = qw(guard_mode remap_enabled fix_allowed valid_iids read_ok_mnames split_blues_read_ok guard_decide
+                    GUARD_OFF GUARD_ON GUARD_WATCH);
 
 use constant GUARD_OFF   => 0;	# lo de siempre
 use constant GUARD_ON    => 1;	# la salvaguarda actua
@@ -60,6 +65,17 @@ my $v=shift;
 }
 
 #----------------------------------------------------------------------------
+# fix_allowed($remap,$guard)
+# $remap: valor de PROV_REMAP_BY_LABEL (undef sin la linea); $guard: lo que devuelve
+# guard_mode. Devuelve 1 solo en el estado soportado (los dos a 1): es cuando
+# cnm-blue-alerts-fix puede encolar reprovisiones.
+#----------------------------------------------------------------------------
+sub fix_allowed {
+my ($remap,$guard)=@_;
+	return (remap_enabled($remap) && (defined $guard) && ($guard eq GUARD_ON)) ? 1 : 0;
+}
+
+#----------------------------------------------------------------------------
 # valid_iids($mdata)
 # Las instancias de una respuesta que son de verdad: ni vacias ni 'U'.
 # En contexto escalar, cuantas son.
@@ -68,6 +84,43 @@ sub valid_iids {
 my $mdata=shift;
 	my @v = (ref($mdata) eq 'HASH') ? (grep { (defined $_) && ($_ ne '') && ($_ ne 'U') } keys %$mdata) : ();
 	return wantarray ? @v : scalar(@v);
+}
+
+#----------------------------------------------------------------------------
+# read_ok_mnames($iids,$mdata)
+# $iids: instancias de la plantilla del subtipo ({ iid => { mname => ... } }).
+# $mdata: la respuesta del equipo. Devuelve, ordenados, los mname de las instancias de
+# la plantilla que vienen en la respuesta como validas (valid_iids).
+#----------------------------------------------------------------------------
+sub read_ok_mnames {
+my ($iids,$mdata)=@_;
+	return () if (ref($iids) ne 'HASH');
+	my @r=();
+	foreach my $iid (valid_iids($mdata)) {
+		next if (ref($iids->{$iid}) ne 'HASH');
+		my $m = $iids->{$iid}->{'mname'};
+		push @r, $m if ((defined $m) && ($m ne ''));
+	}
+	return sort @r;
+}
+
+#----------------------------------------------------------------------------
+# split_blues_read_ok($blues,$read_ok) -> (\@borrar, \%conservar)
+# $blues: [ [mname, ...], ... ] azules del equipo, como las lee la provision.
+# $read_ok: { mname => subtipo } de las instancias que han venido bien en la lectura.
+# Devuelve las azules que se borran (las filas tal cual) y, por subtipo, los mname
+# ordenados de las que se conservan.
+#----------------------------------------------------------------------------
+sub split_blues_read_ok {
+my ($blues,$read_ok)=@_;
+	my @del=(); my %kept=();
+	foreach my $b (@{$blues || []}) {
+		my $st = ((ref($read_ok) eq 'HASH') && (ref($b) eq 'ARRAY')) ? $read_ok->{$b->[0]} : undef;
+		if (defined $st) { push @{$kept{$st}}, $b->[0]; }
+		else { push @del, $b; }
+	}
+	$kept{$_} = [ sort @{$kept{$_}} ] foreach (keys %kept);
+	return (\@del,\%kept);
 }
 
 #----------------------------------------------------------------------------

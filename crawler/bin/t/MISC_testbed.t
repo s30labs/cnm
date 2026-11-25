@@ -12,7 +12,7 @@ use Test::More;
 use Testbed::Agent qw(BASE_OID parse_scenario check_scenario scenario_text table_rows oid_cmp
 							 walk_kind read_step parse_reads reads_text answer_get answer_getnext);
 use Testbed::SnmpdConf qw(has_block set_block remove_block block_names);
-use Testbed::Battery qw(cases select_cases parse_modes expected set_guard_line evaluate split_blues NOTICE_SKIP NOTICE_REREAD);
+use Testbed::Battery qw(cases select_cases parse_modes expected set_guard_line evaluate split_blues NOTICE_SKIP NOTICE_REREAD NOTICE_BLUE_KEPT);
 use Testbed::Engine qw(parse_ps crawlers stale_crawlers);
 use Testbed::Ucd qw(UCD_ENTERPRISE is_ucd_monitor ucd_subtypes_in_use);
 use Testbed::Snapshot qw(inactive_mnames label_keyed diff_snapshots diff_is_empty diff_lines restore_plan);
@@ -202,9 +202,9 @@ is_deeply([map { $_->[1] } @{Testbed::Agent::table_rows({ %$cd, mode=>'complete'
 
 #--- Battery ------------------------------------------------------------------------
 my @CS = cases();
-is(scalar(@CS), 11, 'battery: 11 casos');
-is_deeply([map { $_->{id} } @CS], [1..11], 'battery: numerados del 1 al 11');
-is_deeply([map { $_->{id} } @{(select_cases(''))[0]}], [1..10], 'select_cases: por defecto, sin el exploratorio');
+is(scalar(@CS), 12, 'battery: 12 casos');
+is_deeply([map { $_->{id} } @CS], [1..12], 'battery: numerados del 1 al 12');
+is_deeply([map { $_->{id} } @{(select_cases(''))[0]}], [1..10,12], 'select_cases: por defecto, sin el exploratorio');
 is_deeply([map { $_->{id} } @{(select_cases('11'))[0]}], [11], 'select_cases: el exploratorio, si se pide');
 ok(! grep({ Testbed::Agent::check_scenario($_->{scenario}) ne '' } @CS), 'battery: todos los escenarios son validos para el agente');
 my ($sel,$se) = select_cases('reorder,4');
@@ -234,9 +234,9 @@ sub tb_snap {
 	delete $t{'disk_mibhost|35'} if ($o{no_disk});
 	my %m = map { ("cnm_testbed_rows-$_" => { name=>"cnm_testbed_rows-$_", c_label=>'', status=>0 }) } 1..6;
 	$m{"cnm_testbed_rows-$_"}{status}=3 foreach (@{$o{retired} || []});
-	delete $m{"cnm_testbed_rows-$_"} foreach (@{$o{gone} || []});
 	$m{'cnm_testbed_rows-1'}{c_label}='CL1'; $m{'cnm_testbed_rows-3'}{c_label}='CL3';
 	$m{$_}{c_label}=$o{clab}{$_} foreach (keys %{$o{clab} || {}});
+	delete $m{"cnm_testbed_rows-$_"} foreach (@{$o{gone} || []});	# despues del c_label, que si no la vuelve a crear
 	# Inodo del RRD de cada fila (para el caso reorder, R2): por defecto, cada uno en su iid
 	my %r = map { ("cnm_testbed_rows-$_" => 100+$_) } 1..6;
 	return { template=>\%t, metrics=>\%m, rrd=>\%r };
@@ -381,5 +381,27 @@ $BA->{template}{'disk_mibhost|58'} = { subtype=>'disk_mibhost', iid=>58, label=>
 is_deeply([ evaluate({ case=>$c1, mode=>'1', base=>$BB, after=>$BA, notices=>[] }) ], [], 'evaluate: renumeracion de otro subtipo con el monitor detras de su etiqueta: OK');
 $BA->{template}{'disk_mibhost|57'}{watch}='0'; $BA->{template}{'disk_mibhost|58'}{watch}='s_d';
 ok(grep({ /otras filas/ } evaluate({ case=>$c1, mode=>'1', base=>$BB, after=>$BA, notices=>[] })), 'evaluate: renumeracion con el monitor en el disco equivocado: FALLA');
+
+#--- blue-present (REG-CNM-Deuda 4.136) ---------------------------------------------------
+my ($c12) = grep { $_->{name} eq 'blue-present' } @CS;
+is($c12->{blue_row}, 3, 'blue-present: la fila 3, que tiene c_label en la foto base');
+my $BLUEB  = { %$BS, blue=>['cnm_testbed_rows-3'] };	# justo antes de provisionar: la 3 en azul
+my $KEPT  = { descr=>NOTICE_BLUE_KEPT, rcstr=>'x cnm_testbed_rows: la instancia esta en la lectura y se conserva la metrica en azul: cnm_testbed_rows-3' };
+my $KEPTO = { descr=>NOTICE_BLUE_KEPT, rcstr=>'Observacion, no se aplica: '.$KEPT->{rcstr} };
+my $GONE3 = tb_snap(rows=>[1..5], gone=>[3]);
+is_deeply(ev($c12,'1',$BS, before=>$BLUEB, n=>[$KEPT]), [], 'evaluate blue-present 1: metrica y c_label conservados, con aviso: OK');
+ok(grep({ /tenia que conservarse y se ha borrado/ } @{ev($c12,'1',$GONE3, before=>$BLUEB, n=>[$KEPT])}), 'evaluate blue-present 1 con la metrica borrada (lo de antes de 4.136): FALLA');
+ok(grep({ /c_label '' en vez de 'CL3'/ } @{ev($c12,'1',tb_snap(rows=>[1..5], clab=>{'cnm_testbed_rows-3'=>''}), before=>$BLUEB, n=>[$KEPT])}), 'evaluate blue-present 1 con el c_label perdido: FALLA');
+ok(grep({ /status 3 en vez de 0/ } @{ev($c12,'1',tb_snap(rows=>[1..5], retired=>[3]), before=>$BLUEB, n=>[$KEPT])}), 'evaluate blue-present 1 con la metrica retirada: FALLA');
+ok(grep({ /falta el aviso/ } @{ev($c12,'1',$BS, before=>$BLUEB)}), 'evaluate blue-present 1 sin aviso: FALLA');
+is_deeply(ev($c12,'0',$GONE3, before=>$BLUEB), [], 'evaluate blue-present 0: se borra la metrica, como siempre: OK');
+ok(grep({ /se tenia que borrar, como siempre/ } @{ev($c12,'0',$BS, before=>$BLUEB)}), 'evaluate blue-present 0 con la metrica conservada: FALLA');
+is_deeply(ev($c12,'2',$GONE3, before=>$BLUEB, n=>[$KEPTO]), [], 'evaluate blue-present 2: se borra y avisa en observacion: OK');
+ok(grep({ /Observacion/ } @{ev($c12,'2',$GONE3, before=>$BLUEB, n=>[$KEPT])}), 'evaluate blue-present 2 con aviso sin "Observacion": FALLA');
+ok(grep({ /no estaba en azul al provisionar/ } @{ev($c12,'1',$BS, n=>[$KEPT])}), 'evaluate blue-present sin la azul antes de provisionar: no se puede evaluar');
+ok(grep({ /no tiene c_label/ } @{[ evaluate({ case=>$c12, mode=>'1', base=>tb_snap(rows=>[1..5], clab=>{'cnm_testbed_rows-3'=>''}), before=>$BLUEB, after=>$BS, notices=>[$KEPT] }) ]}),
+	'evaluate blue-present sin c_label en la base: no se puede evaluar');
+ok(! grep({ /activa en la plantilla y sin su metrica cnm_testbed_rows-3/ } @{ev($c12,'0',$GONE3, before=>$BLUEB)}), 'evaluate blue-present: la falta de la metrica de la fila 3 no cuenta como fallo general');
+ok(grep({ /activa en la plantilla y sin su metrica cnm_testbed_rows-3/ } @{ev($c1,'0',$GONE3)}), 'evaluate complete: la falta de la metrica de la fila 3 si es un fallo');
 
 done_testing();
