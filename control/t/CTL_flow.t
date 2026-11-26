@@ -312,4 +312,9 @@ is_deeply([ map { $_->{name} } @{$tf->{views}} ], [ map { $_->{name} } @{$before
 is_deeply($tf->{v2v}, $before->{v2v}, '... ni ningun enlace');
 ok(!(grep { $_->{ip} eq '10.0.1.1' } @{$tf->{devices}}), '... y no se ha seguido con los dispositivos');
 
+# Messages name the view as written, not as its key
+my ($bkl) = validate_state(vstate({ kind=>'view', name=>'Sede Rara', create=>1 }));
+my ($cl) = ctx(vbase()); my $pll = make_plan($cl,$bkl);
+like($pll->{errors}[0], qr/\(view Sede Rara\): falta el tipo/, 'el mensaje nombra la vista como se escribio');
+
 done_testing();

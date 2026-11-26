@@ -10,6 +10,7 @@
 #	  order()                     number: kinds are read and applied in ascending order
 #	  validate($r)                -> ($normalized_r, $error)              pure
 #	  key($r)                     -> text that identifies the object       pure
+#	  label($r)     (optional)    -> the object as the user wrote it, when key() normalizes it
 #	  merge($a,$b)  (optional)    -> ($merged, $error): same key, different content  pure
 #	  read($ctx, \@resources)     -> \%current (by key)                    reads the database
 #	  diff($r, $current, $ctx)    -> (\@actions, \@errors, \@warnings)     pure
@@ -108,6 +109,7 @@ my %plan=(actions=>[], errors=>[], derived=>[], warnings=>[], unchanged=>0);
 		foreach my $r (@$rs) {
 			my $k = $kind->key($r);
 			my ($acc,$err,$warn) = $kind->diff($r, $current->{$k}, $ctx);
+			$k = $kind->label($r) if ($kind->can('label'));		# what the user wrote, for the messages
 			foreach my $e (@$err) {
 				if (ref($e) eq 'HASH') { push @{$plan{derived}}, "$r->{_origin} ($name $k): $e->{text}"; }
 				else { push @{$plan{errors}}, "$r->{_origin} ($name $k): $e"; }

@@ -48,6 +48,7 @@ my %FIELDS = map { $_=>1 } qw(type itil_type global);
 
 sub order { return 10; }
 sub key   { my ($c,$r)=@_; return lc $r->{name}; }		# the database compares without case
+sub label { my ($c,$r)=@_; return $r->{name}; }
 
 #----------------------------------------------------------------------------
 # validate($r) -> ($normalized, $error)
