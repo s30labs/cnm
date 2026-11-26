@@ -37,7 +37,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Profile;
-$VERSION='0.20';
+$VERSION='0.30';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
@@ -51,8 +51,16 @@ my %PARAM_KEYS   = map { $_=>1 } qw(required default descr);
 #----------------------------------------------------------------------------
 sub read_file {
 my ($path)=@_;
-	open(my $fh,'<:encoding(UTF-8)',$path) or return (undef, "no se puede leer $path: $!");
+	open(my $fh,'<:raw',$path) or return (undef, "no se puede leer $path: $!");
 	local $/; my $t=<$fh>; close $fh;
+	# Excel adds a BOM when it saves as "CSV UTF-8"; it is not part of the first column
+	$t =~ s/^\xEF\xBB\xBF//;
+	if (! utf8::decode($t)) {
+		# Not UTF-8 (Excel's plain "CSV" is Windows-1252 in Spanish): say where, change nothing
+		my $n=0;
+		foreach my $l (split(/\n/,$t)) { $n++; my $x=$l; last if (! utf8::decode($x)); }
+		return (undef, "$path: no esta en UTF-8 (primera linea con problemas: $n). Guardalo como CSV UTF-8 o conviertelo: iconv -f WINDOWS-1252 -t UTF-8");
+	}
 	return ($t, undef);
 }
 

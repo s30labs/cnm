@@ -101,7 +101,7 @@ my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 		open(my $fh,'<',$f) or die "no CSV $f"; my @l=<$fh>; close $fh; unlink $f;
 		chomp(my $h = shift @l); my @hd=split(/&\|&/,$h,-1);
 		foreach (@l) { chomp; my @d=split(/&\|&/,$_,-1);
-			push @{$t->{devices}}, { id_dev=>++$t->{seq_dev}, name=>$d[0], domain=>$d[1], ip=>$d[2], type=>$d[8] };
+			push @{$t->{devices}}, { id_dev=>++$t->{seq_dev}, name=>$d[0], domain=>$d[1], ip=>$d[2], type=>$d[8], critic=>$d[7], community=>$d[10], version=>$d[11] };
 			$t->{custom}{$d[2]}{uc $hd[$_]} = ($d[$_] eq '' ? '-' : $d[$_]) for (15..$#hd); }
 	}
 	elsif ($in->{init}==1) {
@@ -316,5 +316,32 @@ ok(!(grep { $_->{ip} eq '10.0.1.1' } @{$tf->{devices}}), '... y no se ha seguido
 my ($bkl) = validate_state(vstate({ kind=>'view', name=>'Sede Rara', create=>1 }));
 my ($cl) = ctx(vbase()); my $pll = make_plan($cl,$bkl);
 like($pll->{errors}[0], qr/\(view Sede Rara\): falta el tipo/, 'el mensaje nombra la vista como se escribio');
+
+#=== 0010: defaults only when creating; differences of an existing device ==================
+my $tc = base(); $tc->{devices}[0]{critic}=75; $tc->{devices}[0]{version}=2; $tc->{devices}[0]{community}='secreta';
+my ($bkc) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100' },
+											 { kind=>'device', name=>'nuevo-01', domain=>'local', ip=>'10.0.9.1' }));
+my ($cc) = ctx($tc); my $plc = make_plan($cc,$bkc);
+is(scalar(@{$plc->{warnings}}), 0, 'existente sin critic ni snmp en el estado: ni aviso ni cambio (no se aplica el 50 por defecto)');
+like($plc->{actions}[0]{text}, qr/snmp=v0$/, 'alta sin critic ni snmp: texto sin critic');
+is(scalar(@{apply_plan($cc,$plc)}), 0, 'alta aplicada');
+my ($nd) = grep { $_->{ip} eq '10.0.9.1' } @{$tc->{devices}};
+is("$nd->{critic}/$nd->{version}/$nd->{community}", '50/0/', 'al crear: critic 50 y version 0 por defecto');
+($bkc) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>100, snmp=>{ version=>2, community=>'otra' } }));
+($cc) = ctx($tc); $plc = make_plan($cc,$bkc);
+like(join(' ',@{$plc->{warnings}}), qr/critic 75 -> 100, snmp community distinta \(no se muestra\)/, 'existente con critic y community distintos: aviso');
+unlike(join(' ',@{$plc->{warnings}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
+is(scalar(@{$plc->{actions}}), 0, '... y sin acciones');
+
+#=== 0010: validation errors derived from an earlier kind of the same line ================
+my (undef,$e10,$d10) = validate_state(vstate(
+	{ kind=>'device', name=>'MAL:1.2.3.4', domain=>'local', ip=>'10.0.9.2', _origin=>'e.csv linea 3' },
+	map { { kind=>'metric', device=>'MAL:1.2.3.4.local', subtype=>$_, _origin=>'e.csv linea 3' } } ('disp_icmp','mon_icmp')));
+is(scalar(@$e10).'+'.scalar(@$d10), '1+2', 'nombre no valido: 1 error y 2 derivados (las metricas de la misma linea)');
+like($e10->[0], qr/solo letras, cifras, _ y -.*separador del CSV/, '... el error explica la regla y sugiere el separador');
+my (undef,$e11,$d11) = validate_state(vstate(
+	{ kind=>'metric', device=>'x', subtype=>'disp_icmp', _origin=>'e.csv linea 4' },
+	{ kind=>'device', name=>'ok', domain=>'local', ip=>'300.1.1.1', _origin=>'e.csv linea 5' }));
+is(scalar(@$e11).'+'.scalar(@$d11), '2+0', 'errores de lineas distintas: no son derivados');
 
 done_testing();

@@ -135,4 +135,15 @@ is_deeply([ map { { %$_ } } @$xv ], [
 	{ kind=>'view', name=>'Sede Norte', create=>JSON::true, fields=>{ type=>'General' }, parents=>['Sedes'], users=>[], _origin=>'vistas.csv linea 3' } ],
 	"'|' separa elementos, sin espacios ni vacios; celda vacia = clave o lista fuera; origen con el nombre del inventario");
 
+#--- 0010: BOM and encoding of the inventory ------------------------------------------------
+use File::Temp qw(tempdir);
+my $td = tempdir(CLEANUP=>1);
+sub wr { my ($n,$b)=@_; open(my $f,'>:raw',"$td/$n") or die; print $f $b; close $f; return "$td/$n"; }
+my ($tb,$eb) = read_file(wr('bom.csv', "\xEF\xBB\xBFname;ip\nAlcal\xC3\xA1;1.1.1.1\n"));
+ok((! $eb) && ($tb =~ /^name;ip\n/), 'BOM de Excel quitado: la primera columna es name');
+is(substr((split(/\n/,$tb))[1],0,6), "Alcal\x{e1}", 'UTF-8 leido como caracteres (tildes bien)');
+my ($tw,$ew) = read_file(wr('win.csv', "name;ip\nok;1.1.1.1\nAlcal\xE1;1.1.1.2\n"));
+ok(! defined $tw, 'fichero en Windows-1252: no se lee');
+like($ew, qr/no esta en UTF-8 \(primera linea con problemas: 3\).*iconv -f WINDOWS-1252/, '... y dice la linea y como convertirlo');
+
 done_testing();

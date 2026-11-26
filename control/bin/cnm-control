@@ -156,8 +156,8 @@ sub cmd_expand {
 sub cmd_plan {
 my ($do_apply)=@_;
 	my ($d,$origin)=input();
-	my ($by_kind,$err)=validate_state($d);
-	if (@$err) { output({ errors=>$err, derived=>[], actions=>[], warnings=>[], unchanged=>0 }, $origin, 'validate'); return 1; }
+	my ($by_kind,$err,$der)=validate_state($d);
+	if (@$err) { output({ errors=>$err, derived=>$der, actions=>[], warnings=>[], unchanged=>0 }, $origin, 'validate'); return 1; }
 	my $ctx = context();
 	my $plan = make_plan($ctx,$by_kind);
 	output($plan, $origin, 'plan');

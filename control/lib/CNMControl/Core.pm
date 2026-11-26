@@ -24,7 +24,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Core;
-$VERSION='0.20';
+$VERSION='0.30';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -45,9 +45,12 @@ my %STATE_KEYS = map { $_=>1 } qw(version descr cid resources);
 sub kinds { return sort { $KINDS{$a}->order() <=> $KINDS{$b}->order() } keys %KINDS; }
 
 #----------------------------------------------------------------------------
-# validate_state($data) -> (\%by_kind, \@errors)
+# validate_state($data) -> (\%by_kind, \@errors, \@derived)
 # $data: { version:1, resources:[...] }. Validates every resource with its kind and merges
 # repeated ones (same kind and key): identical => one; different => error.
+# derived: errors of a resource that comes from the same place (the same inventory line) as
+# a resource of an earlier kind that already failed, e.g. the metrics of a device with an
+# invalid name. They block like the others; they are shown apart, as in the plan.
 #----------------------------------------------------------------------------
 sub validate_state {
 my ($data)=@_;
@@ -56,9 +59,9 @@ my @err=();
 	foreach my $k (keys %$data) { push @err, "estado: clave desconocida '$k'" if (! $STATE_KEYS{$k}); }
 	push @err, 'estado: falta "version": 1' if ((! defined $data->{version}) || ($data->{version} ne '1'));
 	push @err, 'estado: "resources" tiene que ser una lista' if (ref($data->{resources}) ne 'ARRAY');
-	return ({}, \@err) if (@err);
+	return ({}, \@err, []) if (@err);
 
-	my %by_kind=(); my %seen=();
+	my %by_kind=(); my %seen=(); my @der=(); my %failed=();	# origin => lowest order of a failed kind
 	my $json = JSON->new->canonical(1);
 	my $i=0;
 	foreach my $r (@{$data->{resources}}) {
@@ -69,7 +72,13 @@ my @err=();
 		if (! $kind) { push @err, "$where: kind desconocido '$r->{kind}' (validos: ".join(', ',kinds()).")"; next; }
 		my %copy = %$r; delete $copy{_origin};
 		my ($n,$e) = $kind->validate(\%copy);
-		if ($e) { push @err, "$where ($r->{kind}): $e"; next; }
+		if ($e) {
+			my $o = $kind->order();
+			if (defined $failed{$where} && ($failed{$where} < $o)) { push @der, "$where ($r->{kind}): $e"; }
+			else { push @err, "$where ($r->{kind}): $e"; }
+			$failed{$where} = $o if ((! defined $failed{$where}) || ($o < $failed{$where}));
+			next;
+		}
 		my $k = $kind->key($n);
 		my $sig = $json->encode($n);
 		if (my $s = $seen{$r->{kind}}{$k}) {
@@ -90,7 +99,7 @@ my @err=();
 		push @{$by_kind{$r->{kind}}}, $n;
 		$seen{$r->{kind}}{$k} = { sig=>$sig, where=>$where, idx=>$#{$by_kind{$r->{kind}}} };
 	}
-	return (\%by_kind, \@err);
+	return (\%by_kind, \@err, \@der);
 }
 
 #----------------------------------------------------------------------------

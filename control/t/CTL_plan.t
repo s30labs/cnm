@@ -154,4 +154,12 @@ is_deeply($n, { kind=>'view', name=>'V', create=>1, users=>['a'] }, 'create true
 ok(! exists $n->{create}, 'create false: como si no estuviera');
 is($V->key({ name=>'Sede Madrid' }), 'sede madrid', 'la clave no distingue mayusculas, como la base de datos');
 
+#--- 0010: device without critic or snmp keeps them undeclared ----------------------------
+($n) = $D->validate({ kind=>'device', name=>'a', domain=>'b', ip=>'1.1.1.1' });
+ok(! exists $n->{critic} && ! exists $n->{snmp}, 'sin critic ni snmp: no se ponen valores por defecto al validar');
+(undef,$e) = $D->validate({ kind=>'device', name=>'ES-X:1.2.3.4', domain=>'b', ip=>'1.1.1.1' });
+like($e, qr/hasta 50 \(devices\.name\).*separador del CSV/, 'nombre con ":": regla y pista del separador');
+(undef,$e) = $D->validate({ kind=>'device', name=>'ES-X', domain=>'b', ip=>'1.1.1.1', snmp=>{ version=>3 } });
+like($e, qr/0, 1 o 2/, 'SNMP v3: rechazado');
+
 done_testing();
