@@ -1,0 +1,165 @@
+#!/usr/bin/perl -w
+#-------------------------------------------------------------------------------------------
+# cnm-orphan-metrics
+# One-off cleanup of what removed template rows left behind before REG-CNM-Deuda 4.107
+# (PROY-CNM-Alertas-Azules, point 21). In steps, decided on 24-nov-2026:
+#   list     read only: what there is, per device (this version)
+#   retire   SNMP metrics without a template row        (not yet)
+#   purge    .removed-* and archived orphan RRD older than 90 days, also from cnm-daily
+#            (not yet)
+# Latency and xagent metrics are out of scope: they are listed apart and never touched.
+#
+# Usage: cnm-orphan-metrics list [-d id_dev] [-v]
+#-------------------------------------------------------------------------------------------
+use lib "/opt/crawler/bin";
+use strict;
+use Getopt::Std;
+use ONMConfig;
+use Crawler::Store;
+use SupportDir qw(new_run_dir);
+use ProvisionLite::Orphans qw(RETENTION_DAYS classify_files);
+
+my $TOOL = 'cnm-orphan-metrics';
+my $FILE_CONF = '/cfg/onm.conf';
+my $RRD_DIR = $ENV{'CNM_RRD_DIR'} || '/opt/data/rrd/elements';
+
+my $USAGE = <<"EOT";
+Limpieza unica de lo que dejaron las filas quitadas de la plantilla (REG-CNM-Deuda 4.107)
+(c) s30labs
+
+$TOOL list [-d id_dev] [-v]
+    Solo lee. Por equipo:
+      sin fila SNMP   metricas SNMP activas sin fila en la plantilla (con c_label: cuantas)
+      sin fila otras  metricas de latencia o xagent sin fila (no se tocan nunca)
+      filas           filas de la plantilla del equipo (0: el equipo no se provisiona por
+                      plantilla y sus metricas no se pueden juzgar asi)
+      rrd huerfanos   .rrd de $RRD_DIR/<equipo>/ que no son de ninguna metrica, y su tamano
+      removed         ficheros .removed-* de la retirada de 4.107 (y cuantos pasan de ${\ RETENTION_DAYS} dias)
+      orphan          .rrd huerfanos ya archivados (.orphan-*; y cuantos pasan de ${\ RETENTION_DAYS} dias)
+    Y los directorios de $RRD_DIR que no son de ningun equipo.
+    El detalle, fichero a fichero, queda en /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-list/.
+    -d  solo ese equipo
+    -v  saca tambien el detalle en pantalla
+$TOOL -h  : Ayuda
+
+Codigo de salida: 0 bien, 1 error, 2 uso incorrecto.
+EOT
+
+my $cmd = shift(@ARGV) || '';
+if (($cmd eq '-h') || ($cmd eq 'help')) { print $USAGE; exit 0; }
+if ($cmd ne 'list') { print STDERR "Falta el subcomando, o no es valido: '$cmd'\n\n$USAGE"; exit 2; }
+my %opts=();
+getopts("d:v",\%opts) or do { print STDERR $USAGE; exit 2; };
+if (@ARGV) { print STDERR "Sobra: @ARGV\n"; exit 2; }
+if ((defined $opts{d}) && ($opts{d} !~ /^\d+$/)) { print STDERR "id_dev no valido: $opts{d}\n"; exit 2; }
+
+my $rcfg = conf_base($FILE_CONF);
+my $store = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
+	db_server=>$rcfg->{'db_server'}->[0], db_name=>$rcfg->{'db_name'}->[0],
+	db_user=>$rcfg->{'db_user'}->[0], db_pwd=>$rcfg->{'db_pwd'}->[0], log_level=>'info');
+my $dbh = $store->open_db();
+if (! $dbh) { print STDERR "No se puede conectar con la base\n"; exit 1; }
+
+sub read_db {
+my ($cols,$table,$where)=@_;
+	my $r = $store->get_from_db($dbh,$cols,$table,$where);
+	if ($store->error()) { print STDERR "ERROR al leer $table: ".$store->errorstr()."\n"; exit 1; }
+	return $r;
+}
+
+my $dev_where = (defined $opts{d}) ? "id_dev=$opts{d}" : '1=1';
+
+# Devices
+my %name = map { $_->[0] => $_->[1] } @{ read_db('id_dev,name','devices',$dev_where) };
+if ((defined $opts{d}) && (! exists $name{$opts{d}})) { print STDERR "No existe el equipo $opts{d}\n"; exit 1; }
+
+# Template rows per device
+my %rows=();
+$rows{$_->[0]} = $_->[1] foreach @{ read_db('id_dev,count(*)','prov_template_metrics2iid',"$dev_where GROUP BY id_dev") };
+
+# Metrics: files of every type, and active metrics without a template row
+my (%mfiles,%dev_has_metrics);
+foreach my $r (@{ read_db('id_dev,file','metrics',$dev_where) }) {
+	$dev_has_metrics{$r->[0]}=1;
+	$mfiles{$r->[1]}=1 if ((defined $r->[1]) && ($r->[1] ne ''));
+}
+my $where_m = "m.status!=3 AND t.mname IS NULL".((defined $opts{d}) ? " AND m.id_dev=$opts{d}" : '');
+my $norow = read_db('m.id_dev,m.id_metric,m.name,m.type,m.status,m.c_label,m.file',
+	'metrics m LEFT JOIN prov_template_metrics2iid t ON t.id_dev=m.id_dev AND t.mname=m.name', $where_m);
+
+# RRD directories
+my (%dirs,@stray);
+if (opendir(my $dh,$RRD_DIR)) {
+	foreach my $d (sort readdir($dh)) {
+		next if ($d !~ /^(\d{10})$/);
+		my $id = $1 + 0;
+		next if ((defined $opts{d}) && ($id != $opts{d}));
+		if (exists $name{$id}) { $dirs{$id}=$d; } else { push @stray,$d; }
+	}
+	closedir($dh);
+}
+else { print STDERR "No se puede leer $RRD_DIR: $!\n"; exit 1; }
+
+# Per device
+my $now = time();
+my %S=();		# id => { snmp, snmp_clabel, other, orphan, orphan_bytes, removed, removed_due, archived, archived_due }
+my @detail=();
+foreach my $r (@$norow) {
+	my ($id,$idm,$mname,$type,$status,$clabel,$file)=@$r;
+	my $k = ((defined $type) && ($type eq 'snmp')) ? 'snmp' : 'other';
+	$S{$id}{$k}++;
+	my $has_cl = ((defined $clabel) && ($clabel ne '')) ? 1 : 0;
+	$S{$id}{'snmp_clabel'}++ if (($k eq 'snmp') && $has_cl);
+	push @detail, join("\t",$id,"sin fila $k",$mname,"id_metric=$idm",'type='.($type//''),'c_label='.($has_cl ? $clabel : ''));
+}
+foreach my $id (sort { $a <=> $b } keys %dirs) {
+	my $d = $dirs{$id};
+	opendir(my $dh,"$RRD_DIR/$d") or do { print STDERR "No se puede leer $RRD_DIR/$d: $!\n"; exit 1; };
+	my @files = grep { -f "$RRD_DIR/$d/$_" } readdir($dh);
+	closedir($dh);
+	my $c = classify_files($d,\@files,\%mfiles,$now);
+	my %due = map { $_ => 1 } @{$c->{'due'}};
+	foreach my $f (@{$c->{'orphan'}}) {
+		my @st = stat("$RRD_DIR/$d/$f");
+		$S{$id}{'orphan'}++; $S{$id}{'orphan_bytes'} += $st[7];
+		my @t = localtime($st[9]);
+		push @detail, join("\t",$id,'rrd huerfano',"$d/$f",'bytes='.$st[7],sprintf('mtime=%04d-%02d-%02d',$t[5]+1900,$t[4]+1,$t[3]));
+	}
+	foreach my $k ('removed','archived') {
+		foreach my $f (@{$c->{$k}}) {
+			$S{$id}{$k}++;
+			$S{$id}{$k.'_due'}++ if ($due{$f});
+			push @detail, join("\t",$id,$k,"$d/$f",$due{$f} ? 'purgable' : 'en retencion');
+		}
+	}
+}
+
+# Output
+my $run = new_run_dir($TOOL,'list');
+open(my $DET,'>',"$run/detail.tsv") or die "No se puede escribir $run/detail.tsv: $!\n";
+print $DET "id_dev\tclase\tnombre\tdatos\n";
+print $DET "$_\n" foreach (sort { (split(/\t/,$a))[0] <=> (split(/\t/,$b))[0] || $a cmp $b } @detail);
+close($DET);
+
+my @cols = qw(snmp snmp_clabel other orphan orphan_bytes removed removed_due archived archived_due);
+my %T=();
+printf("%-7s %-24s %6s %9s %9s %7s %9s %9s %11s %11s\n",'id_dev','equipo','filas','sin fila','(c_label)','otras','rrd huerf','MB','removed/due','orphan/due');
+foreach my $id (sort { $a <=> $b } keys %S) {
+	my $s = $S{$id};
+	$T{$_} += ($s->{$_} || 0) foreach @cols;
+	$T{'norows'}++ if ((! $rows{$id}) && ($s->{'snmp'}));
+	printf("%-7d %-24s %6d %9d %9d %7d %9d %9.1f %11s %11s\n", $id, substr($name{$id}//'?',0,24), $rows{$id} || 0,
+		$s->{'snmp'} || 0, $s->{'snmp_clabel'} || 0, $s->{'other'} || 0, $s->{'orphan'} || 0, ($s->{'orphan_bytes'} || 0)/1048576,
+		($s->{'removed'} || 0).'/'.($s->{'removed_due'} || 0), ($s->{'archived'} || 0).'/'.($s->{'archived_due'} || 0));
+}
+print "\nTotal: equipos con algo: ".scalar(keys %S)
+	." · metricas SNMP sin fila: ".($T{'snmp'} || 0)." (con c_label: ".($T{'snmp_clabel'} || 0).")"
+	." · otras sin fila (no se tocan): ".($T{'other'} || 0)
+	." · rrd huerfanos: ".($T{'orphan'} || 0).sprintf(" (%.1f MB)",($T{'orphan_bytes'} || 0)/1048576)
+	." · removed: ".($T{'removed'} || 0)." (".($T{'removed_due'} || 0)." de mas de ".RETENTION_DAYS." dias)"
+	." · orphan: ".($T{'archived'} || 0)." (".($T{'archived_due'} || 0)." de mas de ".RETENTION_DAYS." dias)\n";
+print "Equipos con metricas SNMP sin fila y sin ninguna fila en la plantilla: ".($T{'norows'} || 0)."\n";
+print "Directorios de $RRD_DIR sin equipo: ".scalar(@stray).(@stray ? " (".join(' ',@stray[0..($#stray < 9 ? $#stray : 9)]).(@stray > 10 ? ' ...' : '').")" : '')."\n";
+print "Detalle: $run/detail.tsv\n";
+if ($opts{v}) { open(my $fh,'<',"$run/detail.tsv"); print while (<$fh>); close($fh); }
+exit 0;
