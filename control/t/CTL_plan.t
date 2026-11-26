@@ -8,6 +8,7 @@
 use FindBin; use lib "$FindBin::Bin/../lib";
 use strict;
 use Test::More;
+use JSON;
 use CNMControl::Core qw(validate_state kinds);
 use CNMControl::Kind::View;
 use CNMControl::Kind::Device;
@@ -34,7 +35,14 @@ my @bad = (
 	[ $M, { kind=>'metric', device=>'a.b', subtype=>'x', instances=>{label_like=>'('} }, qr/expresion valida/ ],
 	[ $M, { kind=>'metric', device=>'a.b', subtype=>'x', c_label=>'x' x 256 },    qr/255/ ],
 	[ $V, { kind=>'view' },                                                           qr/falta "name"/ ],
-	[ $V, { kind=>'view', name=>'V', create=>{} },                                   qr/MVP/ ],
+	[ $V, { kind=>'view', name=>'V', create=>{} },                                   qr/true o false/ ],
+	[ $V, { kind=>'view', name=>'V', like=>'M' },                                    qr/solo tienen sentido con "create"/ ],
+	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ live_metric=>1 } },        qr/campo 'live_metric' no admitido/ ],
+	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ itil_type=>7 } },          qr/itil_type tiene que ser 1 a 5/ ],
+	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ global=>2 } },             qr/global tiene que ser 0 o 1/ ],
+	[ $V, { kind=>'view', name=>'V', parents=>'P' },                                 qr/"parents" tiene que ser una lista/ ],
+	[ $V, { kind=>'view', name=>'V', parents=>['v'] },                               qr/padre de si misma/ ],
+	[ $V, { kind=>'view', name=>'V', otra=>1 },                                      qr/clave desconocida 'otra'/ ],
 );
 foreach my $b (@bad) { my ($n,$e)=$b->[0]->validate($b->[1]); like($e // '', $b->[2], "rechazado: $b->[2]"); }
 
@@ -120,7 +128,7 @@ like(join(' ',@$wa), qr/desactivada/, 'metrica desactivada: aviso');
 # e) derived errors: same message, flagged, when the device or view resource already failed
 ($acc,$er) = $M->diff($r, { dev_ids=>[], metric=>undef, in_views=>{}, views=>$views, cat=>$cat }, { %$ctx, pending=>{}, failed=>{ 'tda-01.local'=>1 } });
 ok((ref($er->[0]) eq 'HASH') && $er->[0]{derived} && ($er->[0]{text} =~ /no existe ni se crea/), 'dispositivo que ya fallo: error derivado');
-($acc,$er) = $M->diff($r, { dev_ids=>[12], metric=>undef, in_views=>{}, views=>{}, cat=>$cat }, { %$ctx, failed_view=>{ Tiendas=>1 } });
+($acc,$er) = $M->diff($r, { dev_ids=>[12], metric=>undef, in_views=>{}, views=>{}, cat=>$cat }, { %$ctx, failed_view=>{ tiendas=>1 } });
 ok((ref($er->[0]) eq 'HASH') && $er->[0]{derived}, 'vista que ya fallo: error derivado');
 
 # f) is the metric to create in the assistant of the existing device?
@@ -136,7 +144,14 @@ is(scalar(@$wa), 0, 'existente cuyo asistente la ofrece: sin aviso');
 is(scalar(@$wa), 0, 'dispositivo nuevo: sin aviso en el plan (su asistente se calcula al aplicar)');
 
 #--- 5. diff: view ----------------------------------------------------------------
-($acc,$er) = $V->diff({ name=>'X' }, undef, $ctx);   like($er->[0], qr/no existe/, 'vista inexistente');
-($acc,$er) = $V->diff({ name=>'X' }, { live_metric=>1 }, $ctx); like($er->[0], qr/viva/, 'vista viva');
+($acc,$er) = $V->diff({ name=>'X' }, {}, $ctx);   like($er->[0], qr/no existe.*"create": true/, 'vista inexistente sin create');
+ok($ctx->{failed_view}{x}, '... queda anotada para los errores derivados de las metricas');
+($acc,$er) = $V->diff({ name=>'X' }, { view=>{ id=>5, live_metric=>1 }, views=>{}, types=>{} }, $ctx);
+is(scalar(@$acc)+scalar(@$er), 0, 'vista viva solo como referencia: sin error (lo da la metrica que se asocie)');
+($n) = $V->validate({ kind=>'view', name=>'V', create=>JSON::true, users=>['a','A',''], parents=>[] });
+is_deeply($n, { kind=>'view', name=>'V', create=>1, users=>['a'] }, 'create true de JSON, usuarios sin repetir ni vacios, listas vacias fuera');
+($n) = $V->validate({ kind=>'view', name=>'V', create=>JSON::false });
+ok(! exists $n->{create}, 'create false: como si no estuviera');
+is($V->key({ name=>'Sede Madrid' }), 'sede madrid', 'la clave no distingue mayusculas, como la base de datos');
 
 done_testing();

@@ -11,6 +11,8 @@
 #	A column named c_label.<subtype> carries the title of the metric <subtype> of that row
 #	(for instance c_label.mon_icmp): an empty cell keeps the c_label of the profile, a value
 #	overrides it. The row must have exactly one metric of that subtype.
+#	In a list, '|' separates elements: "parents": ["{parents}"] with parents=Sedes|Clientes
+#	gives two parents (separator chosen by the project management, 26-nov-2026).
 #	Each row instantiates every resource of the profile. Resources repeated across rows
 #	(the same view, for instance) are merged by CNMControl::Core when identical and are an
 #	error when they differ.
@@ -35,7 +37,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Profile;
-$VERSION='0.10';
+$VERSION='0.20';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
@@ -149,18 +151,20 @@ my (@rows,@err);
 }
 
 #----------------------------------------------------------------------------
-# expand($profile, \@rows) -> (\@resources, \@errors)
+# expand($profile, \@rows, $label) -> (\@resources, \@errors)
 # Replaces {param} in every string. A key whose value is exactly "{param}" with an empty
 # parameter is dropped (optional parameter). A list loses the elements that end up empty
-# (e.g. "views": ["{view}"] with view=''). Every resource carries "_origin" = "line N"
-# for the messages. The custom.<field> values of a row go to "fields" of the one device
+# (e.g. "views": ["{view}"] with view=''), and a list element with '|' becomes several
+# ("views": ["{views}"] with views="A|B"). Every resource carries "_origin" =
+# "<label> linea N" for the messages ($label: the inventory file; default 'inventario'). The custom.<field> values of a row go to "fields" of the one device
 # resource of the profile; a row with custom values and a profile with no device resource,
 # or with more than one, is an error. The c_label.<subtype> values go to "c_label" of the
 # metric of that subtype in the row; none or more than one such metric is an error.
 #----------------------------------------------------------------------------
 sub expand {
-my ($profile,$rows)=@_;
+my ($profile,$rows,$label)=@_;
 my (@res,@err);
+	$label = 'inventario' if (! defined $label);
 	my $n_dev = scalar(grep { ref($_) eq 'HASH' && defined $_->{kind} && $_->{kind} eq 'device' } @{$profile->{resources}});
 	foreach my $f (@$rows) {
 		my %custom = %{$f->{custom} || {}};
@@ -171,7 +175,7 @@ my (@res,@err);
 		my @row=();
 		foreach my $tpl (@{$profile->{resources}}) {
 			my $r = _substitute($tpl, $f->{values});
-			$r->{_origin} = "inventario linea $f->{line}";
+			$r->{_origin} = "$label linea $f->{line}";
 			if (%custom && (ref($r) eq 'HASH') && defined $r->{kind} && ($r->{kind} eq 'device')) {
 				my %fields = (ref($r->{fields}) eq 'HASH') ? %{$r->{fields}} : ();
 				foreach my $k (keys %custom) {
@@ -206,7 +210,13 @@ my ($x,$v)=@_;
 		}
 		return \%h;
 	}
-	if (ref($x) eq 'ARRAY') { return [ grep { !(defined $_ && !ref($_) && $_ eq '') } map { _substitute($_,$v) } @$x ]; }
+	# In a list, a text with '|' is several elements ("parents": ["{parents}"] with
+	# parents="Sedes|Clientes"); the empty ones are dropped
+	if (ref($x) eq 'ARRAY') {
+		return [ grep { !(defined $_ && !ref($_) && $_ eq '') }
+					map { (defined $_ && !ref($_)) ? (map { my $e=$_; $e =~ s/^\s+|\s+$//g; $e } split(/\|/,$_,-1)) : $_ }
+					map { _substitute($_,$v) } @$x ];
+	}
 	return $x if ((! defined $x) || ref($x));		# JSON numbers and booleans, null
 	my $s=$x;
 	$s =~ s/\{([^{}]*)\}/defined $v->{$1} ? $v->{$1} : ''/ge;

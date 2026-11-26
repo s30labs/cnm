@@ -4,8 +4,8 @@
 # Declarative configuration of CNM: describe how it must end up; the tool computes the
 # difference with the onm database, shows it (plan) and applies it (apply).
 # Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
-# SKELETON v0.1: kinds vista (check), dispositivo (create) and latency metrica (provision,
-# c_label, static views). No saved plan, no queue, no audit, no deletions.
+# SKELETON v0.2: kinds view (create, parents, users), device (create) and latency metric
+# (provision, c_label, static views). No saved plan, no queue, no audit, no deletions.
 #-------------------------------------------------------------------------------------------
 BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
 use FindBin;
@@ -20,7 +20,7 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.1';
+my $VERSION     = '0.2';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 my $DIR_PROFILE = '/cfg/cnm-control/profiles';
@@ -33,15 +33,20 @@ Configuracion declarativa de CNM (esqueleto v$VERSION)
 $fpth[$#fpth] plan   ENTRADA [--json] [--verbose] [--cid CID]  muestra lo que cambiaria; no escribe
 $fpth[$#fpth] apply  ENTRADA --confirm [--json] [--cid CID]    aplica el plan y lo comprueba
 $fpth[$#fpth] expand --profile P --inventory F.csv             imprime los recursos que resultan
-$fpth[$#fpth] list   views [--search TXT] | subtypes [--type latency|snmp|xagent] | fields | types
+$fpth[$#fpth] list   views [--search TXT] | viewtypes | users | subtypes [--type latency|snmp|xagent] | fields | types
 $fpth[$#fpth] -h  : Ayuda
 
   ENTRADA:  -f FICHERO.json                     lista de recursos
             --profile P --inventory F.csv       perfil (nombre en $DIR_PROFILE o ruta) + CSV con ';'
+            Se pueden repetir y combinar: todo forma un solo plan. Cada --profile va con el
+            --inventory que ocupa su mismo lugar (el primero con el primero...).
+            Ejemplo: --profile views-basic --inventory vistas.csv --profile icmp-basic --inventory equipos.csv
+            En una celda del CSV que va a una lista (parents, users, views), '|' separa elementos.
 
-  apply crea dispositivos (con su asistente y aplicaciones), provisiona metricas, cambia
-  c_label y asocia metricas a vistas estaticas. No borra nada. Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar
-  la lista: apply vuelve a calcular ese mismo plan, lo aplica y, al terminar, lo calcula otra
+  apply crea vistas (con sus padres y usuarios) y dispositivos (con su asistente y
+  aplicaciones), provisiona metricas, cambia c_label y asocia metricas a vistas estaticas.
+  A las vistas que ya existen les anade padres y usuarios; no cambia sus campos. No borra nada.
+  Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a calcular ese mismo plan, lo aplica y, al terminar, lo calcula otra
   vez; si no sale vacio, termina con error. Sin --confirm, apply solo muestra el plan.
   Cada apply deja el plan, la salida del motor y el resultado en
   /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-apply/.
@@ -54,7 +59,7 @@ my $cmd = shift @ARGS;
 if ((defined $cmd) && ($cmd =~ /^--?h(elp)?$/)) { print $USAGE; exit 0; }
 usage("falta la orden") if (! defined $cmd);
 my %o=();
-GetOptionsFromArray(\@ARGS, \%o, 'f|file=s','profile=s','inventory=s','json','cid=s','confirm','search=s','type=s','verbose','h|help')
+GetOptionsFromArray(\@ARGS, \%o, 'f|file=s@','profile=s@','inventory=s@','json','cid=s','confirm','search=s','type=s','verbose','h|help')
 	or usage("opciones no validas");
 if ($o{h}) { print $USAGE; exit 0; }
 my $CID = defined $o{cid} ? $o{cid} : 'default';
@@ -74,25 +79,38 @@ sub fail  { my $m=shift; print STDERR "$m\n"; exit 1; }
 # Input -> state (hash with version and resources)
 #----------------------------------------------------------------------------
 sub input {
-	if (defined $o{f}) {
-		usage('-f no se combina con --profile/--inventory') if (defined $o{profile} || defined $o{inventory});
-		my ($t,$e)=read_file($o{f}); fail($e) if ($e);
-		my $d; eval { $d = JSON->new->decode($t); }; fail("$o{f}: JSON no valido: $@") if ($@);
-		return ($d, $o{f});
+	my @f   = @{$o{f}||[]};
+	my @pro = @{$o{profile}||[]};
+	my @inv = @{$o{inventory}||[]};
+	usage("falta la entrada: -f, o --profile y --inventory") if ((! @f) && (! @pro) && (! @inv));
+	usage("cada --profile necesita su --inventory (hay ".scalar(@pro)." y ".scalar(@inv).")") if (@pro != @inv);
+	my (@res,@origin);
+	foreach my $file (@f) {
+		my ($t,$e)=read_file($file); fail($e) if ($e);
+		my $d; eval { $d = JSON->new->decode($t); }; fail("$file: JSON no valido: $@") if ($@);
+		if ((@f + @pro == 1)) { return ($d, $file); }		# a single JSON file: as it is
+		fail("$file: no es un estado con \"version\": 1 y \"resources\"")
+			if ((ref($d) ne 'HASH') || (! defined $d->{version}) || ($d->{version} ne '1') || (ref($d->{resources}) ne 'ARRAY'));
+		my $i=0;
+		foreach my $r (@{$d->{resources}}) { $i++; $r->{_origin}="$file recurso $i" if (ref($r) eq 'HASH'); push @res, $r; }
+		push @origin, $file;
 	}
-	usage("falta la entrada: -f, o --profile y --inventory") if (! defined $o{profile} || ! defined $o{inventory});
-	my $rp = $o{profile};
-	if (($rp !~ m{/}) && (! -f $rp)) {		# a name: looked up in the profile directory
-		usage("nombre de perfil no valido '$rp'") if ($rp !~ /^[\w][\w.\-]*$/);
-		$rp = "$DIR_PROFILE/$rp".($rp =~ /\.json$/ ? '' : '.json');
+	for my $k (0..$#pro) {
+		my $rp = $pro[$k];
+		if (($rp !~ m{/}) && (! -f $rp)) {		# a name: looked up in the profile directory
+			usage("nombre de perfil no valido '$rp'") if ($rp !~ /^[\w][\w.\-]*$/);
+			$rp = "$DIR_PROFILE/$rp".($rp =~ /\.json$/ ? '' : '.json');
+		}
+		my ($tp,$ep)=read_file($rp); fail($ep) if ($ep);
+		my $p; eval { $p = JSON->new->decode($tp); }; fail("$rp: JSON no valido: $@") if ($@);
+		my ($profile,$e1)=check_profile($p); fail("$rp: $e1") if ($e1);
+		my ($ti,$ei)=read_file($inv[$k]); fail($ei) if ($ei);
+		my ($rows,$e2)=parse_inventory($ti,$profile); fail(join("\n", map { "$inv[$k]: $_" } @$e2)) if (@$e2);
+		my ($r,$e3)=expand($profile,$rows,$inv[$k]); fail(join("\n",@$e3)) if (@$e3);
+		push @res, @$r;
+		push @origin, "perfil $rp + $inv[$k] (".scalar(@$rows)." filas)";
 	}
-	my ($tp,$ep)=read_file($rp); fail($ep) if ($ep);
-	my $p; eval { $p = JSON->new->decode($tp); }; fail("$rp: JSON no valido: $@") if ($@);
-	my ($profile,$e1)=check_profile($p); fail("$rp: $e1") if ($e1);
-	my ($ti,$ei)=read_file($o{inventory}); fail($ei) if ($ei);
-	my ($rows,$e2)=parse_inventory($ti,$profile); fail(join("\n",@$e2)) if (@$e2);
-	my ($res,$e3)=expand($profile,$rows); fail(join("\n",@$e3)) if (@$e3);
-	return ({ version=>1, resources=>$res }, "perfil $rp + $o{inventory} (".scalar(@$rows)." filas)");
+	return ({ version=>1, resources=>\@res }, join('; ',@origin));
 }
 
 #----------------------------------------------------------------------------
@@ -108,8 +126,16 @@ sub context {
 	my $dbh = $store->open_db();
 	fail("no se puede conectar con la base de datos") if (! $dbh);
 	$dbh->{RaiseError}=1; $dbh->{PrintError}=0;
-	my $prov;
+	my ($prov,$ip);
 	return { dbh=>$dbh, cid=>$CID, cache=>{}, pending=>{},
+				# IP of the interface of /cfg/onm.if: cid_ip of the views this tool creates
+				local_ip => sub {
+					return $ip if (defined $ip);
+					open(my $se,'>&',\*STDERR); open(STDERR,'>','/dev/null');		# lsb_release writes to stderr
+					$ip = eval { ONMConfig::my_ip() };
+					open(STDERR,'>&',$se);
+					return $ip;
+				},
 				provision => sub {
 					return $prov if ($prov);
 					require ProvisionLite;
@@ -190,8 +216,8 @@ my ($plan,$origin,$phase)=@_;
 #----------------------------------------------------------------------------
 sub cmd_list {
 my ($what)=@_;
-	usage("list: views | subtypes | fields | types") if (! defined $what);
-	usage("list: views | subtypes | fields | types") if ($what !~ /^(views|subtypes|fields|types)$/);
+	usage("list: views | viewtypes | users | subtypes | fields | types") if (! defined $what);
+	usage("list: views | viewtypes | users | subtypes | fields | types") if ($what !~ /^(views|viewtypes|users|subtypes|fields|types)$/);
 	my $ctx = context(); my $dbh=$ctx->{dbh};
 	my @rows=(); my @head=();
 	if ($what eq 'views') {
@@ -207,6 +233,8 @@ my ($what)=@_;
 		@rows = map { [ $_, $cat->{$_}{type}, $cat->{$_}{lapse} ] }
 				  grep { (! defined $o{type}) || ($cat->{$_}{type} eq $o{type}) } sort keys %$cat;
 	}
+	elsif ($what eq 'viewtypes') { @head=('tipo de vista'); @rows=@{ $dbh->selectall_arrayref("SELECT name FROM cfg_views_types ORDER BY name") }; }
+	elsif ($what eq 'users')     { @head=('usuario','descripcion'); @rows=@{ $dbh->selectall_arrayref("SELECT login_name,descr FROM cfg_users ORDER BY login_name") }; }
 	elsif ($what eq 'fields') { @head=('campo de usuario'); @rows=@{ $dbh->selectall_arrayref("SELECT descr FROM devices_custom_types ORDER BY descr") }; }
 	else                      { @head=('tipo de dispositivo'); @rows=@{ $dbh->selectall_arrayref("SELECT descr FROM cfg_host_types ORDER BY descr") }; }
 	if ($o{json}) { print JSON->new->canonical(1)->pretty->encode([ map { my $f=$_; +{ map { $head[$_] => $f->[$_] } 0..$#head } } @rows ]); }

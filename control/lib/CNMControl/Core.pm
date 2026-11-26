@@ -10,6 +10,7 @@
 #	  order()                     number: kinds are read and applied in ascending order
 #	  validate($r)                -> ($normalized_r, $error)              pure
 #	  key($r)                     -> text that identifies the object       pure
+#	  merge($a,$b)  (optional)    -> ($merged, $error): same key, different content  pure
 #	  read($ctx, \@resources)     -> \%current (by key)                    reads the database
 #	  diff($r, $current, $ctx)    -> (\@actions, \@errors, \@warnings)     pure
 #	  apply($ctx, \@actions)      -> \@errors                              writes
@@ -22,7 +23,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Core;
-$VERSION='0.10';
+$VERSION='0.20';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -70,14 +71,23 @@ my @err=();
 		if ($e) { push @err, "$where ($r->{kind}): $e"; next; }
 		my $k = $kind->key($n);
 		my $sig = $json->encode($n);
-		if (exists $seen{$r->{kind}}{$k}) {
-			push @err, "$where: $r->{kind} '$k' repetido con valores distintos (primero en $seen{$r->{kind}}{$k}{where})"
-				if ($seen{$r->{kind}}{$k}{sig} ne $sig);
+		if (my $s = $seen{$r->{kind}}{$k}) {
+			next if ($s->{sig} eq $sig);
+			# Different content: the kind may know how to merge them (a view referenced by one
+			# profile and defined by another, for instance); otherwise it is an error
+			my $old = $by_kind{$r->{kind}}[$s->{idx}];
+			my %a = %$old; delete $a{_origin};
+			if (! $kind->can('merge')) { push @err, "$where: $r->{kind} '$k' repetido con valores distintos (primero en $s->{where})"; next; }
+			my ($m,$me) = $kind->merge(\%a, $n);
+			if ($me) { push @err, "$where: $r->{kind} '$k' repetido con valores distintos: $me (primero en $s->{where})"; next; }
+			$m->{_origin} = $old->{_origin};
+			$by_kind{$r->{kind}}[$s->{idx}] = $m;
+			$s->{sig} = $json->encode({ map { $_=>$m->{$_} } grep { $_ ne '_origin' } keys %$m });
 			next;
 		}
-		$seen{$r->{kind}}{$k} = { sig=>$sig, where=>$where };
 		$n->{_origin}=$where;
 		push @{$by_kind{$r->{kind}}}, $n;
+		$seen{$r->{kind}}{$k} = { sig=>$sig, where=>$where, idx=>$#{$by_kind{$r->{kind}}} };
 	}
 	return (\%by_kind, \@err);
 }

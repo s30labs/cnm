@@ -30,7 +30,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Metric;
-$VERSION='0.10';
+$VERSION='0.20';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -169,8 +169,9 @@ my (@acc,@err,@warn);
 		push @err, _maybe_derived($ctx->{failed}{lc $r->{device}}, "el dispositivo '$r->{device}' no existe ni se crea en este estado");
 	}
 	foreach my $v (@{$r->{views}||[]}) {
-		if (! $cur->{views}{$v}) { push @err, _maybe_derived($ctx->{failed_view}{$v}, "la vista '$v' no existe (cnm-control list views)"); }
-		elsif ($cur->{views}{$v}{live_metric}) { push @err, _maybe_derived($ctx->{failed_view}{$v}, "la vista '$v' es viva: su recalculo borraria la asociacion"); }
+		next if ((! $cur->{views}{$v}) && $ctx->{pending_view}{lc $v});		# created by this state, before the metrics
+		if (! $cur->{views}{$v}) { push @err, _maybe_derived($ctx->{failed_view}{lc $v}, "la vista '$v' no existe ni se crea en este estado (cnm-control list views)"); }
+		elsif ($cur->{views}{$v}{live_metric}) { push @err, _maybe_derived($ctx->{failed_view}{lc $v}, "la vista '$v' es viva: su recalculo borraria la asociacion"); }
 	}
 	return ([],\@err,\@warn) if (@err);
 
@@ -200,6 +201,11 @@ my (@acc,@err,@warn);
 	}
 	foreach my $v (@{$r->{views}||[]}) {
 		my $vi = $cur->{views}{$v};
+		if (! $vi) {		# new view: its id is only known after the view kind applies
+			push @acc, { kind=>'metric', op=>'view+', ref=>$r->{device}, subtype=>$r->{subtype},
+							 view=>$v, text=>"$ref -> vista \"$v\" (nueva)" };
+			next;
+		}
 		next if ($m && $cur->{in_views}{$vi->{id}});
 		push @acc, { kind=>'metric', op=>'view+', ref=>$r->{device}, subtype=>$r->{subtype},
 						 view=>$v, view_id=>$vi->{id}, cid=>$vi->{cid}, cid_ip=>$vi->{cid_ip}, text=>"$ref -> vista \"$v\"" };
@@ -252,6 +258,12 @@ my @err=();
 		my $m = $dbh->selectrow_hashref("SELECT id_metric FROM metrics WHERE id_dev=? AND name=?", undef, $id_dev{lc $x->{ref}}, $x->{subtype});
 		if (! $m) { push @err, "$x->{ref} $x->{subtype}: la metrica no existe tras la provision"; next; }
 		$x->{id_metric}=$m->{id_metric}; $x->{id_dev}=$id_dev{lc $x->{ref}};
+	}
+	# Views created by this same apply: their id is read now
+	foreach my $x (grep { ($_->{op} eq 'view+') && (! defined $_->{view_id}) } @$acc) {
+		my $v = $dbh->selectrow_hashref("SELECT id_cfg_view,cid,cid_ip FROM cfg_views WHERE cid=? AND name=?", undef, $ctx->{cid}, $x->{view});
+		if (! $v) { push @err, "vista '$x->{view}': no existe tras crearla"; next; }
+		@$x{qw(view_id cid cid_ip)} = @$v{qw(id_cfg_view cid cid_ip)};
 	}
 	return \@err if (@err);
 
