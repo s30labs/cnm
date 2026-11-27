@@ -11,7 +11,7 @@ use Test::More;
 use JSON;
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 
-my ($t,$e) = read_file("$FindBin::Bin/../profiles/icmp-basic.json");
+my ($t,$e) = read_file("$FindBin::Bin/../profiles/examples/icmp-basic.json");
 ok(!$e, 'se lee el perfil de ejemplo');
 my ($p,$ep) = check_profile(JSON->new->decode($t));
 ok($p && !$ep, 'el perfil de ejemplo es valido') or diag($ep);
@@ -150,7 +150,7 @@ ok(! defined $tw, 'fichero en Windows-1252: no se lee');
 like($ew, qr/no esta en UTF-8 \(primera linea con problemas: 3\).*iconv -f WINDOWS-1252/, '... y dice la linea y como convertirlo');
 
 #--- 0016: attribute columns, --set, default domain, device.<attr> ---------------------------
-my ($pi) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/icmp-basic.json"))[0])));
+my ($pi) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/examples/icmp-basic.json"))[0])));
 my ($ra,$ea) = parse_inventory("name;ip;view;critic;status;version;community;custom.Proveedor\nsede-01;10.1.1.1;V;100;;2;c1;ACME\nsede-02;10.1.1.2;V;;2;;;\n", $pi);
 is(scalar(@$ea), 0, 'atributos del dispositivo sin declararlos en el perfil: admitidos') or diag(join(' ',@$ea));
 my ($xa) = expand($pi,$ra,'s.csv');
@@ -184,5 +184,21 @@ my (undef,$e2t) = parse_inventory("name;ip;type;device.type\na;1.1.1.1;Router;Sw
 like(join(' ',@$e2t), qr/columna 'device\.type' repetida/, 'type y device.type que son el mismo atributo: columna repetida');
 my (undef,$eu) = parse_inventory("name;ip;view;device.sysloc\na;1.1.1.1;V;x\n", $pi);
 like(join(' ',@$eu), qr/'sysloc' no es un atributo del dispositivo/, 'device.<algo> que no es atributo: error');
+
+#--- 0017: c_label from the profile is a default; the column and --set accept templates -----
+my ($rl,$el) = parse_inventory("name;ip;view;c_label.mon_icmp\nsede-01;10.1.1.1;V;{name} ({ip}) - ICMP Service\nsede-02;10.1.1.2;V;\n", $pi,
+										 { 'c_label.disp_icmp'=>'{name} - ICMP Availability' });
+is(scalar(@$el), 0, 'c_label.<subtipo> en el CSV y con --set: admitido');
+my ($xl,$exl) = expand($pi,$rl);
+my %ml = map { ("$_->{device}|$_->{subtype}" => $_) } grep { $_->{kind} eq 'metric' } @$xl;
+is($ml{'sede-01.local|mon_icmp'}{c_label}, 'sede-01 (10.1.1.1) - ICMP Service', 'la celda admite plantilla con {name} e {ip}');
+ok(! $ml{'sede-01.local|mon_icmp'}{_label_default}, '... y es explicita');
+is($ml{'sede-02.local|disp_icmp'}{c_label}, 'sede-02 - ICMP Availability', '--set con plantilla, en cada fila');
+ok(! $ml{'sede-02.local|disp_icmp'}{_label_default}, '... explicita');
+is($ml{'sede-02.local|mon_icmp'}{c_label}, 'Servicio ICMP sede-02', 'celda vacia sin --set: la plantilla del perfil');
+ok($ml{'sede-02.local|mon_icmp'}{_label_default}, '... marcada como valor por defecto');
+my ($ru) = parse_inventory("name;ip;view;c_label.mon_icmp\nsede-01;10.1.1.1;V;{nombre} x\n", $pi);
+my (undef,$eu2) = expand($pi,$ru);
+like(join(' ',@$eu2), qr/c_label\.mon_icmp usa \{nombre\}, que no es un parametro del perfil/, 'plantilla con un parametro que no existe: error');
 
 done_testing();

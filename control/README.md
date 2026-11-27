@@ -21,6 +21,7 @@ vistas estáticas). Sin plan guardado, cola, auditoría ni borrados.
   lib/CNMControl/Kind/*.pm          una clase por tipo de objeto de CNM (View, Device, Metric)
   profiles/                         perfiles del producto (los de la instalación van en
                                     /cfg/cnm-control/profiles; con el mismo nombre, manda ese)
+  profiles/examples/                ejemplos para copiar a /cfg/cnm-control/profiles y adaptar
   t/CTL_*.t                         pruebas sin base de datos
 ```
 
@@ -42,7 +43,7 @@ Las claves de los ficheros y los nombres de clase van en inglés, como en
 ```
 
 Un perfil añade `parameters` (`required`, `default`, `descr`) y usa `{param}` en
-los recursos; ver `profiles/icmp-basic.json`. `cnm-control list profiles` dice
+los recursos; ver `profiles/examples/icmp-basic.json`. `cnm-control list profiles` dice
 qué perfiles hay y de dónde sale cada uno.
 
 El inventario es un CSV con `;`. La primera línea tiene los nombres de los
@@ -66,8 +67,12 @@ nombre en otro dominio, el equipo conserva el suyo. Un dominio escrito en el CSV
 con `--set` se comprueba entero, como el nombre.
 
 Una columna `c_label.<subtipo>` lleva el título de la métrica `<subtipo>` de esa
-fila (`c_label.disp_icmp`, `c_label.mon_icmp`). Una celda vacía deja el título del
-perfil. La fila tiene que tener exactamente una métrica de ese subtipo.
+fila (`c_label.disp_icmp`, `c_label.mon_icmp`), y puede usar los parámetros de la
+fila: `{name} - ICMP Availability`. Con `--set c_label.disp_icmp=...` vale para todo
+el lote. La fila tiene que tener exactamente una métrica de ese subtipo. El título
+que pone el perfil es un valor por defecto: solo se escribe en una métrica nueva o
+sin título, y nunca sustituye a uno que ya tenga (por ejemplo, cambiado en la
+consola); la columna y `--set` lo cambian siempre.
 
 ```
 name;ip;view;custom.Proveedor;c_label.mon_icmp

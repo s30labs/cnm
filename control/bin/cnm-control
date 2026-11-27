@@ -43,12 +43,16 @@ $fpth[$#fpth] -h  : Ayuda
   ENTRADA:  -f FICHERO.json                     lista de recursos
             --profile P --inventory F.csv       perfil + CSV con ';'. Un nombre de perfil se busca en
                                                 $DIR_PROFILE (instalacion) y despues en los
-                                                del producto (cnm-control list profiles); o una ruta
+                                                del producto (cnm-control list profiles); o una ruta.
+                                                Los ejemplos se copian a $DIR_PROFILE y se adaptan
             --set COLUMNA=VALOR                 rellena esa columna en las filas que la dejan vacia
                                                 (se puede repetir; vale para todos los inventarios)
             Columnas del CSV: parametros del perfil; atributos del dispositivo sin declararlos
             (domain, type, critic, status, geodata, version, community, o device.<atributo>);
-            custom.<campo>; c_label.<subtipo>. Celda vacia = no tocar o el defecto del perfil.
+            custom.<campo>; c_label.<subtipo> (admite {name} y los demas parametros:
+            --set c_label.disp_icmp="{name} - ICMP Availability"). Celda vacia = no tocar o
+            el defecto del perfil. El titulo del perfil solo se pone en una metrica nueva o
+            sin titulo; la columna y --set lo cambian siempre.
             Manda la celda, luego --set y luego el defecto del perfil. El dominio por defecto
             solo se usa al crear: un equipo que ya existe con esa IP y ese nombre conserva el suyo.
             Se pueden repetir y combinar: todo forma un solo plan. Cada --profile va con el
@@ -283,8 +287,8 @@ my ($what)=@_;
 #----------------------------------------------------------------------------
 sub list_profiles {
 	my %seen=();
-	printf("%-24s %-12s %s\n", 'perfil', 'origen', 'descripcion');
-	foreach my $d ([$DIR_PROFILE,'instalacion'], [$DIR_PROFILE_PRODUCT,'producto']) {
+	printf("%-24s %-18s %s\n", 'perfil', 'origen', 'descripcion');
+	foreach my $d ([$DIR_PROFILE,'instalacion'], [$DIR_PROFILE_PRODUCT,'producto'], ["$DIR_PROFILE_PRODUCT/examples",'ejemplo']) {
 		opendir(my $dh, $d->[0]) or next;
 		foreach my $f (sort grep { /\.json$/ && -f "$d->[0]/$_" } readdir($dh)) {
 			(my $n = $f) =~ s/\.json$//;
@@ -292,11 +296,14 @@ sub list_profiles {
 			my $p = eval { JSON->new->decode($t) } || {};
 			my $descr = (ref($p) eq 'HASH' && defined $p->{descr}) ? $p->{descr} : '';
 			$descr = substr($descr,0,90).'...' if (length($descr) > 93);
-			printf("%-24s %-12s %s\n", $n, ($seen{$n} ? "$d->[1] (oculto: manda instalacion)" : $d->[1]), $descr);
-			$seen{$n}=1;
+			my $origin = ($d->[1] eq 'ejemplo') ? 'ejemplo' : ($seen{$n} ? "$d->[1] (oculto)" : $d->[1]);
+			printf("%-24s %-18s %s\n", $n, $origin, $descr);
+			$seen{$n}=1 if ($d->[1] ne 'ejemplo');
 		}
 		closedir($dh);
 	}
+	print "(oculto: hay uno de la instalacion con el mismo nombre, y manda ese. Un ejemplo no se usa por\n".
+			" su nombre: se copia a $DIR_PROFILE y se adapta)\n";
 	return 0;
 }
 

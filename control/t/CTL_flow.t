@@ -597,4 +597,20 @@ my ($bkd3) = validate_state(vstate({ kind=>'device', name=>'otro', domain=>'loca
 my ($cd3) = ctx(base());
 like(join(' ',@{make_plan($cd3,$bkd3)->{errors}}), qr/la IP ya es de tda-00\.local/, 'nombre distinto con dominio por defecto: conflicto');
 
+#=== 0017: the c_label of the profile does not replace an existing title =====================
+my $tlb = base(); push @{$tlb->{metrics}}, { id_metric=>501, id_dev=>12, name=>'mon_icmp', status=>'0', c_label=>'' };
+my ($bklb) = validate_state(vstate(
+	{ kind=>'metric', device=>'tda-00.local', subtype=>'disp_icmp', c_label=>'Plantilla', _label_default=>1 },
+	{ kind=>'metric', device=>'tda-00.local', subtype=>'mon_icmp',  c_label=>'Plantilla mon', _label_default=>1 }));
+my ($clb) = ctx($tlb); my $pllb = make_plan($clb,$bklb);
+is(join(' | ', map { $_->{text} } @{$pllb->{actions}}), 'tda-00.local mon_icmp: (vacio) -> "Plantilla mon"',
+	'plantilla del perfil: no toca un titulo que ya existe; si pone el de una metrica sin titulo');
+my ($bklx) = validate_state(vstate({ kind=>'metric', device=>'tda-00.local', subtype=>'disp_icmp', c_label=>'Explicito' }));
+($clb) = ctx($tlb);
+is(join(' | ', map { $_->{text} } @{make_plan($clb,$bklx)->{actions}}), 'tda-00.local disp_icmp: "viejo" -> "Explicito"', 'titulo explicito: cambia el que existe');
+my ($bkln) = validate_state(vstate({ kind=>'device', name=>'nuevo-09', domain=>'local', ip=>'10.0.9.9' },
+	{ kind=>'metric', device=>'nuevo-09.local', subtype=>'disp_icmp', c_label=>'Plantilla nueva', _label_default=>1 }));
+($clb) = ctx($tlb);
+like(join(' | ', map { $_->{text} } @{make_plan($clb,$bkln)->{actions}}), qr/nuevo-09\.local disp_icmp: \(vacio\) -> "Plantilla nueva"/, 'plantilla en una metrica nueva: se pone');
+
 done_testing();

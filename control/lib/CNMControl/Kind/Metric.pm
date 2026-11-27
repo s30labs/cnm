@@ -9,6 +9,10 @@
 #	  "subtype": "disp_icmp",                          for latency, cfg_monitor.monitor
 #	  "instances": "ALL",                              or {"label_like": "..."} or {"iid": [...]}
 #	  "c_label": "Disponibilidad tda-norte-01",        null = remove it; key absent = not managed
+#	A c_label that comes from the template of the profile ("_label_default", set by
+#	CNMControl::Profile) is a default: it is written when the metric is created or has no
+#	title, and it never replaces a title that the metric already has (decision of
+#	27-nov-2026). A c_label from the inventory, from --set or from a -f file always applies.
 #	  "views": ["Tiendas"],                            added to these; never removed from others
 #	  "watch": "s_..." }                               monitor (alert_type.monitor)
 #
@@ -35,7 +39,7 @@ use strict;
 use JSON;
 use CNMControl::Kind::View;
 
-my %KEYS  = map { $_=>1 } qw(kind device subtype instances c_label views watch);
+my %KEYS  = map { $_=>1 } qw(kind device subtype instances c_label views watch _label_default);
 my $IP_RE = qr/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
 sub order { return 30; }
@@ -71,6 +75,7 @@ my ($c,$r)=@_;
 		return (undef,'c_label tiene que ser texto o null') if (ref($r->{c_label}));
 		return (undef,'c_label de mas de 255 caracteres') if (defined $r->{c_label} && length($r->{c_label}) > 255);
 		$n{c_label} = (defined $r->{c_label} && $r->{c_label} ne '') ? $r->{c_label} : undef;
+		$n{_label_default}=1 if ($r->{_label_default});
 	}
 	if (defined $r->{views}) {
 		return (undef,'views tiene que ser una lista de nombres') if (ref($r->{views}) ne 'ARRAY');
@@ -194,8 +199,10 @@ my (@acc,@err,@warn);
 		}
 	}
 	elsif ($m->{status} ne '0') { push @warn, "la metrica existe desactivada (status=$m->{status}); el esqueleto no la reactiva"; }
-	if (exists $r->{c_label}) {
-		my $before = $m ? $m->{c_label} : undef;
+	# The template of the profile does not replace a title the metric already has
+	my $keep = ($r->{_label_default} && $m && defined $m->{c_label} && ($m->{c_label} ne '')) ? 1 : 0;
+	if (exists $r->{c_label} && ! $keep) {
+		my $before = ($m && defined $m->{c_label} && $m->{c_label} ne '') ? $m->{c_label} : undef;
 		my $same = ((! defined $before) && (! defined $r->{c_label})) || (defined $before && defined $r->{c_label} && $before eq $r->{c_label});
 		if (! $same) {
 			push @acc, { kind=>'metric', op=>'c_label', ref=>$r->{device}, subtype=>$r->{subtype},

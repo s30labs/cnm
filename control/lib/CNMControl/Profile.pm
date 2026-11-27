@@ -10,7 +10,11 @@
 #	field alone). It overrides the same field set by the profile. Design: PROY §3.3.
 #	A column named c_label.<subtype> carries the title of the metric <subtype> of that row
 #	(for instance c_label.mon_icmp): an empty cell keeps the c_label of the profile, a value
-#	overrides it. The row must have exactly one metric of that subtype.
+#	overrides it, and it may use the parameters of the row ("{name} - ICMP Availability"),
+#	in the cell or with --set c_label.<subtype>=... The row must have exactly one metric of
+#	that subtype. The c_label of the profile is only a default: the metric gets
+#	"_label_default" and CNMControl::Kind::Metric writes it only on a metric that is created
+#	or has no title (decision of 27-nov-2026).
 #	A column named like an attribute of the device (domain, type, critic, status, geodata,
 #	version, community), or device.<attribute>, needs no parameter: it goes to the one device
 #	resource of the profile (an empty cell leaves the attribute alone; version and community
@@ -267,6 +271,7 @@ my (@res,@err);
 			}
 			push @row, $r;
 		}
+		my %given=();
 		foreach my $s (sort keys %{$f->{labels} || {}}) {
 			my @m = grep { (ref($_) eq 'HASH') && defined $_->{kind} && ($_->{kind} eq 'metric')
 								&& defined $_->{subtype} && (lc($_->{subtype}) eq lc($s)) } @row;
@@ -274,7 +279,17 @@ my (@res,@err);
 				push @err, "inventario linea $f->{line}: columna c_label.$s, pero el perfil crea ".scalar(@m)." metricas $s en esta fila (tiene que ser 1)";
 				next;
 			}
-			$m[0]{c_label} = $f->{labels}{$s};		# the inventory wins
+			my @unknown = grep { ! exists $f->{values}{$_} } ($f->{labels}{$s} =~ /\{([^{}]*)\}/g);
+			if (@unknown) {
+				push @err, "inventario linea $f->{line}: c_label.$s usa ".join(', ', map { "{$_}" } @unknown).", que no es un parametro del perfil";
+				next;
+			}
+			$m[0]{c_label} = _substitute($f->{labels}{$s}, $f->{values});		# the inventory wins
+			$given{$m[0]}=1;
+		}
+		# The c_label of the profile is a default (only for a new metric or one without title)
+		foreach my $r (@row) {
+			$r->{_label_default}=1 if ((ref($r) eq 'HASH') && defined $r->{kind} && ($r->{kind} eq 'metric') && defined $r->{c_label} && ! $given{$r});
 		}
 		push @res, @row;
 	}
