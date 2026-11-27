@@ -4,7 +4,7 @@
 # Declarative configuration of CNM: describe how it must end up; the tool computes the
 # difference with the onm database, shows it (plan) and applies it (apply).
 # Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
-# SKELETON v0.2: kinds view (create, parents, users), device (create) and latency metric
+# SKELETON v0.3: kinds view (create, update, parents, users), device (create, update) and latency metric
 # (provision, c_label, static views). No saved plan, no queue, no audit, no deletions.
 #-------------------------------------------------------------------------------------------
 BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
@@ -20,7 +20,7 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.2';
+my $VERSION     = '0.3';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 my $DIR_PROFILE = '/cfg/cnm-control/profiles';
@@ -45,9 +45,13 @@ $fpth[$#fpth] -h  : Ayuda
 
   apply crea vistas (con sus padres y usuarios) y dispositivos (con su asistente y
   aplicaciones), provisiona metricas, cambia c_label y asocia metricas a vistas estaticas.
-  A las vistas que ya existen les anade padres y usuarios; no cambia sus campos. No borra nada.
-  Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a calcular ese mismo plan, lo aplica y, al terminar, lo calcula otra
-  vez; si no sale vacio, termina con error. Sin --confirm, apply solo muestra el plan.
+  A las vistas que ya existen les anade padres y usuarios y les cambia type, itil_type y
+  global. A los dispositivos que ya existen les cambia type, critic, geodata y campos de
+  usuario (update, con el valor anterior y el nuevo; MODIFICA los cuenta por atributo).
+  Lo que no viene en la ENTRADA (celda vacia) no se toca. No borra nada.
+  Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a
+  calcular ese mismo plan, comprueba que nadie ha cambiado los valores anteriores, lo aplica
+  y, al terminar, lo calcula otra vez; si no sale vacio, termina con error. Sin --confirm, apply solo muestra el plan.
   Cada apply deja el plan, la salida del motor y el resultado en
   /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-apply/.
 
@@ -74,6 +78,13 @@ else  { usage("orden desconocida '$cmd'"); }
 #===================================================================================================
 sub usage { my $m=shift; print STDERR "$m\n\n$USAGE"; exit 2; }
 sub fail  { my $m=shift; print STDERR "$m\n"; exit 1; }
+# An input that cannot be read is reported like any other error of the plan (same header,
+# same RESUMEN line, same --json), and exits with 1
+sub input_error {
+my $m=shift;
+	output({ errors=>[ split(/\n/,$m) ], derived=>[], actions=>[], warnings=>[], unchanged=>0 }, 'entrada no valida', 'input');
+	exit 1;
+}
 
 #----------------------------------------------------------------------------
 # Input -> state (hash with version and resources)
@@ -86,10 +97,10 @@ sub input {
 	usage("cada --profile necesita su --inventory (hay ".scalar(@pro)." y ".scalar(@inv).")") if (@pro != @inv);
 	my (@res,@origin);
 	foreach my $file (@f) {
-		my ($t,$e)=read_file($file); fail($e) if ($e);
-		my $d; eval { $d = JSON->new->decode($t); }; fail("$file: JSON no valido: $@") if ($@);
+		my ($t,$e)=read_file($file); input_error($e) if ($e);
+		my $d; eval { $d = JSON->new->decode($t); }; input_error("$file: JSON no valido: $@") if ($@);
 		if ((@f + @pro == 1)) { return ($d, $file); }		# a single JSON file: as it is
-		fail("$file: no es un estado con \"version\": 1 y \"resources\"")
+		input_error("$file: no es un estado con \"version\": 1 y \"resources\"")
 			if ((ref($d) ne 'HASH') || (! defined $d->{version}) || ($d->{version} ne '1') || (ref($d->{resources}) ne 'ARRAY'));
 		my $i=0;
 		foreach my $r (@{$d->{resources}}) { $i++; $r->{_origin}="$file recurso $i" if (ref($r) eq 'HASH'); push @res, $r; }
@@ -101,12 +112,12 @@ sub input {
 			usage("nombre de perfil no valido '$rp'") if ($rp !~ /^[\w][\w.\-]*$/);
 			$rp = "$DIR_PROFILE/$rp".($rp =~ /\.json$/ ? '' : '.json');
 		}
-		my ($tp,$ep)=read_file($rp); fail($ep) if ($ep);
-		my $p; eval { $p = JSON->new->decode($tp); }; fail("$rp: JSON no valido: $@") if ($@);
-		my ($profile,$e1)=check_profile($p); fail("$rp: $e1") if ($e1);
-		my ($ti,$ei)=read_file($inv[$k]); fail($ei) if ($ei);
-		my ($rows,$e2)=parse_inventory($ti,$profile); fail(join("\n", map { "$inv[$k]: $_" } @$e2)) if (@$e2);
-		my ($r,$e3)=expand($profile,$rows,$inv[$k]); fail(join("\n",@$e3)) if (@$e3);
+		my ($tp,$ep)=read_file($rp); input_error($ep) if ($ep);
+		my $p; eval { $p = JSON->new->decode($tp); }; input_error("$rp: JSON no valido: $@") if ($@);
+		my ($profile,$e1)=check_profile($p); input_error("$rp: $e1") if ($e1);
+		my ($ti,$ei)=read_file($inv[$k]); input_error($ei) if ($ei);
+		my ($rows,$e2)=parse_inventory($ti,$profile); input_error(join("\n", map { "$inv[$k]: $_" } @$e2)) if (@$e2);
+		my ($r,$e3)=expand($profile,$rows,$inv[$k]); input_error(join("\n",@$e3)) if (@$e3);
 		push @res, @$r;
 		push @origin, "perfil $rp + $inv[$k] (".scalar(@$rows)." filas)";
 	}

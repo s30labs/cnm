@@ -8,6 +8,7 @@
 #	  "snmp": { "version": 0 },                 0 = no SNMP; 1 and 2 need "community"
 #	critic and snmp are optional: when the device is created they default to 50 and version 0;
 #	an existing device is never changed with a default (only with what the state declares).
+#	  "geodata": "40.4168,-3.7038",            devices.geodata (varchar(30))
 #	  "fields": { "CNM-METRICS": "icmp-basic.json" } }     user fields
 #
 #	Creation follows the same path as the CSV provisioning of the web console: a file in the
@@ -16,17 +17,29 @@
 #	network, organizational profile Global, record) and builds no assistant and no metrics
 #	(crawler/bin/ProvisionLite.pm:529-583, :985-1033 and :1107).
 #
-#	Skeleton: create only. A device that already exists with the same IP and name is
-#	accepted and left untouched; an IP that belongs to another name is a conflict.
+#	Modify, phase 1 (decision of 26-nov-2026, PROY §9): in a device that already exists with
+#	the same IP and name, type, critic, geodata and the user fields that the state declares
+#	and that differ are changed (action "update", with the value before and after). Like the
+#	console (custom_pro onm/inc/class.cnmdevice.php, save()), but only the columns that change:
+#	  devices                UPDATE of type, critic, geodata
+#	  devices_custom_data    INSERT IGNORE of the row and UPDATE columnaN; the empty columns
+#	                         of that device are set to '-' (save_custom_fields)
+#	  tips                   the device record, rebuilt by the engine
+#	                         (Crawler::Store::store_device_record, Store.pm:939)
+#	All the updates go in one transaction, and each value is checked against the value
+#	before of the plan (SELECT ... FOR UPDATE): if someone changed it meanwhile, nothing is
+#	written. An empty user field is written as '-', as the console does.
+#	snmp (version, community), status, name, domain and ip are not modified yet (phases 2
+#	and 3): a difference is a warning. An IP that belongs to another name is a conflict.
 #	validate, key and diff are pure; read and apply use $ctx->{dbh} and $ctx->{provision}.
 #	Design: cnm-docs, PROY-CNM-cnm-control-Diseno §3.2 and §5.
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.30';
+$VERSION='0.40';
 use strict;
 
-my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic snmp fields);
+my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata snmp fields);
 our $TMP_WEB = '/var/www/html/onm/tmp';	# 'our': the tests change it
 my $SEP     = '&|&';
 my @HEADER  = ('NOMBRE','DOMINIO','IP','LOCALIZACION','DESCRIPCION','OID','MAC','CRIT','TIPO',
@@ -62,6 +75,11 @@ my ($c,$r)=@_;
 		return (undef,'critic tiene que ser 25, 50, 75 o 100') if ($r->{critic} !~ /^(25|50|75|100)$/);
 		$n{critic} = $r->{critic};
 	}
+	if (defined $r->{geodata}) {
+		return (undef,'"geodata" no valido') if (! _is_clean($r->{geodata}) || $r->{geodata} eq '');
+		return (undef,'"geodata" de mas de 30 caracteres (devices.geodata)') if (length($r->{geodata}) > 30);
+		$n{geodata}=$r->{geodata};
+	}
 	if (defined $r->{snmp}) {
 		my $s = $r->{snmp};
 		return (undef,'"snmp" tiene que ser un objeto') if (ref($s) ne 'HASH');
@@ -95,7 +113,7 @@ my ($c,$ctx,$rs)=@_;
 	my @ips = map { $_->{ip} } @$rs;
 	my @fqdn = map { lc("$_->{name}.$_->{domain}") } @$rs;
 	if (@ips) {
-		my $q = "SELECT id_dev,name,domain,ip,type,critic,version,community FROM devices WHERE ip IN (".join(',',('?') x @ips).")";
+		my $q = "SELECT id_dev,name,domain,ip,type,critic,geodata,version,community FROM devices WHERE ip IN (".join(',',('?') x @ips).")";
 		foreach my $d (@{ $dbh->selectall_arrayref($q, { Slice=>{} }, @ips) }) { push @{$cur{$d->{ip}}{by_ip}}, $d; }
 		$q = "SELECT id_dev,name,domain,ip FROM devices WHERE LOWER(CONCAT(name,'.',domain)) IN (".join(',',('?') x @fqdn).")";
 		my %by_fqdn=();
@@ -147,21 +165,30 @@ my (@acc,@err,@warn);
 			push @err, "la IP ya es de $d->{name}.$d->{domain} (id_dev=$d->{id_dev})";
 		}
 		else {
-			# Warn only about real differences: the skeleton does not modify existing devices
+			# Phase 1: data-only attributes are modified; snmp only warns (phase 2)
+			my (%chg,%fchg);
+			foreach my $a (qw(type critic geodata)) {
+				next if (! defined $r->{$a});
+				my $now = defined $d->{$a} ? "$d->{$a}" : '';
+				$chg{$a} = [ $now, "$r->{$a}" ] if ($now ne "$r->{$a}");
+			}
+			foreach my $k (sort keys %{$r->{fields} || {}}) {
+				my $col = $ctx->{cache}{field_cols}{uc $k} or next;
+				my $now = (defined $d->{custom} && defined $d->{custom}{$col} && $d->{custom}{$col} ne '') ? $d->{custom}{$col} : '-';
+				$fchg{$col} = [ $now, $r->{fields}{$k}, $ctx->{cache}{fields}{uc $k} ] if ($now ne $r->{fields}{$k});
+			}
+			if (%chg || %fchg) {
+				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg,
+								 text=>"$fqdn ".join(', ', (map { "$_ '$chg{$_}[0]' -> '$chg{$_}[1]'" } sort keys %chg),
+															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg)) };
+			}
 			my @dif=();
-			push @dif, "type '".($d->{type}||'')."' -> '$r->{type}'" if (defined $r->{type} && $r->{type} ne ($d->{type}||''));
-			push @dif, "critic $d->{critic} -> $r->{critic}" if (defined $r->{critic} && defined $d->{critic} && ($r->{critic} != $d->{critic}));
 			if ($r->{snmp} && defined $d->{version}) {
 				push @dif, "snmp version $d->{version} -> $r->{snmp}{version}" if ($r->{snmp}{version} != $d->{version});
 				push @dif, "snmp community distinta (no se muestra)"
 					if (($r->{snmp}{version} > 0) && ($r->{snmp}{version} == $d->{version}) && (($d->{community}||'') ne $r->{snmp}{community}));
 			}
-			foreach my $k (sort keys %{$r->{fields} || {}}) {
-				my $col = $ctx->{cache}{field_cols}{uc $k} or next;
-				my $now = (defined $d->{custom} && defined $d->{custom}{$col}) ? $d->{custom}{$col} : '-';
-				push @dif, "$k '$now' -> '$r->{fields}{$k}'" if ($now ne $r->{fields}{$k});
-			}
-			push @warn, "ya existe (id_dev=$d->{id_dev}) y difiere: ".join(', ',@dif)."; el esqueleto no modifica dispositivos existentes" if (@dif);
+			push @warn, "ya existe (id_dev=$d->{id_dev}) y difiere: ".join(', ',@dif)."; SNMP no se modifica todavia (fase 2)" if (@dif);
 		}
 	}
 	else {
@@ -183,6 +210,18 @@ my (@acc,@err,@warn);
 #----------------------------------------------------------------------------
 sub apply {
 my ($c,$ctx,$acc)=@_;
+	my @create = grep { $_->{op} eq 'create' } @$acc;
+	my @update = grep { $_->{op} eq 'update' } @$acc;
+	my $err = @create ? _apply_create($ctx,\@create) : [];
+	return $err if (@$err);
+	return @update ? _apply_update($ctx,\@update) : [];
+}
+
+#----------------------------------------------------------------------------
+# _apply_create: one CSV file for all the creations and one call to the engine
+#----------------------------------------------------------------------------
+sub _apply_create {
+my ($ctx,$acc)=@_;
 my @err=();
 	my @rs = map { $_->{resource} } @$acc;
 	my %fields=(); foreach my $r (@rs) { $fields{$ctx->{cache}{fields}{uc $_}}=1 foreach (keys %{$r->{fields}||{}}); }
@@ -191,7 +230,7 @@ my @err=();
 	foreach my $r (@rs) {
 		my %rc = map { uc($_) => $r->{fields}{$_} } keys %{$r->{fields}||{}};
 		push @lines, join($SEP, $r->{name}, $r->{domain}, $r->{ip}, '', '', '', '', (defined $r->{critic} ? $r->{critic} : 50),
-			(defined $r->{type} ? $r->{type} : ''), 0, ($r->{snmp} ? ($r->{snmp}{community}||'') : ''), ($r->{snmp} ? $r->{snmp}{version} : 0), '', 1, '',
+			(defined $r->{type} ? $r->{type} : ''), 0, ($r->{snmp} ? ($r->{snmp}{community}||'') : ''), ($r->{snmp} ? $r->{snmp}{version} : 0), '', 1, (defined $r->{geodata} ? $r->{geodata} : ''),
 			map { defined $rc{uc $_} ? $rc{uc $_} : '' } @fc);
 	}
 	my $file = "cnm-control-".time()."-$$.csv";
@@ -212,6 +251,63 @@ my @err=();
 		}
 	}
 	return \@err;
+}
+
+#----------------------------------------------------------------------------
+# _apply_update: one transaction for every device; then the records (tips)
+#----------------------------------------------------------------------------
+sub _apply_update {
+my ($ctx,$acc)=@_;
+	my $dbh=$ctx->{dbh};
+	my @cols = sort values %{$ctx->{cache}{field_cols}||{}};
+	eval {
+		$dbh->begin_work();
+		foreach my $x (@$acc) {
+			my $id = $x->{id_dev};
+			# Precondition: the values before are still the ones of the plan
+			my $d = $dbh->selectrow_hashref("SELECT ip,type,critic,geodata FROM devices WHERE id_dev=? FOR UPDATE", undef, $id);
+			die "id_dev=$id ($x->{ip}): ya no existe\n" if ((! $d) || ($d->{ip} ne $x->{ip}));
+			foreach my $a (sort keys %{$x->{changes}}) {
+				my $now = defined $d->{$a} ? "$d->{$a}" : '';
+				die "id_dev=$id ($x->{ip}): $a vale '$now' y el plan esperaba '$x->{changes}{$a}[0]'; ha cambiado desde el plan\n"
+					if ($now ne $x->{changes}{$a}[0]);
+			}
+			if (%{$x->{fchanges}}) {
+				my $cd = $dbh->selectrow_hashref("SELECT * FROM devices_custom_data WHERE id_dev=? FOR UPDATE", undef, $id) || {};
+				foreach my $col (sort keys %{$x->{fchanges}}) {
+					my $now = (defined $cd->{$col} && $cd->{$col} ne '') ? $cd->{$col} : '-';
+					die "id_dev=$id ($x->{ip}): $x->{fchanges}{$col}[2] vale '$now' y el plan esperaba '$x->{fchanges}{$col}[0]'; ha cambiado desde el plan\n"
+						if ($now ne $x->{fchanges}{$col}[0]);
+				}
+			}
+			if (my @a = sort keys %{$x->{changes}}) {
+				$dbh->do("UPDATE devices SET ".join(',', map { "$_=?" } @a)." WHERE id_dev=?", undef, (map { $x->{changes}{$_}[1] } @a), $id);
+			}
+			if (my @c = sort keys %{$x->{fchanges}}) {
+				# save_custom_fields (custom_pro onm/inc/class.cnmdevice.php)
+				$dbh->do("INSERT IGNORE INTO devices_custom_data (id_dev) VALUES (?)", undef, $id);
+				$dbh->do("UPDATE devices_custom_data SET ".join(',', map { "$_=?" } @c)." WHERE id_dev=?", undef,
+							(map { $x->{fchanges}{$_}[1] eq '' ? '-' : $x->{fchanges}{$_}[1] } @c), $id);
+				$dbh->do("UPDATE devices_custom_data SET $_='-' WHERE id_dev=? AND ($_ IS NULL OR $_='')", undef, $id) foreach (@cols);
+			}
+		}
+		$dbh->commit();
+	};
+	if ($@) { my $e=$@; chomp $e; eval { $dbh->rollback(); }; return [ "dispositivos (deshecho, no se ha modificado ninguno): $e" ]; }
+
+	# Device records: the data is already written; a failure here is a warning. The engine logs
+	# the whole record at level info, and the record carries the SNMP community: that call
+	# runs with the store at level warning, so the community does not reach engine.log.
+	my $store = eval { $ctx->{provision}->()->istore() };
+	foreach my $x (@$acc) {
+		if (! $store) { push @{$ctx->{apply_warnings}}, "device $x->{ip}: no se ha regenerado su ficha (sin acceso al motor)"; next; }
+		my $lv = $store->log_level();
+		eval { $store->log_level('warning'); $store->store_device_record($dbh, $x->{ip}); };
+		my $e = $@;
+		$store->log_level($lv);
+		push @{$ctx->{apply_warnings}}, "device $x->{ip}: modificado, pero no se ha regenerado su ficha: $e" if ($e);
+	}
+	return [];
 }
 
 1;

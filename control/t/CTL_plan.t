@@ -36,7 +36,6 @@ my @bad = (
 	[ $M, { kind=>'metric', device=>'a.b', subtype=>'x', c_label=>'x' x 256 },    qr/255/ ],
 	[ $V, { kind=>'view' },                                                           qr/falta "name"/ ],
 	[ $V, { kind=>'view', name=>'V', create=>{} },                                   qr/true o false/ ],
-	[ $V, { kind=>'view', name=>'V', like=>'M' },                                    qr/solo tienen sentido con "create"/ ],
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ live_metric=>1 } },        qr/campo 'live_metric' no admitido/ ],
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ itil_type=>7 } },          qr/itil_type tiene que ser 1 a 5/ ],
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ global=>2 } },             qr/global tiene que ser 0 o 1/ ],
@@ -79,9 +78,11 @@ my $ex = { id_dev=>7, name=>'tda-01', domain=>'local', ip=>'10.0.0.1', custom=>{
 ($acc,$er,$wa) = $D->diff($rf, { by_ip=>[$ex], by_name=>[] }, $ctx);
 is(scalar(@$acc)+scalar(@$er)+scalar(@$wa), 0, 'existente con los mismos campos: ni acciones ni avisos');
 ($acc,$er,$wa) = $D->diff($rf, { by_ip=>[{ %$ex, custom=>{ columna2=>'Otro' } }], by_name=>[] }, $ctx);
-like(join(' ',@$wa), qr/difiere: proveedor 'Otro' -> 'ACME'/, 'existente con un campo distinto: aviso con el cambio');
+like(join(' ', map { "$_->{op}: $_->{text}" } @$acc), qr/^update: tda-01\.local Proveedor 'Otro' -> 'ACME'$/, 'existente con un campo distinto: modificacion');
 ($acc,$er,$wa) = $D->diff($rf, { by_ip=>[{ %$ex, custom=>{} }], by_name=>[] }, $ctx);
-like(join(' ',@$wa), qr/'-' -> 'ACME'/, 'campo sin valor guardado: se compara con el defecto del motor');
+like(join(' ', map { $_->{text} } @$acc), qr/'-' -> 'ACME'/, 'campo sin valor guardado: se compara con el defecto del motor');
+($n,$e) = $V->validate({ kind=>'view', name=>'V', like=>'M' });
+ok(! $e, '"like" sin "create": admitido (modifica una vista existente)');
 ($acc,$er) = $D->diff($r, { by_ip=>[], by_name=>[{ id_dev=>8, ip=>'10.9.9.9' }] }, $ctx);
 like($er->[0] // '', qr/ya lo usa la IP 10\.9\.9\.9/, 'nombre usado con otra IP: conflicto');
 ($r) = $D->validate({ kind=>'device', name=>'x', domain=>'l', ip=>'10.0.0.5', type=>'Switch' });

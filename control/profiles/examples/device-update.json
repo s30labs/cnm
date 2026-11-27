@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "descr": "Dar de alta o modificar dispositivos: tipo, criticidad, geolocalizacion y campos de usuario (columnas custom.<campo>). Celda vacia = no se toca",
+  "parameters": {
+    "name":    { "required": true, "descr": "nombre del dispositivo" },
+    "ip":      { "required": true, "descr": "IP: identifica el dispositivo" },
+    "domain":  { "default": "local", "descr": "dominio" },
+    "type":    { "descr": "tipo de dispositivo (cnm-control list types)" },
+    "critic":  { "descr": "criticidad: 25, 50, 75 o 100" },
+    "geodata": { "descr": "geolocalizacion, hasta 30 caracteres" }
+  },
+  "resources": [
+    { "kind": "device", "name": "{name}", "domain": "{domain}", "ip": "{ip}",
+      "type": "{type}", "critic": "{critic}", "geodata": "{geodata}" }
+  ]
+}

@@ -24,7 +24,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Core;
-$VERSION='0.30';
+$VERSION='0.40';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -181,6 +181,13 @@ my @l=();
 	else {
 		push @l, map { sprintf("  %-12s %-12s %s", $_->{kind}, $_->{op}, $_->{text}) } @{$plan->{actions}};
 		push @l, "  (sin cambios)" if (! @{$plan->{actions}});
+		# Modifications counted by attribute: a mass change is seen at a glance
+		my %n=();
+		foreach my $x (grep { $_->{op} eq 'update' } @{$plan->{actions}}) {
+			$n{"$x->{kind}.$_"}++ foreach (keys %{$x->{changes}||{}});
+			$n{"$x->{kind}.$x->{fchanges}{$_}[2]"}++ foreach (keys %{$x->{fchanges}||{}});
+		}
+		push @l, "  MODIFICA: ".join(', ', map { "$_ en $n{$_}" } sort keys %n) if (%n);
 	}
 	push @l, map { "  AVISO  $_" } @{$plan->{warnings}};
 	push @l, sprintf("RESUMEN %d acciones, %d sin cambios, %d avisos, %d errores%s",

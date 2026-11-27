@@ -56,6 +56,13 @@ sub selectrow_hashref {
 my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 	if ($q =~ /FROM devices WHERE ip=\?/) { my ($d)=grep { $_->{ip} eq $b[0] } @{$t->{devices}}; return $d; }
 	if ($q =~ /FROM metrics WHERE id_dev=\? AND name=\?/) { my ($m)=grep { $_->{id_dev}==$b[0] && $_->{name} eq $b[1] } @{$t->{metrics}}; return $m; }
+	if ($q =~ /SELECT ip,type,critic,geodata FROM devices WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		return $d ? { map { $_=>$d->{$_} } qw(ip type critic geodata) } : undef; }
+	if ($q =~ /SELECT \* FROM devices_custom_data WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		my $c=$t->{custom}{$d->{ip}} or return undef; my $n=0; my %col=map { uc($_) => 'columna'.++$n } @{$t->{fields}};
+		return { id_dev=>$b[0], map { ($col{$_} => $c->{$_}) } keys %$c }; }
+	if ($q =~ /SELECT type,itil_type,global FROM cfg_views WHERE id_cfg_view=\? AND cid=\? AND cid_ip=\? FOR UPDATE/) {
+		my ($v)=grep { $_->{id_cfg_view}==$b[0] } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(type itil_type global) } : undef; }
 	if ($q =~ /FROM cfg_users WHERE login_name=\?/) { my ($u)=grep { lc($_->{login_name}) eq lc($b[0]) } @{$t->{users}||[]}; return $u ? {%$u} : undef; }
 	if ($q =~ /SELECT id_cfg_view,cid,cid_ip FROM cfg_views WHERE cid=\? AND name=\?/) {
 		my ($v)=grep { $_->{cid} eq $b[0] && lc($_->{name}) eq lc($b[1]) } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(id_cfg_view cid cid_ip) } : undef; }
@@ -84,6 +91,17 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 		push @{$t->{v2v}}, [ @b ]; }
 	elsif ($q =~ /^INSERT IGNORE INTO cfg_user2view/) { push @{$t->{u2v}}, [ $b[0], $b[4], $b[1], $b[2], $b[3] ] if (! grep { $_->[0]==$b[0] && $_->[1] eq $b[4] } @{$t->{u2v}||[]}); }
 	elsif ($q =~ /^UPDATE cfg_views SET nsubviews/) { $_->{nsubviews}=$b[0] foreach (grep { $_->{id_cfg_view}==$b[1] } @{$t->{views}}); }
+	elsif ($q =~ /^UPDATE devices SET (.+) WHERE id_dev=\?$/) { my @c = map { s/=\?//r } split(/,/,$1); my $id=pop @b;
+		my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}}; @$d{@c}=@b; }
+	elsif ($q =~ /^INSERT IGNORE INTO devices_custom_data/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}}; $t->{custom}{$d->{ip}} ||= {}; }
+	elsif ($q =~ /^UPDATE devices_custom_data SET (columna\d+)='-' WHERE id_dev=\? AND/) { my $c=$1; my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		my $n=0; my %name=map { ('columna'.++$n) => uc($_) } @{$t->{fields}}; my $h=$t->{custom}{$d->{ip}};
+		$h->{$name{$c}}='-' if ((! defined $h->{$name{$c}}) || ($h->{$name{$c}} eq '')); }
+	elsif ($q =~ /^UPDATE devices_custom_data SET (.+) WHERE id_dev=\?$/) { my @c = map { s/=\?//r } split(/,/,$1); my $id=pop @b;
+		my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}}; my $n=0; my %name=map { ('columna'.++$n) => uc($_) } @{$t->{fields}};
+		$t->{custom}{$d->{ip}}{$name{$c[$_]}}=$b[$_] for (0..$#c); }
+	elsif ($q =~ /^UPDATE cfg_views SET (.+) WHERE id_cfg_view=\? AND cid=\? AND cid_ip=\?$/) { my @c = map { s/=\?//r } split(/,/,$1);
+		my (undef,undef)=(pop @b, pop @b); my $id=pop @b; my ($v)=grep { $_->{id_cfg_view}==$id } @{$t->{views}}; @$v{@c}=@b; }
 	else { die "do not simulated: $q"; }
 	return 1;
 }
@@ -92,8 +110,14 @@ sub commit     { }
 sub rollback   { %{$_[0]{t}} = %{$_[0]{saved}}; }
 
 #--- Fake engine ------------------------------------------------------------------
+package FakeStore;
+sub new { return bless { t=>$_[1], lv=>'info' }, $_[0]; }
+sub log_level { my ($s,$l)=@_; $s->{lv}=$l if (defined $l); return $s->{lv}; }
+sub store_device_record { my ($s,$dbh,$ip)=@_; die "simulated record failure\n" if ($s->{t}{fail_record});
+	push @{$s->{t}{records}}, "$ip:$s->{lv}"; }
 package FakeProv;
-sub new { return bless { t=>$_[1], calls=>[] }, $_[0]; }
+sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]) }, $_[0]; }
+sub istore { return $_[0]{store}; }
 sub prov_do_set_device_metric {
 my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 	if ($in->{init}==11) {
@@ -251,11 +275,27 @@ my ($cv2) = ctx($tv);
 my $plv2 = make_plan($cv2,$bkv);
 is(scalar(@{$plv2->{actions}}).'+'.scalar(@{$plv2->{errors}}), '0+0', 'vistas: el plan calculado otra vez sale vacio');
 
-# Existing view with different fields: warning, no change
-my ($bkw) = validate_state(vstate({ kind=>'view', name=>'Sedes', create=>1, fields=>{ type=>'General' } }));
+# Existing view with different fields: update (modify, phase 1)
+my ($bkw) = validate_state(vstate({ kind=>'view', name=>'Sedes', fields=>{ type=>'General', itil_type=>3 } }));
 my ($cw) = ctx($tv); my $plw = make_plan($cw,$bkw);
-is(scalar(@{$plw->{actions}}), 0, 'vista existente con otro tipo: sin acciones');
-like(join(' ',@{$plw->{warnings}}), qr/no se modifican sus campos; difiere: type 'Sedes' -> 'General'/, '... y aviso con la diferencia');
+is(join(',', map { "$_->{kind}.$_->{op}" } @{$plw->{actions}}), 'view.update', 'vista existente con otro tipo: una modificacion (sin "create")');
+like($plw->{actions}[0]{text}, qr/"Sedes" itil_type '1' -> '3', type 'Sedes' -> 'General'/, '... con el valor anterior y el nuevo');
+like(CNMControl::Core::plan_text($plw), qr/MODIFICA: view\.itil_type en 1, view\.type en 1/, '... y contada por atributo');
+is(scalar(@{$plw->{warnings}}), 0, '... sin avisos');
+my $before_v = Storable::dclone($tv);
+my ($sedes) = grep { $_->{name} eq 'Sedes' } @{$tv->{views}};
+$sedes->{type}='Otro tipo';		# someone changes it in the console between plan and apply
+my $ew = apply_plan($cw,$plw);
+like(join(' ',@$ew), qr/vista 'Sedes': type vale 'Otro tipo' y el plan esperaba 'Sedes'; ha cambiado desde el plan/, 'precondicion: cambio entre plan y apply -> error');
+($sedes) = grep { $_->{name} eq 'Sedes' } @{$tv->{views}};
+is($sedes->{itil_type}, 1, '... y no se escribe nada (itil_type sigue en 1)');
+$sedes->{type}='Sedes';
+($cw) = ctx($tv); $plw = make_plan($cw,$bkw);
+is(scalar(@{apply_plan($cw,$plw)}), 0, 'vista: modificacion aplicada');
+($sedes) = grep { $_->{name} eq 'Sedes' } @{$tv->{views}};
+is("$sedes->{type}/$sedes->{itil_type}", 'General/3', '... type e itil_type nuevos');
+ok((grep { $_ eq 'metrics:170' } @{$tv->{cleared}}), '... y busquedas almacenadas limpiadas, como save()');
+($cw) = ctx($tv); is(scalar(@{make_plan($cw,$bkw)->{actions}}), 0, '... el plan calculado otra vez sale vacio');
 
 # Red cases: the plan is blocked and nothing is written
 my @red = (
@@ -329,9 +369,60 @@ my ($nd) = grep { $_->{ip} eq '10.0.9.1' } @{$tc->{devices}};
 is("$nd->{critic}/$nd->{version}/$nd->{community}", '50/0/', 'al crear: critic 50 y version 0 por defecto');
 ($bkc) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>100, snmp=>{ version=>2, community=>'otra' } }));
 ($cc) = ctx($tc); $plc = make_plan($cc,$bkc);
-like(join(' ',@{$plc->{warnings}}), qr/critic 75 -> 100, snmp community distinta \(no se muestra\)/, 'existente con critic y community distintos: aviso');
-unlike(join(' ',@{$plc->{warnings}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
-is(scalar(@{$plc->{actions}}), 0, '... y sin acciones');
+like(join(' ',@{$plc->{warnings}}), qr/difiere: snmp community distinta \(no se muestra\); SNMP no se modifica todavia \(fase 2\)/, 'existente con community distinta: aviso (fase 2)');
+unlike(join(' ',@{$plc->{warnings}}, map { $_->{text} } @{$plc->{actions}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
+is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local critic '75' -> '100'", '... y critic distinto: modificacion');
+
+#=== Modify, phase 1: device type, critic, geodata and user fields ============================
+my $tm = base(); $tm->{devices}[0]{critic}=50; $tm->{devices}[0]{geodata}=''; $tm->{custom}{'10.0.0.100'}={ PROVEEDOR=>'Viejo' };
+$tm->{types}=['Router','Switch'];
+my ($bkm2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', type=>'Switch', critic=>75,
+												 geodata=>'40.4168,-3.7038', fields=>{ proveedor=>'Nuevo', 'CNM-METRICS'=>'x.json' } }));
+my ($cm) = ctx($tm); my $plm = make_plan($cm,$bkm2);
+is(join(',', map { "$_->{kind}.$_->{op}" } @{$plm->{actions}}), 'device.update', 'dispositivo existente con cambios: una modificacion');
+like($plm->{actions}[0]{text}, qr/^tda-00\.local critic '50' -> '75', geodata '' -> '40\.4168,-3\.7038', type '' -> 'Switch', Proveedor 'Viejo' -> 'Nuevo', CNM-METRICS '-' -> 'x\.json'$/,
+	'... cada cambio con su valor anterior (campo sin valor = -)');
+like(CNMControl::Core::plan_text($plm), qr/MODIFICA: device\.CNM-METRICS en 1, device\.Proveedor en 1, device\.critic en 1, device\.geodata en 1, device\.type en 1/, '... contada por atributo');
+my $tm_before = Storable::dclone($tm);
+$tm->{custom}{'10.0.0.100'}{PROVEEDOR}='Tocado';		# changed in the console after the plan
+my $em = apply_plan($cm,$plm);
+like(join(' ',@$em), qr/dispositivos \(deshecho, no se ha modificado ninguno\): id_dev=12 \(10\.0\.0\.100\): Proveedor vale 'Tocado' y el plan esperaba 'Viejo'/,
+	'precondicion de un campo de usuario: error');
+is($tm->{devices}[0]{critic}, 50, '... y nada escrito (critic sigue en 50)');
+ok(! $tm->{records}, '... ni ficha regenerada');
+$tm->{custom}{'10.0.0.100'}{PROVEEDOR}='Viejo';
+($cm) = ctx($tm); $plm = make_plan($cm,$bkm2);
+is(scalar(@{apply_plan($cm,$plm)}), 0, 'modificacion aplicada');
+is(join('/', @{$tm->{devices}[0]}{qw(type critic geodata)}), 'Switch/75/40.4168,-3.7038', '... devices: type, critic y geodata');
+is_deeply($tm->{custom}{'10.0.0.100'}, { PROVEEDOR=>'Nuevo', 'CNM-METRICS'=>'x.json' }, '... campos de usuario');
+is_deeply($tm->{records}, ['10.0.0.100:warning'], '... ficha regenerada por el motor, con el almacen en nivel warning (la comunidad no llega a engine.log)');
+is($cm->{provision}->()->istore()->log_level(), 'info', '... y el nivel se restaura despues');
+($cm) = ctx($tm); is(scalar(@{make_plan($cm,$bkm2)->{actions}}), 0, '... el plan calculado otra vez sale vacio');
+# Precondition on a devices column
+my $tp = base(); $tp->{devices}[0]{critic}=50;
+my ($bkp) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>75 }));
+my ($cp) = ctx($tp); my $plp = make_plan($cp,$bkp);
+$tp->{devices}[0]{critic}=25;
+like(join(' ',@{apply_plan($cp,$plp)}), qr/critic vale '25' y el plan esperaba '50'/, 'precondicion de una columna de devices: error');
+is($tp->{devices}[0]{critic}, 25, '... y no se escribe');
+# A device without a row in devices_custom_data: the other columns get '-'
+my $tz = base();
+my ($bkz) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', fields=>{ proveedor=>'ACME' } }));
+my ($cz) = ctx($tz); is(scalar(@{apply_plan($cz, make_plan($cz,$bkz))}), 0, 'campo de usuario en un equipo sin fila de campos');
+is_deeply($tz->{custom}{'10.0.0.100'}, { PROVEEDOR=>'ACME', 'CNM-METRICS'=>'-' }, "... la fila se crea y las demas columnas quedan en '-', como la consola");
+# Undeclared attributes are not touched
+my ($bkm3) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100' }));
+($cm) = ctx($tm); is(scalar(@{make_plan($cm,$bkm3)->{actions}}), 0, 'sin atributos declarados: nada que modificar');
+# Record failure: the data stays, warning
+my $tr2 = base(); $tr2->{fail_record}=1;
+my ($bkr2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>100 }));
+my ($cr2) = ctx($tr2); my $plr2 = make_plan($cr2,$bkr2);
+is(scalar(@{apply_plan($cr2,$plr2)}), 0, 'fallo al regenerar la ficha: no es error');
+is($tr2->{devices}[0]{critic}, 100, '... el dato queda escrito');
+like(join(' ',@{$cr2->{apply_warnings}||[]}), qr/modificado, pero no se ha regenerado su ficha/, '... y se avisa');
+# geodata validation
+my (undef,$eg) = validate_state(vstate({ kind=>'device', name=>'a', domain=>'b', ip=>'1.1.1.1', geodata=>'x' x 31 }));
+like(join(' ',@$eg), qr/geodata" de mas de 30/, 'geodata de mas de 30 caracteres: rechazado');
 
 #=== 0010: validation errors derived from an earlier kind of the same line ================
 my (undef,$e10,$d10) = validate_state(vstate(

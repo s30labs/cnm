@@ -13,7 +13,11 @@
 #	{ "kind": "view", "name": "Tiendas" } alone is a reference: the view must exist. It merges
 #	with a full definition of the same view coming from another input (see merge).
 #	Without "create", a missing view is an error, as before. "parents" and "users" also work on
-#	existing views. The fields of an existing view are never changed: a difference is a warning.
+#	existing views. Modify, phase 1 (PROY §9, 26-nov-2026): in an existing view, the fields
+#	that "like" or "fields" give and that differ are changed (action "update"): UPDATE of
+#	type, itil_type and global ('update_view' of the console, only those columns) and, as
+#	save() does with a view that is not live, the two search store clears. Checked against
+#	the value before of the plan, in the same transaction as the rest of the views.
 #
 #	What creating writes, like the console (custom_pro onm/inc/class.cnmview.php, save(), and
 #	the named queries of onm/sql/mod_Configure.sql):
@@ -39,7 +43,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::View;
-$VERSION='0.20';
+$VERSION='0.30';
 use strict;
 use JSON;
 
@@ -83,7 +87,6 @@ my ($c,$r)=@_;
 		}
 		$n{fields}=\%f if (%f);
 	}
-	return (undef,'"like" y "fields" solo tienen sentido con "create": true') if ((! $n{create}) && ($n{like} || $n{fields}));
 	foreach my $l (qw(parents users)) {
 		next if (! exists $r->{$l});
 		return (undef,"\"$l\" tiene que ser una lista de nombres") if (ref($r->{$l}) ne 'ARRAY');
@@ -297,9 +300,11 @@ my (@acc,@err,@warn);
 								 ($r->{like} ? ", como \"$r->{like}\"" : '').")" };
 	}
 	else {
-		my @d = map { "$_ '".(defined $v->{$_} ? $v->{$_} : '')."' -> '$want{$_}'" }
-				  grep { defined $want{$_} && ((! defined $v->{$_}) || (lc $v->{$_} ne lc $want{$_})) } qw(type itil_type global);
-		push @warn, "ya existe y no se modifican sus campos; difiere: ".join(', ',@d) if (@d);
+		my %chg = map { $_ => [ (defined $v->{$_} ? "$v->{$_}" : ''), "$want{$_}" ] }
+					 grep { defined $want{$_} && ((! defined $v->{$_}) || ("$v->{$_}" ne "$want{$_}")) } qw(type itil_type global);
+		push @acc, { kind=>'view', op=>'update', ref=>$name, name=>$name, id=>$v->{id}, cid=>$v->{cid}, cid_ip=>$v->{cid_ip},
+						 live=>($v->{live_metric} ? 1 : 0), changes=>\%chg,
+						 text=>"\"$name\" ".join(', ', map { "$_ '$chg{$_}[0]' -> '$chg{$_}[1]'" } sort keys %chg) } if (%chg);
 	}
 	foreach my $p (@{$r->{parents}||[]}) {
 		my $pv = $views->{$p};
@@ -337,6 +342,23 @@ my ($c,$ctx,$acc)=@_;
 			# save() with live_metric=0 and live_remote=0 (onm/inc/class.cnmview.php)
 			$dbh->do("DELETE FROM search_store2cfg_views2metrics WHERE id_cfg_view=?", undef, $id);
 			$dbh->do("DELETE FROM search_store2cfg_views2remote_alerts WHERE id_cfg_view=?", undef, $id);
+		}
+		foreach my $x (grep { $_->{op} eq 'update' } @$acc) {
+			my $now = $dbh->selectrow_hashref("SELECT type,itil_type,global FROM cfg_views WHERE id_cfg_view=? AND cid=? AND cid_ip=? FOR UPDATE",
+														 undef, $x->{id}, $x->{cid}, $x->{cid_ip});
+			die "la vista '$x->{name}' ya no existe\n" if (! $now);
+			foreach my $a (sort keys %{$x->{changes}}) {
+				my $n = defined $now->{$a} ? "$now->{$a}" : '';
+				die "vista '$x->{name}': $a vale '$n' y el plan esperaba '$x->{changes}{$a}[0]'; ha cambiado desde el plan\n" if ($n ne $x->{changes}{$a}[0]);
+			}
+			my @a = sort keys %{$x->{changes}};
+			# 'update_view' (onm/sql/mod_Configure.sql:441), only the columns that change
+			$dbh->do("UPDATE cfg_views SET ".join(',', map { "$_=?" } @a)." WHERE id_cfg_view=? AND cid=? AND cid_ip=?", undef,
+						(map { $x->{changes}{$_}[1] } @a), $x->{id}, $x->{cid}, $x->{cid_ip});
+			if (! $x->{live}) {		# save() (onm/inc/class.cnmview.php)
+				$dbh->do("DELETE FROM search_store2cfg_views2metrics WHERE id_cfg_view=?", undef, $x->{id});
+				$dbh->do("DELETE FROM search_store2cfg_views2remote_alerts WHERE id_cfg_view=?", undef, $x->{id});
+			}
 		}
 		my %v = ();
 		my $get = sub {
