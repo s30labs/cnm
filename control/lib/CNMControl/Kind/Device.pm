@@ -403,7 +403,9 @@ my ($ctx,$id)=@_;
 		($rc,$rcstr) = eval { $snmp->snmp_mib2_system(\%dev) };
 		if ($@) { $rc=1; $rcstr=$@; chomp $rcstr; }
 		$w = "no responde por SNMP con los datos nuevos ($rcstr); se guarda '** sin respuesta snmp **', como hace el motor" if ($rc);
-		$w = "MIB-2 incompleta: $rcstr" if ((! $rc) && $rcstr);
+		# rc 0 comes with rcstr 'OK' (measured on cnm-11-8-test, 27-nov-2026); a part of the
+		# MIB that did not answer in time adds this text (Crawler/SNMP.pm, snmp_mib2_system)
+		$w = "MIB-2 incompleta: $rcstr" if ((! $rc) && ($rcstr =~ /Timeout en partes de la MIB/));
 	}
 	# As store_device (Crawler/Store.pm:884-913)
 	if (defined $dev{sysdesc}) { $dev{sysdesc} =~ s/[\r\n]/ /g; $dev{sysdesc} = substr($dev{sysdesc},0,250); }

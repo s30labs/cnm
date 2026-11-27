@@ -131,7 +131,7 @@ sub snmp_mib2_system { my ($s,$d)=@_; push @{$s->{t}{mib2_asked}}, "$d->{host_ip
 	@$d{qw(sysdesc sysoid sysloc enterprise)} = (('** sin respuesta snmp **') x 3, 0);
 	return (1,'Timeout') if ($d->{community} ne 'buena');
 	@$d{qw(sysdesc sysoid sysloc enterprise mac mac_vendor network switch)} = ("Linux\nx86", '.1.3.6.1.4.1.8072', 'CPD', '8072', 'aa:bb:cc:dd:ee:ff:99', 'ACME', '10.0.0.0', 0);
-	return (0,''); }
+	return (0, $d->{host_ip} eq '10.0.0.104' ? 'OKTimeout en partes de la MIB' : 'OK'); }
 package FakeProv;
 sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]), snmp=>FakeSNMP->new($_[1]) }, $_[0]; }
 sub istore { return $_[0]{store}; }
@@ -525,5 +525,10 @@ like(join(' ',@{$cmb->{apply_warnings}}), qr/device 10\.0\.0\.101: no responde p
 unlike(join(' ',@{$cmb->{apply_warnings}}), qr/10\.0\.0\.10[02]/, 'sin aviso para el que responde ni para version 0');
 is($dv{'10.0.0.102'}{sysdesc}, '** sin respuesta snmp **', 'version 0: sin preguntar, los valores del motor');
 is($dv{'10.0.0.103'}{sysdesc}, 'antes', 'solo status: MIB-2 sin tocar');
+# A part of the MIB that does not answer in time: warning; a plain 'OK': none
+push @{$tmb->{devices}}, { id_dev=>16, name=>'tda-04', domain=>'local', ip=>'10.0.0.104', type=>'', version=>2, community=>'vieja', status=>0 };
+($bkmb) = validate_state(vstate({ kind=>'device', name=>'tda-04', domain=>'local', ip=>'10.0.0.104', snmp=>{ version=>2, community=>'buena' } }));
+($cmb) = ctx($tmb); is(scalar(@{apply_plan($cmb, make_plan($cmb,$bkmb))}), 0, 'MIB-2 con una parte sin respuesta: aplicado');
+like(join(' ',@{$cmb->{apply_warnings}||[]}), qr/device 10\.0\.0\.104: MIB-2 incompleta: OKTimeout en partes de la MIB/, '... y aviso de MIB-2 incompleta');
 
 done_testing();
