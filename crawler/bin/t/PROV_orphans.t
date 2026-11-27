@@ -9,7 +9,7 @@ use Test::More;
 use Time::Local qw(timelocal);
 use FindBin;
 use lib "$FindBin::Bin/..";
-use ProvisionLite::Orphans qw(RETENTION_DAYS file_kind stamp_epoch classify_files);
+use ProvisionLite::Orphans qw(RETENTION_DAYS NODATA_DAYS file_kind stamp_epoch classify_files map_unknown_index has_valid_data retire_decision);
 
 is(RETENTION_DAYS, 90, 'RETENTION_DAYS: 90 (decision of 24-nov-2026)');
 
@@ -64,5 +64,53 @@ my $c3 = classify_files($D, ['a.rrd'], undef, $NOW);
 is_deeply($c3->{orphan}, ['a.rrd'], 'classify: without metric files, every .rrd is an orphan');
 my $c4 = classify_files($D, undef, \%MF, $NOW);
 is_deeply($c4, { map { $_ => [] } qw(metric orphan removed archived due other) }, 'classify: no files');
+
+#--- has_valid_data -------------------------------------------------------------------------
+is(has_valid_data([ [undef,undef], [undef] ]), 0, 'has_valid_data: only NaN');
+is(has_valid_data([ [undef,undef], [undef,0] ]), 1, 'has_valid_data: a 0 is a valid value');
+is(has_valid_data([ [undef], [3.5] ]), 1, 'has_valid_data: one value');
+is(has_valid_data([]), 0, 'has_valid_data: no rows');
+is(has_valid_data(undef), 0, 'has_valid_data: undef');
+is(has_valid_data([ 'x', [undef] ]), 0, 'has_valid_data: a row that is not a list is ignored');
+
+#--- MAP status metrics (one DS per state; the unknown state at 1 is no data) --------------
+is(map_unknown_index('Up|No computable|No disponible|Unk'), 3, 'map_unknown_index: Unk, the 4th');
+is(map_unknown_index('Disponible|No computable|No Disponible|Desconocido'), 3, 'map_unknown_index: Desconocido');
+is(map_unknown_index('ok|Unknown|fail'), 1, 'map_unknown_index: Unknown in the middle');
+is(map_unknown_index('Up|Down'), undef, 'map_unknown_index: no unknown state');
+is(map_unknown_index('Up|Unknown state'), undef, 'map_unknown_index: only the whole label');
+is(map_unknown_index(undef), undef, 'map_unknown_index: undef');
+my $MAP = { unknown=>3 };
+is(has_valid_data([ [0,0,0,1], [0,0,0,1] ], $MAP), 0, 'MAP: only Unk is no data (the 437 gap)');
+is(has_valid_data([ [0,0,0,1], [1,0,0,0] ], $MAP), 1, 'MAP: one Up is data');
+is(has_valid_data([ [0,0,1,0] ], $MAP), 1, 'MAP: No disponible is data (the device answered)');
+is(has_valid_data([ [0,0,0,0.25] ], $MAP), 0, 'MAP: a consolidated fraction of Unk is no data');
+is(has_valid_data([ [0.75,0,0,0.25] ], $MAP), 1, 'MAP: a consolidated fraction of Up is data');
+is(has_valid_data([ [0,0,0,0] ], $MAP), 0, 'MAP: all states at 0 is no data');
+is(has_valid_data([ [undef,undef,undef,undef] ], $MAP), 0, 'MAP: U is no data');
+is(has_valid_data([ [0,0,0,0] ], { unknown=>undef }), 0, 'MAP without unknown state: all at 0 is no data');
+is(has_valid_data([ [0,1] ], { unknown=>undef }), 1, 'MAP without unknown state: a state at 1 is data');
+is(has_valid_data([ [0,0,0,1] ]), 1, 'not MAP: any value is data');
+
+#--- retire_decision ------------------------------------------------------------------------
+is(NODATA_DAYS, 180, 'NODATA_DAYS: 180 (decision of 27-nov-2026)');
+my %OK = ( device=>1, type=>'snmp', status=>0, has_row=>0, subtype_rows=>3, c_label=>'', rrd=>'nodata' );
+sub rd { my %m=(%OK,@_); return [ retire_decision(\%m) ]; }
+is_deeply(rd(), [1,'sin datos en 180 dias'], 'retire: SNMP, no row, subtype in the template, no c_label, no data');
+is_deeply(rd(rrd=>'missing'), [1,'sin rrd'], 'retire: no RRD');
+is_deeply(rd(c_label=>undef), [1,'sin datos en 180 dias'], 'retire: c_label NULL is no c_label');
+is_deeply(rd(device=>0), [0,'equipo borrado'], 'retire: never on a device that no longer exists');
+is_deeply(rd(type=>'xagent'), [0,'no es snmp'], 'retire: never xagent');
+is_deeply(rd(type=>'latency'), [0,'no es snmp'], 'retire: never latency');
+is_deeply(rd(type=>undef), [0,'no es snmp'], 'retire: no type');
+is_deeply(rd(status=>3), [0,'status 3'], 'retire: already retired');
+is_deeply(rd(has_row=>1), [0,'con fila'], 'retire: with a template row');
+is_deeply(rd(subtype_rows=>0), [0,'subtipo sin filas en la plantilla'], 'retire: subtype not provisioned from the template (device 2089)');
+is_deeply(rd(c_label=>'KPI0050'), [0,'con c_label'], 'retire: never with c_label');
+is_deeply(rd(rrd=>'data'), [0,'con datos en 180 dias'], 'retire: never while collecting data');
+is_deeply(rd(rrd=>'error'), [0,'no se puede leer el rrd'], 'retire: never if the RRD cannot be read');
+is_deeply(rd(rrd=>undef), [0,'no se puede leer el rrd'], 'retire: never without RRD state');
+is_deeply(rd(status=>2), [1,'sin datos en 180 dias'], 'retire: status 2 (inactive) can be retired');
+is_deeply([ retire_decision({ %OK }, 30) ], [1,'sin datos en 30 dias'], 'retire: the window of -D in the text');
 
 done_testing();

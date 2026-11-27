@@ -15,18 +15,29 @@
 #	  from the stamp, never from the file mtime: an orphan written in 2023 and archived
 #	  today is kept 90 days from today.
 #
+#	- retire_decision: whether an SNMP metric without a template row can be retired. Only
+#	  when its device exists, its subtype has template rows in that device (a subtype with
+#	  none is not provisioned from the template, as most of device 2089), it has no
+#	  c_label (KPI: reviewed by hand) and its RRD has no valid value in the last NODATA_DAYS
+#	  days (or there is no RRD): a metric still collecting data measures something that
+#	  exists, with or without a template row.
+#	- Status metrics with MAP (cfg_monitor_snmp.esp) store one DS per state and one of them
+#	  is always 1, also without data: then the 'unknown' state is the one at 1
+#	  (REF-CNM-Funcionamiento 4.4). For them, valid data is any other state above 0.
+#
 #	Pure functions: they do not read the disk or the database.
 # Set Tab=3
 #####################################################################################################
 package ProvisionLite::Orphans;
-$VERSION='1.00';
+$VERSION='1.01';
 use strict;
 use Time::Local qw(timelocal);
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(RETENTION_DAYS file_kind stamp_epoch classify_files);
+our @EXPORT_OK = qw(RETENTION_DAYS NODATA_DAYS file_kind stamp_epoch classify_files map_unknown_index has_valid_data retire_decision);
 
 use constant RETENTION_DAYS => 90;
+use constant NODATA_DAYS => 180;	# default window without valid data for a metric to be retirable (decision of 27-nov-2026)
 
 #----------------------------------------------------------------------------
 # file_kind($name) -> ($kind, $stamp)
@@ -80,6 +91,62 @@ my ($dir,$files,$metric_files,$now,$days)=@_;
 		push @{$r{'due'}}, $f if ((defined $t) && ($now - $t >= $days*86400));
 	}
 	return \%r;
+}
+
+#----------------------------------------------------------------------------
+# map_unknown_index($items) -> 0-based DS of the 'unknown' state of a MAP metric, from
+# cfg_monitor_snmp.items ('Up|No computable|No disponible|Unk'); undef if there is none.
+#----------------------------------------------------------------------------
+sub map_unknown_index {
+my $items=shift;
+	return undef if (! defined $items);
+	my @st = split(/\|/,$items,-1);
+	for my $i (0..$#st) { return $i if ($st[$i] =~ /^\s*(unk|unknown|desconocido)\s*$/i); }
+	return undef;
+}
+
+#----------------------------------------------------------------------------
+# has_valid_data($rows,$map) -> 1 if the RRDs::fetch rows ([ [v1,v2,...], ... ]) hold data.
+# $map undef: any defined value (not U) is data.
+# $map = { unknown=>idx|undef } for MAP metrics: data is a value above 0 in a DS that is
+# not the unknown state (all states at 0 is no data too).
+#----------------------------------------------------------------------------
+sub has_valid_data {
+my ($rows,$map)=@_;
+	my $unk = (ref($map) eq 'HASH') ? $map->{'unknown'} : undef;
+	foreach my $line (@{$rows || []}) {
+		next if (ref($line) ne 'ARRAY');
+		for my $i (0..$#$line) {
+			my $v = $line->[$i];
+			next if (! defined $v);
+			if (! $map) { return 1; }
+			next if ((defined $unk) && ($i == $unk));
+			return 1 if ($v > 0);
+		}
+	}
+	return 0;
+}
+
+#----------------------------------------------------------------------------
+# retire_decision($m,$days) -> ($retirable, $reason)
+# $m: { device=>1|0, type, status, has_row=>1|0, subtype_rows=>n, c_label, rrd }
+#     rrd: 'data' (valid values in the window), 'nodata', 'missing' or 'error'.
+# $days: the window, only for the text (default NODATA_DAYS).
+# $reason is a short text for the detail file.
+#----------------------------------------------------------------------------
+sub retire_decision {
+my ($m,$days)=@_;
+	$days = NODATA_DAYS if (! defined $days);
+	return (0,'equipo borrado') if (! $m->{'device'});
+	return (0,'no es snmp') if ((! defined $m->{'type'}) || ($m->{'type'} ne 'snmp'));
+	return (0,'status 3') if ((defined $m->{'status'}) && ($m->{'status'} eq '3'));
+	return (0,'con fila') if ($m->{'has_row'});
+	return (0,'subtipo sin filas en la plantilla') if (! $m->{'subtype_rows'});
+	return (0,'con c_label') if ((defined $m->{'c_label'}) && ($m->{'c_label'} ne ''));
+	my $rrd = $m->{'rrd'} // 'error';
+	return (0,"con datos en $days dias") if ($rrd eq 'data');
+	return (0,'no se puede leer el rrd') if (($rrd ne 'nodata') && ($rrd ne 'missing'));
+	return (1, ($rrd eq 'missing') ? 'sin rrd' : "sin datos en $days dias");
 }
 
 1;

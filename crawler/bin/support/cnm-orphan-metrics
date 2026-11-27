@@ -3,13 +3,13 @@
 # cnm-orphan-metrics
 # One-off cleanup of what removed template rows left behind before REG-CNM-Deuda 4.107
 # (PROY-CNM-Alertas-Azules, point 21). In steps, decided on 24-nov-2026:
-#   list     read only: what there is, per device (this version)
+#   list     read only: what there is, per device, and which metrics retire would take
 #   retire   SNMP metrics without a template row        (not yet)
 #   purge    .removed-* and archived orphan RRD older than 90 days, also from cnm-daily
 #            (not yet)
 # Latency and xagent metrics are out of scope: they are listed apart and never touched.
 #
-# Usage: cnm-orphan-metrics list [-d id_dev] [-v]
+# Usage: cnm-orphan-metrics list [-d id_dev] [-D days] [-v]
 #-------------------------------------------------------------------------------------------
 use lib "/opt/crawler/bin";
 use strict;
@@ -17,7 +17,8 @@ use Getopt::Std;
 use ONMConfig;
 use Crawler::Store;
 use SupportDir qw(new_run_dir);
-use ProvisionLite::Orphans qw(RETENTION_DAYS classify_files);
+use RRDs;
+use ProvisionLite::Orphans qw(RETENTION_DAYS NODATA_DAYS classify_files map_unknown_index has_valid_data retire_decision);
 
 my $TOOL = 'cnm-orphan-metrics';
 my $FILE_CONF = '/cfg/onm.conf';
@@ -27,18 +28,24 @@ my $USAGE = <<"EOT";
 Limpieza unica de lo que dejaron las filas quitadas de la plantilla (REG-CNM-Deuda 4.107)
 (c) s30labs
 
-$TOOL list [-d id_dev] [-v]
+$TOOL list [-d id_dev] [-D dias] [-v]
     Solo lee. Por equipo:
       sin fila SNMP   metricas SNMP activas sin fila en la plantilla (con c_label: cuantas)
+      retirables      de esas, las que retiraria retire: su subtipo tiene filas en la plantilla
+                      del equipo, no tienen c_label y su RRD no tiene ningun valor valido en
+                      los ultimos dias de -D (o no tienen RRD). En las metricas de estado con
+                      MAP, el estado desconocido a 1 no cuenta como dato
       sin fila otras  metricas de latencia o xagent sin fila (no se tocan nunca)
       filas           filas de la plantilla del equipo (0: el equipo no se provisiona por
                       plantilla y sus metricas no se pueden juzgar asi)
       rrd huerfanos   .rrd de $RRD_DIR/<equipo>/ que no son de ninguna metrica, y su tamano
       removed         ficheros .removed-* de la retirada de 4.107 (y cuantos pasan de ${\ RETENTION_DAYS} dias)
       orphan          .rrd huerfanos ya archivados (.orphan-*; y cuantos pasan de ${\ RETENTION_DAYS} dias)
-    Y los directorios de $RRD_DIR que no son de ningun equipo.
+    Aparte: las metricas de equipos que ya no existen y los directorios de $RRD_DIR que no son
+    de ningun equipo (no son de 4.107 y retire no los toca).
     El detalle, fichero a fichero, queda en /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-list/.
     -d  solo ese equipo
+    -D  dias sin ningun dato valido para que una metrica sea retirable (por defecto ${\ NODATA_DAYS})
     -v  saca tambien el detalle en pantalla
 $TOOL -h  : Ayuda
 
@@ -49,9 +56,11 @@ my $cmd = shift(@ARGV) || '';
 if (($cmd eq '-h') || ($cmd eq 'help')) { print $USAGE; exit 0; }
 if ($cmd ne 'list') { print STDERR "Falta el subcomando, o no es valido: '$cmd'\n\n$USAGE"; exit 2; }
 my %opts=();
-getopts("d:v",\%opts) or do { print STDERR $USAGE; exit 2; };
+getopts("d:D:v",\%opts) or do { print STDERR $USAGE; exit 2; };
 if (@ARGV) { print STDERR "Sobra: @ARGV\n"; exit 2; }
 if ((defined $opts{d}) && ($opts{d} !~ /^\d+$/)) { print STDERR "id_dev no valido: $opts{d}\n"; exit 2; }
+if ((defined $opts{D}) && (($opts{D} !~ /^\d+$/) || ($opts{D} < 1))) { print STDERR "-D no valido: $opts{D}\n"; exit 2; }
+my $DAYS = $opts{D} || NODATA_DAYS;
 
 my $rcfg = conf_base($FILE_CONF);
 my $store = Crawler::Store->new(store_path=>$rcfg->{'store_path'}->[0],
@@ -73,9 +82,13 @@ my $dev_where = (defined $opts{d}) ? "id_dev=$opts{d}" : '1=1';
 my %name = map { $_->[0] => $_->[1] } @{ read_db('id_dev,name','devices',$dev_where) };
 if ((defined $opts{d}) && (! exists $name{$opts{d}})) { print STDERR "No existe el equipo $opts{d}\n"; exit 1; }
 
-# Template rows per device
-my %rows=();
-$rows{$_->[0]} = $_->[1] foreach @{ read_db('id_dev,count(*)','prov_template_metrics2iid',"$dev_where GROUP BY id_dev") };
+# Template rows per device, and per device and subtype
+my (%rows,%st_rows);
+foreach my $r (@{ read_db('t.id_dev,p.subtype,count(*)','prov_template_metrics2iid t JOIN prov_template_metrics p USING(id_template_metric)',
+		((defined $opts{d}) ? "t.id_dev=$opts{d}" : '1=1').' GROUP BY t.id_dev,p.subtype') }) {
+	$rows{$r->[0]} += $r->[2];
+	$st_rows{"$r->[0]\t$r->[1]"} = $r->[2];
+}
 
 # Metrics: files of every type, and active metrics without a template row
 my (%mfiles,%dev_has_metrics);
@@ -84,7 +97,7 @@ foreach my $r (@{ read_db('id_dev,file','metrics',$dev_where) }) {
 	$mfiles{$r->[1]}=1 if ((defined $r->[1]) && ($r->[1] ne ''));
 }
 my $where_m = "m.status!=3 AND t.mname IS NULL".((defined $opts{d}) ? " AND m.id_dev=$opts{d}" : '');
-my $norow = read_db('m.id_dev,m.id_metric,m.name,m.type,m.status,m.c_label,m.file',
+my $norow = read_db('m.id_dev,m.id_metric,m.name,m.type,m.status,m.c_label,m.file,m.subtype',
 	'metrics m LEFT JOIN prov_template_metrics2iid t ON t.id_dev=m.id_dev AND t.mname=m.name', $where_m);
 
 # RRD directories
@@ -102,15 +115,46 @@ else { print STDERR "No se puede leer $RRD_DIR: $!\n"; exit 1; }
 
 # Per device
 my $now = time();
-my %S=();		# id => { snmp, snmp_clabel, other, orphan, orphan_bytes, removed, removed_due, archived, archived_due }
+my %S=();		# id => { snmp, snmp_clabel, retirable, other, orphan, orphan_bytes, removed, removed_due, archived, archived_due }
+# Metrics (with or without a template row) of devices that no longer exist: id => [ n, with c_label ]
+my %GONE=();
+if (! defined $opts{d}) {
+	$GONE{$_->[0]} = [ $_->[1], $_->[2] || 0 ] foreach @{ read_db("m.id_dev,count(*),sum(m.c_label IS NOT NULL AND m.c_label!='')",
+		'metrics m LEFT JOIN devices d ON d.id_dev=m.id_dev', 'd.id_dev IS NULL GROUP BY m.id_dev') };
+}
 my @detail=();
+
+# Status subtypes with MAP: subtype => DS of the unknown state (undef if none)
+my %MAPST=();
+$MAPST{$_->[0]} = map_unknown_index($_->[1]) foreach @{ read_db('subtype,items','cfg_monitor_snmp',"esp LIKE '%MAP(%'") };
+
+# RRD state of a metric file: data, nodata, missing or error
+sub rrd_state {
+my ($file,$subtype)=@_;
+	return 'missing' if ((! defined $file) || ($file eq '') || (! -f "$RRD_DIR/$file"));
+	my ($start,$step,$names,$data) = RRDs::fetch("$RRD_DIR/$file",'AVERAGE','-s',"-${DAYS}d");
+	return 'error' if (RRDs::error);
+	my $map = ((defined $subtype) && (exists $MAPST{$subtype})) ? { unknown=>$MAPST{$subtype} } : undef;
+	return has_valid_data($data,$map) ? 'data' : 'nodata';
+}
+
 foreach my $r (@$norow) {
-	my ($id,$idm,$mname,$type,$status,$clabel,$file)=@$r;
+	my ($id,$idm,$mname,$type,$status,$clabel,$file,$subtype)=@$r;
+	my $has_cl = ((defined $clabel) && ($clabel ne '')) ? 1 : 0;
+	if (! exists $name{$id}) {
+		push @detail, join("\t",$id,'equipo borrado',$mname,"id_metric=$idm",'type='.($type//''),'c_label='.($has_cl ? $clabel : ''));
+		next;
+	}
 	my $k = ((defined $type) && ($type eq 'snmp')) ? 'snmp' : 'other';
 	$S{$id}{$k}++;
-	my $has_cl = ((defined $clabel) && ($clabel ne '')) ? 1 : 0;
 	$S{$id}{'snmp_clabel'}++ if (($k eq 'snmp') && $has_cl);
-	push @detail, join("\t",$id,"sin fila $k",$mname,"id_metric=$idm",'type='.($type//''),'c_label='.($has_cl ? $clabel : ''));
+	my %m = ( device=>1, type=>$type, status=>$status, has_row=>0, c_label=>$clabel,
+	          subtype_rows=>$st_rows{"$id\t".($subtype//'')} || 0, rrd=>'nodata' );
+	my ($ok,$why) = retire_decision(\%m,$DAYS);
+	if ($ok) { $m{'rrd'} = rrd_state($file,$subtype); ($ok,$why) = retire_decision(\%m,$DAYS); }	# the RRD is read only when it decides
+	$S{$id}{'retirable'}++ if ($ok);
+	push @detail, join("\t",$id,"sin fila $k",$mname,"id_metric=$idm",'type='.($type//''),'c_label='.($has_cl ? $clabel : ''),
+		($ok ? 'RETIRABLE' : 'no se retira').": $why");
 }
 foreach my $id (sort { $a <=> $b } keys %dirs) {
 	my $d = $dirs{$id};
@@ -141,24 +185,26 @@ print $DET "id_dev\tclase\tnombre\tdatos\n";
 print $DET "$_\n" foreach (sort { (split(/\t/,$a))[0] <=> (split(/\t/,$b))[0] || $a cmp $b } @detail);
 close($DET);
 
-my @cols = qw(snmp snmp_clabel other orphan orphan_bytes removed removed_due archived archived_due);
+my @cols = qw(snmp snmp_clabel retirable other orphan orphan_bytes removed removed_due archived archived_due);
 my %T=();
-printf("%-7s %-24s %6s %9s %9s %7s %9s %9s %11s %11s\n",'id_dev','equipo','filas','sin fila','(c_label)','otras','rrd huerf','MB','removed/due','orphan/due');
+printf("%-7s %-24s %6s %9s %9s %10s %7s %9s %9s %11s %11s\n",'id_dev','equipo','filas','sin fila','(c_label)','retirables','otras','rrd huerf','MB','removed/due','orphan/due');
 foreach my $id (sort { $a <=> $b } keys %S) {
 	my $s = $S{$id};
 	$T{$_} += ($s->{$_} || 0) foreach @cols;
 	$T{'norows'}++ if ((! $rows{$id}) && ($s->{'snmp'}));
-	printf("%-7d %-24s %6d %9d %9d %7d %9d %9.1f %11s %11s\n", $id, substr($name{$id}//'?',0,24), $rows{$id} || 0,
-		$s->{'snmp'} || 0, $s->{'snmp_clabel'} || 0, $s->{'other'} || 0, $s->{'orphan'} || 0, ($s->{'orphan_bytes'} || 0)/1048576,
+	printf("%-7d %-24s %6d %9d %9d %10d %7d %9d %9.1f %11s %11s\n", $id, substr($name{$id}//'?',0,24), $rows{$id} || 0,
+		$s->{'snmp'} || 0, $s->{'snmp_clabel'} || 0, $s->{'retirable'} || 0, $s->{'other'} || 0, $s->{'orphan'} || 0, ($s->{'orphan_bytes'} || 0)/1048576,
 		($s->{'removed'} || 0).'/'.($s->{'removed_due'} || 0), ($s->{'archived'} || 0).'/'.($s->{'archived_due'} || 0));
 }
 print "\nTotal: equipos con algo: ".scalar(keys %S)
-	." · metricas SNMP sin fila: ".($T{'snmp'} || 0)." (con c_label: ".($T{'snmp_clabel'} || 0).")"
+	." · metricas SNMP sin fila: ".($T{'snmp'} || 0)." (con c_label: ".($T{'snmp_clabel'} || 0)."; retirables, sin datos en $DAYS dias: ".($T{'retirable'} || 0).")"
 	." · otras sin fila (no se tocan): ".($T{'other'} || 0)
 	." · rrd huerfanos: ".($T{'orphan'} || 0).sprintf(" (%.1f MB)",($T{'orphan_bytes'} || 0)/1048576)
 	." · removed: ".($T{'removed'} || 0)." (".($T{'removed_due'} || 0)." de mas de ".RETENTION_DAYS." dias)"
 	." · orphan: ".($T{'archived'} || 0)." (".($T{'archived_due'} || 0)." de mas de ".RETENTION_DAYS." dias)\n";
 print "Equipos con metricas SNMP sin fila y sin ninguna fila en la plantilla: ".($T{'norows'} || 0)."\n";
+my ($gn,$gc)=(0,0); foreach (values %GONE) { $gn += $_->[0]; $gc += $_->[1]; }
+print "Metricas de equipos que no existen (no se tocan): $gn en ".scalar(keys %GONE)." equipos (con c_label: $gc)\n";
 print "Directorios de $RRD_DIR sin equipo: ".scalar(@stray).(@stray ? " (".join(' ',@stray[0..($#stray < 9 ? $#stray : 9)]).(@stray > 10 ? ' ...' : '').")" : '')."\n";
 print "Detalle: $run/detail.tsv\n";
 if ($opts{v}) { open(my $fh,'<',"$run/detail.tsv"); print while (<$fh>); close($fh); }
