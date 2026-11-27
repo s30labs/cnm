@@ -56,8 +56,8 @@ sub selectrow_hashref {
 my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 	if ($q =~ /FROM devices WHERE ip=\?/) { my ($d)=grep { $_->{ip} eq $b[0] } @{$t->{devices}}; return $d; }
 	if ($q =~ /FROM metrics WHERE id_dev=\? AND name=\?/) { my ($m)=grep { $_->{id_dev}==$b[0] && $_->{name} eq $b[1] } @{$t->{metrics}}; return $m; }
-	if ($q =~ /SELECT ip,type,critic,geodata FROM devices WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
-		return $d ? { map { $_=>$d->{$_} } qw(ip type critic geodata) } : undef; }
+	if ($q =~ /SELECT ip,type,critic,geodata,status,version,community FROM devices WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		return $d ? { map { $_=>$d->{$_} } qw(ip type critic geodata status version community) } : undef; }
 	if ($q =~ /SELECT \* FROM devices_custom_data WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		my $c=$t->{custom}{$d->{ip}} or return undef; my $n=0; my %col=map { uc($_) => 'columna'.++$n } @{$t->{fields}};
 		return { id_dev=>$b[0], map { ($col{$_} => $c->{$_}) } keys %$c }; }
@@ -115,6 +115,13 @@ sub new { return bless { t=>$_[1], lv=>'info' }, $_[0]; }
 sub log_level { my ($s,$l)=@_; $s->{lv}=$l if (defined $l); return $s->{lv}; }
 sub store_device_record { my ($s,$dbh,$ip)=@_; die "simulated record failure\n" if ($s->{t}{fail_record});
 	push @{$s->{t}{records}}, "$ip:$s->{lv}"; }
+sub set_graph_subtables { push @{$_[0]{t}{ws}}, 'subtables'; }
+sub store_crawler_work { my ($s,$dbh,$id,$tnow,$cid)=@_;
+	if ($s->{t}{fail_ws}) { $s->{err}=1146; $s->{errstr}='simulated work failure'; return undef; }
+	push @{$s->{t}{ws}}, "work:$id:$cid"; return 1; }
+sub consolidate_work_tables { push @{$_[0]{t}{ws}}, 'consolidate'; }
+sub error    { return $_[0]{err} || 0; }
+sub errorstr { return $_[0]{errstr} || ''; }
 package FakeProv;
 sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]) }, $_[0]; }
 sub istore { return $_[0]{store}; }
@@ -125,7 +132,7 @@ my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 		open(my $fh,'<',$f) or die "no CSV $f"; my @l=<$fh>; close $fh; unlink $f;
 		chomp(my $h = shift @l); my @hd=split(/&\|&/,$h,-1);
 		foreach (@l) { chomp; my @d=split(/&\|&/,$_,-1);
-			push @{$t->{devices}}, { id_dev=>++$t->{seq_dev}, name=>$d[0], domain=>$d[1], ip=>$d[2], type=>$d[8], critic=>$d[7], community=>$d[10], version=>$d[11] };
+			push @{$t->{devices}}, { id_dev=>++$t->{seq_dev}, name=>$d[0], domain=>$d[1], ip=>$d[2], type=>$d[8], critic=>$d[7], status=>$d[9], community=>$d[10], version=>$d[11] };
 			$t->{custom}{$d[2]}{uc $hd[$_]} = ($d[$_] eq '' ? '-' : $d[$_]) for (15..$#hd); }
 	}
 	elsif ($in->{init}==1) {
@@ -369,9 +376,9 @@ my ($nd) = grep { $_->{ip} eq '10.0.9.1' } @{$tc->{devices}};
 is("$nd->{critic}/$nd->{version}/$nd->{community}", '50/0/', 'al crear: critic 50 y version 0 por defecto');
 ($bkc) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>100, snmp=>{ version=>2, community=>'otra' } }));
 ($cc) = ctx($tc); $plc = make_plan($cc,$bkc);
-like(join(' ',@{$plc->{warnings}}), qr/difiere: snmp community distinta \(no se muestra\); SNMP no se modifica todavia \(fase 2\)/, 'existente con community distinta: aviso (fase 2)');
+is(scalar(@{$plc->{warnings}}), 0, 'existente con community distinta: sin avisos (fase 2: se modifica)');
 unlike(join(' ',@{$plc->{warnings}}, map { $_->{text} } @{$plc->{actions}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
-is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local critic '75' -> '100'", '... y critic distinto: modificacion');
+is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local community (cambia; no se muestra), critic '75' -> '100' (+ workset)", '... community y critic: una modificacion, con workset');
 
 #=== Modify, phase 1: device type, critic, geodata and user fields ============================
 my $tm = base(); $tm->{devices}[0]{critic}=50; $tm->{devices}[0]{geodata}=''; $tm->{custom}{'10.0.0.100'}={ PROVEEDOR=>'Viejo' };
@@ -434,5 +441,54 @@ my (undef,$e11,$d11) = validate_state(vstate(
 	{ kind=>'metric', device=>'x', subtype=>'disp_icmp', _origin=>'e.csv linea 4' },
 	{ kind=>'device', name=>'ok', domain=>'local', ip=>'300.1.1.1', _origin=>'e.csv linea 5' }));
 is(scalar(@$e11).'+'.scalar(@$d11), '2+0', 'errores de lineas distintas: no son derivados');
+
+#=== Modify, phase 2: status and SNMP, with the work of workset ===========================
+my $t2 = base(); @{$t2->{devices}[0]}{qw(status version community critic)} = (0, 2, 'secreta', 50);
+push @{$t2->{devices}}, { id_dev=>13, name=>'tda-01', domain=>'local', ip=>'10.0.0.101', type=>'', critic=>50, status=>0, version=>0 };
+my ($bk2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', status=>2, snmp=>{ version=>2, community=>'nueva' } },
+										  { kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', critic=>75 }));
+my ($cw2) = ctx($t2); my $plw2 = make_plan($cw2,$bk2);
+my %tx = map { $_->{ip} => $_->{text} } @{$plw2->{actions}};
+is($tx{'10.0.0.100'}, "tda-00.local community (cambia; no se muestra), status '0' -> '2' (+ workset)", 'status y community: modificacion con workset');
+is($tx{'10.0.0.101'}, "tda-01.local critic '50' -> '75'", 'solo critic: sin workset');
+unlike(CNMControl::Core::plan_text($plw2), qr/secreta|nueva/, 'la comunidad no sale en el plan');
+like(CNMControl::Core::plan_text($plw2), qr/MODIFICA: device\.community en 1, device\.critic en 1, device\.status en 1/, 'MODIFICA cuenta community sin su valor');
+$t2->{devices}[0]{community}='tocada';		# changed after the plan
+my $e2 = apply_plan($cw2,$plw2);
+like(join(' ',@$e2), qr/id_dev=12 \(10\.0\.0\.100\): community ha cambiado desde el plan/, 'precondicion de la comunidad: error');
+unlike(join(' ',@$e2), qr/tocada|secreta|nueva/, '... sin mostrar ningun valor');
+ok(! $t2->{ws}, '... y sin regenerar nada');
+$t2->{devices}[0]{community}='secreta';
+($cw2) = ctx($t2); $plw2 = make_plan($cw2,$bk2);
+is(scalar(@{apply_plan($cw2,$plw2)}), 0, 'status y SNMP: aplicado');
+is(join('/', @{$t2->{devices}[0]}{qw(status version community)}), '2/2/nueva', '... devices: status, version y community');
+is_deeply($t2->{ws}, [ 'subtables', 'work:12:default', 'consolidate' ], '... datos de los crawlers solo del dispositivo con status o SNMP, y una consolidacion');
+($cw2) = ctx($t2); is(scalar(@{make_plan($cw2,$bk2)->{actions}}), 0, '... el plan calculado otra vez sale vacio');
+# Regeneration fails: the data stays, and it is an error with the command to finish by hand
+my $t3w = base(); $t3w->{fail_ws}=1;
+my ($bk3w) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', status=>1 }));
+my ($c3w) = ctx($t3w); my $e3w = apply_plan($c3w, make_plan($c3w,$bk3w));
+like(join(' ',@$e3w), qr/no se han regenerado los datos de los crawlers \(store_crawler_work id_dev=12: simulated work failure\)\. Ejecutar: \/opt\/crawler\/bin\/workset -c default -i 12/,
+	'fallo al regenerar: error con la orden para terminarlo a mano');
+is($t3w->{devices}[0]{status}, 1, '... y el estado queda escrito');
+# SNMPv3 device: its SNMP is not touched
+my $tv3 = base(); @{$tv3->{devices}[0]}{qw(version community)} = (3, '7');
+my ($bkv3) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', snmp=>{ version=>2, community=>'x' } }));
+my ($cv3) = ctx($tv3); my $plv3 = make_plan($cv3,$bkv3);
+like(join(' ',@{$plv3->{errors}}), qr/tiene SNMPv3 .*no se modifica en esta fase/, 'dispositivo SNMPv3: error');
+is(scalar(@{$plv3->{actions}}), 0, '... sin acciones');
+# Empty SNMP from a profile declares nothing; a community without a version is an error
+my ($bk5) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', snmp=>{} }));
+ok(! exists $bk5->{device}[0]{snmp}, 'snmp {} (celdas vacias): no declara nada');
+my (undef,$e5) = validate_state(vstate({ kind=>'device', name=>'a', domain=>'b', ip=>'1.1.1.1', snmp=>{ community=>'x' } }));
+like(join(' ',@$e5), qr/snmp\.version obligatoria/, 'community sin version: error (no se supone version 0)');
+# Status when creating
+my $t6 = base();
+my ($bk6) = validate_state(vstate({ kind=>'device', name=>'nuevo-02', domain=>'local', ip=>'10.0.9.3', status=>2 }));
+my ($c6) = ctx($t6); my $pl6 = make_plan($c6,$bk6);
+like($pl6->{actions}[0]{text}, qr/status=2/, 'alta con status: en el plan');
+is(scalar(@{apply_plan($c6,$pl6)}), 0, '... aplicada');
+my ($n6) = grep { $_->{ip} eq '10.0.9.3' } @{$t6->{devices}};
+is($n6->{status}, 2, '... con el status en el CSV del motor');
 
 done_testing();

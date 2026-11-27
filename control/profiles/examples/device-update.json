@@ -1,16 +1,52 @@
 {
   "version": 1,
-  "descr": "Dar de alta o modificar dispositivos: tipo, criticidad, geolocalizacion y campos de usuario (columnas custom.<campo>). Celda vacia = no se toca",
+  "descr": "Dar de alta o modificar dispositivos: tipo, criticidad, estado, SNMP (version 0, 1 o 2 y comunidad), geolocalizacion y campos de usuario (columnas custom.<campo>). Celda vacia = no se toca. Cambiar estado o SNMP regenera los datos de los crawlers",
   "parameters": {
-    "name":    { "required": true, "descr": "nombre del dispositivo" },
-    "ip":      { "required": true, "descr": "IP: identifica el dispositivo" },
-    "domain":  { "default": "local", "descr": "dominio" },
-    "type":    { "descr": "tipo de dispositivo (cnm-control list types)" },
-    "critic":  { "descr": "criticidad: 25, 50, 75 o 100" },
-    "geodata": { "descr": "geolocalizacion, hasta 30 caracteres" }
+    "name": {
+      "required": true,
+      "descr": "nombre del dispositivo"
+    },
+    "ip": {
+      "required": true,
+      "descr": "IP: identifica el dispositivo"
+    },
+    "domain": {
+      "default": "local",
+      "descr": "dominio"
+    },
+    "type": {
+      "descr": "tipo de dispositivo (cnm-control list types)"
+    },
+    "critic": {
+      "descr": "criticidad: 25, 50, 75 o 100"
+    },
+    "status": {
+      "descr": "estado: 0 activo, 1 inactivo, 2 mantenimiento"
+    },
+    "version": {
+      "descr": "version SNMP: 0 (sin SNMP), 1 o 2; obligatoria si se da community"
+    },
+    "community": {
+      "descr": "comunidad SNMP (version 1 o 2)"
+    },
+    "geodata": {
+      "descr": "geolocalizacion, hasta 30 caracteres"
+    }
   },
   "resources": [
-    { "kind": "device", "name": "{name}", "domain": "{domain}", "ip": "{ip}",
-      "type": "{type}", "critic": "{critic}", "geodata": "{geodata}" }
+    {
+      "kind": "device",
+      "name": "{name}",
+      "domain": "{domain}",
+      "ip": "{ip}",
+      "type": "{type}",
+      "critic": "{critic}",
+      "status": "{status}",
+      "snmp": {
+        "version": "{version}",
+        "community": "{community}"
+      },
+      "geodata": "{geodata}"
+    }
   ]
 }

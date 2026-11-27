@@ -4,7 +4,7 @@
 # Declarative configuration of CNM: describe how it must end up; the tool computes the
 # difference with the onm database, shows it (plan) and applies it (apply).
 # Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
-# SKELETON v0.3: kinds view (create, update, parents, users), device (create, update) and latency metric
+# SKELETON v0.4: kinds view (create, update, parents, users), device (create, update) and latency metric
 # (provision, c_label, static views). No saved plan, no queue, no audit, no deletions.
 #-------------------------------------------------------------------------------------------
 BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
@@ -20,7 +20,7 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.3';
+my $VERSION     = '0.4';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 my $DIR_PROFILE = '/cfg/cnm-control/profiles';
@@ -46,8 +46,10 @@ $fpth[$#fpth] -h  : Ayuda
   apply crea vistas (con sus padres y usuarios) y dispositivos (con su asistente y
   aplicaciones), provisiona metricas, cambia c_label y asocia metricas a vistas estaticas.
   A las vistas que ya existen les anade padres y usuarios y les cambia type, itil_type y
-  global. A los dispositivos que ya existen les cambia type, critic, geodata y campos de
-  usuario (update, con el valor anterior y el nuevo; MODIFICA los cuenta por atributo).
+  global. A los dispositivos que ya existen les cambia type, critic, geodata, status, SNMP
+  (version 0, 1 o 2 y community) y campos de usuario (update, con el valor anterior y el
+  nuevo; la community nunca se muestra; MODIFICA los cuenta por atributo). Si cambia status
+  o SNMP, regenera los datos de los crawlers (lo que hace workset) antes de terminar.
   Lo que no viene en la ENTRADA (celda vacia) no se toca. No borra nada.
   Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a
   calcular ese mismo plan, comprueba que nadie ha cambiado los valores anteriores, lo aplica
@@ -205,7 +207,14 @@ my ($do_apply)=@_;
 	return $ok ? 0 : 1;
 }
 
-sub public_actions { my $p=shift; return [ map { my %a=%$_; delete $a{resource}; \%a } @{$p->{actions}} ]; }
+# Actions as they are written (--json, plan.json, result.json): without the resource, and
+# without the value of the SNMP community, before or after (the apply keeps it in memory)
+sub public_actions {
+my $p=shift;
+	return [ map { my %a=%$_; delete $a{resource};
+						if ($a{changes} && $a{changes}{community}) { $a{changes} = { %{$a{changes}}, community=>['****','****'] }; }
+						\%a } @{$p->{actions}} ];
+}
 
 sub write_json {
 my ($path,$data)=@_;
