@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "descr": "Alta con solo ping: disponibilidad y servicio ICMP, con titulo propio y en una vista estatica. Inventario: name;ip;view y, opcionales, domain, type, c_label.disp_icmp, c_label.mon_icmp y custom.<campo>",
+  "descr": "Alta con solo ping: disponibilidad y servicio ICMP, con titulo propio y en una vista estatica. Inventario: name;ip;view y, opcionales, domain, type, cualquier atributo del dispositivo, c_label.disp_icmp, c_label.mon_icmp y custom.<campo>. Al crear: SNMP version 0",
   "parameters": {
     "name":   { "required": true },
     "ip":     { "required": true },
@@ -11,7 +11,7 @@
   "resources": [
     { "kind": "view", "name": "{view}" },
     { "kind": "device", "name": "{name}", "domain": "{domain}", "ip": "{ip}",
-      "type": "{type}", "snmp": { "version": 0 } },
+      "type": "{type}" },
     { "kind": "metric", "device": "{name}.{domain}", "subtype": "disp_icmp",
       "c_label": "Disponibilidad ICMP {name}", "views": [ "{view}" ] },
     { "kind": "metric", "device": "{name}.{domain}", "subtype": "mon_icmp",

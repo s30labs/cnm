@@ -52,10 +52,10 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.60';
+$VERSION='0.70';
 use strict;
 
-my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata status snmp fields);
+my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata status snmp fields _domain_default);
 our $TMP_WEB = '/var/www/html/onm/tmp';	# 'our': the tests change it
 my $SEP     = '&|&';
 my @HEADER  = ('NOMBRE','DOMINIO','IP','LOCALIZACION','DESCRIPCION','OID','MAC','CRIT','TIPO',
@@ -84,6 +84,7 @@ my ($c,$r)=@_;
 	return (undef,"ip no valida '$r->{ip}'")
 		if (($r->{ip} !~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/) || grep { $_ > 255 } ($1,$2,$3,$4));
 	my %n = ( kind=>'device', name=>$r->{name}, domain=>$r->{domain}, ip=>$r->{ip} );
+	$n{_domain_default}=1 if ($r->{_domain_default});
 	if (defined $r->{type}) {
 		return (undef,'"type" no valido') if (! _is_clean($r->{type}) || $r->{type} eq '');
 		$n{type}=$r->{type};
@@ -188,6 +189,12 @@ my (@acc,@err,@warn);
 	if (@by_ip > 1) { push @err, scalar(@by_ip)." dispositivos con esa IP"; }
 	elsif (@by_ip == 1) {
 		my $d=$by_ip[0];
+		if ($r->{_domain_default} && (lc $d->{name} eq lc $r->{name}) && (lc $d->{domain} ne lc $r->{domain})) {
+			# The domain came from the default of the profile, which only applies when the
+			# device is created: the device found by its IP keeps its own (27-nov-2026)
+			$ctx->{fqdn_alias}{lc $fqdn} = "$d->{name}.$d->{domain}";
+			$fqdn = "$d->{name}.$d->{domain}";
+		}
 		if (lc("$d->{name}.$d->{domain}") ne lc($fqdn)) {
 			push @err, "la IP ya es de $d->{name}.$d->{domain} (id_dev=$d->{id_dev})";
 		}

@@ -11,8 +11,19 @@
 #	A column named c_label.<subtype> carries the title of the metric <subtype> of that row
 #	(for instance c_label.mon_icmp): an empty cell keeps the c_label of the profile, a value
 #	overrides it. The row must have exactly one metric of that subtype.
-#	In a list, '|' separates elements: "parents": ["{parents}"] with parents=Sedes|Clientes
-#	gives two parents (separator chosen by the project management, 26-nov-2026).
+#	A column named like an attribute of the device (domain, type, critic, status, geodata,
+#	version, community), or device.<attribute>, needs no parameter: it goes to the one device
+#	resource of the profile (an empty cell leaves the attribute alone; version and community
+#	go to "snmp"). If the profile has a parameter with that name that does not mean the same
+#	attribute ("type" of a view, for instance), the bare column is the parameter and
+#	device.<attribute> is the attribute; if it does mean it, they are the same column.
+#	--set column=value fills that column in every row where the cell is empty: a cell wins
+#	over --set, and --set over the default of the profile (decision of 27-nov-2026).
+#	The domain of a device that comes from the default of the profile (no cell, no --set)
+#	is marked "_domain_default": an existing device found by its IP keeps its own domain
+#	(CNMControl::Kind::Device).
+#	In a list, '|' separates elements: "users": ["{users}"] with users=noc|operador1
+#	gives two users (separator chosen by the project management, 26-nov-2026).
 #	Each row instantiates every resource of the profile. Resources repeated across rows
 #	(the same view, for instance) are merged by CNMControl::Core when identical and are an
 #	error when they differ.
@@ -37,11 +48,15 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Profile;
-$VERSION='0.30';
+$VERSION='0.40';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(check_profile parse_inventory expand read_file);
+
+# Attributes of a device that an inventory column may carry without a parameter
+our @DEVICE_ATTRS = qw(domain type critic status geodata version community);
+my %DEVICE_ATTRS = map { $_=>1 } @DEVICE_ATTRS;
 
 my %PROFILE_KEYS = map { $_=>1 } qw(version descr parameters resources);
 my %PARAM_KEYS   = map { $_=>1 } qw(required default descr);
@@ -91,14 +106,20 @@ my ($p)=@_;
 }
 
 #----------------------------------------------------------------------------
-# parse_inventory($text, $profile) -> (\@rows, \@errors)
-# Each row: { line=>N, values=>{param=>value}, custom=>{field=>value}, labels=>{subtype=>title} }
-# with defaults already applied; custom and labels hold only the non-empty cells.
+# parse_inventory($text, $profile, \%set) -> (\@rows, \@errors, \%set_used)
+# Each row: { line=>N, values=>{param=>value}, explicit=>{param=>1}, custom=>{field=>value},
+# labels=>{subtype=>title}, attrs=>{attribute=>value} } with defaults already applied;
+# custom, labels and attrs hold only the non-empty values. explicit: the parameters that
+# came from a cell or from --set (not from the default of the profile).
+# %set: column => value (--set); %set_used: the columns of %set this profile understood.
 #----------------------------------------------------------------------------
 sub parse_inventory {
-my ($text,$profile)=@_;
+my ($text,$profile,$set)=@_;
 my (@rows,@err);
+	$set ||= {};
+	my %used=();
 	my ($header,$nl)=(undef,0);
+	my @setval=();		# index of the header => value of --set
 	foreach my $l (split(/\r?\n/, $text)) {
 		$nl++;
 		next if ($l =~ /^\s*(#|$)/);
@@ -106,34 +127,33 @@ my (@rows,@err);
 		if (! $header) {
 			$header=[]; my %seen=();
 			foreach my $col (@c) {
-				if ($col =~ /^custom\.(.+)$/i) {
-					my $f=$1;
-					push @err, "inventario linea $nl: columna 'custom.$f' repetida" if ($seen{'custom.'.uc $f}++);
-					push @$header, { custom=>$f };
-				}
-				elsif ($col =~ /^c_label\.(.+)$/i) {
-					my $s=$1;
-					push @err, "inventario linea $nl: columna 'c_label.$s' repetida" if ($seen{'c_label.'.lc $s}++);
-					push @$header, { label=>$s };
-				}
-				else {
-					my $n=lc $col;
-					push @err, "inventario linea $nl: columna '$n' no es un parametro del perfil (ni custom.<campo> ni c_label.<subtipo>)"
-						if (! exists $profile->{parameters}{$n});
-					push @err, "inventario linea $nl: columna '$n' repetida" if ($seen{$n}++);
-					push @$header, { param=>$n };
-				}
+				my ($spec,$e) = _column($col, $profile);
+				if ($e) { push @err, "inventario linea $nl: $e"; next; }
+				push @err, "inventario linea $nl: columna '$col' repetida" if ($seen{$spec->{id}}++);
+				push @$header, $spec;
 			}
-			return ([],\@err) if (@err);
+			# --set: the column of the inventory, or a column that every row leaves empty
+			foreach my $k (sort keys %$set) {
+				my ($spec,$e) = _column($k, $profile);
+				next if ($e);
+				$used{$k}=1;
+				my ($i) = grep { $header->[$_]{id} eq $spec->{id} } (0..$#$header);
+				if (! defined $i) { push @$header, $spec; $i=$#$header; }
+				$setval[$i] = $set->{$k};
+			}
+			return ([],\@err,\%used) if (@err);
 			next;
 		}
 		if (scalar(@c) > scalar(@$header)) { push @err, "inventario linea $nl: tiene mas columnas que la cabecera"; next; }
-		my %v=(); my %custom=(); my %labels=();
+		my (%v,%explicit,%custom,%labels,%attrs);
 		for my $i (0..$#$header) {
 			my $val = defined $c[$i] ? $c[$i] : '';
-			if (defined $header->[$i]{custom}) { $custom{$header->[$i]{custom}}=$val if ($val ne ''); }
-			elsif (defined $header->[$i]{label}) { $labels{$header->[$i]{label}}=$val if ($val ne ''); }
-			else { $v{$header->[$i]{param}}=$val; }
+			$val = $setval[$i] if (($val eq '') && defined $setval[$i]);
+			my $h = $header->[$i];
+			if    (defined $h->{custom}) { $custom{$h->{custom}}=$val if ($val ne ''); }
+			elsif (defined $h->{label})  { $labels{$h->{label}}=$val if ($val ne ''); }
+			elsif (defined $h->{attr})   { $attrs{$h->{attr}}=$val if ($val ne ''); }
+			else { $v{$h->{param}}=$val; $explicit{$h->{param}}=1 if ($val ne ''); }
 		}
 		my $ok=1;
 		foreach my $n (sort keys %{$profile->{parameters}}) {
@@ -152,10 +172,45 @@ my (@rows,@err);
 			if ($s =~ /\{[^{}]*\}/) { push @err, "inventario linea $nl: '$n' usa un parametro sin valor o anidado ($s)"; $ok=0; }
 			$v{$n}=$s;
 		}
-		push @rows, { line=>$nl, values=>\%v, custom=>\%custom, labels=>\%labels } if ($ok);
+		push @rows, { line=>$nl, values=>\%v, explicit=>\%explicit, custom=>\%custom, labels=>\%labels, attrs=>\%attrs } if ($ok);
 	}
 	push @err, 'inventario: no tiene cabecera' if (! $header);
-	return (\@rows,\@err);
+	return (\@rows,\@err,\%used);
+}
+
+#----------------------------------------------------------------------------
+# _column($name, $profile) -> ($spec, $error)
+# What an inventory column (or a --set key) is: {param}, {custom}, {label} or {attr}, with
+# an {id} to find repeated columns.
+#----------------------------------------------------------------------------
+sub _column {
+my ($col,$profile)=@_;
+	if ($col =~ /^custom\.(.+)$/i)  { return ({ custom=>$1, id=>'custom.'.uc $1 }, undef); }
+	if ($col =~ /^c_label\.(.+)$/i) { return ({ label=>$1,  id=>'c_label.'.lc $1 }, undef); }
+	my @dev = _devices($profile);
+	if ($col =~ /^device\.(.+)$/i) {
+		my $a = lc $1;
+		return (undef, "columna '$col': '$a' no es un atributo del dispositivo (".join(', ',@DEVICE_ATTRS).")") if (! $DEVICE_ATTRS{$a});
+		return (undef, "columna '$col': el perfil crea ".scalar(@dev)." dispositivos por fila (tiene que ser 1)") if (@dev != 1);
+		return (_param_is_attr($profile,$dev[0],$a) ? { param=>$a, id=>$a } : { attr=>$a, id=>"device.$a" }, undef);
+	}
+	my $n = lc $col;
+	if (exists $profile->{parameters}{$n}) { return ({ param=>$n, id=>$n }, undef); }
+	if ($DEVICE_ATTRS{$n}) {
+		return (undef, "columna '$n': es un atributo del dispositivo, pero el perfil crea ".scalar(@dev)." dispositivos por fila (tiene que ser 1)") if (@dev != 1);
+		return ({ attr=>$n, id=>"device.$n" }, undef);
+	}
+	return (undef, "columna '$n' no es un parametro del perfil, ni un atributo del dispositivo (".join(', ',@DEVICE_ATTRS)."), ni custom.<campo>, ni c_label.<subtipo>");
+}
+
+sub _devices { my $p=shift; return grep { ref($_) eq 'HASH' && defined $_->{kind} && $_->{kind} eq 'device' } @{$p->{resources}}; }
+
+# The parameter <a> of the profile is the attribute <a> of its device ("domain": "{domain}")
+sub _param_is_attr {
+my ($profile,$dev,$a)=@_;
+	return 0 if (! exists $profile->{parameters}{$a});
+	my $v = ($a eq 'version' || $a eq 'community') ? (ref($dev->{snmp}) eq 'HASH' ? $dev->{snmp}{$a} : undef) : $dev->{$a};
+	return (defined $v && ! ref($v) && $v eq "{$a}") ? 1 : 0;
 }
 
 #----------------------------------------------------------------------------
@@ -164,7 +219,10 @@ my (@rows,@err);
 # parameter is dropped (optional parameter). A list loses the elements that end up empty
 # (e.g. "views": ["{view}"] with view=''), and a list element with '|' becomes several
 # ("views": ["{views}"] with views="A|B"). Every resource carries "_origin" =
-# "<label> linea N" for the messages ($label: the inventory file; default 'inventario'). The custom.<field> values of a row go to "fields" of the one device
+# "<label> linea N" for the messages ($label: the inventory file; default 'inventario').
+# The attribute columns go to the one device resource (version and community to "snmp"),
+# and a domain that comes from the default of the profile is marked "_domain_default".
+# The custom.<field> values of a row go to "fields" of the one device
 # resource of the profile; a row with custom values and a profile with no device resource,
 # or with more than one, is an error. The c_label.<subtype> values go to "c_label" of the
 # metric of that subtype in the row; none or more than one such metric is an error.
@@ -173,7 +231,7 @@ sub expand {
 my ($profile,$rows,$label)=@_;
 my (@res,@err);
 	$label = 'inventario' if (! defined $label);
-	my $n_dev = scalar(grep { ref($_) eq 'HASH' && defined $_->{kind} && $_->{kind} eq 'device' } @{$profile->{resources}});
+	my $n_dev = scalar(_devices($profile));
 	foreach my $f (@$rows) {
 		my %custom = %{$f->{custom} || {}};
 		if (%custom && ($n_dev != 1)) {
@@ -184,6 +242,21 @@ my (@res,@err);
 		foreach my $tpl (@{$profile->{resources}}) {
 			my $r = _substitute($tpl, $f->{values});
 			$r->{_origin} = "$label linea $f->{line}";
+			if ((ref($r) eq 'HASH') && defined $r->{kind} && ($r->{kind} eq 'device')) {
+				# Attribute columns: the inventory wins
+				my %a = %{$f->{attrs} || {}};
+				foreach my $k (grep { $_ ne 'version' && $_ ne 'community' } keys %a) { $r->{$k}=$a{$k}; }
+				if (defined $a{version} || defined $a{community}) {
+					my %sn = (ref($r->{snmp}) eq 'HASH') ? %{$r->{snmp}} : ();
+					$sn{$_}=$a{$_} foreach (grep { defined $a{$_} } qw(version community));
+					$r->{snmp}=\%sn;
+				}
+				# A domain from the default of the profile (no cell, no --set, no attribute)
+				if ((! defined $a{domain}) && (ref($tpl) eq 'HASH') && defined $tpl->{domain} && ($tpl->{domain} =~ /^\{([^{}]*)\}$/)
+					 && (! $f->{explicit}{$1})) {
+					$r->{_domain_default}=1;
+				}
+			}
 			if (%custom && (ref($r) eq 'HASH') && defined $r->{kind} && ($r->{kind} eq 'device')) {
 				my %fields = (ref($r->{fields}) eq 'HASH') ? %{$r->{fields}} : ();
 				foreach my $k (keys %custom) {
@@ -218,8 +291,8 @@ my ($x,$v)=@_;
 		}
 		return \%h;
 	}
-	# In a list, a text with '|' is several elements ("parents": ["{parents}"] with
-	# parents="Sedes|Clientes"); the empty ones are dropped
+	# In a list, a text with '|' is several elements ("users": ["{users}"] with
+	# users="noc|operador1"); the empty ones are dropped
 	if (ref($x) eq 'ARRAY') {
 		return [ grep { !(defined $_ && !ref($_) && $_ eq '') }
 					map { (defined $_ && !ref($_)) ? (map { my $e=$_; $e =~ s/^\s+|\s+$//g; $e } split(/\|/,$_,-1)) : $_ }

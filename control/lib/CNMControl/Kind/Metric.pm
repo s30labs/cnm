@@ -30,7 +30,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Metric;
-$VERSION='0.20';
+$VERSION='0.30';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -87,7 +87,10 @@ my ($c,$r)=@_;
 # Resolve a device by name.domain or IP -> list of id_dev
 #----------------------------------------------------------------------------
 sub _dev_ids {
-my ($dbh,$ref)=@_;
+my ($dbh,$ref,$ctx)=@_;
+	# A name.domain whose domain came from the default of the profile, for a device that
+	# exists with that IP and name in another domain (CNMControl::Kind::Device, diff)
+	$ref = $ctx->{fqdn_alias}{lc $ref} if ($ctx && $ctx->{fqdn_alias} && $ctx->{fqdn_alias}{lc $ref});
 	my $rows = ($ref =~ $IP_RE)
 		? $dbh->selectcol_arrayref("SELECT id_dev FROM devices WHERE ip=?", undef, $ref)
 		: $dbh->selectcol_arrayref("SELECT id_dev FROM devices WHERE LOWER(CONCAT(name,'.',domain))=?", undef, lc $ref);
@@ -126,7 +129,7 @@ sub read {
 my ($c,$ctx,$rs)=@_;
 	my $dbh=$ctx->{dbh};
 	my $cat = $c->catalog($ctx);
-	my %dev=(); $dev{lc $_->{device}} ||= _dev_ids($dbh,$_->{device}) foreach (@$rs);
+	my %dev=(); $dev{lc $_->{device}} ||= _dev_ids($dbh,$_->{device},$ctx) foreach (@$rs);
 	my %ids = map { $_->[0]=>1 } grep { @$_ == 1 } values %dev;
 	my %subs = map { $_->{subtype}=>1 } @$rs;
 	my %met=();
@@ -157,7 +160,8 @@ my ($c,$ctx,$rs)=@_;
 sub diff {
 my ($c,$r,$cur,$ctx)=@_;
 my (@acc,@err,@warn);
-	my $ref = "$r->{device} $r->{subtype}";
+	# The device as it is in CNM when its domain came from the default of the profile
+	my $ref = (($ctx->{fqdn_alias} && $ctx->{fqdn_alias}{lc $r->{device}}) || $r->{device})." $r->{subtype}";
 	if (! $cur->{cat}) { push @err, "subtipo '$r->{subtype}' no existe en el repositorio (cnm-control list subtypes)"; }
 	elsif ($cur->{cat}{type} ne 'latency') { push @err, "subtipo de tipo $cur->{cat}{type}: el esqueleto solo provisiona latencia (snmp y xagent, en el MVP)"; }
 	push @err, 'instances distintas de "ALL": llegan en el MVP' if (ref $r->{instances});
@@ -223,7 +227,7 @@ my @err=();
 	my %id_dev=();
 	foreach my $x (@$acc) {
 		next if (exists $id_dev{lc $x->{ref}});
-		my $ids=_dev_ids($dbh,$x->{ref});
+		my $ids=_dev_ids($dbh,$x->{ref},$ctx);
 		if (@$ids != 1) { push @err, "$x->{ref}: ".scalar(@$ids)." dispositivos"; $id_dev{lc $x->{ref}}=undef; }
 		else { $id_dev{lc $x->{ref}}=$ids->[0]; }
 	}

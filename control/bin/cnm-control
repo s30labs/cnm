@@ -4,7 +4,7 @@
 # Declarative configuration of CNM: describe how it must end up; the tool computes the
 # difference with the onm database, shows it (plan) and applies it (apply).
 # Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
-# SKELETON v0.5: kinds view (create, update, parent, users), device (create, update) and latency metric
+# SKELETON v0.6: kinds view (create, update, parent, users), device (create, update) and latency metric
 # (provision, c_label, static views). No saved plan, no queue, no audit, no deletions.
 #-------------------------------------------------------------------------------------------
 BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
@@ -20,10 +20,13 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.5';
+my $VERSION     = '0.6';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
+# Profiles: the ones of the installation, then the ones of the product (decision of
+# 27-nov-2026). A name is looked up in that order; a path is used as it is.
 my $DIR_PROFILE = '/cfg/cnm-control/profiles';
+my $DIR_PROFILE_PRODUCT = "$FindBin::Bin/../profiles";
 
 my @fpth = split ('/',$0,10);
 my $USAGE = <<USAGE;
@@ -33,12 +36,21 @@ Configuracion declarativa de CNM (esqueleto v$VERSION)
 $fpth[$#fpth] plan   ENTRADA [--json] [--verbose] [--cid CID]  muestra lo que cambiaria; no escribe
 $fpth[$#fpth] apply  ENTRADA --confirm [--json] [--cid CID]    aplica el plan y lo comprueba
 $fpth[$#fpth] expand --profile P --inventory F.csv             imprime los recursos que resultan
-$fpth[$#fpth] list   views [--search TXT] | viewtypes | users | subtypes [--type latency|snmp|xagent] | fields | types
+$fpth[$#fpth] list   views [--search TXT] | viewtypes | users | subtypes [--type latency|snmp|xagent] | fields | types | profiles
 $fpth[$#fpth] check  views                                       vistas con mas de un padre (rc=1 si hay alguna)
 $fpth[$#fpth] -h  : Ayuda
 
   ENTRADA:  -f FICHERO.json                     lista de recursos
-            --profile P --inventory F.csv       perfil (nombre en $DIR_PROFILE o ruta) + CSV con ';'
+            --profile P --inventory F.csv       perfil + CSV con ';'. Un nombre de perfil se busca en
+                                                $DIR_PROFILE (instalacion) y despues en los
+                                                del producto (cnm-control list profiles); o una ruta
+            --set COLUMNA=VALOR                 rellena esa columna en las filas que la dejan vacia
+                                                (se puede repetir; vale para todos los inventarios)
+            Columnas del CSV: parametros del perfil; atributos del dispositivo sin declararlos
+            (domain, type, critic, status, geodata, version, community, o device.<atributo>);
+            custom.<campo>; c_label.<subtipo>. Celda vacia = no tocar o el defecto del perfil.
+            Manda la celda, luego --set y luego el defecto del perfil. El dominio por defecto
+            solo se usa al crear: un equipo que ya existe con esa IP y ese nombre conserva el suyo.
             Se pueden repetir y combinar: todo forma un solo plan. Cada --profile va con el
             --inventory que ocupa su mismo lugar (el primero con el primero...).
             Ejemplo: --profile views-basic --inventory vistas.csv --profile icmp-basic --inventory equipos.csv
@@ -67,7 +79,7 @@ my $cmd = shift @ARGS;
 if ((defined $cmd) && ($cmd =~ /^--?h(elp)?$/)) { print $USAGE; exit 0; }
 usage("falta la orden") if (! defined $cmd);
 my %o=();
-GetOptionsFromArray(\@ARGS, \%o, 'f|file=s@','profile=s@','inventory=s@','json','cid=s','confirm','search=s','type=s','verbose','h|help')
+GetOptionsFromArray(\@ARGS, \%o, 'f|file=s@','profile=s@','inventory=s@','set=s@','json','cid=s','confirm','search=s','type=s','verbose','h|help')
 	or usage("opciones no validas");
 if ($o{h}) { print $USAGE; exit 0; }
 my $CID = defined $o{cid} ? $o{cid} : 'default';
@@ -100,6 +112,13 @@ sub input {
 	my @inv = @{$o{inventory}||[]};
 	usage("falta la entrada: -f, o --profile y --inventory") if ((! @f) && (! @pro) && (! @inv));
 	usage("cada --profile necesita su --inventory (hay ".scalar(@pro)." y ".scalar(@inv).")") if (@pro != @inv);
+	my %set=();
+	foreach my $x (@{$o{set}||[]}) {
+		usage("--set '$x': tiene que ser COLUMNA=VALOR") if ($x !~ /^([^=\s]+)=(.*)$/);
+		$set{$1}=$2;
+	}
+	usage("--set solo vale con --profile e --inventory") if (%set && (! @pro));
+	my %set_used=();
 	my (@res,@origin);
 	foreach my $file (@f) {
 		my ($t,$e)=read_file($file); input_error($e) if ($e);
@@ -113,20 +132,25 @@ sub input {
 	}
 	for my $k (0..$#pro) {
 		my $rp = $pro[$k];
-		if (($rp !~ m{/}) && (! -f $rp)) {		# a name: looked up in the profile directory
+		if (($rp !~ m{/}) && (! -f $rp)) {		# a name: installation, then product
 			usage("nombre de perfil no valido '$rp'") if ($rp !~ /^[\w][\w.\-]*$/);
-			$rp = "$DIR_PROFILE/$rp".($rp =~ /\.json$/ ? '' : '.json');
+			my $f = $rp.($rp =~ /\.json$/ ? '' : '.json');
+			($rp) = grep { -f $_ } ("$DIR_PROFILE/$f", "$DIR_PROFILE_PRODUCT/$f");
+			input_error("no hay perfil '$pro[$k]' en $DIR_PROFILE ni en los del producto (cnm-control list profiles)") if (! $rp);
 		}
 		my ($tp,$ep)=read_file($rp); input_error($ep) if ($ep);
 		my $p; eval { $p = JSON->new->decode($tp); }; input_error("$rp: JSON no valido: $@") if ($@);
 		my ($profile,$e1)=check_profile($p); input_error("$rp: $e1") if ($e1);
 		my ($ti,$ei)=read_file($inv[$k]); input_error($ei) if ($ei);
-		my ($rows,$e2)=parse_inventory($ti,$profile); input_error(join("\n", map { "$inv[$k]: $_" } @$e2)) if (@$e2);
+		my ($rows,$e2,$u)=parse_inventory($ti,$profile,\%set); input_error(join("\n", map { "$inv[$k]: $_" } @$e2)) if (@$e2);
+		$set_used{$_}=1 foreach (keys %$u);
 		my ($r,$e3)=expand($profile,$rows,$inv[$k]); input_error(join("\n",@$e3)) if (@$e3);
 		push @res, @$r;
 		push @origin, "perfil $rp + $inv[$k] (".scalar(@$rows)." filas)";
 	}
-	return ({ version=>1, resources=>\@res }, join('; ',@origin));
+	my @unused = grep { ! $set_used{$_} } sort keys %set;
+	input_error("--set ".join(', ',@unused).": ninguna entrada tiene esa columna (parametro del perfil, atributo del dispositivo, custom.<campo> o c_label.<subtipo>)") if (@unused);
+	return ({ version=>1, resources=>\@res }, join('; ',@origin).(%set ? ' --set '.join(',', sort keys %set) : ''));
 }
 
 #----------------------------------------------------------------------------
@@ -254,10 +278,33 @@ my ($what)=@_;
 	return 1;
 }
 
+#----------------------------------------------------------------------------
+# list profiles: installation first; a product profile with the same name is hidden
+#----------------------------------------------------------------------------
+sub list_profiles {
+	my %seen=();
+	printf("%-24s %-12s %s\n", 'perfil', 'origen', 'descripcion');
+	foreach my $d ([$DIR_PROFILE,'instalacion'], [$DIR_PROFILE_PRODUCT,'producto']) {
+		opendir(my $dh, $d->[0]) or next;
+		foreach my $f (sort grep { /\.json$/ && -f "$d->[0]/$_" } readdir($dh)) {
+			(my $n = $f) =~ s/\.json$//;
+			my ($t) = read_file("$d->[0]/$f");
+			my $p = eval { JSON->new->decode($t) } || {};
+			my $descr = (ref($p) eq 'HASH' && defined $p->{descr}) ? $p->{descr} : '';
+			$descr = substr($descr,0,90).'...' if (length($descr) > 93);
+			printf("%-24s %-12s %s\n", $n, ($seen{$n} ? "$d->[1] (oculto: manda instalacion)" : $d->[1]), $descr);
+			$seen{$n}=1;
+		}
+		closedir($dh);
+	}
+	return 0;
+}
+
 sub cmd_list {
 my ($what)=@_;
-	usage("list: views | viewtypes | users | subtypes | fields | types") if (! defined $what);
-	usage("list: views | viewtypes | users | subtypes | fields | types") if ($what !~ /^(views|viewtypes|users|subtypes|fields|types)$/);
+	usage("list: views | viewtypes | users | subtypes | fields | types | profiles") if (! defined $what);
+	usage("list: views | viewtypes | users | subtypes | fields | types | profiles") if ($what !~ /^(views|viewtypes|users|subtypes|fields|types|profiles)$/);
+	return list_profiles() if ($what eq 'profiles');
 	my $ctx = context(); my $dbh=$ctx->{dbh};
 	my @rows=(); my @head=();
 	if ($what eq 'views') {

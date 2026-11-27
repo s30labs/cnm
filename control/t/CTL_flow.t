@@ -575,4 +575,26 @@ my (undef,$ep2) = validate_state(vstate({ kind=>'view', name=>'A', parent=>'B' }
 like(join(' ',@$ep2), qr/'parent' distinto en las dos definiciones/, 'dos definiciones con distinto padre: error');
 
 
+#=== 0016: the default domain only when creating ==============================================
+my $tdd = base(); $tdd->{devices}[0]{domain}='es.local'; $tdd->{devices}[0]{critic}=50;
+my @rdd = ({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>75, _domain_default=>1, _origin=>'d.csv linea 2' },
+			  { kind=>'metric', device=>'tda-00.local', subtype=>'disp_icmp', c_label=>'nuevo', _origin=>'d.csv linea 2' });
+my ($bkdd,$edd) = validate_state(vstate(@rdd));
+is(scalar(@$edd), 0, '_domain_default: admitido por la validacion');
+my ($cdd) = ctx($tdd); my $pldd = make_plan($cdd,$bkdd);
+is(scalar(@{$pldd->{errors}}).'+'.scalar(@{$pldd->{derived}}), '0+0', 'IP y nombre existentes en otro dominio, dominio por defecto: sin errores')
+	or diag(join(' ',@{$pldd->{errors}},@{$pldd->{derived}}));
+is(join(' | ', map { $_->{text} } @{$pldd->{actions}}), "tda-00.es.local critic '50' -> '75' | tda-00.es.local disp_icmp: \"viejo\" -> \"nuevo\"",
+	'... se modifica el equipo con su dominio, y la metrica lo encuentra');
+is(scalar(@{apply_plan($cdd,$pldd)}), 0, '... aplicado');
+is("$tdd->{devices}[0]{critic}/$tdd->{devices}[0]{domain}/$tdd->{metrics}[0]{c_label}", '75/es.local/nuevo', '... critic y c_label escritos; el dominio no cambia');
+# Without the mark (domain written in the CSV): conflict, as before
+delete $rdd[0]{_domain_default};
+my ($bkd2) = validate_state(vstate(@rdd)); my ($cd2) = ctx(base()); $cd2->{dbh}{t}{devices}[0]{domain}='es.local';
+like(join(' ',@{make_plan($cd2,$bkd2)->{errors}}), qr/la IP ya es de tda-00\.es\.local/, 'dominio escrito en el CSV y distinto: conflicto, como antes');
+# A different name with the default domain: still a conflict
+my ($bkd3) = validate_state(vstate({ kind=>'device', name=>'otro', domain=>'local', ip=>'10.0.0.100', _domain_default=>1 }));
+my ($cd3) = ctx(base());
+like(join(' ',@{make_plan($cd3,$bkd3)->{errors}}), qr/la IP ya es de tda-00\.local/, 'nombre distinto con dominio por defecto: conflicto');
+
 done_testing();

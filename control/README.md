@@ -19,7 +19,8 @@ vistas estáticas). Sin plan guardado, cola, auditoría ni borrados.
   lib/CNMControl/Core.pm            registro de clases, validación, plan y aplicación
   lib/CNMControl/Profile.pm         perfil + inventario  =>  estado deseado
   lib/CNMControl/Kind/*.pm          una clase por tipo de objeto de CNM (View, Device, Metric)
-  profiles/examples/                perfiles de ejemplo (los de uso van en /cfg/cnm-control/profiles)
+  profiles/                         perfiles del producto (los de la instalación van en
+                                    /cfg/cnm-control/profiles; con el mismo nombre, manda ese)
   t/CTL_*.t                         pruebas sin base de datos
 ```
 
@@ -41,7 +42,8 @@ Las claves de los ficheros y los nombres de clase van en inglés, como en
 ```
 
 Un perfil añade `parameters` (`required`, `default`, `descr`) y usa `{param}` en
-los recursos; ver `profiles/examples/icmp-basic.json`.
+los recursos; ver `profiles/icmp-basic.json`. `cnm-control list profiles` dice
+qué perfiles hay y de dónde sale cada uno.
 
 El inventario es un CSV con `;`. La primera línea tiene los nombres de los
 parámetros del perfil, en cualquier orden. Una columna `custom.<campo>` lleva el
@@ -49,6 +51,19 @@ valor del campo de usuario `<campo>` (`cnm-control list fields`) para el
 dispositivo de esa fila: sin distinguir mayúsculas, en cualquier orden. Una
 celda vacía no toca el campo, y el valor del inventario gana al que ponga el
 perfil.
+
+Los atributos del dispositivo (`domain`, `type`, `critic`, `status`, `geodata`,
+`version`, `community`) pueden ir como columna aunque el perfil no los declare, con
+su nombre o como `device.<atributo>`; una celda vacía no los toca. Si el perfil
+tiene un parámetro con ese nombre que significa otra cosa, la columna sin prefijo
+es el parámetro y `device.<atributo>` es el atributo.
+
+`--set columna=valor` rellena esa columna en las filas que la dejan vacía, esté o no
+en el CSV. Manda la celda, luego `--set` y luego el valor por defecto del perfil.
+
+El dominio por defecto del perfil solo se usa al crear: si la IP ya existe con ese
+nombre en otro dominio, el equipo conserva el suyo. Un dominio escrito en el CSV o
+con `--set` se comprueba entero, como el nombre.
 
 Una columna `c_label.<subtipo>` lleva el título de la métrica `<subtipo>` de esa
 fila (`c_label.disp_icmp`, `c_label.mon_icmp`). Una celda vacía deja el título del
@@ -65,6 +80,8 @@ tda-02;10.20.1.11;Tiendas;;
 ```
 cnm-control list views --search tienda
 cnm-control plan  --profile icmp-basic --inventory tiendas.csv
+cnm-control plan  --profile icmp-basic --inventory sede.csv --set view="ALCALA" --set critic=75
+cnm-control plan  --profile device-update --inventory mant.csv --set status=2
 cnm-control apply --profile icmp-basic --inventory tiendas.csv --confirm
 cnm-control expand --profile icmp-basic --inventory tiendas.csv > estado.json
 cnm-control plan  -f estado.json --json

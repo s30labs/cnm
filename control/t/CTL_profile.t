@@ -11,7 +11,7 @@ use Test::More;
 use JSON;
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 
-my ($t,$e) = read_file("$FindBin::Bin/../profiles/examples/icmp-basic.json");
+my ($t,$e) = read_file("$FindBin::Bin/../profiles/icmp-basic.json");
 ok(!$e, 'se lee el perfil de ejemplo');
 my ($p,$ep) = check_profile(JSON->new->decode($t));
 ok($p && !$ep, 'el perfil de ejemplo es valido') or diag($ep);
@@ -54,7 +54,10 @@ is(scalar(@$res), 8, '4 recursos por fila x 2 filas');
 my @d = grep { $_->{kind} eq 'device' } @$res;
 ok(!exists $d[0]{type}, 'tipo vacio: la clave desaparece');
 is($d[1]{type}, 'Router', 'tipo con valor se mantiene');
-is($d[0]{snmp}{version}, 0, 'los numeros JSON se conservan');
+ok(! exists $d[0]{snmp}, 'icmp-basic no fija SNMP: no cambia el de un equipo que ya existe (al crear, version 0)');
+{ my ($pn) = check_profile({ version=>1, parameters=>{ name=>{} }, resources=>[ { kind=>'device', name=>'{name}', snmp=>{ version=>0 } } ] });
+  my ($rn) = parse_inventory("name\nx\n", $pn); my ($xn) = expand($pn,$rn);
+  is($xn->[0]{snmp}{version}, 0, 'los numeros JSON se conservan'); }
 my @m = grep { $_->{kind} eq 'metric' && $_->{subtype} eq 'mon_icmp' } @$res;
 is($m[0]{device}, 'tda-01.local', 'referencia al dispositivo');
 is($m[0]{c_label}, 'Servicio ICMP tda-01', 'c_label del perfil, con el nombre de la fila');
@@ -125,7 +128,7 @@ my ($x5,$e5) = expand($p5,$r5);
 like($e5->[0] // '', qr/crea 2 metricas x/, 'dos metricas del mismo subtipo en la fila: no se sabe a cual, error');
 
 #--- Views profile: lists with '|', optional cells, origin with the inventory name --------
-my ($pv) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/examples/views-basic.json"))[0])));
+my ($pv) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/views-basic.json"))[0])));
 ok($pv, 'perfil de ejemplo views-basic valido');
 my ($rv,$rve) = parse_inventory("name;like;type;parent;users\nSede Madrid;Plantilla;;Sede Norte;noc | operador1|\nSede Norte;;General;Sedes;\n", $pv);
 is(scalar(@$rve), 0, 'inventario de vistas sin errores');
@@ -145,5 +148,41 @@ is(substr((split(/\n/,$tb))[1],0,6), "Alcal\x{e1}", 'UTF-8 leido como caracteres
 my ($tw,$ew) = read_file(wr('win.csv', "name;ip\nok;1.1.1.1\nAlcal\xE1;1.1.1.2\n"));
 ok(! defined $tw, 'fichero en Windows-1252: no se lee');
 like($ew, qr/no esta en UTF-8 \(primera linea con problemas: 3\).*iconv -f WINDOWS-1252/, '... y dice la linea y como convertirlo');
+
+#--- 0016: attribute columns, --set, default domain, device.<attr> ---------------------------
+my ($pi) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/icmp-basic.json"))[0])));
+my ($ra,$ea) = parse_inventory("name;ip;view;critic;status;version;community;custom.Proveedor\nsede-01;10.1.1.1;V;100;;2;c1;ACME\nsede-02;10.1.1.2;V;;2;;;\n", $pi);
+is(scalar(@$ea), 0, 'atributos del dispositivo sin declararlos en el perfil: admitidos') or diag(join(' ',@$ea));
+my ($xa) = expand($pi,$ra,'s.csv');
+my @da = grep { $_->{kind} eq 'device' } @$xa;
+is_deeply([ map { { map { $_=>$da[0]{$_} } grep { defined $da[0]{$_} } qw(critic status geodata) } } 0 ], [ { critic=>100 } ], 'fila 1: critic; status vacio no aparece');
+is_deeply($da[0]{snmp}, { version=>2, community=>'c1' }, '... version y community van a snmp');
+is_deeply([ $da[1]{status}, exists $da[1]{critic} ? 1 : 0, exists $da[1]{snmp} ? 1 : 0 ], [ 2, 0, 0 ], 'fila 2: solo status');
+ok($da[0]{_domain_default} && $da[1]{_domain_default}, 'sin columna domain: el dominio es el defecto del perfil (marcado)');
+my ($rdd) = parse_inventory("name;ip;view;domain\nsede-01;10.1.1.1;V;es.local\nsede-02;10.1.1.2;V;\n", $pi);
+my ($xd) = expand($pi,$rdd); my @dd = grep { $_->{kind} eq 'device' } @$xd;
+is_deeply([ $dd[0]{domain}, $dd[0]{_domain_default} ? 1 : 0, $dd[1]{domain}, $dd[1]{_domain_default} ? 1 : 0 ], [ 'es.local', 0, 'local', 1 ],
+	'celda domain con valor: explicito; vacia: defecto marcado');
+# --set: fills empty cells, the cell wins, it adds a column that is not in the CSV
+my ($rs,$es,$us) = parse_inventory("name;ip;critic\nsede-01;10.1.1.1;\nsede-02;10.1.1.2;25\n", $pi, { view=>'Sedes', critic=>75, domain=>'es.local', nada=>1 });
+is(scalar(@$es), 0, '--set de columnas que no estan en el CSV: admitido');
+is_deeply([ sort keys %$us ], [ qw(critic domain view) ], '... y dice cuales entiende (nada no)');
+my ($xs) = expand($pi,$rs); my @ds = grep { $_->{kind} eq 'device' } @$xs; my @vs = grep { $_->{kind} eq 'view' } @$xs;
+is_deeply([ $ds[0]{critic}, $ds[1]{critic} ], [ 75, 25 ], '--set rellena la celda vacia; la celda manda');
+is_deeply([ $ds[0]{domain}, $ds[0]{_domain_default} ? 1 : 0 ], [ 'es.local', 0 ], '--set domain: explicito');
+is($vs[0]{name}, 'Sedes', '--set de un parametro requerido');
+# Collisions: views-basic has a parameter "type" that is the type of the view, and no device
+my (undef,$ec) = parse_inventory("name;critic\nV;50\n", $pv);
+like(join(' ',@$ec), qr/columna 'critic': es un atributo del dispositivo, pero el perfil crea 0 dispositivos/, 'atributo en un perfil sin dispositivo: error');
+my ($pt) = check_profile({ version=>1, parameters=>{ name=>{}, ip=>{}, type=>{} },
+	resources=>[ { kind=>'device', name=>'{name}', domain=>'local', ip=>'{ip}' }, { kind=>'view', name=>'{type}' } ] });
+my ($rt,$et) = parse_inventory("name;ip;type;device.type\na;1.1.1.1;Vista;Router\n", $pt);
+is(scalar(@$et), 0, 'parametro type que no es el tipo del dispositivo: type es el parametro, device.type el atributo') or diag(join(' ',@$et));
+my ($xt) = expand($pt,$rt);
+is_deeply([ (grep { $_->{kind} eq 'device' } @$xt)[0]{type}, (grep { $_->{kind} eq 'view' } @$xt)[0]{name} ], [ 'Router', 'Vista' ], '... cada uno a su sitio');
+my (undef,$e2t) = parse_inventory("name;ip;type;device.type\na;1.1.1.1;Router;Switch\n", $pi);
+like(join(' ',@$e2t), qr/columna 'device\.type' repetida/, 'type y device.type que son el mismo atributo: columna repetida');
+my (undef,$eu) = parse_inventory("name;ip;view;device.sysloc\na;1.1.1.1;V;x\n", $pi);
+like(join(' ',@$eu), qr/'sysloc' no es un atributo del dispositivo/, 'device.<algo> que no es atributo: error');
 
 done_testing();
