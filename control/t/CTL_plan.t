@@ -39,8 +39,9 @@ my @bad = (
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ live_metric=>1 } },        qr/campo 'live_metric' no admitido/ ],
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ itil_type=>7 } },          qr/itil_type tiene que ser 1 a 5/ ],
 	[ $V, { kind=>'view', name=>'V', create=>1, fields=>{ global=>2 } },             qr/global tiene que ser 0 o 1/ ],
-	[ $V, { kind=>'view', name=>'V', parents=>'P' },                                 qr/"parents" tiene que ser una lista/ ],
-	[ $V, { kind=>'view', name=>'V', parents=>['v'] },                               qr/padre de si misma/ ],
+	[ $V, { kind=>'view', name=>'V', parents=>['P'] },                               qr/"parents" ya no se admite/ ],
+	[ $V, { kind=>'view', name=>'V', parent=>['P'] },                                qr/"parent" tiene que ser el nombre de una vista/ ],
+	[ $V, { kind=>'view', name=>'V', parent=>'v' },                                  qr/padre de si misma/ ],
 	[ $V, { kind=>'view', name=>'V', otra=>1 },                                      qr/clave desconocida 'otra'/ ],
 );
 foreach my $b (@bad) { my ($n,$e)=$b->[0]->validate($b->[1]); like($e // '', $b->[2], "rechazado: $b->[2]"); }
@@ -149,7 +150,7 @@ is(scalar(@$wa), 0, 'dispositivo nuevo: sin aviso en el plan (su asistente se ca
 ok($ctx->{failed_view}{x}, '... queda anotada para los errores derivados de las metricas');
 ($acc,$er) = $V->diff({ name=>'X' }, { view=>{ id=>5, live_metric=>1 }, views=>{}, types=>{} }, $ctx);
 is(scalar(@$acc)+scalar(@$er), 0, 'vista viva solo como referencia: sin error (lo da la metrica que se asocie)');
-($n) = $V->validate({ kind=>'view', name=>'V', create=>JSON::true, users=>['a','A',''], parents=>[] });
+($n) = $V->validate({ kind=>'view', name=>'V', create=>JSON::true, users=>['a','A',''] });
 is_deeply($n, { kind=>'view', name=>'V', create=>1, users=>['a'] }, 'create true de JSON, usuarios sin repetir ni vacios, listas vacias fuera');
 ($n) = $V->validate({ kind=>'view', name=>'V', create=>JSON::false });
 ok(! exists $n->{create}, 'create false: como si no estuviera');

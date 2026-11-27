@@ -4,7 +4,7 @@
 # Declarative configuration of CNM: describe how it must end up; the tool computes the
 # difference with the onm database, shows it (plan) and applies it (apply).
 # Design: cnm-docs, 70-Proyectos/cnm-control/PROY-CNM-cnm-control-Diseno.
-# SKELETON v0.4: kinds view (create, update, parents, users), device (create, update) and latency metric
+# SKELETON v0.5: kinds view (create, update, parent, users), device (create, update) and latency metric
 # (provision, c_label, static views). No saved plan, no queue, no audit, no deletions.
 #-------------------------------------------------------------------------------------------
 BEGIN { $ENV{'MIBS'}='ALL'; }		# like plite: the engine loads SNMP modules
@@ -20,7 +20,7 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.4';
+my $VERSION     = '0.5';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 my $DIR_PROFILE = '/cfg/cnm-control/profiles';
@@ -34,6 +34,7 @@ $fpth[$#fpth] plan   ENTRADA [--json] [--verbose] [--cid CID]  muestra lo que ca
 $fpth[$#fpth] apply  ENTRADA --confirm [--json] [--cid CID]    aplica el plan y lo comprueba
 $fpth[$#fpth] expand --profile P --inventory F.csv             imprime los recursos que resultan
 $fpth[$#fpth] list   views [--search TXT] | viewtypes | users | subtypes [--type latency|snmp|xagent] | fields | types
+$fpth[$#fpth] check  views                                       vistas con mas de un padre (rc=1 si hay alguna)
 $fpth[$#fpth] -h  : Ayuda
 
   ENTRADA:  -f FICHERO.json                     lista de recursos
@@ -41,12 +42,12 @@ $fpth[$#fpth] -h  : Ayuda
             Se pueden repetir y combinar: todo forma un solo plan. Cada --profile va con el
             --inventory que ocupa su mismo lugar (el primero con el primero...).
             Ejemplo: --profile views-basic --inventory vistas.csv --profile icmp-basic --inventory equipos.csv
-            En una celda del CSV que va a una lista (parents, users, views), '|' separa elementos.
+            En una celda del CSV que va a una lista (users, views), '|' separa elementos.
 
   apply crea vistas (con sus padres y usuarios) y dispositivos (con su asistente y
   aplicaciones), provisiona metricas, cambia c_label y asocia metricas a vistas estaticas.
-  A las vistas que ya existen les anade padres y usuarios y les cambia type, itil_type y
-  global. A los dispositivos que ya existen les cambia type, critic, geodata, status, SNMP
+  A las vistas que ya existen les pone o cambia el padre (una vista tiene un solo padre;
+  cambiarlo es moverla), les anade usuarios y les cambia type, itil_type y global. A los dispositivos que ya existen les cambia type, critic, geodata, status, SNMP
   (version 0, 1 o 2 y community) y campos de usuario (update, con el valor anterior y el
   nuevo; la community nunca se muestra; MODIFICA los cuenta por atributo). Si cambia SNMP,
   pregunta al equipo por sus datos MIB-2, como la provision. Si cambia status o SNMP,
@@ -74,6 +75,7 @@ usage("cid no valido") if ($CID !~ /^[\w\-]{1,20}$/);
 
 if    ($cmd eq 'expand') { exit cmd_expand(); }
 elsif ($cmd eq 'list')   { exit cmd_list(shift @ARGS); }
+elsif ($cmd eq 'check')  { exit cmd_check(shift @ARGS); }
 elsif ($cmd eq 'plan')   { exit cmd_plan(0); }
 elsif ($cmd eq 'apply')  { exit cmd_plan(1); }
 else  { usage("orden desconocida '$cmd'"); }
@@ -235,6 +237,23 @@ my ($plan,$origin,$phase)=@_;
 }
 
 #----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
+# check views: a view has one parent; list the ones with more (exit 1 if any)
+#----------------------------------------------------------------------------
+sub cmd_check {
+my ($what)=@_;
+	usage("check: views") if ((! defined $what) || ($what ne 'views'));
+	my $ctx = context(); my $dbh=$ctx->{dbh};
+	my $rows = $dbh->selectall_arrayref(
+		"SELECT s.name, s.id_cfg_view, GROUP_CONCAT(p.name ORDER BY p.name SEPARATOR ' | ') FROM cfg_views2views a ".
+		"JOIN cfg_views s ON s.id_cfg_view=a.id_cfg_subview JOIN cfg_views p ON p.id_cfg_view=a.id_cfg_view ".
+		"WHERE a.cid_view=? AND a.cid_subview=? GROUP BY s.id_cfg_view, s.name HAVING COUNT(*) > 1 ORDER BY s.name", undef, $CID, $CID);
+	if (! @$rows) { print "check views: ninguna vista con mas de un padre (cid=$CID)\n"; return 0; }
+	print "check views: ".scalar(@$rows)." vistas con mas de un padre (cid=$CID); una vista tiene un solo padre:\n";
+	printf("  %-50s id %-6s padres: %s\n", @$_) foreach (@$rows);
+	return 1;
+}
+
 sub cmd_list {
 my ($what)=@_;
 	usage("list: views | viewtypes | users | subtypes | fields | types") if (! defined $what);

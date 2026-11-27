@@ -34,6 +34,8 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	elsif ($q =~ /SELECT DISTINCT cid_ip FROM cfg_views WHERE cid=\?/) { my %u=(); @r = map { [$_] } grep { !$u{$_}++ }
 		map { $_->{cid_ip} } grep { $_->{cid} eq $b[0] && $_->{cid_ip} ne '' && $_->{cid_ip} ne '127.0.0.1' } @{$t->{views}}; }
 	elsif ($q =~ /FROM cfg_views2views WHERE cid_view=\? AND cid_subview=\?/) { @r = map { [$_->[0],$_->[1]] } @{$t->{v2v}||[]}; }
+	elsif ($q =~ /SELECT id_cfg_view,name FROM cfg_views WHERE cid=\?/) { @r = map { [$_->{id_cfg_view},$_->{name}] } grep { $_->{cid} eq $b[0] } @{$t->{views}}; }
+	elsif ($q =~ /SELECT id_cfg_view FROM cfg_views2views WHERE id_cfg_subview=\? AND cid_subview=\? FOR UPDATE/) { @r = map { [$_->[0]] } grep { $_->[1]==$b[0] } @{$t->{v2v}||[]}; }
 	elsif ($q =~ /SELECT login_name FROM cfg_user2view WHERE id_cfg_view=\?/) { @r = map { [$_->[1]] } grep { $_->[0]==$b[0] } @{$t->{u2v}||[]}; }
 	elsif ($q =~ /SELECT name FROM cfg_views_types/)           { @r = map { [$_] } @{$t->{view_types}||[]}; }
 	elsif ($q =~ /FROM devices WHERE ip IN/)                   { my %i=map{$_=>1}@b; @r = grep { $i{$_->{ip}} } @{$t->{devices}}; }
@@ -65,6 +67,8 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 		my ($v)=grep { $_->{id_cfg_view}==$b[0] } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(type itil_type global) } : undef; }
 	if ($q =~ /SELECT name,domain,ip,version,community FROM devices WHERE id_dev=\?/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		return $d ? { map { $_=>$d->{$_} } qw(name domain ip version community) } : undef; }
+	if ($q =~ /SELECT id_cfg_view,cid,cid_ip FROM cfg_views WHERE id_cfg_view=\?/) { my ($v)=grep { $_->{id_cfg_view}==$b[0] } @{$t->{views}};
+		return $v ? { map { $_=>$v->{$_} } qw(id_cfg_view cid cid_ip) } : undef; }
 	if ($q =~ /FROM cfg_users WHERE login_name=\?/) { my ($u)=grep { lc($_->{login_name}) eq lc($b[0]) } @{$t->{users}||[]}; return $u ? {%$u} : undef; }
 	if ($q =~ /SELECT id_cfg_view,cid,cid_ip FROM cfg_views WHERE cid=\? AND name=\?/) {
 		my ($v)=grep { $_->{cid} eq $b[0] && lc($_->{name}) eq lc($b[1]) } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(id_cfg_view cid cid_ip) } : undef; }
@@ -89,6 +93,7 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 									  ruled=>0, live_metric=>0, sla=>0, nmetrics=>0, nsubviews=>0 };
 		$t->{last_id}=$t->{seq_view}; }
 	elsif ($q =~ /^DELETE FROM search_store2cfg_views2(metrics|remote_alerts) WHERE id_cfg_view=\?/) { push @{$t->{cleared}}, "$1:$b[0]"; }
+	elsif ($q =~ /^DELETE FROM cfg_views2views WHERE id_cfg_view=\? AND id_cfg_subview=\?/) { $t->{v2v} = [ grep { !($_->[0]==$b[0] && $_->[1]==$b[1]) } @{$t->{v2v}||[]} ]; }
 	elsif ($q =~ /^INSERT INTO cfg_views2views/) { die "Duplicate entry" if (grep { $_->[0]==$b[0] && $_->[1]==$b[1] } @{$t->{v2v}||[]});
 		push @{$t->{v2v}}, [ @b ]; }
 	elsif ($q =~ /^INSERT IGNORE INTO cfg_user2view/) { push @{$t->{u2v}}, [ $b[0], $b[4], $b[1], $b[2], $b[3] ] if (! grep { $_->[0]==$b[0] && $_->[1] eq $b[4] } @{$t->{u2v}||[]}); }
@@ -237,7 +242,7 @@ like(join(' ',@$e3), qr/deshecho/, 'error en la transaccion: se informa');
 is((grep { $_->{id_metric}==500 } @{$t3->{metrics}})[0]{c_label}, 'viejo', '... y el c_label vuelve a su valor');
 is(scalar(@{$t3->{v2m}}), 0, '... y no queda ninguna asociacion');
 
-#=== Views: create with a model view, parents (one of them new) and users =============
+#=== Views: create with a model view, a parent (new or existing) and users ===========
 sub vbase {
 	my $t = base();
 	push @{$t->{views}}, { id_cfg_view=>170, name=>'Sedes', type=>'Sedes', itil_type=>1, global=>0, ruled=>0, live_metric=>0, sla=>0, cid=>'default', cid_ip=>'1.1.1.1', nsubviews=>1 },
@@ -253,8 +258,8 @@ sub vbase {
 }
 sub vstate { return { version=>1, resources=>[ @_ ] }; }
 my @vres = (
-	{ kind=>'view', name=>'Sede Madrid', create=>1, like=>'Plantilla', parents=>['Sedes','Sede Norte'], users=>['noc','OPERADOR1'] },
-	{ kind=>'view', name=>'Sede Norte', create=>1, fields=>{ type=>'general' }, parents=>['Sedes'] },	# after its child
+	{ kind=>'view', name=>'Sede Madrid', create=>1, like=>'Plantilla', parent=>'Sede Norte', users=>['noc','OPERADOR1'] },	# its parent comes after
+	{ kind=>'view', name=>'Sede Norte', create=>1, fields=>{ type=>'general' }, parent=>'Sedes' },
 	{ kind=>'view', name=>'tiendas', users=>['noc'] },
 	{ kind=>'view', name=>'Sede Madrid' },		# bare reference, as icmp-basic writes it
 	{ kind=>'device', name=>'mad-01', domain=>'local', ip=>'10.0.1.1' },
@@ -267,8 +272,8 @@ my ($cv) = ctx($tv);
 my $plv = make_plan($cv,$bkv);
 is(scalar(@{$plv->{errors}})+scalar(@{$plv->{derived}}), 0, 'vistas: plan sin errores') or diag(join("\n",@{$plv->{errors}},map { "deriv: $_" } @{$plv->{derived}}));
 %n=(); $n{"$_->{kind}.$_->{op}"}++ foreach (@{$plv->{actions}});
-is_deeply(\%n, { 'view.create'=>2, 'view.parent+'=>3, 'view.user+'=>3, 'device.create'=>1, 'metric.provision'=>2, 'metric.c_label'=>2, 'metric.view+'=>2 },
-	'2 vistas nuevas, 3 padres, 3 usuarios (uno en una vista que ya existe) y las metricas a la vista nueva');
+is_deeply(\%n, { 'view.create'=>2, 'view.parent+'=>2, 'view.user+'=>3, 'device.create'=>1, 'metric.provision'=>2, 'metric.c_label'=>2, 'metric.view+'=>2 },
+	'2 vistas nuevas con su padre, 3 usuarios (uno en una vista que ya existe) y las metricas a la vista nueva');
 my ($cr) = grep { $_->{op} eq 'create' && ($_->{name}//'') eq 'Sede Madrid' } @{$plv->{actions}};
 is_deeply($cr->{fields}, { type=>'Sedes', itil_type=>4, global=>1 }, 'like: type, itil_type y global de la vista modelo');
 ($cr) = grep { $_->{op} eq 'create' && ($_->{name}//'') eq 'Sede Norte' } @{$plv->{actions}};
@@ -281,8 +286,8 @@ ok($vw{'Sede Madrid'} && $vw{'Sede Norte'}, 'las dos vistas creadas');
 is($vw{'Sede Madrid'}{cid_ip}, '1.1.1.1', 'con el cid_ip de /cfg/onm.if');
 my %edge = map {; "$_->[0]>$_->[1]" => 1 } @{$tv->{v2v}};
 my ($idm,$idn) = ($vw{'Sede Madrid'}{id_cfg_view}, $vw{'Sede Norte'}{id_cfg_view});
-ok($edge{"170>$idm"} && $edge{"170>$idn"} && $edge{"$idn>$idm"}, 'enlaces: Sedes > Madrid, Sedes > Norte y Norte > Madrid (dos padres)');
-is($vw{'Sedes'}{nsubviews}, 3, 'nsubviews del padre: Tiendas, Madrid y Norte');
+ok($edge{"170>$idn"} && $edge{"$idn>$idm"} && (scalar(@{$tv->{v2v}})==3), 'enlaces: Sedes > Norte y Norte > Madrid (un padre cada una)');
+is($vw{'Sedes'}{nsubviews}, 2, 'nsubviews del padre: Tiendas y Norte');
 is($vw{'Sede Norte'}{nsubviews}, 1, 'nsubviews de la vista nueva que es padre');
 is_deeply([ sort map { "$_->[0]:$_->[1]" } @{$tv->{u2v}} ], [ sort ("$idm:noc", "$idm:operador1", "162:noc") ],
 	'usuarios con su login_name de cfg_users (OPERADOR1 -> operador1)');
@@ -317,10 +322,11 @@ ok((grep { $_ eq 'metrics:170' } @{$tv->{cleared}}), '... y busquedas almacenada
 
 # Red cases: the plan is blocked and nothing is written
 my @red = (
-	[ 'ciclo con un enlace existente', {}, [ { kind=>'view', name=>'Sedes', parents=>['Tiendas'] } ], qr/ciclo.*'Tiendas'/ ],
-	[ 'ciclo entre dos vistas nuevas', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Sedes'}, parents=>['B'] },
-														 { kind=>'view', name=>'B', create=>1, fields=>{type=>'Sedes'}, parents=>['A'] } ], qr/ciclo/ ],
-	[ 'padre inexistente', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Sedes'}, parents=>['Nada'] } ], qr/padre 'Nada' no existe/ ],
+	[ 'ciclo con un enlace existente', {}, [ { kind=>'view', name=>'Sedes', parent=>'Tiendas' } ], qr/ciclo.*'Tiendas'/ ],
+	[ 'ciclo entre dos vistas nuevas', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Sedes'}, parent=>'B' },
+														 { kind=>'view', name=>'B', create=>1, fields=>{type=>'Sedes'}, parent=>'A' } ], qr/ciclo/ ],
+	[ 'padre inexistente', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Sedes'}, parent=>'Nada' } ], qr/padre 'Nada' no existe/ ],
+	[ 'padre a una vista que ya tiene dos', { two_parents=>1 }, [ { kind=>'view', name=>'Tiendas', parent=>'Plantilla' } ], qr/tiene 2 padres \('Sedes', 'Plantilla'\): una vista tiene un solo padre/ ],
 	[ 'usuario inexistente', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Sedes'}, users=>['nadie'] } ], qr/usuario 'nadie' no existe/ ],
 	[ 'sin tipo', {}, [ { kind=>'view', name=>'A', create=>1 } ], qr/falta el tipo/ ],
 	[ 'tipo inexistente', {}, [ { kind=>'view', name=>'A', create=>1, fields=>{type=>'Otro'} } ], qr/tipo de vista 'Otro' no existe/ ],
@@ -334,8 +340,9 @@ my @red = (
 );
 foreach my $c (@red) {
 	my ($name,$over,$res,$re) = @$c;
-	my $tr = vbase(); $tr->{$_}=$over->{$_} foreach (grep { $_ ne 'extra_view' } keys %$over);
+	my $tr = vbase(); $tr->{$_}=$over->{$_} foreach (grep { $_ ne 'extra_view' && $_ ne 'two_parents' } keys %$over);
 	push @{$tr->{views}}, { id_cfg_view=>180, name=>'Otra', type=>'Sedes', cid=>'default', cid_ip=>'3.3.3.3' } if ($over->{extra_view});
+	push @{$tr->{v2v}}, [171,162,'default','1.1.1.1','default','1.1.1.1'] if ($over->{two_parents});
 	my $before = Storable::dclone($tr);
 	my ($bkr,$er0) = validate_state(vstate(@$res));
 	my ($crr) = ctx($tr);
@@ -530,5 +537,42 @@ push @{$tmb->{devices}}, { id_dev=>16, name=>'tda-04', domain=>'local', ip=>'10.
 ($bkmb) = validate_state(vstate({ kind=>'device', name=>'tda-04', domain=>'local', ip=>'10.0.0.104', snmp=>{ version=>2, community=>'buena' } }));
 ($cmb) = ctx($tmb); is(scalar(@{apply_plan($cmb, make_plan($cmb,$bkmb))}), 0, 'MIB-2 con una parte sin respuesta: aplicado');
 like(join(' ',@{$cmb->{apply_warnings}||[]}), qr/device 10\.0\.0\.104: MIB-2 incompleta: OKTimeout en partes de la MIB/, '... y aviso de MIB-2 incompleta');
+
+#=== One parent: move, two parents, precondition (0015) ======================================
+my $tmv = vbase();		# Sedes(170) > Tiendas(162); Plantilla(171) without parent
+my ($bkmv) = validate_state(vstate({ kind=>'view', name=>'Tiendas', parent=>'Plantilla' }));
+my ($cmv) = ctx($tmv); my $plmv = make_plan($cmv,$bkmv);
+is(join(' ', map { "$_->{op}: $_->{text}" } @{$plmv->{actions}}), 'move: "Tiendas" padre "Sedes" -> "Plantilla"', 'otro padre: se mueve la vista');
+is(scalar(@{apply_plan($cmv,$plmv)}), 0, '... aplicado');
+is_deeply([ map { "$_->[0]>$_->[1]" } @{$tmv->{v2v}} ], [ '171>162' ], '... el enlace viejo se borra y queda uno');
+my %vmv = map { $_->{name} => $_ } @{$tmv->{views}};
+is("$vmv{Sedes}{nsubviews}/$vmv{Plantilla}{nsubviews}", '0/1', '... y los contadores de los dos padres');
+($cmv) = ctx($tmv); is(scalar(@{make_plan($cmv,$bkmv)->{actions}}), 0, '... el plan calculado otra vez sale vacio');
+# A move replaces the old link also for the cycle check: Sedes > Tiendas becomes
+# Plantilla > Tiendas > Sedes, which is not a cycle
+my ($bkcy) = validate_state(vstate({ kind=>'view', name=>'Tiendas', parent=>'Plantilla' }, { kind=>'view', name=>'Sedes', parent=>'Tiendas' }));
+my ($ccy) = ctx(vbase()); my $plcy = make_plan($ccy,$bkcy);
+is(scalar(@{$plcy->{errors}}), 0, 'mover e invertir padre e hija en el mismo estado: no es un ciclo') or diag(join(' ',@{$plcy->{errors}}));
+is(join(',', sort map { $_->{op} } @{$plcy->{actions}}), 'move,parent+', '... mover Tiendas y dar padre a Sedes');
+# Same parent: nothing
+($bkmv) = validate_state(vstate({ kind=>'view', name=>'Tiendas', parent=>'plantilla' }));
+($cmv) = ctx($tmv); is(scalar(@{make_plan($cmv,$bkmv)->{actions}}), 0, 'mismo padre (sin distinguir mayusculas): nada');
+# Precondition: the parents change between plan and apply
+($bkmv) = validate_state(vstate({ kind=>'view', name=>'Tiendas', parent=>'Sedes' }));
+($cmv) = ctx($tmv); $plmv = make_plan($cmv,$bkmv);
+push @{$tmv->{v2v}}, [170,162,'default','1.1.1.1','default','1.1.1.1'];		# someone links it in the console
+like(join(' ',@{apply_plan($cmv,$plmv)}), qr/vista 'Tiendas': sus padres han cambiado desde el plan/, 'precondicion de los padres: error');
+is(scalar(grep { $_->[1]==162 } @{$tmv->{v2v}}), 2, '... y no se toca nada');
+# A view with two parents: warning without "parent"; error with it (red cases above)
+my ($bk2p) = validate_state(vstate({ kind=>'view', name=>'Tiendas', users=>['noc'] }));
+my ($c2p) = ctx($tmv); my $pl2p = make_plan($c2p,$bk2p);
+like(join(' ',@{$pl2p->{warnings}}), qr/tiene 2 padres \('Sedes', 'Plantilla'\)/, 'vista con dos padres sin "parent": aviso');
+is(scalar(@{$pl2p->{errors}}), 0, '... sin error');
+# "parents" is not accepted any more; "parent" must agree in two definitions
+my (undef,$ep) = validate_state(vstate({ kind=>'view', name=>'A', parents=>['B'] }));
+like(join(' ',@$ep), qr/"parents" ya no se admite: una vista tiene un solo padre; usar "parent"/, '"parents": error que explica el cambio');
+my (undef,$ep2) = validate_state(vstate({ kind=>'view', name=>'A', parent=>'B' }, { kind=>'view', name=>'A', parent=>'C' }));
+like(join(' ',@$ep2), qr/'parent' distinto en las dos definiciones/, 'dos definiciones con distinto padre: error');
+
 
 done_testing();

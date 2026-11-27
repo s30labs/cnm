@@ -1,15 +1,37 @@
 {
   "version": 1,
-  "descr": "Crear vistas copiando los campos de una vista modelo o dando el tipo, con sus vistas padre y sus usuarios. Inventario: name y, opcionales, like, type, parents y users; en parents y users, '|' separa elementos",
+  "descr": "Crear vistas copiando los campos de una vista modelo o dando el tipo, con su vista padre y sus usuarios. Inventario: name y, opcionales, like, type, parent y users; en users, '|' separa elementos. Una vista tiene un solo padre: dar otro la mueve",
   "parameters": {
-    "name":    { "required": true, "descr": "nombre de la vista" },
-    "like":    { "descr": "vista modelo: se copian type, itil_type y global" },
-    "type":    { "descr": "tipo de vista (cnm-control list viewtypes); manda sobre el de like" },
-    "parents": { "descr": "vistas padre, separadas por |" },
-    "users":   { "descr": "usuarios con acceso, separados por | (cnm-control list users)" }
+    "name": {
+      "required": true,
+      "descr": "nombre de la vista"
+    },
+    "like": {
+      "descr": "vista modelo: se copian type, itil_type y global"
+    },
+    "type": {
+      "descr": "tipo de vista (cnm-control list viewtypes); manda sobre el de like"
+    },
+    "parent": {
+      "descr": "vista padre (una vista tiene un solo padre; cambiarla es mover la vista)"
+    },
+    "users": {
+      "descr": "usuarios con acceso, separados por | (cnm-control list users)"
+    }
   },
   "resources": [
-    { "kind": "view", "name": "{name}", "create": true, "like": "{like}",
-      "fields": { "type": "{type}" }, "parents": [ "{parents}" ], "users": [ "{users}" ] }
+    {
+      "kind": "view",
+      "name": "{name}",
+      "create": true,
+      "like": "{like}",
+      "fields": {
+        "type": "{type}"
+      },
+      "parent": "{parent}",
+      "users": [
+        "{users}"
+      ]
+    }
   ]
 }

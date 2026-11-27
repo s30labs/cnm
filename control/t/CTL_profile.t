@@ -127,12 +127,12 @@ like($e5->[0] // '', qr/crea 2 metricas x/, 'dos metricas del mismo subtipo en l
 #--- Views profile: lists with '|', optional cells, origin with the inventory name --------
 my ($pv) = check_profile(JSON->new->decode(scalar((read_file("$FindBin::Bin/../profiles/examples/views-basic.json"))[0])));
 ok($pv, 'perfil de ejemplo views-basic valido');
-my ($rv,$rve) = parse_inventory("name;like;type;parents;users\nSede Madrid;Plantilla;;Sedes | Sede Norte|;noc|operador1\nSede Norte;;General;Sedes;\n", $pv);
+my ($rv,$rve) = parse_inventory("name;like;type;parent;users\nSede Madrid;Plantilla;;Sede Norte;noc | operador1|\nSede Norte;;General;Sedes;\n", $pv);
 is(scalar(@$rve), 0, 'inventario de vistas sin errores');
 my ($xv,$xve) = expand($pv,$rv,'vistas.csv');
 is_deeply([ map { { %$_ } } @$xv ], [
-	{ kind=>'view', name=>'Sede Madrid', create=>JSON::true, like=>'Plantilla', fields=>{}, parents=>['Sedes','Sede Norte'], users=>['noc','operador1'], _origin=>'vistas.csv linea 2' },
-	{ kind=>'view', name=>'Sede Norte', create=>JSON::true, fields=>{ type=>'General' }, parents=>['Sedes'], users=>[], _origin=>'vistas.csv linea 3' } ],
+	{ kind=>'view', name=>'Sede Madrid', create=>JSON::true, like=>'Plantilla', fields=>{}, parent=>'Sede Norte', users=>['noc','operador1'], _origin=>'vistas.csv linea 2' },
+	{ kind=>'view', name=>'Sede Norte', create=>JSON::true, fields=>{ type=>'General' }, parent=>'Sedes', users=>[], _origin=>'vistas.csv linea 3' } ],
 	"'|' separa elementos, sin espacios ni vacios; celda vacia = clave o lista fuera; origen con el nombre del inventario");
 
 #--- 0010: BOM and encoding of the inventory ------------------------------------------------
