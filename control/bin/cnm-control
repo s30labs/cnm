@@ -48,8 +48,9 @@ $fpth[$#fpth] -h  : Ayuda
   A las vistas que ya existen les anade padres y usuarios y les cambia type, itil_type y
   global. A los dispositivos que ya existen les cambia type, critic, geodata, status, SNMP
   (version 0, 1 o 2 y community) y campos de usuario (update, con el valor anterior y el
-  nuevo; la community nunca se muestra; MODIFICA los cuenta por atributo). Si cambia status
-  o SNMP, regenera los datos de los crawlers (lo que hace workset) antes de terminar.
+  nuevo; la community nunca se muestra; MODIFICA los cuenta por atributo). Si cambia SNMP,
+  pregunta al equipo por sus datos MIB-2, como la provision. Si cambia status o SNMP,
+  regenera los datos de los crawlers (lo que hace workset) antes de terminar.
   Lo que no viene en la ENTRADA (celda vacia) no se toca. No borra nada.
   Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a
   calcular ese mismo plan, comprueba que nadie ha cambiado los valores anteriores, lo aplica

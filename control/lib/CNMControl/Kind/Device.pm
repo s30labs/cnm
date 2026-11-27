@@ -38,8 +38,13 @@
 #	consolidate_work_tables once (crawler/bin/workset:122-140; ProvisionLite.pm:1736-1747).
 #	The community is never shown: not in the plan, not in the messages.
 #	A device with SNMPv3 (community holds the id of profiles_snmpv3) keeps its SNMP: error.
-#	The console also asks the device for its MIB-2 system data (do_mib2_system) on every
-#	save; cnm-control does not.
+#	When version or community change, the device is asked again for its MIB-2 system data,
+#	as the provisioning does (prov_do_set_device_metric, ProvisionLite.pm:921, with
+#	Crawler::SNMP snmp_mib2_system, SNMP.pm:1126) and as the console does on every save
+#	(do_mib2_system): sysloc, sysdesc, sysoid, enterprise, mac, mac_vendor, network and
+#	switch, written as store_device does (Store.pm:884-913). If the device does not answer,
+#	the values of the engine are kept ('** sin respuesta snmp **') and the apply warns
+#	(decision of 27-nov-2026). With version 0 nothing is asked: the same values are written.
 #	name, domain and ip are not modified yet (phase 3). An IP that belongs to another name
 #	is a conflict.
 #	validate, key and diff are pure; read and apply use $ctx->{dbh} and $ctx->{provision}.
@@ -47,7 +52,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.50';
+$VERSION='0.60';
 use strict;
 
 my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata status snmp fields);
@@ -214,9 +219,10 @@ my (@acc,@err,@warn);
 			}
 			if ((%chg || %fchg) && (! @err)) {
 				my $ws = (grep { $chg{$_} } qw(status version community)) ? 1 : 0;
-				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg, workset=>$ws,
+				my $mib2 = ($chg{version} || $chg{community}) ? 1 : 0;
+				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg, workset=>$ws, mib2=>$mib2,
 								 text=>"$fqdn ".join(', ', (map { _show($_,$chg{$_}) } sort keys %chg),
-															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg)).($ws ? ' (+ workset)' : '') };
+															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg)).($mib2 ? ' (+ MIB-2)' : '').($ws ? ' (+ workset)' : '') };
 			}
 		}
 	}
@@ -325,6 +331,14 @@ my ($ctx,$acc)=@_;
 	};
 	if ($@) { my $e=$@; chomp $e; eval { $dbh->rollback(); }; return [ "dispositivos (deshecho, no se ha modificado ninguno): $e" ]; }
 
+	# MIB-2 system data of the devices whose SNMP changed
+	foreach my $x (grep { $_->{mib2} } @$acc) {
+		my $w = eval { _mib2($ctx, $x->{id_dev}) };
+		$w = "MIB-2 no actualizada: $@" if ($@);
+		chomp $w if (defined $w);
+		push @{$ctx->{apply_warnings}}, "device $x->{ip}: $w" if ($w);
+	}
+
 	# Crawlers' data of the devices whose status or SNMP changed: the work of workset
 	my @err=();
 	my @ws = map { $_->{id_dev} } grep { $_->{workset} } @$acc;
@@ -363,6 +377,40 @@ my ($ctx,$acc)=@_;
 		push @{$ctx->{apply_warnings}}, "device $x->{ip}: modificado, pero no se ha regenerado su ficha: $e" if ($e);
 	}
 	return \@err;
+}
+
+#----------------------------------------------------------------------------
+# _mib2($ctx, $id_dev) -> warning text or ''
+# Asks the device for its MIB-2 system data with the SNMP object of the provisioning and
+# writes the columns that store_device writes from it. The SNMP data comes from the
+# database (already committed), so the community is not carried in the action.
+#----------------------------------------------------------------------------
+my @MIB2 = qw(sysloc sysdesc sysoid enterprise mac mac_vendor network switch);
+sub _mib2 {
+my ($ctx,$id)=@_;
+	my $dbh=$ctx->{dbh};
+	my $d = $dbh->selectrow_hashref("SELECT name,domain,ip,version,community FROM devices WHERE id_dev=?", undef, $id);
+	return 'no se encuentra para preguntar por MIB-2' if (! $d);
+	my %dev = (name=>$d->{name}, domain=>$d->{domain}, ip=>$d->{ip}, host_ip=>$d->{ip}, version=>$d->{version}, community=>$d->{community});
+	my ($rc,$rcstr,$w) = (1,'','');
+	if ($d->{version} == 0) {
+		# What snmp_mib2_system leaves when there is no answer (SNMP.pm:1130-1134)
+		@dev{qw(sysdesc sysoid sysloc enterprise)} = ((('** sin respuesta snmp **') x 3), 0);
+	}
+	else {
+		my $snmp = eval { my $p=$ctx->{provision}->(); my $s=$p->snmp(); $s->store($p->istore()); $s->dbh($dbh); $s };
+		return 'MIB-2 no consultada (sin acceso al motor)' if (! $snmp);
+		($rc,$rcstr) = eval { $snmp->snmp_mib2_system(\%dev) };
+		if ($@) { $rc=1; $rcstr=$@; chomp $rcstr; }
+		$w = "no responde por SNMP con los datos nuevos ($rcstr); se guarda '** sin respuesta snmp **', como hace el motor" if ($rc);
+		$w = "MIB-2 incompleta: $rcstr" if ((! $rc) && $rcstr);
+	}
+	# As store_device (Crawler/Store.pm:884-913)
+	if (defined $dev{sysdesc}) { $dev{sysdesc} =~ s/[\r\n]/ /g; $dev{sysdesc} = substr($dev{sysdesc},0,250); }
+	$dev{mac} = substr($dev{mac},0,17) if (defined $dev{mac});
+	my @c = grep { defined $dev{$_} } @MIB2;
+	$dbh->do("UPDATE devices SET ".join(',', map { "$_=?" } @c)." WHERE id_dev=?", undef, (map { $dev{$_} } @c), $id) if (@c);
+	return $w;
 }
 
 1;

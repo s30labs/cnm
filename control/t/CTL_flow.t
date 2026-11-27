@@ -63,6 +63,8 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 		return { id_dev=>$b[0], map { ($col{$_} => $c->{$_}) } keys %$c }; }
 	if ($q =~ /SELECT type,itil_type,global FROM cfg_views WHERE id_cfg_view=\? AND cid=\? AND cid_ip=\? FOR UPDATE/) {
 		my ($v)=grep { $_->{id_cfg_view}==$b[0] } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(type itil_type global) } : undef; }
+	if ($q =~ /SELECT name,domain,ip,version,community FROM devices WHERE id_dev=\?/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		return $d ? { map { $_=>$d->{$_} } qw(name domain ip version community) } : undef; }
 	if ($q =~ /FROM cfg_users WHERE login_name=\?/) { my ($u)=grep { lc($_->{login_name}) eq lc($b[0]) } @{$t->{users}||[]}; return $u ? {%$u} : undef; }
 	if ($q =~ /SELECT id_cfg_view,cid,cid_ip FROM cfg_views WHERE cid=\? AND name=\?/) {
 		my ($v)=grep { $_->{cid} eq $b[0] && lc($_->{name}) eq lc($b[1]) } @{$t->{views}}; return $v ? { map { $_=>$v->{$_} } qw(id_cfg_view cid cid_ip) } : undef; }
@@ -122,9 +124,18 @@ sub store_crawler_work { my ($s,$dbh,$id,$tnow,$cid)=@_;
 sub consolidate_work_tables { push @{$_[0]{t}{ws}}, 'consolidate'; }
 sub error    { return $_[0]{err} || 0; }
 sub errorstr { return $_[0]{errstr} || ''; }
+package FakeSNMP;
+sub new { return bless { t=>$_[1] }, $_[0]; }
+sub store { } sub dbh { }
+sub snmp_mib2_system { my ($s,$d)=@_; push @{$s->{t}{mib2_asked}}, "$d->{host_ip}:v$d->{version}:".($d->{community} eq 'buena' ? 'ok' : 'otra');
+	@$d{qw(sysdesc sysoid sysloc enterprise)} = (('** sin respuesta snmp **') x 3, 0);
+	return (1,'Timeout') if ($d->{community} ne 'buena');
+	@$d{qw(sysdesc sysoid sysloc enterprise mac mac_vendor network switch)} = ("Linux\nx86", '.1.3.6.1.4.1.8072', 'CPD', '8072', 'aa:bb:cc:dd:ee:ff:99', 'ACME', '10.0.0.0', 0);
+	return (0,''); }
 package FakeProv;
-sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]) }, $_[0]; }
+sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]), snmp=>FakeSNMP->new($_[1]) }, $_[0]; }
 sub istore { return $_[0]{store}; }
+sub snmp { return $_[0]{snmp}; }
 sub prov_do_set_device_metric {
 my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 	if ($in->{init}==11) {
@@ -378,7 +389,7 @@ is("$nd->{critic}/$nd->{version}/$nd->{community}", '50/0/', 'al crear: critic 5
 ($cc) = ctx($tc); $plc = make_plan($cc,$bkc);
 is(scalar(@{$plc->{warnings}}), 0, 'existente con community distinta: sin avisos (fase 2: se modifica)');
 unlike(join(' ',@{$plc->{warnings}}, map { $_->{text} } @{$plc->{actions}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
-is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local community (cambia; no se muestra), critic '75' -> '100' (+ workset)", '... community y critic: una modificacion, con workset');
+is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local community (cambia; no se muestra), critic '75' -> '100' (+ MIB-2) (+ workset)", '... community y critic: una modificacion, con MIB-2 y workset');
 
 #=== Modify, phase 1: device type, critic, geodata and user fields ============================
 my $tm = base(); $tm->{devices}[0]{critic}=50; $tm->{devices}[0]{geodata}=''; $tm->{custom}{'10.0.0.100'}={ PROVEEDOR=>'Viejo' };
@@ -449,7 +460,7 @@ my ($bk2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'loc
 										  { kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', critic=>75 }));
 my ($cw2) = ctx($t2); my $plw2 = make_plan($cw2,$bk2);
 my %tx = map { $_->{ip} => $_->{text} } @{$plw2->{actions}};
-is($tx{'10.0.0.100'}, "tda-00.local community (cambia; no se muestra), status '0' -> '2' (+ workset)", 'status y community: modificacion con workset');
+is($tx{'10.0.0.100'}, "tda-00.local community (cambia; no se muestra), status '0' -> '2' (+ MIB-2) (+ workset)", 'status y community: modificacion con MIB-2 y workset');
 is($tx{'10.0.0.101'}, "tda-01.local critic '50' -> '75'", 'solo critic: sin workset');
 unlike(CNMControl::Core::plan_text($plw2), qr/secreta|nueva/, 'la comunidad no sale en el plan');
 like(CNMControl::Core::plan_text($plw2), qr/MODIFICA: device\.community en 1, device\.critic en 1, device\.status en 1/, 'MODIFICA cuenta community sin su valor');
@@ -490,5 +501,29 @@ like($pl6->{actions}[0]{text}, qr/status=2/, 'alta con status: en el plan');
 is(scalar(@{apply_plan($c6,$pl6)}), 0, '... aplicada');
 my ($n6) = grep { $_->{ip} eq '10.0.9.3' } @{$t6->{devices}};
 is($n6->{status}, 2, '... con el status en el CSV del motor');
+
+#=== MIB-2 when SNMP changes (0013) ==========================================================
+my $tmb = base(); @{$tmb->{devices}[0]}{qw(version community sysdesc mac)} = (2, 'vieja', 'antes', '00:00:00:00:00:00');
+push @{$tmb->{devices}}, { id_dev=>13, name=>'tda-01', domain=>'local', ip=>'10.0.0.101', type=>'', version=>2, community=>'vieja', sysdesc=>'antes', status=>0 },
+								 { id_dev=>14, name=>'tda-02', domain=>'local', ip=>'10.0.0.102', type=>'', version=>2, community=>'vieja', sysdesc=>'antes', status=>0 },
+								 { id_dev=>15, name=>'tda-03', domain=>'local', ip=>'10.0.0.103', type=>'', version=>2, community=>'vieja', sysdesc=>'antes', status=>0 };
+my ($bkmb) = validate_state(vstate(
+	{ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', snmp=>{ version=>2, community=>'buena' } },
+	{ kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', snmp=>{ version=>2, community=>'mala' } },
+	{ kind=>'device', name=>'tda-02', domain=>'local', ip=>'10.0.0.102', snmp=>{ version=>0 } },
+	{ kind=>'device', name=>'tda-03', domain=>'local', ip=>'10.0.0.103', status=>2 }));
+my ($cmb) = ctx($tmb); my $plmb = make_plan($cmb,$bkmb);
+my %mt = map { $_->{ip} => $_->{text} } @{$plmb->{actions}};
+like($mt{'10.0.0.103'}, qr/status '0' -> '2' \(\+ workset\)$/, 'solo status: sin MIB-2');
+is(scalar(@{apply_plan($cmb,$plmb)}), 0, 'SNMP cambiado en tres equipos: aplicado');
+is_deeply([ sort @{$tmb->{mib2_asked}} ], [ '10.0.0.100:v2:ok', '10.0.0.101:v2:otra' ], 'MIB-2 preguntada con la comunidad nueva, solo a los equipos con version 1 o 2');
+my %dv = map { $_->{ip} => $_ } @{$tmb->{devices}};
+is(join('|', @{$dv{'10.0.0.100'}}{qw(sysdesc sysoid sysloc enterprise mac mac_vendor network switch)}), 'Linux x86|.1.3.6.1.4.1.8072|CPD|8072|aa:bb:cc:dd:ee:ff|ACME|10.0.0.0|0',
+	'responde: columnas de store_device (sysdesc sin saltos, mac a 17)');
+is(join('|', @{$dv{'10.0.0.101'}}{qw(sysdesc sysoid sysloc enterprise)}), '** sin respuesta snmp **|** sin respuesta snmp **|** sin respuesta snmp **|0', 'no responde: los valores del motor');
+like(join(' ',@{$cmb->{apply_warnings}}), qr/device 10\.0\.0\.101: no responde por SNMP con los datos nuevos \(Timeout\)/, '... y aviso');
+unlike(join(' ',@{$cmb->{apply_warnings}}), qr/10\.0\.0\.10[02]/, 'sin aviso para el que responde ni para version 0');
+is($dv{'10.0.0.102'}{sysdesc}, '** sin respuesta snmp **', 'version 0: sin preguntar, los valores del motor');
+is($dv{'10.0.0.103'}{sysdesc}, 'antes', 'solo status: MIB-2 sin tocar');
 
 done_testing();
