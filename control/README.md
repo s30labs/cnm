@@ -54,10 +54,14 @@ celda vacía no toca el campo, y el valor del inventario gana al que ponga el
 perfil.
 
 Los atributos del dispositivo (`domain`, `type`, `critic`, `status`, `geodata`,
-`version`, `community`) pueden ir como columna aunque el perfil no los declare, con
+`version`, `community`, `org_profiles`) pueden ir como columna aunque el perfil no los declare, con
 su nombre o como `device.<atributo>`; una celda vacía no los toca. Si el perfil
 tiene un parámetro con ese nombre que significa otra cosa, la columna sin prefijo
 es el parámetro y `device.<atributo>` es el atributo.
+
+`org_profiles` son los perfiles organizativos, separados por `|`, y se **añaden**: un
+dispositivo nuevo queda en `Global` y en esos, y a uno que ya existe se le añaden los que
+le falten sin quitarle ninguno. Los nombres tienen que existir.
 
 `--set columna=valor` rellena esa columna en las filas que la dejan vacía, esté o no
 en el CSV. Manda la celda, luego `--set` y luego el valor por defecto del perfil.

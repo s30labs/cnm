@@ -10,7 +10,15 @@
 #	an existing device is never changed with a default (only with what the state declares).
 #	  "geodata": "40.4168,-3.7038",            devices.geodata (varchar(30))
 #	  "status": 0,                              0 active, 1 inactive, 2 maintenance (0 when created)
-#	  "fields": { "CNM-METRICS": "icmp-basic.json" } }     user fields
+#	  "fields": { "CNM-METRICS": "icmp-basic.json" },     user fields
+#	  "org_profiles": ["Tiendas"] }             organizational profiles, added (never removed)
+#	org_profiles (decision of 28-nov-2026): additive, as the parents and users of the views.
+#	A new device is created in Global and in these (the engine reads them from the CSV, column
+#	PERFIL ORGANIZATIVO, ProvisionLite.pm:1013-1030); an existing device gets the missing ones
+#	(cfg_devices2organizational_profile, as insert_device_organizational_profile of the console,
+#	onm/sql/mod_Configure.sql:192) and keeps the others. The names must exist
+#	(cfg_organizational_profile.descr, its PRIMARY KEY). In the inventory, the column
+#	org_profiles with '|' between names.
 #
 #	Creation follows the same path as the CSV provisioning of the web console: a file in the
 #	format read by get_devices_from_csv_web ('&|&' separator, in /var/www/html/onm/tmp/) and
@@ -78,10 +86,10 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.80';
+$VERSION='0.81';
 use strict;
 
-my %KEYS    = map { $_=>1 } qw(kind name domain ip from type critic geodata status snmp fields _domain_default);
+my %KEYS    = map { $_=>1 } qw(kind name domain ip from type critic geodata status snmp fields org_profiles _domain_default);
 our $TMP_WEB = '/var/www/html/onm/tmp';	# 'our': the tests change it
 my $SEP     = '&|&';
 # What trap_manager keeps of each IP (Crawler/LogManager/SNMPTrap.pm:316-334, :519-527)
@@ -181,6 +189,19 @@ my ($c,$r)=@_;
 		}
 		$n{fields} = { %{$r->{fields}} } if (%{$r->{fields}});
 	}
+	# A list, or a text with '|' between names (an inventory column or --set)
+	if (defined $r->{org_profiles}) {
+		my $o = $r->{org_profiles};
+		my @o = (ref($o) eq 'ARRAY') ? @$o : (! ref($o)) ? split(/\|/,$o,-1) : ();
+		return (undef,'org_profiles tiene que ser una lista de nombres') if ((ref($o) && ref($o) ne 'ARRAY') || grep { ref($_) } @o);
+		@o = grep { defined $_ && $_ ne '' } map { my $x=$_; $x =~ s/^\s+|\s+$//g if (defined $x); $x } @o;
+		foreach my $p (@o) {
+			# The engine splits the CSV column on ','
+			return (undef,"org_profiles: nombre no admitido '$p'") if ((! _is_clean($p)) || ($p =~ /,/) || (length($p) > 255));
+		}
+		my %u=(); @o = grep { ! $u{lc $_}++ } @o;
+		$n{org_profiles} = \@o if (@o);
+	}
 	return (\%n, undef);
 }
 
@@ -226,6 +247,16 @@ my ($c,$ctx,$rs)=@_;
 		}
 		$ctx->{cache}{fields} ||= {};
 	}
+	# Organizational profiles: the catalog (lc name => [id, name]) and the ones of the devices
+	if (grep { $_->{org_profiles} } @$rs) {
+		$ctx->{cache}{orgp} ||= { map { lc($_->[1]) => [ $_->[0], $_->[1] ] } @{ $dbh->selectall_arrayref("SELECT id_cfg_op,descr FROM cfg_organizational_profile") } };
+		my %w = map { ($_->{ip} => 1, (($_->{from} && defined $_->{from}{ip}) ? ($_->{from}{ip} => 1) : ())) } grep { $_->{org_profiles} } @$rs;
+		my @i = map { $_->{id_dev} } map { @{$by_ip{$_}||[]} } sort keys %w;
+		if (@i) {
+			my %h=(); $h{$_->[0]}{$_->[1]}=1 foreach (@{ $dbh->selectall_arrayref("SELECT id_dev,id_cfg_op FROM cfg_devices2organizational_profile WHERE id_dev IN (".join(',',('?') x @i).")", undef, @i) });
+			foreach my $d (map { @$_ } values %by_ip) { $d->{orgp} = $h{$d->{id_dev}} || {}; }
+		}
+	}
 	# Current user fields of the existing devices that declare "fields", to compare them
 	my %want = map { ($_->{ip} => 1, (($_->{from} && defined $_->{from}{ip}) ? ($_->{from}{ip} => 1) : ())) } grep { $_->{fields} } @$rs;
 	my @ids = map { $_->{id_dev} } map { @{$by_ip{$_}||[]} } sort keys %want;
@@ -262,6 +293,9 @@ my (@acc,@err,@warn);
 	foreach my $k (sort keys %{$r->{fields} || {}}) {
 		push @err, "el campo de usuario '$k' no existe (cnm-control list fields)" if (! $ctx->{cache}{fields}{uc $k});
 	}
+	foreach my $p (@{$r->{org_profiles} || []}) {
+		push @err, "el perfil organizativo '$p' no existe" if (! ($ctx->{cache}{orgp} || {})->{lc $p});
+	}
 	if ($r->{from}) { _diff_identity($r,$cur,$ctx,\@acc,\@err,\@warn); }
 	else {
 		my @by_ip   = @{$cur->{by_ip} || []};
@@ -282,7 +316,8 @@ my (@acc,@err,@warn);
 				$ctx->{pending}{lc $fqdn}=1; $ctx->{pending}{$r->{ip}}=1;
 				push @acc, { kind=>'device', op=>'create', ref=>$r->{ip}, resource=>$r,
 								 text=>"$fqdn $r->{ip}".(defined $r->{type} ? " type=$r->{type}" : '')." snmp=v".($r->{snmp} ? $r->{snmp}{version} : 0).(defined $r->{critic} ? " critic=$r->{critic}" : '').(defined $r->{status} ? " status=$r->{status}" : '')
-									.(%{$r->{fields}||{}} ? ' custom: '.join(', ', map { "$_=$r->{fields}{$_}" } sort keys %{$r->{fields}}) : '') };
+									.(%{$r->{fields}||{}} ? ' custom: '.join(', ', map { "$_=$r->{fields}{$_}" } sort keys %{$r->{fields}}) : '')
+									.($r->{org_profiles} ? ' perfiles: Global, '.join(', ', map { $ctx->{cache}{orgp}{lc $_}[1] } @{$r->{org_profiles}}) : '') };
 			}
 		}
 	}
@@ -407,7 +442,9 @@ my ($r,$d,$fqdn,$id,$op,$ctx,$acc,$err,$new)=@_;
 		my $now = (defined $d->{custom} && defined $d->{custom}{$col} && $d->{custom}{$col} ne '') ? $d->{custom}{$col} : '-';
 		$fchg{$col} = [ $now, $r->{fields}{$k}, $ctx->{cache}{fields}{uc $k} ] if ($now ne $r->{fields}{$k});
 	}
-	return if ((! %chg) && (! %fchg) && (! %$id));
+	# Organizational profiles that the device does not have yet (additive)
+	my @org = grep { ! ($d->{orgp} || {})->{$_->[0]} } grep { defined } map { ($ctx->{cache}{orgp} || {})->{lc $_} } @{$r->{org_profiles} || []};
+	return if ((! %chg) && (! %fchg) && (! %$id) && (! @org));
 	return if (@$err);
 	my %all = (%chg, %$id);
 	my $ws     = (grep { $all{$_} } qw(status version community ip)) ? 1 : 0;
@@ -418,10 +455,12 @@ my ($r,$d,$fqdn,$id,$op,$ctx,$acc,$err,$new)=@_;
 	my $remote = $all{ip} ? 1 : 0;
 	my $assist = ($all{name} || $all{domain} || $all{ip}) ? 1 : 0;
 	my @what = ( (map { _show($_,$all{$_}) } grep { ($op ne 'rename') || ($_ ne 'name' && $_ ne 'domain') } sort keys %all),
-					 (map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg) );
+					 (map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg),
+					 (@org ? 'perfil organizativo + '.join(', ', map { $_->[1] } @org) : ()) );
 	my $head = ($op eq 'rename') ? "$fqdn -> $new".(@what ? ',' : '') : $fqdn;
 	push @$acc, { kind=>'device', op=>$op, ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$d->{ip}, changes=>\%all, fchanges=>\%fchg,
 					  workset=>$ws, mib2=>$mib2, alerts=>$alerts, traps=>$traps, labels=>$labels, remote=>$remote, assistant=>$assist,
+					  (@org ? (org_add=>[ @org ]) : ()),
 					  ($labels ? (old_full=>"$d->{name}.$d->{domain}", new_full=>$new) : ()),
 					  text=>join(' ', $head, (@what ? join(', ',@what) : ()))
 							.($labels ? ' (+ etiquetas de sus metricas)' : '').($remote ? ' (+ alertas remotas y tareas)' : '')
@@ -456,7 +495,8 @@ my @err=();
 	foreach my $r (@rs) {
 		my %rc = map { uc($_) => $r->{fields}{$_} } keys %{$r->{fields}||{}};
 		push @lines, join($SEP, $r->{name}, $r->{domain}, $r->{ip}, '', '', '', '', (defined $r->{critic} ? $r->{critic} : 50),
-			(defined $r->{type} ? $r->{type} : ''), (defined $r->{status} ? $r->{status} : 0), ($r->{snmp} ? ($r->{snmp}{community}||'') : ''), ($r->{snmp} ? $r->{snmp}{version} : 0), '', 1, (defined $r->{geodata} ? $r->{geodata} : ''),
+			(defined $r->{type} ? $r->{type} : ''), (defined $r->{status} ? $r->{status} : 0), ($r->{snmp} ? ($r->{snmp}{community}||'') : ''), ($r->{snmp} ? $r->{snmp}{version} : 0),
+			join(',', map { $ctx->{cache}{orgp}{lc $_}[1] } @{$r->{org_profiles} || []}), 1, (defined $r->{geodata} ? $r->{geodata} : ''),
 			map { defined $rc{uc $_} ? $rc{uc $_} : '' } @fc);
 	}
 	my $file = "cnm-control-".time()."-$$.csv";
@@ -545,6 +585,11 @@ my ($ctx,$acc)=@_;
 				$dbh->do("UPDATE devices_custom_data SET ".join(',', map { "$_=?" } @c)." WHERE id_dev=?", undef,
 							(map { $x->{fchanges}{$_}[1] eq '' ? '-' : $x->{fchanges}{$_}[1] } @c), $id);
 				$dbh->do("UPDATE devices_custom_data SET $_='-' WHERE id_dev=? AND ($_ IS NULL OR $_='')", undef, $id) foreach (@cols);
+			}
+			foreach my $o (@{$x->{org_add} || []}) {
+				# insert_device_organizational_profile (mod_Configure.sql:192); IGNORE: someone may
+				# have added it since the plan, and that is what is asked
+				$dbh->do("INSERT IGNORE INTO cfg_devices2organizational_profile (id_dev,id_cfg_op,cid) VALUES (?,?,?)", undef, $id, $o->[0], $ctx->{cid});
 			}
 		}
 		$dbh->commit();

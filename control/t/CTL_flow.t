@@ -25,6 +25,9 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	if    ($q =~ /^SELECT monitor,lapse FROM cfg_monitor$/)   { @r = map { [$_, $t->{cfg_monitor}{$_}] } keys %{$t->{cfg_monitor}}; }
 	elsif ($q =~ /FROM cfg_monitor_(snmp|agent)/)              { @r = (); }
 	elsif ($q =~ /FROM cfg_host_types/)                        { @r = map { [$_] } @{$t->{types}}; }
+	elsif ($q =~ /^SELECT id_cfg_op,descr FROM cfg_organizational_profile$/) { my $i=0; @r = map { [ ++$i, $_ ] } @{$t->{orgp} || ['Global']}; }
+	elsif ($q =~ /^SELECT id_dev,id_cfg_op FROM cfg_devices2organizational_profile WHERE id_dev IN/) { my %i=map{$_=>1}@b;
+		@r = map { [ @$_[0,1] ] } grep { $i{$_->[0]} } @{$t->{d2op} || []}; }
 	elsif ($q =~ /SELECT id,descr FROM devices_custom_types/)  { my $i=0; @r = map { [++$i, $_] } @{$t->{fields}}; }
 	elsif ($q =~ /FROM devices_custom_data WHERE id_dev IN/)   { my %i=map{$_=>1}@b; my $n=0; my %col=map { uc($_) => 'columna'.++$n } @{$t->{fields}};
 		foreach my $d (grep { $i{$_->{id_dev}} } @{$t->{devices}}) {
@@ -112,6 +115,8 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 		foreach my $m (grep { $_->{id_dev}==$id && defined $_->{label} && lc(substr($_->{label},-length($o))) eq lc($o) } @$l) { substr($m->{label},-length($o)) = $n; } }
 	elsif ($q =~ /^UPDATE cfg_remote_alerts2device SET target=\? WHERE target=\?$/) { $_->[1]=$b[0] foreach (grep { $_->[1] eq $b[1] } @{$t->{remote}||[]}); }
 	elsif ($q =~ /^UPDATE task2device SET ip=\? WHERE ip=\?$/) { $_->{ip}=$b[0] foreach (grep { $_->{ip} eq $b[1] } @{$t->{tasks}||[]}); }
+	elsif ($q =~ /^INSERT IGNORE INTO cfg_devices2organizational_profile \(id_dev,id_cfg_op,cid\) VALUES \(\?,\?,\?\)$/) {
+		push @{$t->{d2op}}, [ @b ] if (! grep { $_->[0]==$b[0] && $_->[1]==$b[1] && $_->[2] eq $b[2] } @{$t->{d2op}||[]}); }
 	elsif ($q =~ /^INSERT IGNORE INTO devices_custom_data/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}}; $t->{custom}{$d->{ip}} ||= {}; }
 	elsif ($q =~ /^UPDATE devices_custom_data SET (columna\d+)='-' WHERE id_dev=\? AND/) { my $c=$1; my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		my $n=0; my %name=map { ('columna'.++$n) => uc($_) } @{$t->{fields}}; my $h=$t->{custom}{$d->{ip}};
@@ -167,7 +172,8 @@ my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
 		chomp(my $h = shift @l); my @hd=split(/&\|&/,$h,-1);
 		foreach (@l) { chomp; my @d=split(/&\|&/,$_,-1);
 			push @{$t->{devices}}, { id_dev=>++$t->{seq_dev}, name=>$d[0], domain=>$d[1], ip=>$d[2], type=>$d[8], critic=>$d[7], status=>$d[9], community=>$d[10], version=>$d[11] };
-			$t->{custom}{$d[2]}{uc $hd[$_]} = ($d[$_] eq '' ? '-' : $d[$_]) for (15..$#hd); }
+			$t->{custom}{$d[2]}{uc $hd[$_]} = ($d[$_] eq '' ? '-' : $d[$_]) for (15..$#hd);
+			$t->{csv_orgp}{$d[2]} = $d[12]; }
 	}
 	elsif ($in->{init}==1) {
 		foreach my $id (split(/,/,$in->{id_dev})) {
@@ -797,6 +803,28 @@ is($pldo->{actions}[0]{text}, "tda-00.local -> tda-00.es.local, critic '50' -> '
 is(scalar(@{apply_plan($cdo,$pldo)}), 0, '... aplicado');
 is("$tdo->{devices}[0]{domain}/$tdo->{devices}[0]{critic}/$tdo->{alert_critic}{'alerts:12'}", 'es.local/75/75', '... dominio, critic y alertas');
 unlink $RF;
+
+#=== 0021: organizational profiles, additive ===============================================
+my $tog = base(); $tog->{orgp} = [ 'Global', 'Tiendas', 'Norte' ]; $tog->{d2op} = [ [ 12, 1, 'default' ] ];
+my ($bkog,$eog) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', org_profiles=>'tiendas|Global' },
+												 { kind=>'device', name=>'tda-50', domain=>'local', ip=>'10.0.0.150', org_profiles=>[ 'Norte' ] }));
+is(scalar(@$eog), 0, 'org_profiles: lista o texto con | valido');
+my ($cog) = ctx($tog); my $plog = make_plan($cog,$bkog);
+is(scalar(@{$plog->{errors}}), 0, '... plan sin errores') or diag(join("\n",@{$plog->{errors}}));
+is(join(' | ', map { "$_->{op}: $_->{text}" } @{$plog->{actions}}),
+	"update: tda-00.local perfil organizativo + Tiendas | create: tda-50.local 10.0.0.150 snmp=v0 perfiles: Global, Norte",
+	'... alta con sus perfiles; al existente solo se le anade el que le falta (Global ya lo tiene)');
+like(CNMControl::Core::plan_text($plog), qr/MODIFICA: device\.org_profiles en 1/, '... MODIFICA lo cuenta');
+is(scalar(@{apply_plan($cog,$plog)}), 0, '... aplicado');
+is($tog->{csv_orgp}{'10.0.0.150'}, 'Norte', '... el alta lleva el perfil en la columna PERFIL ORGANIZATIVO del CSV (el motor anade Global)');
+is(join(' ', map { "$_->[0]:$_->[1]:$_->[2]" } @{$tog->{d2op}}), '12:1:default 12:2:default', '... al existente, la fila del perfil que le faltaba, con su cid');
+($cog) = ctx($tog); my $plq2o = make_plan($cog, (validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', org_profiles=>'Tiendas' })))[0]);
+is(scalar(@{$plq2o->{actions}}), 0, '... repetido: sin cambios (no quita Global ni nada)');
+my ($bkxo) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', org_profiles=>'Sur' }));
+($cog) = ctx($tog);
+like(join(' ',@{make_plan($cog,$bkxo)->{errors}}), qr/el perfil organizativo 'Sur' no existe/, 'perfil que no existe: error');
+my (undef,$exo) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', org_profiles=>'a,b' }));
+like(join(' ',@$exo), qr/org_profiles: nombre no admitido 'a,b'/, 'nombre con coma (el motor separa por coma): rechazado');
 
 #=== 0017: the c_label of the profile does not replace an existing title =====================
 my $tlb = base(); push @{$tlb->{metrics}}, { id_metric=>501, id_dev=>12, name=>'mon_icmp', status=>'0', c_label=>'' };

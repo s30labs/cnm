@@ -57,14 +57,14 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Profile;
-$VERSION='0.41';
+$VERSION='0.42';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(check_profile parse_inventory expand read_file);
 
 # Attributes of a device that an inventory column may carry without a parameter
-our @DEVICE_ATTRS = qw(domain type critic status geodata version community);
+our @DEVICE_ATTRS = qw(domain type critic status geodata version community org_profiles);
 my %DEVICE_ATTRS = map { $_=>1 } @DEVICE_ATTRS;
 
 my %PROFILE_KEYS = map { $_=>1 } qw(version descr parameters resources);

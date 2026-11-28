@@ -21,7 +21,7 @@ use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 use CNMControl::Audit qw(audit_row audit_write);
 
-my $VERSION     = '0.8';
+my $VERSION     = '0.9';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 # Profiles: the ones of the installation, then the ones of the product (decision of
@@ -49,7 +49,8 @@ $fpth[$#fpth] -h  : Ayuda
             --set COLUMNA=VALOR                 rellena esa columna en las filas que la dejan vacia
                                                 (se puede repetir; vale para todos los inventarios)
             Columnas del CSV: parametros del perfil; atributos del dispositivo sin declararlos
-            (domain, type, critic, status, geodata, version, community, o device.<atributo>);
+            (domain, type, critic, status, geodata, version, community, org_profiles
+            con '|' entre perfiles, que se anaden y nunca se quitan; o device.<atributo>);
             name_from, domain_from o ip_from: el valor actual, para cambiar el nombre y el
             dominio o la IP de un dispositivo (uno de los dos cambios por fila);
             custom.<campo>; c_label.<subtipo> (admite {name} y los demas parametros:

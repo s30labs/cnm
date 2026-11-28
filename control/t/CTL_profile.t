@@ -212,4 +212,9 @@ my $pf = { %$pi, parameters=>{ %{$pi->{parameters}}, ip_from=>{} } };
 my ($rf2) = parse_inventory("name;ip;view;ip_from\nsede-01;10.1.1.1;V;9.9.9.9\n", $pf);
 is_deeply([ $rf2->[0]{values}{ip_from}, scalar(keys %{$rf2->[0]{from}}) ], [ '9.9.9.9', 0 ], 'un parametro del perfil llamado ip_from: es el parametro');
 
+#--- 0021: org_profiles as a column -----------------------------------------------------
+my ($ro) = parse_inventory("name;ip;view;org_profiles\nsede-01;10.1.1.1;V;Tiendas|Norte\n", $pi);
+my ($do) = expand($pi,$ro);
+is((grep { $_->{kind} eq 'device' } @$do)[0]{org_profiles}, 'Tiendas|Norte', 'columna org_profiles: al atributo del dispositivo (Device la separa por |)');
+
 done_testing();

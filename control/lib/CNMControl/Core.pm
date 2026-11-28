@@ -24,7 +24,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Core;
-$VERSION='0.41';
+$VERSION='0.42';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -186,6 +186,7 @@ my @l=();
 		foreach my $x (grep { $_->{op} =~ /^(update|rename|ip)$/ } @{$plan->{actions}}) {
 			$n{"$x->{kind}.$_"}++ foreach (keys %{$x->{changes}||{}});
 			$n{"$x->{kind}.$x->{fchanges}{$_}[2]"}++ foreach (keys %{$x->{fchanges}||{}});
+			$n{"$x->{kind}.org_profiles"}++ if ($x->{org_add});
 		}
 		# A title that changes (not one put on a metric that had none)
 		$n{"$_->{kind}.c_label"}++ foreach (grep { ($_->{op} eq 'c_label') && defined $_->{before} } @{$plan->{actions}});
