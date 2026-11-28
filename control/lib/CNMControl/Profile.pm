@@ -23,6 +23,11 @@
 #	device.<attribute> is the attribute; if it does mean it, they are the same column.
 #	--set column=value fills that column in every row where the cell is empty: a cell wins
 #	over --set, and --set over the default of the profile (decision of 27-nov-2026).
+#	The columns name_from, domain_from and ip_from carry the current value of what changes
+#	(phase 3: rename, or IP change; one per row) and go to "from" of the one device resource:
+#	  name;ip;name_from        sede-10;10.1.1.10;sede-01
+#	  name;ip;ip_from          sede-10;10.1.1.50;10.1.1.10
+#	An empty cell changes nothing (decision of 27-nov-2026; CNMControl::Kind::Device).
 #	The domain of a device that comes from the default of the profile (no cell, no --set)
 #	is marked "_domain_default": an existing device found by its IP keeps its own domain
 #	(CNMControl::Kind::Device).
@@ -52,7 +57,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Profile;
-$VERSION='0.40';
+$VERSION='0.41';
 use strict;
 require Exporter;
 our @ISA = qw(Exporter);
@@ -112,8 +117,8 @@ my ($p)=@_;
 #----------------------------------------------------------------------------
 # parse_inventory($text, $profile, \%set) -> (\@rows, \@errors, \%set_used)
 # Each row: { line=>N, values=>{param=>value}, explicit=>{param=>1}, custom=>{field=>value},
-# labels=>{subtype=>title}, attrs=>{attribute=>value} } with defaults already applied;
-# custom, labels and attrs hold only the non-empty values. explicit: the parameters that
+# labels=>{subtype=>title}, attrs=>{attribute=>value}, from=>{name|domain|ip=>value} } with
+# defaults already applied; custom, labels, attrs and from hold only the non-empty values. explicit: the parameters that
 # came from a cell or from --set (not from the default of the profile).
 # %set: column => value (--set); %set_used: the columns of %set this profile understood.
 #----------------------------------------------------------------------------
@@ -149,7 +154,7 @@ my (@rows,@err);
 			next;
 		}
 		if (scalar(@c) > scalar(@$header)) { push @err, "inventario linea $nl: tiene mas columnas que la cabecera"; next; }
-		my (%v,%explicit,%custom,%labels,%attrs);
+		my (%v,%explicit,%custom,%labels,%attrs,%from);
 		for my $i (0..$#$header) {
 			my $val = defined $c[$i] ? $c[$i] : '';
 			$val = $setval[$i] if (($val eq '') && defined $setval[$i]);
@@ -157,6 +162,7 @@ my (@rows,@err);
 			if    (defined $h->{custom}) { $custom{$h->{custom}}=$val if ($val ne ''); }
 			elsif (defined $h->{label})  { $labels{$h->{label}}=$val if ($val ne ''); }
 			elsif (defined $h->{attr})   { $attrs{$h->{attr}}=$val if ($val ne ''); }
+			elsif (defined $h->{from})   { $from{$h->{from}}=$val if ($val ne ''); }
 			else { $v{$h->{param}}=$val; $explicit{$h->{param}}=1 if ($val ne ''); }
 		}
 		my $ok=1;
@@ -176,7 +182,7 @@ my (@rows,@err);
 			if ($s =~ /\{[^{}]*\}/) { push @err, "inventario linea $nl: '$n' usa un parametro sin valor o anidado ($s)"; $ok=0; }
 			$v{$n}=$s;
 		}
-		push @rows, { line=>$nl, values=>\%v, explicit=>\%explicit, custom=>\%custom, labels=>\%labels, attrs=>\%attrs } if ($ok);
+		push @rows, { line=>$nl, values=>\%v, explicit=>\%explicit, custom=>\%custom, labels=>\%labels, attrs=>\%attrs, from=>\%from } if ($ok);
 	}
 	push @err, 'inventario: no tiene cabecera' if (! $header);
 	return (\@rows,\@err,\%used);
@@ -192,6 +198,10 @@ my ($col,$profile)=@_;
 	if ($col =~ /^custom\.(.+)$/i)  { return ({ custom=>$1, id=>'custom.'.uc $1 }, undef); }
 	if ($col =~ /^c_label\.(.+)$/i) { return ({ label=>$1,  id=>'c_label.'.lc $1 }, undef); }
 	my @dev = _devices($profile);
+	if (($col =~ /^(name|domain|ip)_from$/i) && ! exists $profile->{parameters}{lc $col}) {
+		return (undef, "columna '$col': el perfil crea ".scalar(@dev)." dispositivos por fila (tiene que ser 1)") if (@dev != 1);
+		return ({ from=>lc $1, id=>'from.'.lc $1 }, undef);
+	}
 	if ($col =~ /^device\.(.+)$/i) {
 		my $a = lc $1;
 		return (undef, "columna '$col': '$a' no es un atributo del dispositivo (".join(', ',@DEVICE_ATTRS).")") if (! $DEVICE_ATTRS{$a});
@@ -204,7 +214,7 @@ my ($col,$profile)=@_;
 		return (undef, "columna '$n': es un atributo del dispositivo, pero el perfil crea ".scalar(@dev)." dispositivos por fila (tiene que ser 1)") if (@dev != 1);
 		return ({ attr=>$n, id=>"device.$n" }, undef);
 	}
-	return (undef, "columna '$n' no es un parametro del perfil, ni un atributo del dispositivo (".join(', ',@DEVICE_ATTRS)."), ni custom.<campo>, ni c_label.<subtipo>");
+	return (undef, "columna '$n' no es un parametro del perfil, ni un atributo del dispositivo (".join(', ',@DEVICE_ATTRS)."), ni name_from, domain_from o ip_from, ni custom.<campo>, ni c_label.<subtipo>");
 }
 
 sub _devices { my $p=shift; return grep { ref($_) eq 'HASH' && defined $_->{kind} && $_->{kind} eq 'device' } @{$p->{resources}}; }
@@ -255,6 +265,7 @@ my (@res,@err);
 					$sn{$_}=$a{$_} foreach (grep { defined $a{$_} } qw(version community));
 					$r->{snmp}=\%sn;
 				}
+				$r->{from} = { %{$f->{from}} } if (%{$f->{from} || {}});
 				# A domain from the default of the profile (no cell, no --set, no attribute)
 				if ((! defined $a{domain}) && (ref($tpl) eq 'HASH') && defined $tpl->{domain} && ($tpl->{domain} =~ /^\{([^{}]*)\}$/)
 					 && (! $f->{explicit}{$1})) {

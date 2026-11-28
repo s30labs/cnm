@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "descr": "Dar de alta o modificar dispositivos: tipo, criticidad, estado, SNMP (version 0, 1 o 2 y comunidad), geolocalizacion y campos de usuario (columnas custom.<campo>). Celda vacia = no se toca. Cambiar estado o SNMP regenera los datos de los crawlers",
+  "descr": "Dar de alta o modificar dispositivos: tipo, criticidad, estado, SNMP (version 0, 1 o 2 y comunidad), geolocalizacion y campos de usuario (columnas custom.<campo>). Celda vacia = no se toca. Cambiar estado o SNMP regenera los datos de los crawlers. Cambiar nombre, dominio o IP: columna name_from, domain_from o ip_from con el valor actual (uno de los dos cambios por fila)",
   "parameters": {
     "name": {
       "required": true,

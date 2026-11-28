@@ -34,7 +34,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Metric;
-$VERSION='0.30';
+$VERSION='0.31';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -93,6 +93,9 @@ my ($c,$r)=@_;
 #----------------------------------------------------------------------------
 sub _dev_ids {
 my ($dbh,$ref,$ctx)=@_;
+	# The new name or IP of a device that changes its identity in this state: it is found by
+	# its id_dev, before (plan) and after (apply) the change (CNMControl::Kind::Device, diff)
+	return [ $ctx->{dev_alias}{lc $ref} ] if ($ctx && $ctx->{dev_alias} && $ctx->{dev_alias}{lc $ref});
 	# A name.domain whose domain came from the default of the profile, for a device that
 	# exists with that IP and name in another domain (CNMControl::Kind::Device, diff)
 	$ref = $ctx->{fqdn_alias}{lc $ref} if ($ctx && $ctx->{fqdn_alias} && $ctx->{fqdn_alias}{lc $ref});
@@ -171,6 +174,10 @@ my (@acc,@err,@warn);
 	elsif ($cur->{cat}{type} ne 'latency') { push @err, "subtipo de tipo $cur->{cat}{type}: el esqueleto solo provisiona latencia (snmp y xagent, en el MVP)"; }
 	push @err, 'instances distintas de "ALL": llegan en el MVP' if (ref $r->{instances});
 	push @err, '"watch" (monitor): llega en el MVP' if (defined $r->{watch});
+	# The old name or IP of a device that changes it in this state no longer exists after apply
+	if (my $to = ($ctx->{gone} || {})->{lc $r->{device}}) {
+		push @err, "el dispositivo '$r->{device}' pasa a ser '$to' en este estado: la metrica tiene que usar el nombre o la IP nuevos";
+	}
 	my $n = scalar @{$cur->{dev_ids}};
 	if ($n > 1) { push @err, "hay $n dispositivos que responden a '$r->{device}'"; }
 	elsif (($n == 0) && (! $ctx->{pending}{lc $r->{device}})) {

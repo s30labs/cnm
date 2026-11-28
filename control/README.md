@@ -87,6 +87,7 @@ cnm-control list views --search tienda
 cnm-control plan  --profile icmp-basic --inventory tiendas.csv
 cnm-control plan  --profile icmp-basic --inventory sede.csv --set view="ALCALA" --set critic=75
 cnm-control plan  --profile device-update --inventory mant.csv --set status=2
+cnm-control plan  --profile device-update --inventory renombrar.csv
 cnm-control apply --profile icmp-basic --inventory tiendas.csv --confirm
 cnm-control expand --profile icmp-basic --inventory tiendas.csv > estado.json
 cnm-control plan  -f estado.json --json
@@ -94,7 +95,28 @@ cnm-control plan  -f estado.json --json
 
 A un dispositivo creado en el `apply` se le calcula el asistente (aplicaciones y
 métricas disponibles) en la misma llamada al motor que genera su plantilla y sus
-métricas. A uno que ya existía no se le recalcula.
+métricas. A uno que ya existía no se le recalcula, salvo que cambie su nombre, su dominio
+o su IP.
+
+Para cambiar el nombre, el dominio o la IP de un dispositivo, el inventario lleva el valor
+actual en `name_from`, `domain_from` o `ip_from` (en `-f`, `"from": {...}`). Un cambio
+por fila: el nombre y el dominio (el equipo se busca por su IP) o la IP (se busca por su
+nombre):
+
+```
+name;ip;name_from
+sede-10;10.1.1.10;sede-01
+
+name;ip;ip_from
+sede-10;10.1.1.50;10.1.1.10
+```
+
+Hace lo mismo que la ficha del dispositivo en la consola: cambia el sufijo
+` (nombre.dominio)` de las etiquetas de sus métricas o, con la IP, sus alertas remotas y
+sus tareas; regenera los datos de los crawlers y pregunta por MIB-2 si cambia la IP; pide
+la recarga del gestor de traps; recalcula el asistente y las aplicaciones, en primer
+plano; y rehace la ficha. Los títulos (`c_label`) con el nombre o la IP anteriores no se
+cambian: el plan los lista.
 
 `cnm-control` crea las métricas que pide el estado aunque el equipo no las ofrezca, y
 avisa: en el `plan`, si la métrica no está en el asistente de un dispositivo que ya

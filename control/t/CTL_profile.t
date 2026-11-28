@@ -201,4 +201,15 @@ my ($ru) = parse_inventory("name;ip;view;c_label.mon_icmp\nsede-01;10.1.1.1;V;{n
 my (undef,$eu2) = expand($pi,$ru);
 like(join(' ',@$eu2), qr/c_label\.mon_icmp usa \{nombre\}, que no es un parametro del perfil/, 'plantilla con un parametro que no existe: error');
 
+#--- 0019: name_from, domain_from, ip_from ---------------------------------------------
+my ($rf) = parse_inventory("name;ip;view;name_from;ip_from\nsede-10;10.1.1.1;V;sede-01;\nsede-02;10.1.1.50;V;;10.1.1.2\nsede-03;10.1.1.3;V;;\n", $pi);
+my ($df) = expand($pi,$rf);
+my @fd = grep { $_->{kind} eq 'device' } @$df;
+is_deeply([ map { $_->{from} } @fd ], [ { name=>'sede-01' }, { ip=>'10.1.1.2' }, undef ], 'columnas *_from: a "from" del dispositivo; celda vacia = sin from');
+my (undef,$ef) = parse_inventory("name;ip_from\nV;1.1.1.1\n", $pv);
+like(join(' ',@$ef), qr/columna 'ip_from': el perfil crea 0 dispositivos por fila/, 'ip_from en un perfil sin dispositivo: error');
+my $pf = { %$pi, parameters=>{ %{$pi->{parameters}}, ip_from=>{} } };
+my ($rf2) = parse_inventory("name;ip;view;ip_from\nsede-01;10.1.1.1;V;9.9.9.9\n", $pf);
+is_deeply([ $rf2->[0]{values}{ip_from}, scalar(keys %{$rf2->[0]{from}}) ], [ '9.9.9.9', 0 ], 'un parametro del perfil llamado ip_from: es el parametro');
+
 done_testing();

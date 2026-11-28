@@ -39,6 +39,9 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	elsif ($q =~ /SELECT login_name FROM cfg_user2view WHERE id_cfg_view=\?/) { @r = map { [$_->[1]] } grep { $_->[0]==$b[0] } @{$t->{u2v}||[]}; }
 	elsif ($q =~ /SELECT name FROM cfg_views_types/)           { @r = map { [$_] } @{$t->{view_types}||[]}; }
 	elsif ($q =~ /FROM devices WHERE ip IN/)                   { my %i=map{$_=>1}@b; @r = grep { $i{$_->{ip}} } @{$t->{devices}}; }
+	elsif ($q =~ /FROM devices WHERE LOWER\(name\) IN/)         { my %i=map{$_=>1}@b; @r = grep { $i{lc $_->{name}} } @{$t->{devices}}; }
+	elsif ($q =~ /SELECT id_dev,name,c_label FROM metrics WHERE id_dev IN/) { my %i=map{$_=>1}@b;
+		@r = map { [ $_->{id_dev}, $_->{name}, $_->{c_label} ] } grep { $i{$_->{id_dev}} && defined $_->{c_label} && $_->{c_label} ne '' } @{$t->{metrics}}; }
 	elsif ($q =~ /FROM devices WHERE LOWER\(CONCAT/)           { my %i=map{$_=>1}@b; @r = grep { $i{lc "$_->{name}.$_->{domain}"} } @{$t->{devices}}; }
 	elsif ($q =~ /FROM metrics WHERE id_dev IN \(([?,]+)\) AND name IN/) { my $n=($1=~tr/?//); my %d=map{$_=>1} _take(\@b,$n); my %m=map{$_=>1}@b;
 		@r = grep { $d{$_->{id_dev}} && $m{$_->{name}} } @{$t->{metrics}}; }
@@ -58,8 +61,8 @@ sub selectrow_hashref {
 my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 	if ($q =~ /FROM devices WHERE ip=\?/) { my ($d)=grep { $_->{ip} eq $b[0] } @{$t->{devices}}; return $d; }
 	if ($q =~ /FROM metrics WHERE id_dev=\? AND name=\?/) { my ($m)=grep { $_->{id_dev}==$b[0] && $_->{name} eq $b[1] } @{$t->{metrics}}; return $m; }
-	if ($q =~ /SELECT ip,type,critic,geodata,status,version,community FROM devices WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
-		return $d ? { map { $_=>$d->{$_} } qw(ip type critic geodata status version community) } : undef; }
+	if ($q =~ /SELECT ip,name,domain,type,critic,geodata,status,version,community FROM devices WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
+		return $d ? { map { $_=>$d->{$_} } qw(ip name domain type critic geodata status version community) } : undef; }
 	if ($q =~ /SELECT \* FROM devices_custom_data WHERE id_dev=\? FOR UPDATE/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		my $c=$t->{custom}{$d->{ip}} or return undef; my $n=0; my %col=map { uc($_) => 'columna'.++$n } @{$t->{fields}};
 		return { id_dev=>$b[0], map { ($col{$_} => $c->{$_}) } keys %$c }; }
@@ -77,6 +80,9 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t};
 sub selectrow_array {
 my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; my $v=$b[0];
 	return ($t->{last_id}) if ($q =~ /LAST_INSERT_ID/);
+	return (scalar(grep { $_->{ip} eq $b[0] } @{$t->{devices}})) if ($q =~ /^SELECT COUNT\(\*\) FROM devices WHERE ip=\?$/);
+	return (scalar(grep { lc("$_->{name}.$_->{domain}") eq $b[0] && $_->{id_dev}!=$b[1] } @{$t->{devices}})) if ($q =~ /^SELECT COUNT\(\*\) FROM devices WHERE LOWER\(CONCAT\(name,'\.',domain\)\)=\? AND id_dev<>\?$/);
+	return (scalar(keys %{$t->{assist}{$b[0]}||{}})) if ($q =~ /^SELECT COUNT\(\*\) FROM prov_default_metrics2device WHERE id_dev=\?$/);
 	if ($q =~ /FROM cnm\.cfg_cnms/) { die "sin permiso sobre cnm" if ($t->{cnm_denied}); return (scalar(grep { $_->[0] eq $b[0] && $_->[1] eq $b[1] } @{$t->{cnms}||[]})); }
 	if ($q =~ /id_cfg_subview\) FROM cfg_views2views/) { my %u=map { $_->[1]=>1 } grep { $_->[0]==$v } @{$t->{v2v}||[]}; return scalar(keys %u); }
 	my %u=map { $_->[1]=>1 } grep { $_->[0]==$v } @{$t->{v2m}}; return scalar(keys %u);
@@ -101,6 +107,11 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	elsif ($q =~ /^UPDATE devices SET (.+) WHERE id_dev=\?$/) { my @c = map { s/=\?//r } split(/,/,$1); my $id=pop @b;
 		my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}}; @$d{@c}=@b; }
 	elsif ($q =~ /^UPDATE (alerts|alerts_read) SET critic=\? WHERE id_device=\?$/) { $t->{alert_critic}{"$1:$b[1]"}=$b[0]; }
+	elsif ($q =~ /^UPDATE (metrics|prov_template_metrics2iid) SET label=CONCAT\(LEFT\(label,CHAR_LENGTH\(label\)-CHAR_LENGTH\(\?\)\),\?\) WHERE id_dev=\? AND RIGHT\(label,CHAR_LENGTH\(\?\)\)=\?$/) {
+		my ($o,$n,$id)=@b; my $l = ($1 eq 'metrics') ? $t->{metrics} : ($t->{tm2iid} ||= []);
+		foreach my $m (grep { $_->{id_dev}==$id && defined $_->{label} && lc(substr($_->{label},-length($o))) eq lc($o) } @$l) { substr($m->{label},-length($o)) = $n; } }
+	elsif ($q =~ /^UPDATE cfg_remote_alerts2device SET target=\? WHERE target=\?$/) { $_->[1]=$b[0] foreach (grep { $_->[1] eq $b[1] } @{$t->{remote}||[]}); }
+	elsif ($q =~ /^UPDATE task2device SET ip=\? WHERE ip=\?$/) { $_->{ip}=$b[0] foreach (grep { $_->{ip} eq $b[1] } @{$t->{tasks}||[]}); }
 	elsif ($q =~ /^INSERT IGNORE INTO devices_custom_data/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}}; $t->{custom}{$d->{ip}} ||= {}; }
 	elsif ($q =~ /^UPDATE devices_custom_data SET (columna\d+)='-' WHERE id_dev=\? AND/) { my $c=$1; my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		my $n=0; my %name=map { ('columna'.++$n) => uc($_) } @{$t->{fields}}; my $h=$t->{custom}{$d->{ip}};
@@ -141,6 +152,12 @@ sub snmp_mib2_system { my ($s,$d)=@_; push @{$s->{t}{mib2_asked}}, "$d->{host_ip
 package FakeProv;
 sub new { return bless { t=>$_[1], calls=>[], store=>FakeStore->new($_[1]), snmp=>FakeSNMP->new($_[1]) }, $_[0]; }
 sub istore { return $_[0]{store}; }
+sub get_check_vectors { push @{$_[0]{t}{asst}}, 'vectors'; }
+sub reset_check_vectors { push @{$_[0]{t}{asst}}, 'reset'; }
+# The assistant is computed with what the device is at that moment: what it offers at its IP
+sub prov_device_app_metrics { my ($s,$id)=@_; my $t=$s->{t}; die "simulated assistant failure\n" if ($t->{fail_assist});
+	my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}}; push @{$t->{asst}}, "app:$id:$d->{ip}:$d->{name}";
+	$t->{assist}{$id} = $t->{responds}{$d->{ip}} ? { disp_icmp=>1, mon_icmp=>1 } : {}; }
 sub snmp { return $_[0]{snmp}; }
 sub prov_do_set_device_metric {
 my ($s,$in)=@_; my $t=$s->{t}; push @{$s->{calls}}, { %$in };
@@ -636,6 +653,149 @@ my $tw = base(); $tw->{devices}[0]{critic}=50;
 	like(join(' ',@$ew), qr/no se ha pedido la recarga del gestor de traps .*Ejecutar: echo 1 >> \S+no\/existe\/syslog\.reload/, 'recarga imposible: error con la orden');
 	is($tw->{devices}[0]{critic}, 75, '... y el dato queda escrito');
 }
+unlink $RF;
+
+#=== 0019: phase 3, name, domain or IP of a device ==========================================
+sub ibase {
+	my $t = base(); $RF = "$CNMControl::Kind::Device::TMP_WEB/syslog.reload"; unlink $RF;
+	@{$t->{devices}[0]}{qw(critic status version geodata)} = (50, 0, 0, '');
+	$t->{metrics}[0]{label} = 'Disponibilidad (tda-00.local)'; $t->{metrics}[0]{c_label} = 'Disp tda-00 y 10.0.0.100';
+	$t->{tm2iid} = [ { id_dev=>12, label=>'Disponibilidad (tda-00.local)' }, { id_dev=>12, label=>'Otra (tda-00.local) fin' } ];
+	$t->{remote} = [ [ 7, '10.0.0.100' ], [ 8, '10.9.9.9' ] ];
+	$t->{tasks}  = [ { name=>'t1', ip=>'10.0.0.100' }, { name=>'t2', ip=>'10.9.9.9' } ];
+	$t->{responds} = { '10.0.0.100'=>1, '10.0.0.150'=>1 };
+	return $t;
+}
+# Rename
+my $ti = ibase();
+my ($bki,$ei) = validate_state(vstate({ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } },
+	{ kind=>'metric', device=>'tda-10.local', subtype=>'mon_icmp' }));
+is(scalar(@$ei), 0, 'renombrar: estado valido');
+my ($ci) = ctx($ti); my $pli = make_plan($ci,$bki);
+is(scalar(@{$pli->{errors}}), 0, '... plan sin errores') or diag(join("\n",@{$pli->{errors}}));
+is(join(' | ', map { "$_->{op}: $_->{text}" } @{$pli->{actions}}),
+	'rename: tda-00.local -> tda-10.local (+ etiquetas de sus metricas) (+ asistente) (+ recarga de traps) | provision: tda-10.local mon_icmp (lapse 300)',
+	'... una accion rename y la metrica del nombre nuevo encuentra el equipo');
+like(join(' ',@{$pli->{warnings}}), qr/1 metricas con 'tda-00' en el titulo, que no se cambia: disp_icmp "Disp tda-00 y 10\.0\.0\.100"\. Para cambiarlo: columna c_label/,
+	'... aviso de los titulos con el nombre anterior');
+like(CNMControl::Core::plan_text($pli), qr/MODIFICA: device\.name en 1/, '... MODIFICA cuenta el nombre');
+is(scalar(@{apply_plan($ci,$pli)}), 0, '... aplicado') or diag(join("\n",@{apply_plan($ci,$pli)}));
+is("$ti->{devices}[0]{name}.$ti->{devices}[0]{domain} $ti->{devices}[0]{ip}", 'tda-10.local 10.0.0.100', '... devices: el nombre nuevo, la misma IP');
+is($ti->{metrics}[0]{label}, 'Disponibilidad (tda-10.local)', '... el sufijo de la etiqueta de la metrica');
+is(join(' | ', map { $_->{label} } @{$ti->{tm2iid}}), 'Disponibilidad (tda-10.local) | Otra (tda-00.local) fin', '... y el de la plantilla, solo al final');
+is($ti->{metrics}[0]{c_label}, 'Disp tda-00 y 10.0.0.100', '... el titulo no se toca');
+is_deeply($ti->{asst}, [ 'vectors', 'reset', 'app:12:10.0.0.100:tda-10' ], '... asistente recalculado despues del cambio, con el nombre nuevo');
+ok(! $ti->{ws}, '... sin workset (renombrar no lo pide, como la consola)');
+is(reload_text(), '1', '... recarga del gestor de traps');
+is_deeply($ti->{records}, [ '10.0.0.100:warning' ], '... ficha regenerada');
+is(join(',', map { $_->{name} } grep { $_->{id_dev}==12 } @{$ti->{metrics}}), 'disp_icmp,mon_icmp', '... la metrica del estado, provisionada en el mismo equipo');
+($ci) = ctx($ti); my $pli2 = make_plan($ci,$bki);
+is(scalar(@{$pli2->{actions}}).'/'.scalar(@{$pli2->{errors}}).'/'.scalar(@{$pli2->{warnings}}), '0/0/0', '... el plan calculado otra vez sale vacio, sin errores ni avisos');
+# IP change, with a metric that uses the new IP
+my $tp3 = ibase();
+my ($bkp3) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' } },
+	{ kind=>'metric', device=>'10.0.0.150', subtype=>'disp_icmp', c_label=>'Disp nueva' }));
+my ($cp3) = ctx($tp3); my $plp3 = make_plan($cp3,$bkp3);
+is(scalar(@{$plp3->{errors}}), 0, 'cambio de IP: plan sin errores') or diag(join("\n",@{$plp3->{errors}}));
+is($plp3->{actions}[0]{op}.': '.$plp3->{actions}[0]{text},
+	"ip: tda-00.local ip '10.0.0.100' -> '10.0.0.150' (+ alertas remotas y tareas) (+ MIB-2) (+ workset) (+ asistente) (+ recarga de traps)", '... una accion ip, con todo lo que hace la consola');
+like(join(' ',@{$plp3->{warnings}}), qr/1 metricas con '10\.0\.0\.100' en el titulo/, '... aviso de los titulos con la IP anterior');
+like(CNMControl::Core::plan_text($plp3), qr/MODIFICA: device\.ip en 1, metric\.c_label en 1/, '... MODIFICA cuenta la IP y el titulo que cambia');
+is(scalar(@{apply_plan($cp3,$plp3)}), 0, '... aplicado');
+is($tp3->{devices}[0]{ip}, '10.0.0.150', '... devices: la IP nueva');
+is(join(' ', map { "$_->[0]:$_->[1]" } @{$tp3->{remote}}), '7:10.0.0.150 8:10.9.9.9', '... alertas remotas de la IP anterior, a la nueva');
+is(join(' ', map { "$_->{name}:$_->{ip}" } @{$tp3->{tasks}}), 't1:10.0.0.150 t2:10.9.9.9', '... y tareas');
+is_deeply($tp3->{ws}, [ 'subtables', 'work:12:default', 'consolidate' ], '... workset');
+is($tp3->{devices}[0]{sysdesc}, '** sin respuesta snmp **', '... MIB-2 escrita (sin SNMP: lo que deja el motor)');
+is_deeply($tp3->{asst}, [ 'vectors', 'reset', 'app:12:10.0.0.150:tda-00' ], '... asistente con la IP nueva');
+is_deeply($tp3->{records}, [ '10.0.0.150:warning' ], '... ficha de la IP nueva');
+is($tp3->{metrics}[0]{c_label}, 'Disp nueva', '... la metrica de la IP nueva encuentra el equipo');
+is($tp3->{metrics}[0]{label}, 'Disponibilidad (tda-00.local)', '... la etiqueta no cambia (no cambia el nombre)');
+($cp3) = ctx($tp3); my $plp3b = make_plan($cp3,$bkp3);
+is(scalar(@{$plp3b->{actions}}).'/'.scalar(@{$plp3b->{errors}}), '0/0', '... el plan calculado otra vez sale vacio y sin errores (ya hecho)');
+# A metric with the old IP or the old name: error
+my ($bkg) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' } },
+	{ kind=>'metric', device=>'10.0.0.100', subtype=>'disp_icmp', c_label=>'x' }));
+my ($cg) = ctx(ibase());
+like(join(' ',@{make_plan($cg,$bkg)->{errors}}), qr/el dispositivo '10\.0\.0\.100' pasa a ser '10\.0\.0\.150' en este estado/, 'metrica con la IP anterior: error');
+($bkg) = validate_state(vstate({ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } },
+	{ kind=>'metric', device=>'tda-00.local', subtype=>'disp_icmp', c_label=>'x' }));
+($cg) = ctx(ibase());
+like(join(' ',@{make_plan($cg,$bkg)->{errors}}), qr/el dispositivo 'tda-00\.local' pasa a ser 'tda-10\.local'/, 'metrica con el nombre anterior: error');
+# Conflicts
+sub iplan { my ($t,@r)=@_; my ($bk,$e) = validate_state(vstate(@r)); return { errors=>$e } if (@$e); my ($c) = ctx($t); return make_plan($c,$bk); }
+my $tx2 = ibase(); push @{$tx2->{devices}}, { id_dev=>13, name=>'tda-10', domain=>'local', ip=>'10.0.0.150', type=>'' };
+like(join(' ',@{iplan($tx2, { kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' } })->{errors}}),
+	qr/la IP nueva 10\.0\.0\.150 ya es de tda-10\.local \(id_dev=13\)/, 'IP nueva ocupada: error');
+like(join(' ',@{iplan($tx2, { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } })->{errors}}),
+	qr/el nombre nuevo tda-10\.local ya lo usa la IP 10\.0\.0\.150 \(id_dev=13\)/, 'nombre nuevo ocupado: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'otro' } })->{errors}}),
+	qr/la IP 10\.0\.0\.100 es de tda-00\.local \(id_dev=12\), no de otro\.local/, 'nombre anterior que no es el del equipo: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.99' } })->{errors}}),
+	qr/no hay ningun dispositivo con la IP 10\.0\.0\.99 \(ni con la nueva, 10\.0\.0\.150\)/, 'IP anterior sin equipo: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'otro', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' } })->{errors}}),
+	qr/la IP 10\.0\.0\.100 es de tda-00\.local \(id_dev=12\), no de otro\.local/, 'cambio de IP con otro nombre: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.99', from=>{ name=>'tda-00' } })->{errors}}),
+	qr/no hay ningun dispositivo con la IP 10\.0\.0\.99: nada que renombrar/, 'renombrar sin equipo en esa IP: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' }, _origin=>'a linea 2' },
+										{ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' }, _origin=>'a linea 3' })->{errors}}),
+	qr/ya esta en a linea 2: un dispositivo, un recurso/, 'el mismo equipo en dos recursos: error');
+my $tx3 = ibase(); push @{$tx3->{devices}}, { id_dev=>13, name=>'tda-01', domain=>'local', ip=>'10.0.0.101', type=>'' };
+like(join(' ',@{iplan($tx3, { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } },
+								  { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.101', from=>{ name=>'tda-01' } })->{errors}}),
+	qr/el nombre nuevo tda-10\.local lo usa otro dispositivo de este estado/, 'dos equipos al mismo nombre nuevo: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } },
+										{ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.9.9' })->{errors}}),
+	qr/el nombre o la IP los toma otro dispositivo de este estado/, 'alta con el nombre que toma un renombrado: error');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.9.9' },
+										{ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } })->{errors}}),
+	qr/el nombre nuevo tda-10\.local lo usa otro dispositivo de este estado/, '... y en el otro orden');
+like(join(' ',@{iplan(ibase(), { kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100' })->{errors}}),
+	qr/la IP ya es de tda-00\.local \(id_dev=12\) \(para cambiarle el nombre: columna name_from\)/, 'sin from y nombre distinto: conflicto, con la pista');
+# Precondition: someone changed it after the plan
+my $tq = ibase(); my ($bkq) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.150', from=>{ ip=>'10.0.0.100' } }));
+my ($cq) = ctx($tq); my $plq = make_plan($cq,$bkq);
+push @{$tq->{devices}}, { id_dev=>13, name=>'otro', domain=>'local', ip=>'10.0.0.150', type=>'' };
+like(join(' ',@{apply_plan($cq,$plq)}), qr/deshecho, no se ha modificado ninguno\): id_dev=12 \(10\.0\.0\.100\): la IP nueva 10\.0\.0\.150 ya la tiene otro dispositivo/, 'IP nueva ocupada despues del plan: error');
+is(join(' ', $tq->{devices}[0]{ip}, map { $_->[1] } @{$tq->{remote}}), '10.0.0.100 10.0.0.100 10.9.9.9', '... nada escrito');
+ok((! $tq->{asst}) && (! -e $RF), '... ni asistente ni recarga');
+my $tq2 = ibase(); my ($bkq2) = validate_state(vstate({ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' } }));
+my ($cq2) = ctx($tq2); my $plq2 = make_plan($cq2,$bkq2);
+$tq2->{devices}[0]{name}='cambiado';
+like(join(' ',@{apply_plan($cq2,$plq2)}), qr/name vale 'cambiado' y el plan esperaba 'tda-00'/, 'nombre cambiado despues del plan: error');
+is($tq2->{metrics}[0]{label}, 'Disponibilidad (tda-00.local)', '... la etiqueta sin tocar');
+my $tq3 = ibase(); my ($cq3) = ctx($tq3); my $plq3 = make_plan($cq3,$bkq2);
+push @{$tq3->{devices}}, { id_dev=>13, name=>'tda-10', domain=>'local', ip=>'10.0.0.101', type=>'' };
+like(join(' ',@{apply_plan($cq3,$plq3)}), qr/el nombre nuevo tda-10\.local ya lo tiene otro dispositivo; ha cambiado desde el plan/, 'nombre nuevo ocupado despues del plan: error');
+is($tq3->{devices}[0]{name}, 'tda-00', '... nada escrito');
+# The assistant fails: error with the command, the data stays; empty assistant: warning
+my $ta3 = ibase(); $ta3->{fail_assist}=1; my ($ca3) = ctx($ta3);
+like(join(' ',@{apply_plan($ca3, make_plan($ca3,$bkq))}), qr/no se ha recalculado su asistente \(simulated assistant failure\)\. Ejecutar: \/opt\/crawler\/bin\/prov_device_app_metrics -c default -i 12/,
+	'fallo del asistente: error con la orden');
+is($ta3->{devices}[0]{ip}, '10.0.0.150', '... y el cambio queda escrito');
+my $ta4 = ibase(); $ta4->{responds}={}; my ($ca4) = ctx($ta4);
+is(scalar(@{apply_plan($ca4, make_plan($ca4,$bkq))}), 0, 'asistente vacio: no es error');
+like(join(' ',@{$ca4->{apply_warnings}||[]}), qr/device 10\.0\.0\.150: asistente recalculado, pero vacio/, '... y se avisa');
+# Rename with the domain of the profile: the device keeps its own
+my $tdr = ibase(); $tdr->{devices}[0]{domain}='es.local'; $tdr->{metrics}[0]{label}='D (tda-00.es.local)';
+my ($bkdr) = validate_state(vstate({ kind=>'device', name=>'tda-10', domain=>'local', ip=>'10.0.0.100', from=>{ name=>'tda-00' }, _domain_default=>1 },
+	{ kind=>'metric', device=>'tda-10.local', subtype=>'disp_icmp', c_label=>'Nuevo' }));
+my ($cdr) = ctx($tdr); my $pldr = make_plan($cdr,$bkdr);
+is(join(' | ', map { $_->{text} } @{$pldr->{actions}}),
+	'tda-00.es.local -> tda-10.es.local (+ etiquetas de sus metricas) (+ asistente) (+ recarga de traps) | tda-10.es.local disp_icmp: "Disp tda-00 y 10.0.0.100" -> "Nuevo"',
+	'renombrar con el dominio por defecto: conserva el suyo');
+is(scalar(@{apply_plan($cdr,$pldr)}), 0, '... aplicado');
+is("$tdr->{devices}[0]{name}.$tdr->{devices}[0]{domain} $tdr->{metrics}[0]{label}", 'tda-10.es.local D (tda-10.es.local)', '... nombre y etiqueta');
+($cdr) = ctx($tdr); my $pldr2 = make_plan($cdr,$bkdr);
+is(scalar(@{$pldr2->{actions}}).'/'.scalar(@{$pldr2->{errors}}), '0/0', '... el plan calculado otra vez sale vacio y sin errores');
+# Domain only, with other attributes in the same row
+my $tdo = ibase();
+my ($bkdo) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'es.local', ip=>'10.0.0.100', from=>{ domain=>'local' }, critic=>75 }));
+my ($cdo) = ctx($tdo); my $pldo = make_plan($cdo,$bkdo);
+is($pldo->{actions}[0]{text}, "tda-00.local -> tda-00.es.local, critic '50' -> '75' (+ etiquetas de sus metricas) (+ critic de sus alertas) (+ asistente) (+ recarga de traps)",
+	'cambio de dominio y critic en la misma fila: una accion');
+is(scalar(@{apply_plan($cdo,$pldo)}), 0, '... aplicado');
+is("$tdo->{devices}[0]{domain}/$tdo->{devices}[0]{critic}/$tdo->{alert_critic}{'alerts:12'}", 'es.local/75/75', '... dominio, critic y alertas');
 unlink $RF;
 
 #=== 0017: the c_label of the profile does not replace an existing title =====================

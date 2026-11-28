@@ -24,7 +24,7 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Core;
-$VERSION='0.40';
+$VERSION='0.41';
 use strict;
 use JSON;
 use CNMControl::Kind::View;
@@ -183,10 +183,12 @@ my @l=();
 		push @l, "  (sin cambios)" if (! @{$plan->{actions}});
 		# Modifications counted by attribute: a mass change is seen at a glance
 		my %n=();
-		foreach my $x (grep { $_->{op} eq 'update' } @{$plan->{actions}}) {
+		foreach my $x (grep { $_->{op} =~ /^(update|rename|ip)$/ } @{$plan->{actions}}) {
 			$n{"$x->{kind}.$_"}++ foreach (keys %{$x->{changes}||{}});
 			$n{"$x->{kind}.$x->{fchanges}{$_}[2]"}++ foreach (keys %{$x->{fchanges}||{}});
 		}
+		# A title that changes (not one put on a metric that had none)
+		$n{"$_->{kind}.c_label"}++ foreach (grep { ($_->{op} eq 'c_label') && defined $_->{before} } @{$plan->{actions}});
 		push @l, "  MODIFICA: ".join(', ', map { "$_ en $n{$_}" } sort keys %n) if (%n);
 	}
 	push @l, map { "  AVISO  $_" } @{$plan->{warnings}};

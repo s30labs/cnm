@@ -20,7 +20,7 @@ use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summ
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
 
-my $VERSION     = '0.6';
+my $VERSION     = '0.7';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 # Profiles: the ones of the installation, then the ones of the product (decision of
@@ -49,6 +49,8 @@ $fpth[$#fpth] -h  : Ayuda
                                                 (se puede repetir; vale para todos los inventarios)
             Columnas del CSV: parametros del perfil; atributos del dispositivo sin declararlos
             (domain, type, critic, status, geodata, version, community, o device.<atributo>);
+            name_from, domain_from o ip_from: el valor actual, para cambiar el nombre y el
+            dominio o la IP de un dispositivo (uno de los dos cambios por fila);
             custom.<campo>; c_label.<subtipo> (admite {name} y los demas parametros:
             --set c_label.disp_icmp="{name} - ICMP Availability"). Celda vacia = no tocar o
             el defecto del perfil. El titulo del perfil solo se pone en una metrica nueva o
@@ -64,10 +66,13 @@ $fpth[$#fpth] -h  : Ayuda
   aplicaciones), provisiona metricas, cambia c_label y asocia metricas a vistas estaticas.
   A las vistas que ya existen les pone o cambia el padre (una vista tiene un solo padre;
   cambiarlo es moverla), les anade usuarios y les cambia type, itil_type y global. A los dispositivos que ya existen les cambia type, critic, geodata, status, SNMP
-  (version 0, 1 o 2 y community) y campos de usuario (update, con el valor anterior y el
+  (version 0, 1 o 2 y community), campos de usuario y, con *_from, nombre, dominio o IP
+  (update, rename o ip, con el valor anterior y el
   nuevo; la community nunca se muestra; MODIFICA los cuenta por atributo). Si cambia SNMP,
   pregunta al equipo por sus datos MIB-2, como la provision. Si cambia status o SNMP,
-  regenera los datos de los crawlers (lo que hace workset) antes de terminar.
+  regenera los datos de los crawlers (lo que hace workset) antes de terminar. Si cambia
+  nombre, dominio o IP, hace lo que la ficha de la consola: etiquetas de las metricas,
+  alertas remotas y tareas, recarga del gestor de traps y asistente, en primer plano.
   Lo que no viene en la ENTRADA (celda vacia) no se toca. No borra nada.
   Antes de aplicar, ejecutar plan con la misma ENTRADA y revisar la lista: apply vuelve a
   calcular ese mismo plan, comprueba que nadie ha cambiado los valores anteriores, lo aplica
@@ -286,7 +291,7 @@ my ($what)=@_;
 # list profiles: installation first; a product profile with the same name is hidden
 #----------------------------------------------------------------------------
 sub list_profiles {
-	my %seen=();
+	my %seen=(); my $note=0;
 	printf("%-24s %-18s %s\n", 'perfil', 'origen', 'descripcion');
 	foreach my $d ([$DIR_PROFILE,'instalacion'], [$DIR_PROFILE_PRODUCT,'producto'], ["$DIR_PROFILE_PRODUCT/examples",'ejemplo']) {
 		opendir(my $dh, $d->[0]) or next;
@@ -298,12 +303,13 @@ sub list_profiles {
 			$descr = substr($descr,0,90).'...' if (length($descr) > 93);
 			my $origin = ($d->[1] eq 'ejemplo') ? 'ejemplo' : ($seen{$n} ? "$d->[1] (oculto)" : $d->[1]);
 			printf("%-24s %-18s %s\n", $n, $origin, $descr);
+			$note=1 if ($origin =~ /oculto|ejemplo/);
 			$seen{$n}=1 if ($d->[1] ne 'ejemplo');
 		}
 		closedir($dh);
 	}
 	print "(oculto: hay uno de la instalacion con el mismo nombre, y manda ese. Un ejemplo no se usa por\n".
-			" su nombre: se copia a $DIR_PROFILE y se adapta)\n";
+			" su nombre: se copia a $DIR_PROFILE y se adapta)\n" if ($note);
 	return 0;
 }
 

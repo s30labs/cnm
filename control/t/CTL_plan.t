@@ -63,31 +63,33 @@ like($err->[0] // '', qr/repetido con valores distintos/, 'metrica repetida con 
 like($err->[0] // '', qr/kind desconocido 'monitor'/, 'kind desconocido');
 
 #--- 3. diff: device --------------------------------------------------------------
+# Each call is a plan of its own: a device that two resources of one plan touch is an error
+sub dif { my ($r,$c,$x)=@_; delete $x->{dev_touch}; return $D->diff($r,$c,$x); }
 my $ctx = { cid=>'default', pending=>{}, cache=>{ types=>{ Router=>1 }, fields=>{ 'CNM-METRICS'=>'CNM-METRICS', 'PROVEEDOR'=>'Proveedor' },
 				field_cols=>{ 'CNM-METRICS'=>'columna1', 'PROVEEDOR'=>'columna2' } } };
 my ($r) = $D->validate({ kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.1' });
-my ($acc,$er,$wa) = $D->diff($r, { by_ip=>[], by_name=>[] }, $ctx);
+my ($acc,$er,$wa) = dif($r, { by_ip=>[], by_name=>[] }, $ctx);
 is($acc->[0]{op}, 'create', 'dispositivo nuevo: create');
 ok($ctx->{pending}{'tda-01.local'}, 'el alta queda anotada para las metricas');
-($acc,$er) = $D->diff($r, { by_ip=>[{ id_dev=>7, name=>'otro', domain=>'local', ip=>'10.0.0.1' }], by_name=>[] }, $ctx);
+($acc,$er) = dif($r, { by_ip=>[{ id_dev=>7, name=>'otro', domain=>'local', ip=>'10.0.0.1' }], by_name=>[] }, $ctx);
 like($er->[0] // '', qr/ya es de otro\.local/, 'IP de otro dispositivo: conflicto');
-($acc,$er) = $D->diff($r, { by_ip=>[{ id_dev=>7, name=>'TDA-01', domain=>'local', ip=>'10.0.0.1' }], by_name=>[] }, $ctx);
+($acc,$er) = dif($r, { by_ip=>[{ id_dev=>7, name=>'TDA-01', domain=>'local', ip=>'10.0.0.1' }], by_name=>[] }, $ctx);
 is(scalar(@$acc)+scalar(@$er), 0, 'ya existe con el mismo nombre: sin cambios');
 # Existing device with user fields: warn only about real differences
 my ($rf) = $D->validate({ kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.1', fields=>{ proveedor=>'ACME' } });
 my $ex = { id_dev=>7, name=>'tda-01', domain=>'local', ip=>'10.0.0.1', custom=>{ columna2=>'ACME' } };
-($acc,$er,$wa) = $D->diff($rf, { by_ip=>[$ex], by_name=>[] }, $ctx);
+($acc,$er,$wa) = dif($rf, { by_ip=>[$ex], by_name=>[] }, $ctx);
 is(scalar(@$acc)+scalar(@$er)+scalar(@$wa), 0, 'existente con los mismos campos: ni acciones ni avisos');
-($acc,$er,$wa) = $D->diff($rf, { by_ip=>[{ %$ex, custom=>{ columna2=>'Otro' } }], by_name=>[] }, $ctx);
+($acc,$er,$wa) = dif($rf, { by_ip=>[{ %$ex, custom=>{ columna2=>'Otro' } }], by_name=>[] }, $ctx);
 like(join(' ', map { "$_->{op}: $_->{text}" } @$acc), qr/^update: tda-01\.local Proveedor 'Otro' -> 'ACME'$/, 'existente con un campo distinto: modificacion');
-($acc,$er,$wa) = $D->diff($rf, { by_ip=>[{ %$ex, custom=>{} }], by_name=>[] }, $ctx);
+($acc,$er,$wa) = dif($rf, { by_ip=>[{ %$ex, custom=>{} }], by_name=>[] }, $ctx);
 like(join(' ', map { $_->{text} } @$acc), qr/'-' -> 'ACME'/, 'campo sin valor guardado: se compara con el defecto del motor');
 ($n,$e) = $V->validate({ kind=>'view', name=>'V', like=>'M' });
 ok(! $e, '"like" sin "create": admitido (modifica una vista existente)');
-($acc,$er) = $D->diff($r, { by_ip=>[], by_name=>[{ id_dev=>8, ip=>'10.9.9.9' }] }, $ctx);
+($acc,$er) = dif($r, { by_ip=>[], by_name=>[{ id_dev=>8, ip=>'10.9.9.9' }] }, $ctx);
 like($er->[0] // '', qr/ya lo usa la IP 10\.9\.9\.9/, 'nombre usado con otra IP: conflicto');
 ($r) = $D->validate({ kind=>'device', name=>'x', domain=>'l', ip=>'10.0.0.5', type=>'Switch' });
-($acc,$er) = $D->diff($r, { by_ip=>[], by_name=>[] }, $ctx);
+($acc,$er) = dif($r, { by_ip=>[], by_name=>[] }, $ctx);
 like($er->[0] // '', qr/tipo 'Switch' no existe/, 'tipo inexistente');
 
 #--- 4. diff: metric --------------------------------------------------------------
@@ -163,5 +165,23 @@ ok(! exists $n->{critic} && ! exists $n->{snmp}, 'sin critic ni snmp: no se pone
 like($e, qr/hasta 50 \(devices\.name\).*separador del CSV/, 'nombre con ":": regla y pista del separador');
 (undef,$e) = $D->validate({ kind=>'device', name=>'ES-X', domain=>'b', ip=>'1.1.1.1', snmp=>{ version=>3 } });
 like($e, qr/0, 1 o 2/, 'SNMP v3: rechazado');
+
+#--- 0019: "from" -------------------------------------------------------------------
+($n,$e) = $D->validate({ kind=>'device', name=>'s-10', domain=>'local', ip=>'1.1.1.1', from=>{ name=>'s-01' } });
+is_deeply([ $e, $n->{from} ], [ undef, { name=>'s-01' } ], 'from con name: admitido');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s-10', domain=>'local', ip=>'1.1.1.2', from=>{ name=>'s-01', ip=>'1.1.1.1' } });
+like($e, qr/un cambio de identidad por recurso/, 'from con nombre e IP: rechazado');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{ ip=>'1.1.1.1' } });
+like($e, qr/ip_from es igual que ip/, 'ip_from igual que ip: rechazado');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{ name=>'S' } });
+like($e, qr/el nombre completo no cambia \(S\.local\)/, 'name_from que no cambia el nombre: rechazado');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{ ip=>'300.1.1.1' } });
+like($e, qr/ip_from no valida '300\.1\.1\.1'/, 'ip_from no valida: rechazada');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{ name=>'a;b' } });
+like($e, qr/name_from no valido 'a;b'/, 'name_from no valido: rechazado');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{} });
+like($e, qr/"from" tiene que ser un objeto/, 'from vacio: rechazado');
+(undef,$e) = $D->validate({ kind=>'device', name=>'s', domain=>'local', ip=>'1.1.1.1', from=>{ mac=>'x' } });
+like($e, qr/from: clave desconocida 'mac'/, 'from con otra clave: rechazado');
 
 done_testing();

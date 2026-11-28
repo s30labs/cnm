@@ -50,27 +50,42 @@
 #	(decision of 28-nov-2026; PROY-CNM-cnm-control-Identidad §2):
 #	  alerts, alerts_read    when critic changes, the critic of the alerts of the device
 #	                         (:505-511, mod_Configure.sql:184-185), in the same transaction
-#	  syslog.reload          when critic or status change (name, domain and ip in phase 3),
+#	  syslog.reload          when name, domain, ip, critic or status change,
 #	                         the file that makes notificationsd reload syslog-ng, which runs
 #	                         trap_manager; trap_manager keeps name, domain, critic and status
 #	                         of each IP in memory (:656, onm/inc/Store.php:2868;
 #	                         Crawler.pm:3536; Crawler/LogManager/SNMPTrap.pm:55)
 #	The console does both on every save; cnm-control only when the value changes.
-#	name, domain and ip are not modified yet (phase 3). An IP that belongs to another name
-#	is a conflict.
+#	Modify, phase 3 (decisions of 27 and 28-nov-2026; PROY-CNM-cnm-control-Identidad):
+#	name, domain or ip, explicitly, with "from" and the current values:
+#	  { "kind": "device", "name": "sede-10", "domain": "local", "ip": "10.1.1.10",
+#	    "from": { "name": "sede-01" } }                      rename (name and/or domain)
+#	  { ..., "ip": "10.1.1.50", "from": { "ip": "10.1.1.10" } }      IP change
+#	One identity change per resource. In the inventory, the columns name_from, domain_from
+#	and ip_from (CNMControl::Profile). The same as the device screen of the console:
+#	  devices                       UPDATE of name, domain or ip (the new IP or name.domain
+#	                                must be free, checked again in the transaction)
+#	  metrics, prov_template_metrics2iid   rename: the suffix ' (name.domain)' of label
+#	                                (change_metric_label, mod_dispositivo_detalle.php:1381)
+#	  cfg_remote_alerts2device, task2device   IP change: target and ip
+#	                                (change_device_ip, mod_dispositivo_detalle.php:1400)
+#	  then workset and MIB-2 (IP change), the reload of trap_manager, the assistant and
+#	  applications (prov_device_app_metrics, in the foreground) and the record.
+#	The titles (c_label) that carry the old name or IP are not changed: the plan lists them.
+#	Without "from", an IP that belongs to another name is a conflict.
 #	validate, key and diff are pure; read and apply use $ctx->{dbh} and $ctx->{provision}.
 #	Design: cnm-docs, PROY-CNM-cnm-control-Diseno §3.2 and §5.
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.71';
+$VERSION='0.80';
 use strict;
 
-my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata status snmp fields _domain_default);
+my %KEYS    = map { $_=>1 } qw(kind name domain ip from type critic geodata status snmp fields _domain_default);
 our $TMP_WEB = '/var/www/html/onm/tmp';	# 'our': the tests change it
 my $SEP     = '&|&';
 # What trap_manager keeps of each IP (Crawler/LogManager/SNMPTrap.pm:316-334, :519-527)
-my @TRAP_CACHE = qw(critic status);
+my @TRAP_CACHE = qw(name domain ip critic status);
 our $RELOAD = 'syslog.reload';		# in $TMP_WEB: the file of reload_trap_manager (onm/inc/Store.php:2870)
 my @HEADER  = ('NOMBRE','DOMINIO','IP','LOCALIZACION','DESCRIPCION','OID','MAC','CRIT','TIPO',
 					'ESTADO','COMUNIDAD','VERSION','PERFIL ORGANIZATIVO','GESTOR','GEODATA');
@@ -87,18 +102,43 @@ sub _show { my ($a,$c)=@_; return ($a eq 'community') ? 'community (cambia; no s
 sub _sep_hint { my $v=shift; return ($v =~ /[;:,\t]/) ? " (lleva ':', ';', ',' o tabulador: puede que el separador del CSV este mal puesto; en el inventario es ';')" : ''; }
 sub _is_clean { my $v=shift; return ((defined $v) && ($v !~ /['"\\`;\r\n]/) && (index($v,$SEP)<0)) ? 1 : 0; }
 
+# Rules of name, domain and ip (also for name_from, domain_from and ip_from)
+my %CHECK = (
+	name   => sub { my ($v,$k)=@_; return ($v =~ /^[A-Za-z0-9][\w\-]{0,49}$/) ? '' :
+						"$k no valido '$v': solo letras, cifras, _ y -, empezando por letra o cifra, hasta 50 (devices.name)"._sep_hint($v); },
+	domain => sub { my ($v,$k)=@_; return ($v =~ /^[A-Za-z0-9][\w.\-]{0,29}$/) ? '' :
+						"$k no valido '$v': solo letras, cifras, _, - y ., empezando por letra o cifra, hasta 30 (devices.domain)"._sep_hint($v); },
+	ip     => sub { my ($v,$k)=@_; return (($v =~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/) && ! grep { $_ > 255 } ($1,$2,$3,$4)) ? '' : "$k no valida '$v'"; },
+);
+
 sub validate {
 my ($c,$r)=@_;
 	foreach my $k (keys %$r) { return (undef,"clave desconocida '$k'") if (! $KEYS{$k}); }
 	foreach my $k ('name','domain','ip') { return (undef,"falta \"$k\"") if ((! defined $r->{$k}) || ($r->{$k} eq '')); }
-	return (undef,"nombre no valido '$r->{name}': solo letras, cifras, _ y -, empezando por letra o cifra, hasta 50 (devices.name)"._sep_hint($r->{name}))
-		if ($r->{name}  !~ /^[A-Za-z0-9][\w\-]{0,49}$/);
-	return (undef,"dominio no valido '$r->{domain}': solo letras, cifras, _, - y ., empezando por letra o cifra, hasta 30 (devices.domain)"._sep_hint($r->{domain}))
-		if ($r->{domain} !~ /^[A-Za-z0-9][\w.\-]{0,29}$/);
-	return (undef,"ip no valida '$r->{ip}'")
-		if (($r->{ip} !~ /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/) || grep { $_ > 255 } ($1,$2,$3,$4));
+	my %said = (name=>'nombre', domain=>'dominio', ip=>'ip');
+	foreach my $k ('name','domain','ip') { my $e = $CHECK{$k}->($r->{$k}, $said{$k}); return (undef,$e) if ($e); }
 	my %n = ( kind=>'device', name=>$r->{name}, domain=>$r->{domain}, ip=>$r->{ip} );
 	$n{_domain_default}=1 if ($r->{_domain_default});
+	# Phase 3: "from" holds the current values of what changes. One identity change per
+	# resource: the name and/or the domain (the device is found by its IP), or the IP (the
+	# device is found by its name). Decision of 27-nov-2026.
+	if (defined $r->{from}) {
+		my $f = $r->{from};
+		return (undef,'"from" tiene que ser un objeto con los valores actuales: name y domain, o ip') if ((ref($f) ne 'HASH') || (! %$f));
+		foreach my $k (keys %$f) { return (undef,"from: clave desconocida '$k' (name, domain o ip)") if ($k !~ /^(name|domain|ip)$/); }
+		return (undef,'un cambio de identidad por recurso: el nombre o el dominio (name_from, domain_from) o la IP (ip_from), no los dos')
+			if (defined $f->{ip} && (defined $f->{name} || defined $f->{domain}));
+		foreach my $k (sort keys %$f) {
+			return (undef,"${k}_from vacio") if ((! defined $f->{$k}) || ref($f->{$k}) || ($f->{$k} eq ''));
+			my $e = $CHECK{$k}->($f->{$k}, "${k}_from"); return (undef,$e) if ($e);
+		}
+		if (defined $f->{ip}) { return (undef,"ip_from es igual que ip ($r->{ip}): no hay cambio de IP") if ($f->{ip} eq $r->{ip}); }
+		else {
+			my $old = (defined $f->{name} ? $f->{name} : $r->{name}).'.'.(defined $f->{domain} ? $f->{domain} : $r->{domain});
+			return (undef,"name_from/domain_from: el nombre completo no cambia ($old)") if (lc($old) eq lc("$r->{name}.$r->{domain}"));
+		}
+		$n{from} = { %$f };
+	}
 	if (defined $r->{type}) {
 		return (undef,'"type" no valido') if (! _is_clean($r->{type}) || $r->{type} eq '');
 		$n{type}=$r->{type};
@@ -152,15 +192,29 @@ sub read {
 my ($c,$ctx,$rs)=@_;
 	my $dbh=$ctx->{dbh};
 	my %cur=();
-	my @ips = map { $_->{ip} } @$rs;
+	my @ips  = map { ($_->{ip}, (($_->{from} && defined $_->{from}{ip}) ? $_->{from}{ip} : ())) } @$rs;
 	my @fqdn = map { lc("$_->{name}.$_->{domain}") } @$rs;
+	# Renames: the devices with the new name in any domain (the domain may come from the
+	# default of the profile and the device keep its own)
+	my @names = map { lc $_->{name} } grep { $_->{from} && ! defined $_->{from}{ip} } @$rs;
+	my (%by_ip,%by_fqdn,%by_nm);
 	if (@ips) {
 		my $q = "SELECT id_dev,name,domain,ip,type,critic,geodata,status,version,community FROM devices WHERE ip IN (".join(',',('?') x @ips).")";
-		foreach my $d (@{ $dbh->selectall_arrayref($q, { Slice=>{} }, @ips) }) { push @{$cur{$d->{ip}}{by_ip}}, $d; }
+		foreach my $d (@{ $dbh->selectall_arrayref($q, { Slice=>{} }, @ips) }) { push @{$by_ip{$d->{ip}}}, $d; }
 		$q = "SELECT id_dev,name,domain,ip FROM devices WHERE LOWER(CONCAT(name,'.',domain)) IN (".join(',',('?') x @fqdn).")";
-		my %by_fqdn=();
 		foreach my $d (@{ $dbh->selectall_arrayref($q, { Slice=>{} }, @fqdn) }) { push @{$by_fqdn{lc("$d->{name}.$d->{domain}")}}, $d; }
-		foreach my $r (@$rs) { $cur{$r->{ip}}{by_name} = $by_fqdn{lc("$r->{name}.$r->{domain}")} || []; }
+		if (@names) {
+			$q = "SELECT id_dev,name,domain,ip FROM devices WHERE LOWER(name) IN (".join(',',('?') x @names).")";
+			foreach my $d (@{ $dbh->selectall_arrayref($q, { Slice=>{} }, @names) }) { push @{$by_nm{lc $d->{name}}}, $d; }
+		}
+	}
+	foreach my $r (@$rs) {
+		my $x = { by_ip=>$by_ip{$r->{ip}} || [], by_name=>$by_fqdn{lc("$r->{name}.$r->{domain}")} || [] };
+		if ($r->{from}) {
+			if (defined $r->{from}{ip}) { $x->{from_ip} = $by_ip{$r->{from}{ip}} || []; }
+			else { $x->{same_name} = $by_nm{lc $r->{name}} || []; }
+		}
+		$cur{$r->{ip}} = $x;
 	}
 	$ctx->{cache}{types} ||= { map { $_->[0] => 1 } @{ $dbh->selectall_arrayref("SELECT descr FROM cfg_host_types") } };
 	if (! $ctx->{cache}{fields}) {
@@ -173,95 +227,207 @@ my ($c,$ctx,$rs)=@_;
 		$ctx->{cache}{fields} ||= {};
 	}
 	# Current user fields of the existing devices that declare "fields", to compare them
-	my %want = map { $_->{ip} => 1 } grep { $_->{fields} } @$rs;
-	my @ids = map { $_->{id_dev} } grep { $want{$_->{ip}} } map { @{$_->{by_ip}||[]} } values %cur;
+	my %want = map { ($_->{ip} => 1, (($_->{from} && defined $_->{from}{ip}) ? ($_->{from}{ip} => 1) : ())) } grep { $_->{fields} } @$rs;
+	my @ids = map { $_->{id_dev} } map { @{$by_ip{$_}||[]} } sort keys %want;
 	if (@ids) {
 		my $q = "SELECT * FROM devices_custom_data WHERE id_dev IN (".join(',',('?') x @ids).")";
 		my %by_id = map { $_->{id_dev} => $_ } @{ $dbh->selectall_arrayref($q, { Slice=>{} }, @ids) };
-		foreach my $c (values %cur) {
-			foreach my $d (@{$c->{by_ip}||[]}) { $d->{custom} = $by_id{$d->{id_dev}} || {}; }
-		}
+		foreach my $d (map { @$_ } values %by_ip) { $d->{custom} = $by_id{$d->{id_dev}} || {}; }
+	}
+	# Titles of the metrics of the devices that may change their identity: the plan warns
+	# about the ones that carry the old name or IP (decision of 27-nov-2026)
+	my %idn = map { $_->{id_dev} => 1 } map { @{$cur{$_->{ip}}{by_ip}}, @{$cur{$_->{ip}}{from_ip}||[]} } grep { $_->{from} } @$rs;
+	if (my @i = sort { $a <=> $b } keys %idn) {
+		my $q = "SELECT id_dev,name,c_label FROM metrics WHERE id_dev IN (".join(',',('?') x @i).") AND c_label IS NOT NULL AND c_label<>''";
+		my %lab=(); push @{$lab{$_->[0]}}, [ $_->[1], $_->[2] ] foreach (@{ $dbh->selectall_arrayref($q, undef, @i) });
+		$_->{labels} = \%lab foreach (values %cur);
 	}
 	return \%cur;
 }
 
 #----------------------------------------------------------------------------
 # diff: a device to create is recorded in $ctx->{pending} so that the metric kind (planned
-# afterwards) accepts metrics of a device that does not exist yet.
+# afterwards) accepts metrics of a device that does not exist yet. A device that changes its
+# name or IP is recorded in $ctx->{dev_alias} (new name or IP => id_dev), so that the metrics
+# of this state find it by the new one, and in $ctx->{gone} (old name or IP => new), so that
+# a metric that still uses the old one is an error.
 #----------------------------------------------------------------------------
 sub diff {
 my ($c,$r,$cur,$ctx)=@_;
 my (@acc,@err,@warn);
+	$cur ||= {};
 	my $fqdn = "$r->{name}.$r->{domain}";
-	my @by_ip   = $cur ? @{$cur->{by_ip} || []} : ();
-	my @by_name = $cur ? grep { $_->{ip} ne $r->{ip} } @{$cur->{by_name} || []} : ();
 	push @err, "el tipo '$r->{type}' no existe (crear tipos llega en el MVP)"
 		if (defined $r->{type} && ! $ctx->{cache}{types}{$r->{type}});
 	foreach my $k (sort keys %{$r->{fields} || {}}) {
 		push @err, "el campo de usuario '$k' no existe (cnm-control list fields)" if (! $ctx->{cache}{fields}{uc $k});
 	}
-	if (@by_ip > 1) { push @err, scalar(@by_ip)." dispositivos con esa IP"; }
-	elsif (@by_ip == 1) {
-		my $d=$by_ip[0];
-		if ($r->{_domain_default} && (lc $d->{name} eq lc $r->{name}) && (lc $d->{domain} ne lc $r->{domain})) {
-			# The domain came from the default of the profile, which only applies when the
-			# device is created: the device found by its IP keeps its own (27-nov-2026)
-			$ctx->{fqdn_alias}{lc $fqdn} = "$d->{name}.$d->{domain}";
-			$fqdn = "$d->{name}.$d->{domain}";
-		}
-		if (lc("$d->{name}.$d->{domain}") ne lc($fqdn)) {
-			push @err, "la IP ya es de $d->{name}.$d->{domain} (id_dev=$d->{id_dev})";
+	if ($r->{from}) { _diff_identity($r,$cur,$ctx,\@acc,\@err,\@warn); }
+	else {
+		my @by_ip   = @{$cur->{by_ip} || []};
+		my @by_name = grep { $_->{ip} ne $r->{ip} } @{$cur->{by_name} || []};
+		if (@by_ip > 1) { push @err, scalar(@by_ip)." dispositivos con esa IP"; }
+		elsif (@by_ip == 1) {
+			my $d=$by_ip[0];
+			$fqdn = _keep_domain($r,$d,$ctx);
+			if (lc("$d->{name}.$d->{domain}") ne lc($fqdn)) {
+				push @err, "la IP ya es de $d->{name}.$d->{domain} (id_dev=$d->{id_dev}) (para cambiarle el nombre: columna name_from)";
+			}
+			else { _update($r,$d,$fqdn,{},'update',$ctx,\@acc,\@err); }
 		}
 		else {
-			# Phase 1: data-only attributes. Phase 2: status and SNMP, with workset
-			my (%chg,%fchg);
-			foreach my $a (qw(type critic geodata status)) {
-				next if (! defined $r->{$a});
-				my $now = defined $d->{$a} ? "$d->{$a}" : '';
-				$chg{$a} = [ $now, "$r->{$a}" ] if ($now ne "$r->{$a}");
-			}
-			if ($r->{snmp}) {
-				if (defined $d->{version} && ($d->{version} == 3)) {
-					push @err, "tiene SNMPv3 (credencial en profiles_snmpv3): su SNMP no se modifica en esta fase";
-				}
-				else {
-					my $now = defined $d->{version} ? "$d->{version}" : '';
-					$chg{version} = [ $now, "$r->{snmp}{version}" ] if ($now ne "$r->{snmp}{version}");
-					if ($r->{snmp}{version} > 0) {
-						my $c = defined $d->{community} ? $d->{community} : '';
-						$chg{community} = [ $c, $r->{snmp}{community} ] if ($c ne $r->{snmp}{community});
-					}
-				}
-			}
-			foreach my $k (sort keys %{$r->{fields} || {}}) {
-				my $col = $ctx->{cache}{field_cols}{uc $k} or next;
-				my $now = (defined $d->{custom} && defined $d->{custom}{$col} && $d->{custom}{$col} ne '') ? $d->{custom}{$col} : '-';
-				$fchg{$col} = [ $now, $r->{fields}{$k}, $ctx->{cache}{fields}{uc $k} ] if ($now ne $r->{fields}{$k});
-			}
-			if ((%chg || %fchg) && (! @err)) {
-				my $ws = (grep { $chg{$_} } qw(status version community)) ? 1 : 0;
-				my $mib2 = ($chg{version} || $chg{community}) ? 1 : 0;
-				my $alerts = $chg{critic} ? 1 : 0;
-				my $traps = (grep { $chg{$_} } @TRAP_CACHE) ? 1 : 0;
-				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg,
-								 workset=>$ws, mib2=>$mib2, alerts=>$alerts, traps=>$traps,
-								 text=>"$fqdn ".join(', ', (map { _show($_,$chg{$_}) } sort keys %chg),
-															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg))
-										.($mib2 ? ' (+ MIB-2)' : '').($ws ? ' (+ workset)' : '').($alerts ? ' (+ critic de sus alertas)' : '').($traps ? ' (+ recarga de traps)' : '') };
+			if (@by_name) { push @err, "el nombre $fqdn ya lo usa la IP $by_name[0]{ip} (id_dev=$by_name[0]{id_dev}) (para cambiarle la IP: columna ip_from)"; }
+			elsif ($ctx->{claimed}{lc $fqdn} || $ctx->{claimed}{$r->{ip}}) { push @err, "el nombre o la IP los toma otro dispositivo de este estado al cambiar su identidad"; }
+			elsif (! @err) {
+				$ctx->{pending}{lc $fqdn}=1; $ctx->{pending}{$r->{ip}}=1;
+				push @acc, { kind=>'device', op=>'create', ref=>$r->{ip}, resource=>$r,
+								 text=>"$fqdn $r->{ip}".(defined $r->{type} ? " type=$r->{type}" : '')." snmp=v".($r->{snmp} ? $r->{snmp}{version} : 0).(defined $r->{critic} ? " critic=$r->{critic}" : '').(defined $r->{status} ? " status=$r->{status}" : '')
+									.(%{$r->{fields}||{}} ? ' custom: '.join(', ', map { "$_=$r->{fields}{$_}" } sort keys %{$r->{fields}}) : '') };
 			}
 		}
 	}
-	else {
-		if (@by_name) { push @err, "el nombre $fqdn ya lo usa la IP $by_name[0]{ip} (id_dev=$by_name[0]{id_dev})"; }
-		elsif (! @err) {
-			$ctx->{pending}{lc $fqdn}=1; $ctx->{pending}{$r->{ip}}=1;
-			push @acc, { kind=>'device', op=>'create', ref=>$r->{ip}, resource=>$r,
-							 text=>"$fqdn $r->{ip}".(defined $r->{type} ? " type=$r->{type}" : '')." snmp=v".($r->{snmp} ? $r->{snmp}{version} : 0).(defined $r->{critic} ? " critic=$r->{critic}" : '').(defined $r->{status} ? " status=$r->{status}" : '')
-								.(%{$r->{fields}||{}} ? ' custom: '.join(', ', map { "$_=$r->{fields}{$_}" } sort keys %{$r->{fields}}) : '') };
-		}
+	if (@err) {		# for the derived errors of the metrics
+		$ctx->{failed}{lc $fqdn}=1; $ctx->{failed}{$r->{ip}}=1;
 	}
-	if (@err) { $ctx->{failed}{lc $fqdn}=1; $ctx->{failed}{$r->{ip}}=1; }	# for the derived errors of the metrics
 	return (\@acc,\@err,\@warn);
+}
+
+# The domain came from the default of the profile, which only applies when the device is
+# created: the existing device keeps its own (27-nov-2026). Returns the name.domain to use.
+sub _keep_domain {
+my ($r,$d,$ctx)=@_;
+	my $fqdn = "$r->{name}.$r->{domain}";
+	if ($r->{_domain_default} && (lc $d->{name} eq lc $r->{name}) && (lc $d->{domain} ne lc $r->{domain})) {
+		$ctx->{fqdn_alias}{lc $fqdn} = "$d->{name}.$d->{domain}";
+		return "$d->{name}.$d->{domain}";
+	}
+	return $fqdn;
+}
+
+#----------------------------------------------------------------------------
+# _diff_identity: phase 3 (PROY-CNM-cnm-control-Diseno §9, PROY-CNM-cnm-control-Identidad).
+#  IP change (from.ip):   the device is the one with the IP from.ip and the name of the state.
+#  Rename (from.name and/or from.domain): the device is the one with the IP of the state and
+#                         the old name.domain.
+# If the device already has the new identity (an apply done before, or the check after
+# apply), there is nothing to change but the other attributes.
+#----------------------------------------------------------------------------
+sub _diff_identity {
+my ($r,$cur,$ctx,$acc,$err,$warn)=@_;
+	my $f = $r->{from};
+	my @n = @{$cur->{by_ip} || []};
+	return push @$err, scalar(@n)." dispositivos con la IP $r->{ip}" if (@n > 1);
+	if (defined $f->{ip}) {
+		my @o = @{$cur->{from_ip} || []};
+		return push @$err, scalar(@o)." dispositivos con la IP $f->{ip}" if (@o > 1);
+		if (@o) {
+			my $d = $o[0];
+			my $fqdn = _keep_domain($r,$d,$ctx);
+			my $dn = "$d->{name}.$d->{domain}";
+			if (lc $dn ne lc $fqdn) { return push @$err, "la IP $f->{ip} es de $dn (id_dev=$d->{id_dev}), no de $fqdn"; }
+			if (@n) { return push @$err, "la IP nueva $r->{ip} ya es de $n[0]{name}.$n[0]{domain} (id_dev=$n[0]{id_dev})"; }
+			if ($ctx->{claimed}{$r->{ip}} || $ctx->{pending}{$r->{ip}}) { return push @$err, "la IP nueva $r->{ip} la usa otro dispositivo de este estado"; }
+			$ctx->{claimed}{$r->{ip}}=1; $ctx->{gone}{$f->{ip}}=$r->{ip}; $ctx->{dev_alias}{$r->{ip}}=$d->{id_dev};
+			push @$warn, _label_warning($cur, $d, [ $f->{ip} ]);
+			return _update($r,$d,$fqdn,{ ip=>[ $d->{ip}, $r->{ip} ] },'ip',$ctx,$acc,$err);
+		}
+		if (@n) {
+			my $fqdn = _keep_domain($r,$n[0],$ctx);
+			return _update($r,$n[0],$fqdn,{},'update',$ctx,$acc,$err) if (lc("$n[0]{name}.$n[0]{domain}") eq lc $fqdn);		# already done
+			return push @$err, "no hay ningun dispositivo con la IP $f->{ip}, y la IP $r->{ip} es de $n[0]{name}.$n[0]{domain} (id_dev=$n[0]{id_dev})";
+		}
+		return push @$err, "no hay ningun dispositivo con la IP $f->{ip} (ni con la nueva, $r->{ip}): nada que cambiar";
+	}
+	return push @$err, "no hay ningun dispositivo con la IP $r->{ip}: nada que renombrar" if (! @n);
+	my $d = $n[0];
+	my $nd = ($r->{_domain_default} && ! defined $f->{domain}) ? $d->{domain} : $r->{domain};
+	my $old = (defined $f->{name} ? $f->{name} : $r->{name}).'.'.(defined $f->{domain} ? $f->{domain} : $nd);
+	my $new = "$r->{name}.$nd";
+	my $dn = "$d->{name}.$d->{domain}";
+	$ctx->{fqdn_alias}{lc "$r->{name}.$r->{domain}"} = $new if (lc $nd ne lc $r->{domain});
+	if (lc $dn eq lc $new) { return _update($r,$d,$new,{},'update',$ctx,$acc,$err); }		# already done
+	if (lc $dn ne lc $old) { return push @$err, "la IP $r->{ip} es de $dn (id_dev=$d->{id_dev}), no de $old"; }
+	my @other = grep { ($_->{id_dev} != $d->{id_dev}) && (lc("$_->{name}.$_->{domain}") eq lc $new) } @{$cur->{same_name} || []};
+	if (@other) { return push @$err, "el nombre nuevo $new ya lo usa la IP $other[0]{ip} (id_dev=$other[0]{id_dev})"; }
+	if ($ctx->{claimed}{lc $new} || $ctx->{pending}{lc $new}) { return push @$err, "el nombre nuevo $new lo usa otro dispositivo de este estado"; }
+	my %id = ();
+	$id{name}   = [ $d->{name}, $r->{name} ] if ($d->{name} ne $r->{name});
+	$id{domain} = [ $d->{domain}, $nd ]      if ($d->{domain} ne $nd);
+	$ctx->{claimed}{lc $new}=1; $ctx->{gone}{lc $dn}=$new;
+	$ctx->{dev_alias}{lc $new}=$d->{id_dev}; $ctx->{dev_alias}{lc "$r->{name}.$r->{domain}"}=$d->{id_dev};
+	push @$warn, _label_warning($cur, $d, [ map { $id{$_}[0] } grep { $id{$_} } qw(name domain) ]);
+	return _update($r,$d,$dn,\%id,'rename',$ctx,$acc,$err,$new);
+}
+
+#----------------------------------------------------------------------------
+# _label_warning: the titles (c_label) of the device that carry one of the old values. They
+# are not rewritten: "sede-1" is inside "sede-12" (decision of 27-nov-2026).
+#----------------------------------------------------------------------------
+sub _label_warning {
+my ($cur,$d,$old)=@_;
+	my @l = grep { my $t=lc $_->[1]; grep { index($t, lc $_) >= 0 } @$old } @{($cur->{labels} || {})->{$d->{id_dev}} || []};
+	return () if (! @l);
+	my @s = map { "$_->[0] \"$_->[1]\"" } sort { $a->[0] cmp $b->[0] } @l;
+	my $more = (@s > 5) ? ' y '.(@s - 5).' mas' : '';
+	return scalar(@l).' metricas con '.join(' o ', map { "'$_'" } @$old).' en el titulo, que no se cambia: '.join(', ', @s[0 .. (@s > 5 ? 4 : $#s)]).$more
+			.'. Para cambiarlo: columna c_label.<subtipo> o --set c_label.<subtipo>="... {name}"';
+}
+
+#----------------------------------------------------------------------------
+# _update: the action that modifies an existing device $d: the identity changes \%id
+# (name, domain or ip) and the attributes of the state that differ. One device, one action:
+# a device that two resources of the state touch is an error.
+#----------------------------------------------------------------------------
+sub _update {
+my ($r,$d,$fqdn,$id,$op,$ctx,$acc,$err,$new)=@_;
+	if (my $o = $ctx->{dev_touch}{$d->{id_dev}}) {
+		return push @$err, "el dispositivo $d->{name}.$d->{domain} (id_dev=$d->{id_dev}) ya esta en $o: un dispositivo, un recurso";
+	}
+	$ctx->{dev_touch}{$d->{id_dev}} = $r->{_origin} || 'otro recurso de este estado';
+	# Phase 1: data-only attributes. Phase 2: status and SNMP, with workset
+	my (%chg,%fchg);
+	foreach my $a (qw(type critic geodata status)) {
+		next if (! defined $r->{$a});
+		my $now = defined $d->{$a} ? "$d->{$a}" : '';
+		$chg{$a} = [ $now, "$r->{$a}" ] if ($now ne "$r->{$a}");
+	}
+	if ($r->{snmp}) {
+		if (defined $d->{version} && ($d->{version} == 3)) {
+			return push @$err, "tiene SNMPv3 (credencial en profiles_snmpv3): su SNMP no se modifica en esta fase";
+		}
+		my $now = defined $d->{version} ? "$d->{version}" : '';
+		$chg{version} = [ $now, "$r->{snmp}{version}" ] if ($now ne "$r->{snmp}{version}");
+		if ($r->{snmp}{version} > 0) {
+			my $c = defined $d->{community} ? $d->{community} : '';
+			$chg{community} = [ $c, $r->{snmp}{community} ] if ($c ne $r->{snmp}{community});
+		}
+	}
+	foreach my $k (sort keys %{$r->{fields} || {}}) {
+		my $col = $ctx->{cache}{field_cols}{uc $k} or next;
+		my $now = (defined $d->{custom} && defined $d->{custom}{$col} && $d->{custom}{$col} ne '') ? $d->{custom}{$col} : '-';
+		$fchg{$col} = [ $now, $r->{fields}{$k}, $ctx->{cache}{fields}{uc $k} ] if ($now ne $r->{fields}{$k});
+	}
+	return if ((! %chg) && (! %fchg) && (! %$id));
+	return if (@$err);
+	my %all = (%chg, %$id);
+	my $ws     = (grep { $all{$_} } qw(status version community ip)) ? 1 : 0;
+	my $mib2   = ($all{version} || $all{community} || $all{ip}) ? 1 : 0;
+	my $alerts = $all{critic} ? 1 : 0;
+	my $traps  = (grep { $all{$_} } @TRAP_CACHE) ? 1 : 0;
+	my $labels = ($all{name} || $all{domain}) ? 1 : 0;
+	my $remote = $all{ip} ? 1 : 0;
+	my $assist = ($all{name} || $all{domain} || $all{ip}) ? 1 : 0;
+	my @what = ( (map { _show($_,$all{$_}) } grep { ($op ne 'rename') || ($_ ne 'name' && $_ ne 'domain') } sort keys %all),
+					 (map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg) );
+	my $head = ($op eq 'rename') ? "$fqdn -> $new".(@what ? ',' : '') : $fqdn;
+	push @$acc, { kind=>'device', op=>$op, ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$d->{ip}, changes=>\%all, fchanges=>\%fchg,
+					  workset=>$ws, mib2=>$mib2, alerts=>$alerts, traps=>$traps, labels=>$labels, remote=>$remote, assistant=>$assist,
+					  ($labels ? (old_full=>"$d->{name}.$d->{domain}", new_full=>$new) : ()),
+					  text=>join(' ', $head, (@what ? join(', ',@what) : ()))
+							.($labels ? ' (+ etiquetas de sus metricas)' : '').($remote ? ' (+ alertas remotas y tareas)' : '')
+							.($mib2 ? ' (+ MIB-2)' : '').($ws ? ' (+ workset)' : '').($alerts ? ' (+ critic de sus alertas)' : '')
+							.($assist ? ' (+ asistente)' : '').($traps ? ' (+ recarga de traps)' : '') };
+	return;
 }
 
 #----------------------------------------------------------------------------
@@ -271,7 +437,7 @@ my (@acc,@err,@warn);
 sub apply {
 my ($c,$ctx,$acc)=@_;
 	my @create = grep { $_->{op} eq 'create' } @$acc;
-	my @update = grep { $_->{op} eq 'update' } @$acc;
+	my @update = grep { $_->{op} =~ /^(update|rename|ip)$/ } @$acc;
 	my $err = @create ? _apply_create($ctx,\@create) : [];
 	return $err if (@$err);
 	return @update ? _apply_update($ctx,\@update) : [];
@@ -325,7 +491,7 @@ my ($ctx,$acc)=@_;
 		foreach my $x (@$acc) {
 			my $id = $x->{id_dev};
 			# Precondition: the values before are still the ones of the plan
-			my $d = $dbh->selectrow_hashref("SELECT ip,type,critic,geodata,status,version,community FROM devices WHERE id_dev=? FOR UPDATE", undef, $id);
+			my $d = $dbh->selectrow_hashref("SELECT ip,name,domain,type,critic,geodata,status,version,community FROM devices WHERE id_dev=? FOR UPDATE", undef, $id);
 			die "id_dev=$id ($x->{ip}): ya no existe\n" if ((! $d) || ($d->{ip} ne $x->{ip}));
 			foreach my $a (sort keys %{$x->{changes}}) {
 				my $now = defined $d->{$a} ? "$d->{$a}" : '';
@@ -341,8 +507,32 @@ my ($ctx,$acc)=@_;
 						if ($now ne $x->{fchanges}{$col}[0]);
 				}
 			}
+			# The new identity is still free (devices: PRIMARY KEY (ip,host_idx); name.domain is not
+			# unique in the database, but cnm-control does not give a name that another device has)
+			if ($x->{changes}{ip}) {
+				my ($n) = $dbh->selectrow_array("SELECT COUNT(*) FROM devices WHERE ip=?", undef, $x->{changes}{ip}[1]);
+				die "id_dev=$id ($x->{ip}): la IP nueva $x->{changes}{ip}[1] ya la tiene otro dispositivo; ha cambiado desde el plan\n" if ($n);
+			}
+			if ($x->{labels}) {
+				my ($n) = $dbh->selectrow_array("SELECT COUNT(*) FROM devices WHERE LOWER(CONCAT(name,'.',domain))=? AND id_dev<>?", undef, lc $x->{new_full}, $id);
+				die "id_dev=$id ($x->{ip}): el nombre nuevo $x->{new_full} ya lo tiene otro dispositivo; ha cambiado desde el plan\n" if ($n);
+			}
 			if (my @a = sort keys %{$x->{changes}}) {
 				$dbh->do("UPDATE devices SET ".join(',', map { "$_=?" } @a)." WHERE id_dev=?", undef, (map { $x->{changes}{$_}[1] } @a), $id);
+			}
+			if ($x->{labels}) {
+				# change_metric_label (custom_pro onm/mod_dispositivo_detalle.php:1381): only the
+				# suffix ' (name.domain)' at the end of the label, in the metrics and in the template
+				my ($o,$n) = (" ($x->{old_full})", " ($x->{new_full})");
+				foreach my $tb ('metrics','prov_template_metrics2iid') {
+					$dbh->do("UPDATE $tb SET label=CONCAT(LEFT(label,CHAR_LENGTH(label)-CHAR_LENGTH(?)),?) WHERE id_dev=? AND RIGHT(label,CHAR_LENGTH(?))=?",
+								undef, $o, $n, $id, $o, $o);
+				}
+			}
+			if ($x->{remote}) {
+				# change_device_ip (mod_dispositivo_detalle.php:1400): remote alerts and tasks of the IP
+				$dbh->do("UPDATE cfg_remote_alerts2device SET target=? WHERE target=?", undef, $x->{changes}{ip}[1], $x->{ip});
+				$dbh->do("UPDATE task2device SET ip=? WHERE ip=?", undef, $x->{changes}{ip}[1], $x->{ip});
 			}
 			if ($x->{alerts}) {
 				# update_critic_in_alerts and update_critic_in_alerts_read (mod_Configure.sql:184-185)
@@ -366,7 +556,7 @@ my ($ctx,$acc)=@_;
 		my $w = eval { _mib2($ctx, $x->{id_dev}) };
 		$w = "MIB-2 no actualizada: $@" if ($@);
 		chomp $w if (defined $w);
-		push @{$ctx->{apply_warnings}}, "device $x->{ip}: $w" if ($w);
+		push @{$ctx->{apply_warnings}}, "device $x->{ref}: $w" if ($w);
 	}
 
 	# Crawlers' data of the devices whose status or SNMP changed: the work of workset
@@ -402,17 +592,43 @@ my ($ctx,$acc)=@_;
 		push @err, "dispositivos modificados, pero no se ha pedido la recarga del gestor de traps ($f: $!). Ejecutar: echo 1 >> $f" if (! $ok);
 	}
 
+	# Assistant and applications of the devices whose name, domain or IP changed, in the
+	# foreground and in this process (decision of 28-nov-2026): as the provisioning does
+	# (prov_do_set_device_metric, ProvisionLite.pm:858-876) and as the console does on every
+	# save in the background (mod_dispositivo_detalle.php:659-664). It also runs the local
+	# scripts of /opt/cnm.local, if there are any (ProvisionLite.pm:3689-3726).
+	my @as = grep { $_->{assistant} } @$acc;
+	if (@as) {
+		my $p = eval { $ctx->{provision}->() };
+		my $e = $p ? '' : 'sin acceso al motor';
+		if ($p) {
+			eval { $p->get_check_vectors(); foreach my $x (@as) { $p->reset_check_vectors(); $p->prov_device_app_metrics($x->{id_dev}); } };
+			$e = $@ if ($@);
+		}
+		if ($e) {
+			chomp $e;
+			push @err, "dispositivos modificados, pero no se ha recalculado su asistente ($e). Ejecutar: /opt/crawler/bin/prov_device_app_metrics -c $ctx->{cid} -i ".join(',', map { $_->{id_dev} } @as);
+		}
+		else {
+			foreach my $x (@as) {
+				my ($n) = $dbh->selectrow_array("SELECT COUNT(*) FROM prov_default_metrics2device WHERE id_dev=?", undef, $x->{id_dev});
+				push @{$ctx->{apply_warnings}}, "device $x->{ref}: asistente recalculado, pero vacio: el equipo no ofrece ninguna metrica (no responde en su IP?)" if (! $n);
+			}
+		}
+	}
+
 	# Device records: the data is already written; a failure here is a warning. The engine logs
 	# the whole record at level info, and the record carries the SNMP community: that call
 	# runs with the store at level warning, so the community does not reach engine.log.
 	my $store = eval { $ctx->{provision}->()->istore() };
 	foreach my $x (@$acc) {
-		if (! $store) { push @{$ctx->{apply_warnings}}, "device $x->{ip}: no se ha regenerado su ficha (sin acceso al motor)"; next; }
+		if (! $store) { push @{$ctx->{apply_warnings}}, "device $x->{ref}: no se ha regenerado su ficha (sin acceso al motor)"; next; }
 		my $lv = $store->log_level();
-		eval { $store->log_level('warning'); $store->store_device_record($dbh, $x->{ip}); };
+		my $ip = $x->{changes}{ip} ? $x->{changes}{ip}[1] : $x->{ip};
+		eval { $store->log_level('warning'); $store->store_device_record($dbh, $ip); };
 		my $e = $@;
 		$store->log_level($lv);
-		push @{$ctx->{apply_warnings}}, "device $x->{ip}: modificado, pero no se ha regenerado su ficha: $e" if ($e);
+		push @{$ctx->{apply_warnings}}, "device $x->{ref}: modificado, pero no se ha regenerado su ficha: $e" if ($e);
 	}
 	return \@err;
 }
