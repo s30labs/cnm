@@ -100,6 +100,7 @@ my ($s,$q,$attr,@b)=@_; my $t=$s->{t}; push @{$s->{log}}, $q;
 	elsif ($q =~ /^UPDATE cfg_views SET nsubviews/) { $_->{nsubviews}=$b[0] foreach (grep { $_->{id_cfg_view}==$b[1] } @{$t->{views}}); }
 	elsif ($q =~ /^UPDATE devices SET (.+) WHERE id_dev=\?$/) { my @c = map { s/=\?//r } split(/,/,$1); my $id=pop @b;
 		my ($d)=grep { $_->{id_dev}==$id } @{$t->{devices}}; @$d{@c}=@b; }
+	elsif ($q =~ /^UPDATE (alerts|alerts_read) SET critic=\? WHERE id_device=\?$/) { $t->{alert_critic}{"$1:$b[1]"}=$b[0]; }
 	elsif ($q =~ /^INSERT IGNORE INTO devices_custom_data/) { my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}}; $t->{custom}{$d->{ip}} ||= {}; }
 	elsif ($q =~ /^UPDATE devices_custom_data SET (columna\d+)='-' WHERE id_dev=\? AND/) { my $c=$1; my ($d)=grep { $_->{id_dev}==$b[0] } @{$t->{devices}};
 		my $n=0; my %name=map { ('columna'.++$n) => uc($_) } @{$t->{fields}}; my $h=$t->{custom}{$d->{ip}};
@@ -396,7 +397,7 @@ is("$nd->{critic}/$nd->{version}/$nd->{community}", '50/0/', 'al crear: critic 5
 ($cc) = ctx($tc); $plc = make_plan($cc,$bkc);
 is(scalar(@{$plc->{warnings}}), 0, 'existente con community distinta: sin avisos (fase 2: se modifica)');
 unlike(join(' ',@{$plc->{warnings}}, map { $_->{text} } @{$plc->{actions}}), qr/secreta|otra/, '... sin escribir ninguna comunidad');
-is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local community (cambia; no se muestra), critic '75' -> '100' (+ MIB-2) (+ workset)", '... community y critic: una modificacion, con MIB-2 y workset');
+is(join(' ', map { $_->{text} } @{$plc->{actions}}), "tda-00.local community (cambia; no se muestra), critic '75' -> '100' (+ MIB-2) (+ workset) (+ critic de sus alertas) (+ recarga de traps)", '... community y critic: una modificacion, con MIB-2 y workset');
 
 #=== Modify, phase 1: device type, critic, geodata and user fields ============================
 my $tm = base(); $tm->{devices}[0]{critic}=50; $tm->{devices}[0]{geodata}=''; $tm->{custom}{'10.0.0.100'}={ PROVEEDOR=>'Viejo' };
@@ -405,7 +406,7 @@ my ($bkm2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'lo
 												 geodata=>'40.4168,-3.7038', fields=>{ proveedor=>'Nuevo', 'CNM-METRICS'=>'x.json' } }));
 my ($cm) = ctx($tm); my $plm = make_plan($cm,$bkm2);
 is(join(',', map { "$_->{kind}.$_->{op}" } @{$plm->{actions}}), 'device.update', 'dispositivo existente con cambios: una modificacion');
-like($plm->{actions}[0]{text}, qr/^tda-00\.local critic '50' -> '75', geodata '' -> '40\.4168,-3\.7038', type '' -> 'Switch', Proveedor 'Viejo' -> 'Nuevo', CNM-METRICS '-' -> 'x\.json'$/,
+like($plm->{actions}[0]{text}, qr/^tda-00\.local critic '50' -> '75', geodata '' -> '40\.4168,-3\.7038', type '' -> 'Switch', Proveedor 'Viejo' -> 'Nuevo', CNM-METRICS '-' -> 'x\.json' \(\+ critic de sus alertas\) \(\+ recarga de traps\)$/,
 	'... cada cambio con su valor anterior (campo sin valor = -)');
 like(CNMControl::Core::plan_text($plm), qr/MODIFICA: device\.CNM-METRICS en 1, device\.Proveedor en 1, device\.critic en 1, device\.geodata en 1, device\.type en 1/, '... contada por atributo');
 my $tm_before = Storable::dclone($tm);
@@ -467,8 +468,8 @@ my ($bk2) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'loc
 										  { kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', critic=>75 }));
 my ($cw2) = ctx($t2); my $plw2 = make_plan($cw2,$bk2);
 my %tx = map { $_->{ip} => $_->{text} } @{$plw2->{actions}};
-is($tx{'10.0.0.100'}, "tda-00.local community (cambia; no se muestra), status '0' -> '2' (+ MIB-2) (+ workset)", 'status y community: modificacion con MIB-2 y workset');
-is($tx{'10.0.0.101'}, "tda-01.local critic '50' -> '75'", 'solo critic: sin workset');
+is($tx{'10.0.0.100'}, "tda-00.local community (cambia; no se muestra), status '0' -> '2' (+ MIB-2) (+ workset) (+ recarga de traps)", 'status y community: modificacion con MIB-2 y workset');
+is($tx{'10.0.0.101'}, "tda-01.local critic '50' -> '75' (+ critic de sus alertas) (+ recarga de traps)", 'solo critic: sin workset, con alertas y traps');
 unlike(CNMControl::Core::plan_text($plw2), qr/secreta|nueva/, 'la comunidad no sale en el plan');
 like(CNMControl::Core::plan_text($plw2), qr/MODIFICA: device\.community en 1, device\.critic en 1, device\.status en 1/, 'MODIFICA cuenta community sin su valor');
 $t2->{devices}[0]{community}='tocada';		# changed after the plan
@@ -521,7 +522,7 @@ my ($bkmb) = validate_state(vstate(
 	{ kind=>'device', name=>'tda-03', domain=>'local', ip=>'10.0.0.103', status=>2 }));
 my ($cmb) = ctx($tmb); my $plmb = make_plan($cmb,$bkmb);
 my %mt = map { $_->{ip} => $_->{text} } @{$plmb->{actions}};
-like($mt{'10.0.0.103'}, qr/status '0' -> '2' \(\+ workset\)$/, 'solo status: sin MIB-2');
+like($mt{'10.0.0.103'}, qr/status '0' -> '2' \(\+ workset\) \(\+ recarga de traps\)$/, 'solo status: sin MIB-2');
 is(scalar(@{apply_plan($cmb,$plmb)}), 0, 'SNMP cambiado en tres equipos: aplicado');
 is_deeply([ sort @{$tmb->{mib2_asked}} ], [ '10.0.0.100:v2:ok', '10.0.0.101:v2:otra' ], 'MIB-2 preguntada con la comunidad nueva, solo a los equipos con version 1 o 2');
 my %dv = map { $_->{ip} => $_ } @{$tmb->{devices}};
@@ -584,7 +585,7 @@ is(scalar(@$edd), 0, '_domain_default: admitido por la validacion');
 my ($cdd) = ctx($tdd); my $pldd = make_plan($cdd,$bkdd);
 is(scalar(@{$pldd->{errors}}).'+'.scalar(@{$pldd->{derived}}), '0+0', 'IP y nombre existentes en otro dominio, dominio por defecto: sin errores')
 	or diag(join(' ',@{$pldd->{errors}},@{$pldd->{derived}}));
-is(join(' | ', map { $_->{text} } @{$pldd->{actions}}), "tda-00.es.local critic '50' -> '75' | tda-00.es.local disp_icmp: \"viejo\" -> \"nuevo\"",
+is(join(' | ', map { $_->{text} } @{$pldd->{actions}}), "tda-00.es.local critic '50' -> '75' (+ critic de sus alertas) (+ recarga de traps) | tda-00.es.local disp_icmp: \"viejo\" -> \"nuevo\"",
 	'... se modifica el equipo con su dominio, y la metrica lo encuentra');
 is(scalar(@{apply_plan($cdd,$pldd)}), 0, '... aplicado');
 is("$tdd->{devices}[0]{critic}/$tdd->{devices}[0]{domain}/$tdd->{metrics}[0]{c_label}", '75/es.local/nuevo', '... critic y c_label escritos; el dominio no cambia');
@@ -596,6 +597,46 @@ like(join(' ',@{make_plan($cd2,$bkd2)->{errors}}), qr/la IP ya es de tda-00\.es\
 my ($bkd3) = validate_state(vstate({ kind=>'device', name=>'otro', domain=>'local', ip=>'10.0.0.100', _domain_default=>1 }));
 my ($cd3) = ctx(base());
 like(join(' ',@{make_plan($cd3,$bkd3)->{errors}}), qr/la IP ya es de tda-00\.local/, 'nombre distinto con dominio por defecto: conflicto');
+
+#=== 0018: critic of the alerts and reload of trap_manager, as the device screen =============
+my $RF = "$CNMControl::Kind::Device::TMP_WEB/syslog.reload";
+sub reload_text { return (-e $RF) ? do { open(my $h,'<',$RF); local $/; <$h> } : undef; }
+my $ta = base(); @{$ta->{devices}[0]}{qw(critic status)} = (50, 0);
+push @{$ta->{devices}}, { id_dev=>13, name=>'tda-01', domain=>'local', ip=>'10.0.0.101', type=>'', critic=>50, status=>0, geodata=>'' };
+unlink $RF;
+my ($bka) = validate_state(vstate({ kind=>'device', name=>'tda-00', domain=>'local', ip=>'10.0.0.100', critic=>75 }));
+my ($ca) = ctx($ta); my $pla = make_plan($ca,$bka);
+is(scalar(@{apply_plan($ca,$pla)}), 0, 'critic: aplicado');
+is_deeply($ta->{alert_critic}, { 'alerts:12'=>75, 'alerts_read:12'=>75 }, '... el critic nuevo en alerts y alerts_read, solo de ese equipo');
+is(reload_text(), '1', "... y se pide la recarga del gestor de traps ('1' en syslog.reload)");
+# status only: reload, no alerts; written after another '1' (append, as the console)
+my ($bks) = validate_state(vstate({ kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', status=>2 }));
+delete $ta->{alert_critic};
+my ($cs) = ctx($ta); my $pls = make_plan($cs,$bks);
+is(scalar(@{apply_plan($cs,$pls)}), 0, 'status: aplicado');
+ok(! $ta->{alert_critic}, '... sin tocar las alertas');
+is(reload_text(), '11', '... recarga pedida otra vez, anadiendo al fichero');
+# Other attributes: neither
+unlink $RF;
+my ($bko) = validate_state(vstate({ kind=>'device', name=>'tda-01', domain=>'local', ip=>'10.0.0.101', geodata=>'1,2', fields=>{ proveedor=>'X' } }));
+my ($co) = ctx($ta); my $plo = make_plan($co,$bko);
+unlike($plo->{actions}[0]{text}, qr/alertas|traps/, 'geodata y campo de usuario: el plan no anuncia ni alertas ni traps');
+is(scalar(@{apply_plan($co,$plo)}), 0, '... aplicado');
+ok((! $ta->{alert_critic}) && (! -e $RF), '... sin tocar alertas ni pedir recarga');
+# The alerts go in the transaction: if they fail, nothing is written and no reload is asked
+my $tf = base(); $tf->{devices}[0]{critic}=50; $tf->{fail_do}='^UPDATE alerts_read';
+my ($cf) = ctx($tf); my $plf = make_plan($cf,$bka);
+like(join(' ',@{apply_plan($cf,$plf)}), qr/deshecho, no se ha modificado ninguno.*simulated failure/, 'fallo en alerts_read: error');
+is($tf->{devices}[0]{critic}, 50, '... devices.critic sin cambiar');
+ok((! $tf->{alert_critic}) && (! -e $RF), '... ni alertas ni recarga');
+# The reload file cannot be written: error with the command; the data stays
+my $tw = base(); $tw->{devices}[0]{critic}=50;
+{	local $CNMControl::Kind::Device::RELOAD = 'no/existe/syslog.reload';
+	my ($cw) = ctx($tw); my $ew = apply_plan($cw, make_plan($cw,$bka));
+	like(join(' ',@$ew), qr/no se ha pedido la recarga del gestor de traps .*Ejecutar: echo 1 >> \S+no\/existe\/syslog\.reload/, 'recarga imposible: error con la orden');
+	is($tw->{devices}[0]{critic}, 75, '... y el dato queda escrito');
+}
+unlink $RF;
 
 #=== 0017: the c_label of the profile does not replace an existing title =====================
 my $tlb = base(); push @{$tlb->{metrics}}, { id_metric=>501, id_dev=>12, name=>'mon_icmp', status=>'0', c_label=>'' };

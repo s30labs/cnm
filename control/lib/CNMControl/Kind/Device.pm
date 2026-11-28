@@ -45,6 +45,17 @@
 #	switch, written as store_device does (Store.pm:884-913). If the device does not answer,
 #	the values of the engine are kept ('** sin respuesta snmp **') and the apply warns
 #	(decision of 27-nov-2026). With version 0 nothing is asked: the same values are written.
+#	Two more effects of the device screen of the console (modificar_dispositivo,
+#	custom_pro onm/mod_dispositivo_detalle.php:382), the usual path to modify a device
+#	(decision of 28-nov-2026; PROY-CNM-cnm-control-Identidad §2):
+#	  alerts, alerts_read    when critic changes, the critic of the alerts of the device
+#	                         (:505-511, mod_Configure.sql:184-185), in the same transaction
+#	  syslog.reload          when critic or status change (name, domain and ip in phase 3),
+#	                         the file that makes notificationsd reload syslog-ng, which runs
+#	                         trap_manager; trap_manager keeps name, domain, critic and status
+#	                         of each IP in memory (:656, onm/inc/Store.php:2868;
+#	                         Crawler.pm:3536; Crawler/LogManager/SNMPTrap.pm:55)
+#	The console does both on every save; cnm-control only when the value changes.
 #	name, domain and ip are not modified yet (phase 3). An IP that belongs to another name
 #	is a conflict.
 #	validate, key and diff are pure; read and apply use $ctx->{dbh} and $ctx->{provision}.
@@ -52,12 +63,15 @@
 # Set Tab=3
 #####################################################################################################
 package CNMControl::Kind::Device;
-$VERSION='0.70';
+$VERSION='0.71';
 use strict;
 
 my %KEYS    = map { $_=>1 } qw(kind name domain ip type critic geodata status snmp fields _domain_default);
 our $TMP_WEB = '/var/www/html/onm/tmp';	# 'our': the tests change it
 my $SEP     = '&|&';
+# What trap_manager keeps of each IP (Crawler/LogManager/SNMPTrap.pm:316-334, :519-527)
+my @TRAP_CACHE = qw(critic status);
+our $RELOAD = 'syslog.reload';		# in $TMP_WEB: the file of reload_trap_manager (onm/inc/Store.php:2870)
 my @HEADER  = ('NOMBRE','DOMINIO','IP','LOCALIZACION','DESCRIPCION','OID','MAC','CRIT','TIPO',
 					'ESTADO','COMUNIDAD','VERSION','PERFIL ORGANIZATIVO','GESTOR','GEODATA');
 
@@ -227,9 +241,13 @@ my (@acc,@err,@warn);
 			if ((%chg || %fchg) && (! @err)) {
 				my $ws = (grep { $chg{$_} } qw(status version community)) ? 1 : 0;
 				my $mib2 = ($chg{version} || $chg{community}) ? 1 : 0;
-				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg, workset=>$ws, mib2=>$mib2,
+				my $alerts = $chg{critic} ? 1 : 0;
+				my $traps = (grep { $chg{$_} } @TRAP_CACHE) ? 1 : 0;
+				push @acc, { kind=>'device', op=>'update', ref=>$r->{ip}, id_dev=>$d->{id_dev}, ip=>$r->{ip}, changes=>\%chg, fchanges=>\%fchg,
+								 workset=>$ws, mib2=>$mib2, alerts=>$alerts, traps=>$traps,
 								 text=>"$fqdn ".join(', ', (map { _show($_,$chg{$_}) } sort keys %chg),
-															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg)).($mib2 ? ' (+ MIB-2)' : '').($ws ? ' (+ workset)' : '') };
+															(map { "$fchg{$_}[2] '$fchg{$_}[0]' -> '$fchg{$_}[1]'" } sort keys %fchg))
+										.($mib2 ? ' (+ MIB-2)' : '').($ws ? ' (+ workset)' : '').($alerts ? ' (+ critic de sus alertas)' : '').($traps ? ' (+ recarga de traps)' : '') };
 			}
 		}
 	}
@@ -326,6 +344,11 @@ my ($ctx,$acc)=@_;
 			if (my @a = sort keys %{$x->{changes}}) {
 				$dbh->do("UPDATE devices SET ".join(',', map { "$_=?" } @a)." WHERE id_dev=?", undef, (map { $x->{changes}{$_}[1] } @a), $id);
 			}
+			if ($x->{alerts}) {
+				# update_critic_in_alerts and update_critic_in_alerts_read (mod_Configure.sql:184-185)
+				$dbh->do("UPDATE alerts SET critic=? WHERE id_device=?", undef, $x->{changes}{critic}[1], $id);
+				$dbh->do("UPDATE alerts_read SET critic=? WHERE id_device=?", undef, $x->{changes}{critic}[1], $id);
+			}
 			if (my @c = sort keys %{$x->{fchanges}}) {
 				# save_custom_fields (custom_pro onm/inc/class.cnmdevice.php)
 				$dbh->do("INSERT IGNORE INTO devices_custom_data (id_dev) VALUES (?)", undef, $id);
@@ -369,6 +392,14 @@ my ($ctx,$acc)=@_;
 			chomp $e;
 			push @err, "dispositivos modificados, pero no se han regenerado los datos de los crawlers ($e). Ejecutar: /opt/crawler/bin/workset -c $ctx->{cid} -i ".join(',',@ws);
 		}
+	}
+
+	# trap_manager: the reload is asked as the console does (append '1' to the file)
+	if (grep { $_->{traps} } @$acc) {
+		my $f = "$TMP_WEB/$RELOAD";
+		my $ok = open(my $fh,'>>',$f);
+		$ok = ((print $fh '1') && close($fh)) ? 1 : 0 if ($ok);
+		push @err, "dispositivos modificados, pero no se ha pedido la recarga del gestor de traps ($f: $!). Ejecutar: echo 1 >> $f" if (! $ok);
 	}
 
 	# Device records: the data is already written; a failure here is a warning. The engine logs
