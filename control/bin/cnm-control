@@ -19,8 +19,9 @@ use SupportDir qw(support_dir new_run_dir);
 use CNMControl::Core qw(kinds validate_state make_plan apply_plan plan_text summary blocked);
 use CNMControl::Profile qw(check_profile parse_inventory expand read_file);
 use CNMControl::Kind::Metric;
+use CNMControl::Audit qw(audit_row audit_write);
 
-my $VERSION     = '0.7';
+my $VERSION     = '0.8';
 my $TOOL        = 'cnm-control';
 my $FILE_CONF   = '/cfg/onm.conf';
 # Profiles: the ones of the installation, then the ones of the product (decision of
@@ -79,6 +80,7 @@ $fpth[$#fpth] -h  : Ayuda
   y, al terminar, lo calcula otra vez; si no sale vacio, termina con error. Sin --confirm, apply solo muestra el plan.
   Cada apply deja el plan, la salida del motor y el resultado en
   /store/data/support/$TOOL/runs/AAAAMMDD-HHMMSS-apply/.
+  Y una fila en qactions (atype 24) que se ve en la auditoria de la consola.
 
   Codigo de salida: 0 bien; 1 error en el plan, al aplicar o al comprobar; 2 uso incorrecto.
 USAGE
@@ -221,6 +223,7 @@ my ($do_apply)=@_;
 	write_json("$run/plan.json", { origin=>$origin, cid=>$CID, actions=>public_actions($plan), warnings=>$plan->{warnings} });
 
 	# The engine writes to standard output: during apply it goes to the run directory
+	my $t0 = time();
 	open(my $out_orig,'>&',\*STDOUT); open(my $err_orig,'>&',\*STDERR);
 	open(STDOUT,'>>',"$run/engine.log"); open(STDERR,'>>',"$run/engine.log");
 	my $e = eval { apply_plan($ctx,$plan) }; my $ex=$@;
@@ -231,6 +234,11 @@ my ($do_apply)=@_;
 	my $ctx2 = context();
 	my $plan2 = make_plan($ctx2,$by_kind);
 	my $ok = (! @$e) && (! @{$plan2->{actions}}) && (! blocked($plan2));
+	# Audit: one row in qactions, atype 24 (CNMControl::Audit). The apply is done: a failure
+	# here is a warning
+	my $ae = audit_write($ctx->{dbh}, audit_row(plan=>$plan, ok=>$ok, errors=>$e, pending=>scalar(@{$plan2->{actions}}), run=>$run,
+								origin=>$origin, user=>($ENV{SUDO_USER} || scalar(getpwuid($<)) || "uid $<"), t0=>$t0, t1=>time()));
+	push @{$ctx->{apply_warnings}}, "no se ha registrado la auditoria en qactions: $ae" if ($ae);
 	my $result = { applied=>($ok?JSON::true:JSON::false), apply_errors=>$e, apply_warnings=>($ctx->{apply_warnings}||[]),
 						pending=>public_actions($plan2), check_errors=>[ @{$plan2->{errors}}, @{$plan2->{derived}} ], run_dir=>$run };
 	write_json("$run/result.json", $result);

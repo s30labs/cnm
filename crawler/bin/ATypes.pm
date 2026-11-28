@@ -22,6 +22,7 @@ require Exporter;
 						ATYPE_IIDS_MODIFIED
 						ATYPE_IIDS_ERASED
 						ATYPE_PROV_GUARD
+						ATYPE_CNM_CONTROL
 						ATYPE_DEVICE2INACTIVE
 						ATYPE_DEVICE2ACTIVE
 						ATYPE_DEVICE2MAINTENANCE
@@ -62,6 +63,7 @@ use constant ATYPE_CLONE_METRICS 									=> 19;
 use constant ATYPE_IIDS_MODIFIED 									=> 20;
 use constant ATYPE_IIDS_ERASED 										=> 21;
 use constant ATYPE_PROV_GUARD 										=> 22;	# Salvaguarda de la provision (REG-CNM-Deuda 4.104)
+use constant ATYPE_CNM_CONTROL 										=> 24;	# Un apply de cnm-control (control/lib/CNMControl/Audit.pm)
 
 
 use constant ATYPE_DEVICE2INACTIVE 				=> 30;

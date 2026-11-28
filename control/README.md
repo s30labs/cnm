@@ -129,6 +129,10 @@ Cada `apply` deja el plan, la salida del motor y el resultado en
 `/store/data/support/cnm-control/state/`. Al terminar vuelve a calcular el plan: si no
 sale vacío, termina con error.
 
+Cada `apply` que ejecuta acciones deja además una fila en `qactions` con `atype` 24
+(`ATYPE_CNM_CONTROL`): se ve en la auditoría de la consola con la fecha, el resumen de las
+acciones, el usuario del sistema, el resultado y el directorio de la ejecución.
+
 Si el plan tiene errores, la salida empieza por `NO SE PUEDE APLICAR`, enseña las
 causas, agrupa los errores que solo repiten otro (`--verbose` los lista) y marca las
 acciones como bloqueadas: `apply` no aplica ninguna mientras haya un error.
